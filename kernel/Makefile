@@ -12,7 +12,7 @@ V_MAJOR := 0
 V_MINOR := 0
 V_PATCH := 0
 V_POSTF := dev.0
-V_METAD := $(shell git rev-parse --short=16 HEAD 2> /dev/null || echo 0)
+V_METAD := $(shell git rev-parse --short=8 HEAD 2> /dev/null || echo 0)
 
 CLEAN_LIST :=
 PHONY_TARGETS :=
