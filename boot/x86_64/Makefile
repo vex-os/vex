@@ -8,9 +8,9 @@ BOOT_COPY += $(ARCH_PATH)/limine.sys
 
 XORRISO := xorriso
 LIMINE_DEPLOY := $(TOPDIR)/tools/limine-deploy/limine-deploy
-KERNEL_BOOTIMG := $(TOPDIR)/kaneru-$(ARCH).iso
+KERNEL_BOOTIMG := $(TOPDIR)/kaneru.iso
 
-CLEAN_FILES += $(KERNEL_BOOTIMG)
+CLEAN_LIST += $(KERNEL_BOOTIMG)
 
 ALL_DEPS += bootimg
 PHONY_TARGETS += bootimg

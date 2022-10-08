@@ -8,7 +8,7 @@ include $(TOPDIR)/build/rules.mk
 include $(TOPDIR)/build/tools.mk
 
 ALL_DEPS :=
-CLEAN_FILES :=
+CLEAN_LIST :=
 PHONY_TARGETS :=
 IMAGE_ROOT := $(CURDIR)/root
 BOOT_PATH := $(IMAGE_ROOT)/boot
@@ -25,7 +25,7 @@ all: $(ALL_DEPS)
 
 PHONY_TARGETS += clean
 clean:
-	@$(RM) -v $(CLEAN_FILES)
+	@$(RM) -v $(CLEAN_LIST)
 	@$(RM) -rv $(IMAGE_ROOT)
 
 PHONY_TARGETS += root
