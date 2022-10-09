@@ -3,7 +3,7 @@
 #ifndef __INCLUDE_KANERU_UART_H__
 #define __INCLUDE_KANERU_UART_H__
 
-#define UART_THR 0 /* Transmitter Holding Buffer */
+#define UART_THR 0 /* Transmitter Holding Register */
 #define UART_RBR 0 /* Receiver Buffer */
 #define UART_DLL 0 /* Divisor Latch Low Byte */
 #define UART_IER 1 /* Interrupt Enable Register */
@@ -47,6 +47,7 @@
 #define UART_FCR_TRG_14_56 0xC0 /* ITL 14B, TL 56B */
 #define UART_FCR_TRG_MASK 0xC0
 
+#define UART_LCR_1SB (0 << 2) /* 1 stop bit */
 #define UART_LCR_2SB (1 << 2) /* 2 (1.5) stop bits */
 #define UART_LCR_SBE (1 << 6) /* Set Break Enable */
 #define UART_LCR_DLB (1 << 7) /* Divisor Latch Access Bit */
@@ -81,12 +82,12 @@
 #define UART_LSR_FIFO (1 << 8) /* Error in Received FIFO */
 
 #define UART_MSR_DTS (1 << 0) /* Delta Clear To Send */
-#define UART_MSR_DDS (1 << 0) /* Delta Data Set Ready */
-#define UART_MSR_TER (1 << 0) /* Trailing Edge Ring Indicator */
-#define UART_MSR_DDC (1 << 0) /* Delta Data Carrier Detect */
-#define UART_MSR_CTS (1 << 0) /* Clear To Send */
-#define UART_MSR_DSR (1 << 0) /* Data Set Ready */
-#define UART_MSR_RNI (1 << 0) /* Ring Indicator */
-#define UART_MSR_CRD (1 << 0) /* Carrier Detect */
+#define UART_MSR_DDS (1 << 1) /* Delta Data Set Ready */
+#define UART_MSR_TER (1 << 2) /* Trailing Edge Ring Indicator */
+#define UART_MSR_DDC (1 << 3) /* Delta Data Carrier Detect */
+#define UART_MSR_CTS (1 << 4) /* Clear To Send */
+#define UART_MSR_DSR (1 << 5) /* Data Set Ready */
+#define UART_MSR_RNI (1 << 6) /* Ring Indicator */
+#define UART_MSR_CRD (1 << 7) /* Carrier Detect */
 
 #endif /* __INCLUDE_KANERU_UART_H__ */

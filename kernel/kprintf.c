@@ -31,8 +31,14 @@ size_t kvprintf(short level, const char *fmt, va_list va)
 
     if(level < kprintf_level) {
         r = vsnprintf(buf, sizeof(buf) - 3, fmt, va);
+
+        /* Appending CRLF is a redundancy measure
+         * for some picky terminals that when
+         * encountering a LF just move the cursor
+         * down without returning it (CR) */
         kstrncat(buf, "\r\n", sizeof(buf));
-        write_syscon(buf, n = strlen(buf));
+        syscon_write(buf, n = strlen(buf));
+
         for(i = 0; i < n; i++) {
             kprintf_buffer[kprintf_writepos++] = buf[i];
             kprintf_writepos %= KPRINTF_BUFSIZE;

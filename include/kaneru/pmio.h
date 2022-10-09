@@ -5,6 +5,6 @@
 #if defined __X86_64__ || 1
 #include <x86_64/pmio.h>
 #else
-#error Architecture doesn't support PMIO!
+#error "Architecture doesn't support PMIO!"
 #endif
 #endif /* __INCLUDE_KANERU_PMIO_H__ */

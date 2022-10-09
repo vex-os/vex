@@ -1,8 +1,29 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /* Copyright (c), 2022, Kaneru Contributors */
-#include <kaneru/kmain.h>
+#include <kaneru/debug.h>
+#include <kaneru/initcall.h>
+#include <kaneru/kprintf.h>
+#include <kaneru/syscon.h>
+#include <kaneru/version.h>
+#include <limine.h>
 
-void __noreturn kmain(void)
+static void kmain(void) __noreturn;
+static volatile struct limine_entry_point_request __used entrypoint_rq = {
+    .id = LIMINE_ENTRY_POINT_REQUEST,
+    .revision = 0,
+    .response = NULL,
+    .entry = (limine_entry_point)&kmain
+};
+
+static void __noreturn kmain(void)
 {
-    for(;;) { /* big mistake */ }
+    pr_inform("Kaneru version %s", KANERU_SEMVER_STR);
+
+    unsigned int i;
+    for(i = 0; __initcalls[i]; i++) {
+        /* UNDONE: check for errors */
+        __initcalls[i]();
+    }
+
+    panic("Nothing to do");
 }

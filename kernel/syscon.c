@@ -6,31 +6,26 @@
 static struct syscon *cur_console = NULL;
 static struct syscon *console_list = NULL;
 
-void register_syscon(struct syscon *console)
+void syscon_bind(struct syscon *console)
+{
+    cur_console = console;
+    kprintf_flush_syscon(cur_console);
+}
+
+void syscon_register(struct syscon *console)
 {
     struct syscon *it;
     for(it = console_list; it; it = it->next) {
-        if(it == console) {
-            pr_warn("syscon: register_syscon for %s is called twice", console->name);
-            return;
-        }
+        if(it != console)
+            continue;
+        return;
     }
 
-    if(console->flags & SYSCON_AUTO_BIND)
-        cur_console = console;
-    if(console->flags & SYSCON_AUTO_FLUSH)
-        kprintf_flush_syscon(console);
-    
     console->next = console_list;
     console_list = console;
 }
 
-void bind_syscon(struct syscon *console)
-{
-    cur_console = console;
-}
-
-void write_syscon(const void *s, size_t n)
+void syscon_write(const void *s, size_t n)
 {
     if(!cur_console || !cur_console->write)
         return;

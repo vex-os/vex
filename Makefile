@@ -28,7 +28,7 @@ boot: tools frc
 	@$(MAKE) -s -C boot all
 
 PHONY_TARGETS += kernel
-kernel: libkern
+kernel: frc libkern
 	@$(MAKE) -s -C kernel all
 
 PHONY_TARGETS += libkern

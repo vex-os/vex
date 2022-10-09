@@ -34,12 +34,18 @@ SOURCES += $(shell find $(GLOB_DIRS) -maxdepth 1 -name "*.s")
 -include $(ARCH)/Makefile
 
 OBJECTS := $(SOURCES:=.o)
+KERNEL_NOINIT := kaneru_noinit.elf
+KERNEL_INITCALLS_S := kaneru_initcalls.S
+KERNEL_INITCALLS_O := kaneru_initcalls.o
 KERNEL_LDS := $(ARCH)/kaneru.ld
 KERNEL_ELF := $(TOPDIR)/kaneru.elf
 LIBKERN_A := $(TOPDIR)/libkern.a
 VERSION_H := $(TOPDIR)/include/public/kaneru/version.h
 
 CLEAN_LIST += $(OBJECTS)
+CLEAN_LIST += $(KERNEL_NOINIT)
+CLEAN_LIST += $(KERNEL_INITCALLS_O)
+CLEAN_LIST += $(KERNEL_INITCALLS_S)
 CLEAN_LIST += $(KERNEL_LDS)
 CLEAN_LIST += $(KERNEL_ELF)
 
@@ -56,13 +62,22 @@ clean:
 PHONY_TARGETS += kernel
 kernel: $(KERNEL_ELF)
 
-$(KERNEL_ELF): $(VERSION_H) $(KERNEL_LDS) $(OBJECTS) $(LIBKERN_A)
+$(KERNEL_ELF): $(KERNEL_NOINIT) $(KERNEL_INITCALLS_O) $(KERNEL_LDS)
 	@$(PRINTF) "linking $@"
-	@$(LD) $(LDFLAGS) -T $(KERNEL_LDS) -o $@ $(OBJECTS) $(LIBKERN_A)
+	@$(LD) $(LDFLAGS) -T $(KERNEL_LDS) -o $@ $(KERNEL_NOINIT) $(KERNEL_INITCALLS_O)
+	@$(RM) -v $(KERNEL_INITCALLS_O) $(KERNEL_INITCALLS_S)
+
+$(KERNEL_NOINIT): $(VERSION_H) $(OBJECTS) $(LIBKERN_A)
+	@$(PRINTF) "linking $@"
+	@$(LD) $(LDFLAGS) -r -o $@ $(OBJECTS) $(LIBKERN_A)
+
+$(KERNEL_INITCALLS_S): frc
+	@$(PRINTF) "generating $@"
+	@$(shell $(TOPDIR)/scripts/mkinitcalls.sh $(OBJDUMP) $(KERNEL_NOINIT) > $@)
 
 $(VERSION_H): frc
 	@$(PRINTF) "generating $@"
-	@$(shell $(TOPDIR)/scripts/mkver.sh $(V_MAJOR) $(V_MINOR) $(V_PATCH) $(V_METAD) $(V_POSTF) > $@)
+	@$(shell $(TOPDIR)/scripts/mkversion.sh $(V_MAJOR) $(V_MINOR) $(V_PATCH) $(V_METAD) $(V_POSTF) > $@)
 
 # Setup phony targets
 .phony: $(PHONY_TARGETS)

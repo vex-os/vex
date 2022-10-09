@@ -3,7 +3,6 @@
 #ifndef __INCLUDE_STDINT_H__
 #define __INCLUDE_STDINT_H__
 
-/* Fixed-width type definitions */
 typedef __INT8_TYPE__ int8_t;
 typedef __INT16_TYPE__ int16_t;
 typedef __INT32_TYPE__ int32_t;
@@ -13,7 +12,6 @@ typedef __UINT16_TYPE__ uint16_t;
 typedef __UINT32_TYPE__ uint32_t;
 typedef __UINT64_TYPE__ uint64_t;
 
-/* Minimum-width type definitions */
 typedef __INT_LEAST8_TYPE__ int_least8_t;
 typedef __INT_LEAST16_TYPE__ int_least16_t;
 typedef __INT_LEAST32_TYPE__ int_least32_t;
@@ -23,7 +21,6 @@ typedef __UINT_LEAST16_TYPE__ uint_least16_t;
 typedef __UINT_LEAST32_TYPE__ uint_least32_t;
 typedef __UINT_LEAST64_TYPE__ uint_least64_t;
 
-/* Fastest minimum-width type definitions */
 typedef __INT_FAST8_TYPE__ int_fast8_t;
 typedef __INT_FAST16_TYPE__ int_fast16_t;
 typedef __INT_FAST32_TYPE__ int_fast32_t;
@@ -33,13 +30,11 @@ typedef __UINT_FAST16_TYPE__ uint_fast16_t;
 typedef __UINT_FAST32_TYPE__ uint_fast32_t;
 typedef __UINT_FAST64_TYPE__ uint_fast64_t;
 
-/* Miscellaneous type definitions */
 typedef __INTMAX_TYPE__ intmax_t;
 typedef __INTPTR_TYPE__ intptr_t;
 typedef __UINTMAX_TYPE__ uintmax_t;
 typedef __UINTPTR_TYPE__ uintptr_t;
 
-/* Fixed-width type limits */
 #define INT8_MIN ((__INT8_TYPE__)(-(__INT8_MAX__ - 1)))
 #define INT16_MIN ((__INT16_TYPE__)(-(__INT16_MAX__ - 1)))
 #define INT32_MIN ((__INT32_TYPE__)(-(__INT32_MAX__ - 1)))
@@ -53,7 +48,6 @@ typedef __UINTPTR_TYPE__ uintptr_t;
 #define UINT32_MAX ((__UINT32_TYPE__)(__UINT32_MAX__))
 #define UINT64_MAX ((__UINT64_TYPE__)(__UINT64_MAX__))
 
-/* Minimum-width type limits */
 #define INT_LEAST8_MIN ((__INT_LEAST8_TYPE__)(-(__INT_LEAST8_MAX__ - 1)))
 #define INT_LEAST16_MIN ((__INT_LEAST16_TYPE__)(-(__INT_LEAST16_MAX__ - 1)))
 #define INT_LEAST32_MIN ((__INT_LEAST32_TYPE__)(-(__INT_LEAST32_MAX__ - 1)))
@@ -67,7 +61,6 @@ typedef __UINTPTR_TYPE__ uintptr_t;
 #define UINT_LEAST32_MAX ((__UINT_LEAST32_TYPE__)(__UINT_LEAST32_MAX__))
 #define UINT_LEAST64_MAX ((__UINT_LEAST64_TYPE__)(__UINT_LEAST64_MAX__))
 
-/* Fastest minimum-width type limits */
 #define INT_FAST8_MIN ((__INT_FAST8_TYPE__)(-(__INT_FAST8_MAX__ - 1)))
 #define INT_FAST16_MIN ((__INT_FAST16_TYPE__)(-(__INT_FAST16_MAX__ - 1)))
 #define INT_FAST32_MIN ((__INT_FAST32_TYPE__)(-(__INT_FAST32_MAX__ - 1)))
@@ -81,7 +74,6 @@ typedef __UINTPTR_TYPE__ uintptr_t;
 #define UINT_FAST32_MAX ((__UINT_FAST32_TYPE__)(__UINT_FAST32_MAX__))
 #define UINT_FAST64_MAX ((__UINT_FAST64_TYPE__)(__UINT_FAST64_MAX__))
 
-/* Miscellaneous type limits */
 #define INTMAX_MIN ((__INTMAX_TYPE__)(-(__INTMAX_MAX__ - 1)))
 #define INTPTR_MIN ((__INTPTR_TYPE__)(-(__INTPTR_MAX__ - 1)))
 #define INTMAX_MAX ((__INTMAX_TYPE__)(__INTMAX_MAX__))
@@ -89,14 +81,12 @@ typedef __UINTPTR_TYPE__ uintptr_t;
 #define UINTMAX_MAX ((__UINTMAX_TYPE__)(__UINTMAX_MAX__))
 #define UINTPTR_MAX ((__UINTPTR_TYPE__)(__UINTPTR_MAX__))
 
-/* Outside type limits */
 #define PTRDIFF_MIN ((__PTRDIFF_TYPE__)(-(__PTRDIFF_MAX__ - 1)))
 #define PTRDIFF_MAX ((__PTRDIFF_TYPE__)(__PTRDIFF_MAX__))
 #define SSIZE_MIN ((__INTMAX_TYPE__)(-(__INTMAX_MAX__ - 1)))
 #define SSIZE_MAX ((__INTMAX_TYPE__)(__INTMAX_MAX__))
 #define SIZE_MAX ((__SIZE_TYPE__)(__SIZE_MAX__))
 
-/* Constant expressions */
 #define INT8_C(x) __INT8_C(x)
 #define INT16_C(x) __INT16_C(x)
 #define INT32_C(x) __INT32_C(x)

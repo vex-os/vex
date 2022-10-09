@@ -10,7 +10,6 @@ include $(TOPDIR)/build/tools.mk
 CLEAN_LIST :=
 PHONY_TARGETS :=
 
-ARFLAGS += -rcs
 ASFLAGS += -pipe -ffreestanding -O2 -Wall -Wextra -Werror -pedantic
 CCFLAGS += -pipe -ffreestanding -O2 -Wall -Wextra -Werror -pedantic -std=gnu99
 CPFLAGS += -I$(TOPDIR)/include
@@ -44,7 +43,7 @@ libkern: $(LIBKERN_A)
 
 $(LIBKERN_A): $(OBJECTS)
 	@$(PRINTF) "linking $@"
-	@$(AR) $(ARFLAGS) $@ $(OBJECTS)
+	@$(LD) $(LDFLAGS) -r -o $@ $(OBJECTS)
 
 # Setup phony targets
 .phony: $(PHONY_TARGETS)

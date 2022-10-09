@@ -230,27 +230,27 @@ static uintmax_t remove_sign(uintmax_t value, int valtype, int *negative)
     #undef __hack
 }
 
-size_t snprintf(char *restrict s, size_t n, const char *restrict fmt, ...)
+int snprintf(char *restrict s, size_t n, const char *restrict fmt, ...)
 {
     size_t r;
     va_list va;
     va_start(va, fmt);
     r = vsnprintf(s, n, fmt, va);
     va_end(va);
-    return r;
+    return (int)r;
 }
 
-size_t sprintf(char *restrict s, const char *restrict fmt, ...)
+int sprintf(char *restrict s, const char *restrict fmt, ...)
 {
     size_t r;
     va_list va;
     va_start(va, fmt);
     r = vsnprintf(s, SIZE_MAX, fmt, va);
     va_end(va);
-    return r;
+    return (int)r;
 }
 
-size_t vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list va)
+int vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list va)
 {
     struct charbuf_s charbuf;
     unsigned int flags, fval;
@@ -396,10 +396,10 @@ size_t vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list v
     writechar_charbuf(&charbuf, 0);
     if(charbuf.buffer)
         charbuf.buffer[charbuf.length - 1] = 0;
-    return charbuf.writepos;
+    return (int)charbuf.writepos;
 }
 
-size_t vsprintf(char *restrict s, const char *restrict fmt, va_list va)
+int vsprintf(char *restrict s, const char *restrict fmt, va_list va)
 {
     return vsnprintf(s, SIZE_MAX, fmt, va);
 }
