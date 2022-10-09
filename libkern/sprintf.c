@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: MIT */
 /* Copyright (C) 2018, Joe Davis <me@jo.ie> */
 /* Copyright (C) 2020, 2021, 2022, Kaneru contributors */
+#include <ctype.h>
 #include <stdint.h>
 #include <string.h>
-#include <ctype.h>
 #include <sprintf.h>
 
 #define FLAGS_ZEROPAD   0x01

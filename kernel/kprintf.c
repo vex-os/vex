@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0 */
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <kaneru/kprintf.h>
 #include <kaneru/syscon.h>

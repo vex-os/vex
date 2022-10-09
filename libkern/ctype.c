@@ -1,7 +1,8 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
+/* SPDX-License-Identifier: GPL-2.0 */
 /* Copyright (c), 2022, Kaneru Contributors */
-#include "kcp.h"
-const struct kcp _kcp[KCP_SIZE]= {
+#include <ctype.h>
+
+const struct kcp _kcp[KCP_SIZE] = {
     /* EOF  */  { .lower = 0xFF, .upper = 0xFF, .flags = KCP_NULL },
     /* NUL  */  { .lower = 0x00, .upper = 0x00, .flags = KCP_CTRL },
     /* SOH  */  { .lower = 0x01, .upper = 0x01, .flags = KCP_CTRL },

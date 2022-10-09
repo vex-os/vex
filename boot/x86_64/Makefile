@@ -1,4 +1,4 @@
-## SPDX-License-Identifier: GPL-2.0-only
+## SPDX-License-Identifier: GPL-2.0
 ## Copyright (c), 2022, Kaneru Contributors
 
 BOOT_COPY += $(ARCH_PATH)/limine-cd-efi.bin
