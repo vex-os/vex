@@ -1,9 +1,10 @@
 .vscode/*
 !.vscode/c_cpp_properties.json
-*.elf
-*.iso
 *.a
 *.c.o
 *.S.o
 *.s.o
-*.ld
+kaneru.elf
+kaneru.iso
+kaneru.ld
+libk.o

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <kaneru/debug.h>
-#include <kaneru/initcall.h>
+#include <kaneru/init.h>
 #include <kaneru/kprintf.h>
 #include <kaneru/syscon.h>
 #include <kaneru/version.h>
@@ -17,7 +17,7 @@ static volatile struct limine_entry_point_request __used entrypoint_rq = {
 
 static void __noreturn kmain(void)
 {
-    pr_inform("Kaneru version %s", KANERU_SEMVER_STR);
+    pr_inform("Kaneru version %s", KANERU_SEMVER);
 
     unsigned int i;
     for(i = 0; __initcalls[i]; i++) {

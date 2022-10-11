@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /* Copyright (c), 2022, Kaneru Contributors */
-#include <kaneru/initcall.h>
+#include <kaneru/init.h>
 #include <kaneru/kprintf.h>
 #include <kaneru/pmio.h>
 #include <kaneru/syscon.h>
@@ -62,7 +62,7 @@ static int syscon_early_init(pmio_addr_t base, unsigned int speed)
 }
 
 static struct syscon console = { 0 };
-static int init_syscon_early(void)
+static void init_syscon_early(void)
 {
     static const pmio_addr_t bases[] = { PC_UART1_BASE, 0 };
     unsigned int speed = 9600, i;
@@ -77,7 +77,7 @@ static int init_syscon_early(void)
 
     if(base == 0) {
         pr_warn("early_con: Initialization failed");
-        return 1;
+        return;
     }
 
     kstrncpy(console.name, "syscon_early", sizeof(console.name));
@@ -88,7 +88,5 @@ static int init_syscon_early(void)
     syscon_bind(&console);
 
     pr_inform("early_con: Initialized");
-
-    return 0;
 }
 initcall_tier_0(syscon_early, init_syscon_early);

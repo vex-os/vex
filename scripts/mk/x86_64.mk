@@ -15,4 +15,3 @@ CPFLAGS += -D__x86_64__=1 -D__amd64__=1
 
 LDFLAGS += -fno-pie -Wl,-static,--no-dynamic-linker,-ztext
 LDFLAGS += -z max-page-size=0x1000
-
