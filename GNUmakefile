@@ -14,7 +14,7 @@ export GIT_REV
 .PHONY: all clean frc
 .PHONY: boot kern libk tools
 
-all: kern
+all: boot
 
 clean:
 	@$(MAKE) -s -C boot clean
