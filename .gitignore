@@ -4,7 +4,7 @@
 *.c.o
 *.S.o
 *.s.o
+*.ld
 kaneru.elf
 kaneru.iso
 kaneru.ld
-libk.o
