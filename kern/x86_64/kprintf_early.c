@@ -3,7 +3,6 @@
 #include <kaneru/init.h>
 #include <kaneru/kprintf.h>
 #include <kaneru/pmio.h>
-#include <kaneru/syscon.h>
 #include <kaneru/uart.h>
 #include <string.h>
 
@@ -12,14 +11,14 @@
 #define PC_UART1_BASE 0x3F8
 #define PC_UART2_BASE 0x2F8
 
-#define from_driver_data(ptr) ((pmio_addr_t)((uintptr_t)(ptr)))
-#define to_driver_data(value) ((void *)((uintptr_t)(value)))
+#define from_arg(ptr) ((pmio_addr_t)((uintptr_t)(ptr)))
+#define to_arg(value) ((void *)((uintptr_t)(value)))
 
-static size_t syscon_early_write(struct syscon *console, const void *s, size_t n)
+static size_t uart_kprintf_callback(const void *s, size_t n, void *arg)
 {
     size_t i;
     const pmio_uint8_t *sp = s;
-    pmio_addr_t base = from_driver_data(console->driver_data);
+    pmio_addr_t base = from_arg(arg);
     for(i = 0; i < n; i++) {
         while((pmio_read8(base + UART_LSR) & UART_LSR_ETHR) != UART_LSR_ETHR);
         pmio_write8(base + UART_THR, sp[i]);
@@ -28,13 +27,13 @@ static size_t syscon_early_write(struct syscon *console, const void *s, size_t n
     return n;
 }
 
-static int syscon_early_init(pmio_addr_t base, unsigned int speed)
+static int uart_init(pmio_addr_t base, unsigned int speed)
 {
     pmio_uint16_t d;
 
     pmio_write8(base + UART_SCR, PC_UART_TEST);
     if(pmio_read8(base + UART_SCR) != PC_UART_TEST) {
-        pr_inform("syscon_early: UART at %03X is not present", base);
+        pr_inform("kprintf_early: UART at %03X is not present", base);
         return 0;
     }
 
@@ -52,7 +51,7 @@ static int syscon_early_init(pmio_addr_t base, unsigned int speed)
     pmio_write8(base + UART_MCR, UART_MCR_RTS | UART_MCR_AO1 | UART_MCR_AO2 | UART_MCR_LBK);
     pmio_write8_throttle(base + UART_THR, PC_UART_TEST);
     if(pmio_read8_throttle(base + UART_RBR) != PC_UART_TEST) {
-        pr_warn("syscon_early: UART at %03X is faulty", base);
+        pr_warn("kprintf_early: UART at %03X is faulty", base);
         return 0;
     }
 
@@ -61,32 +60,26 @@ static int syscon_early_init(pmio_addr_t base, unsigned int speed)
     return 1;
 }
 
-static struct syscon console = { 0 };
-static void init_syscon_early(void)
+static void init_kprintf_early(void)
 {
     static const pmio_addr_t bases[] = { PC_UART1_BASE, 0 };
     unsigned int speed = 9600, i;
     pmio_addr_t base = 0;
 
     for(i = 0; bases[i]; i++) {
-        if(!syscon_early_init(bases[i], speed))
+        if(!uart_init(bases[i], speed))
             continue;
         base = bases[i];
         break;
     }
 
     if(base == 0) {
-        pr_warn("early_con: Initialization failed");
+        pr_warn("kprintf_early: Initialization failed");
         return;
     }
 
-    kstrncpy(console.name, "syscon_early", sizeof(console.name));
-    console.driver_data = to_driver_data(base);
-    console.write = &syscon_early_write;
+    kprintf_set_callback(&uart_kprintf_callback, to_arg(base));
 
-    syscon_register(&console);
-    syscon_bind(&console);
-
-    pr_inform("early_con: Initialized");
+    pr_inform("kprintf_early: Initialized");
 }
-initcall_tier_0(syscon_early, init_syscon_early);
+initcall_tier_0(kprintf_early, init_kprintf_early);

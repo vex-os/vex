@@ -1,9 +1,8 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /* Copyright (c), 2022, Kaneru Contributors */
-#include <kaneru/debug.h>
 #include <kaneru/init.h>
 #include <kaneru/kprintf.h>
-#include <kaneru/syscon.h>
+#include <kaneru/panic.h>
 #include <kaneru/version.h>
 #include <limine.h>
 

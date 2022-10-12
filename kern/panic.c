@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 */
 /* Copyright (c), 2022, Kaneru Contributors */
-#include <kaneru/debug.h>
 #include <kaneru/kprintf.h>
+#include <kaneru/panic.h>
 #include <sprintf.h>
 
 void __noreturn panicv(const char *fmt, va_list va)
