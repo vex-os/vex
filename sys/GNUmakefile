@@ -60,8 +60,7 @@ clean:
 $(BINARY): $(BINARY_NOINIT) $(LD_SCRIPT) $(INITCALL_LIST_O)
 	@$(PRINTF) "linking $@"
 	@$(LD) $(LDFLAGS) -T $(LD_SCRIPT) -o $@ $(BINARY_NOINIT) $(INITCALL_LIST_O)
-	@$(PRINTF) "removing generated initcall_list"
-	@$(RM) $(INIT_LIST_C) $(INITCALL_LIST_O)
+	@$(RM) $(INITCALL_LIST_C) $(INITCALL_LIST_O)
 
 $(BINARY_NOINIT): $(VERSION_H) $(OBJECTS)
 	@$(PRINTF) "squashing $@"
