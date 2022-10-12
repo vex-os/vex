@@ -3,16 +3,16 @@
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"
 
-printf "#ifndef __PUBLIC_KANERU_VERSION_H__\n"
-printf "#define __PUBLIC_KANERU_VERSION_H__\n"
+printf "#ifndef __INCLUDE_SYS_VERSION_H__\n"
+printf "#define __INCLUDE_SYS_VERSION_H__\n"
 
-printf "#define KANERU_VERSION \"${1}\"\n"
-printf "#define KANERU_GIT_REV 0x${2}\n"
+printf "#define VERSION \"${1}\"\n"
+printf "#define GIT_REV 0x${2}\n"
 
 if [ "${2}" = "0" ]; then
-    printf "#define KANERU_SEMVER \"${1}\"\n"
+    printf "#define SEMVER \"${1}\"\n"
 else
-    printf "#define KANERU_SEMVER \"${1}+${2}\"\n"
+    printf "#define SEMVER \"${1}+${2}\"\n"
 fi
 
-printf "#endif /* __PUBLIC_KANERU_VERSION_H__ */\n"
+printf "#endif /* __INCLUDE_SYS_VERSION_H__ */\n"

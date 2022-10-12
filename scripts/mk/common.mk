@@ -30,6 +30,6 @@ OD := $(TARGET)-$(VENDOR)-objdump
 	@$(PRINTF) "compiling $<"
 	@$(CC) $(CCFLAGS) $(CCFLAGS.$*.c) $(CPFLAGS) -c -o $@ $(realpath $<)
 
-%.ld: %.ld.in
+%.ld: %.lds
 	@$(PRINTF) "generating $@"
 	@$(CC) $(CCFLAGS) $(CPFLAGS) -D__ASSEMBLER__=1 -E -xc $(realpath $<) | $(GREP) -v "^#" > $@ || $(TRUE)

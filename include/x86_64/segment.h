@@ -12,12 +12,10 @@
 #define SEG_INDEX_KERN_DATA_64 6
 #define SEG_INDEX_USER_CODE_64 7
 #define SEG_INDEX_USER_DATA_64 8
-#define SEG_INDEX_USER_DATA 4
-
 #define SEG_SELECTOR(index, ldt, ring) (((ring) & 4) | (((ldt) & 1) << 2) | (index) << 3)
 
 #if !defined(__ASSEMBLER__)
-#include <kaneru/init.h>
+#include <sys/initcall.h>
 initcall_extern(segment);
 #endif
 

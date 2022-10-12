@@ -12,26 +12,22 @@ export VERSION
 export GIT_REV
 
 .PHONY: all clean frc
-.PHONY: boot kern libk tools
+.PHONY: boot sys tools
 
 all: boot
 
 clean:
 	@$(MAKE) -s -C boot clean
-	@$(MAKE) -s -C kern clean
-	@$(MAKE) -s -C libk clean
+	@$(MAKE) -s -C sys clean
 	@$(MAKE) -s -C tools/limine-deploy clean
 
 frc:
 
-boot: frc tools kern
+boot: frc tools sys
 	@$(MAKE) -s -C boot all
 
-kern: frc tools libk
-	@$(MAKE) -s -C kern all
-
-libk: frc tools
-	@$(MAKE) -s -C libk all
+sys: frc tools
+	@$(MAKE) -s -C sys all
 
 tools: frc
 	@$(MAKE) -s -C tools/limine-deploy all
