@@ -13,6 +13,7 @@
 #define KL_UNDEF    (0x00) /* undefined subsystems */
 #define KL_INIT     (0x01) /* kernel initialization */
 #define KL_CONSOLE  (0x02) /* console subsystem */
+#define KL_MACHINE  (0x03) /* machine-dependent subsystems */
 
 struct console;
 
