@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: GPL-2.0 */
+/* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
 #ifndef __INCLUDE_CTYPE_H__
 #define __INCLUDE_CTYPE_H__
