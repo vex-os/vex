@@ -7,10 +7,12 @@
 
 char *kstrncat(char *restrict s1, const char *restrict s2, size_t n) __weak;
 char *kstrncpy(char *restrict s1, const char *restrict s2, size_t n) __weak;
+
 const void *memchr(const void *restrict s, int c, size_t n) __weak;
 int memcmp(const void *restrict s1, const void *restrict s2, size_t n) __weak;
 void *memcpy(void *restrict s1, const void *restrict s2, size_t n) __weak;
 void *memset(void *restrict s, int c, size_t n) __weak;
+
 char *strcat(char *restrict s1, const char *restrict s2) __weak;
 const char *strchr(const char *restrict s, int c) __weak;
 int strcmp(const char *restrict s1, const char *restrict s2) __weak;

@@ -17,6 +17,7 @@ XXFLAGS += -ffreestanding -std=gnu99
 ASFLAGS += $(XXFLAGS)
 CCFLAGS += $(XXFLAGS)
 CPFLAGS += -I$(TREE_ROOT)/include
+CPFLAGS += -D__KERNEL__ -D__kernel__
 LDFLAGS += -static -nostdlib -lgcc
 
 GLOB_PATHS :=

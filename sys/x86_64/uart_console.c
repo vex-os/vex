@@ -2,10 +2,11 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <string.h>
 #include <sys/console.h>
+#include <sys/errno.h>
 #include <sys/initcall.h>
 #include <sys/klog.h>
-#include <sys/pmio.h>
 #include <sys/uart.h>
+#include <x86_64/pmio.h>
 
 #define PC_UART_TEST 0xAE
 #define PC_UART_CLOCK 115200
@@ -21,8 +22,8 @@ static int uart_console_init(struct console *con)
 
     pmio_write8(base + UART_SCR, PC_UART_TEST);
     if(pmio_read8(base + UART_SCR) != PC_UART_TEST) {
-        klog(KL_CONSOLE, "%s (0x%03X) is not present", con->name, base);
-        return 1; /* ENODEV */
+        /* not present */
+        return -ENODEV;
     }
 
     pmio_write8(base + UART_IER, 0);
@@ -39,13 +40,13 @@ static int uart_console_init(struct console *con)
     pmio_write8(base + UART_MCR, UART_MCR_RTS | UART_MCR_AO1 | UART_MCR_AO2 | UART_MCR_LBK);
     pmio_write8_throttle(base + UART_THR, PC_UART_TEST);
     if(pmio_read8_throttle(base + UART_RBR) != PC_UART_TEST) {
-        klog(KL_CONSOLE, "%s (0x%03X) is faulty", con->name, base);
-        return 1; /* ENODEV */
+        /* faulty */
+        return -ENODEV;
     }
 
     pmio_write8(base + UART_MCR, UART_MCR_DTR | UART_MCR_RTS | UART_MCR_AO1 | UART_MCR_AO2);
 
-    return 0;
+    return EOK;
 }
 
 static size_t uart_console_write(struct console *con, const void *s, size_t n)
