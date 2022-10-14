@@ -5,6 +5,5 @@
 
 long long int llabs(long long int j)
 {
-    long long int mask = j >> (sizeof(long long int) * CHAR_BIT - 1);
-    return (j + mask) ^ mask;
+    return (j >= 0) ? j : -j;
 }
