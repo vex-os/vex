@@ -2,16 +2,8 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #ifndef __INCLUDE_STRING_H__
 #define __INCLUDE_STRING_H__
+#include <stddef.h>
 #include <sys/cdefs.h>
-
-#ifndef __LIBC_SIZE_T_DEFINED__
-#define __LIBC_SIZE_T_DEFINED__
-typedef __SIZE_TYPE__ size_t;
-#endif
-
-#ifndef NULL
-#define NULL ((void *)0)
-#endif
 
 /* UNDONE: memmove and locale-related strxxx.
  * In kernel mode, these shall have a check

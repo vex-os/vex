@@ -3,9 +3,9 @@
 #ifndef __INCLUDE_ERRNO_H__
 #define __INCLUDE_ERRNO_H__
 
-#define __LIBC_EDOM 1
-#define __LIBC_EILSEQ 2
-#define __LIBC_ERANGE 3
+#define _EDOM 1
+#define _EILSEQ 2
+#define _ERANGE 3
 
 #define E2BIG 1001
 #define EACCES 1002
@@ -24,14 +24,14 @@
 #define ECONNRESET 1015
 #define EDEADLK 1016
 #define EDESTADDRREQ 1017
-#define EDOM __LIBC_EDOM
+#define EDOM _EDOM
 #define EDQUOT 1018
 #define EEXIST 1019
 #define EFAULT 1020
 #define EFBIG 1021
 #define EHOSTUNREACH 1022
 #define EIDRM 1023
-#define EILSEQ __LIBC_EILSEQ
+#define EILSEQ _EILSEQ
 #define EINPROGRESS 1024
 #define EINTR 1025
 #define EINVAL 1026
@@ -78,7 +78,7 @@
 #define EPROTO 1066
 #define EPROTONOSUPPORT 1067
 #define EPROTOTYPE 1068
-#define ERANGE __LIBC_ERANGE
+#define ERANGE _ERANGE
 #define EROFS 1069
 #define ESPIPE 1070
 #define ESRCH 1071

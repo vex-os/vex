@@ -2,18 +2,8 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #ifndef __INCLUDE_STDLIB_H__
 #define __INCLUDE_STDLIB_H__
+#include <stddef.h>
 #include <sys/cdefs.h>
-
-#ifndef __LIBC_SIZE_T_DEFINED__
-#define __LIBC_SIZE_T_DEFINED__
-typedef __SIZE_TYPE__ size_t;
-#endif
-
-#ifndef __LIBC_WCHAR_T_DEFINED__
-#define __LIBC_WCHAR_T_DEFINED__
-#define wchar_t __libc_wchar_t
-typedef __WCHAR_TYPE__ wchar_t;
-#endif
 
 int atoi(const char *restrict s) __weak;
 long int atol(const char *restrict s) __weak;

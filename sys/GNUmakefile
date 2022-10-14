@@ -26,8 +26,8 @@ GLOB_PATHS	+= kern
 GLOB_PATHS	+= libkern
 GLOB_PATHS	+= $(ARCH)
 
-TARGET_BASE	:= kaneru_base.o
 TARGET_LDS	:= sys.$(ARCH).ld
+TARGET_NIC	:= kaneru_noinit.o
 TARGET	:= $(TOP_DIR)/kaneru.elf
 
 INITCALLS_C	:= initcalls.c
@@ -40,9 +40,9 @@ SOURCES		+= $(shell find $(GLOB_PATHS) -maxdepth 1 -name "*.S")
 
 OBJECTS		:= $(SOURCES:=.o)
 
-CLEAN_LIST	+= $(TARGET)
-CLEAN_LIST	+= $(TARGET_BASE)
 CLEAN_LIST	+= $(TARGET_LDS)
+CLEAN_LIST	+= $(TARGET_NIC)
+CLEAN_LIST	+= $(TARGET)
 CLEAN_LIST	+= $(INITCALLS_C)
 CLEAN_LIST	+= $(INITCALLS_O)
 CLEAN_LIST	+= $(OBJECTS)
@@ -58,12 +58,12 @@ clean:
 
 frc:
 
-$(TARGET): $(TARGET_BASE) $(TARGET_LDS) $(INITCALLS_O)
+$(TARGET): $(TARGET_NIC) $(TARGET_LDS) $(INITCALLS_O)
 	@$(LOG) "linking $@"
-	@$(LLD) $(LDFLAGS) -T $(TARGET_LDS) -o $@ $(TARGET_BASE) $(INITCALLS_O)
+	@$(LLD) $(LDFLAGS) -T $(TARGET_LDS) -o $@ $(TARGET_NIC) $(INITCALLS_O)
 	@$(RM) $(INITCALLS_C) $(INITCALLS_O)
 
-$(TARGET_BASE): $(OBJECTS)
+$(TARGET_NIC): $(OBJECTS)
 	@$(LOG) "squashing $@"
 	@$(LLD) $(LDFLAGS) -r -o $@ $(OBJECTS)
 
@@ -71,8 +71,8 @@ $(VERSION_H): frc
 	@$(LOG) "generating $@"
 	@$(shell ./gen.version.sh "$(VERSION)" "$(GIT_REV)" > $@)
 
-$(INITCALLS_C): $(TARGET_BASE)
+$(INITCALLS_C): $(TARGET_NIC)
 	@$(LOG) "generating $@"
-	@$(shell ./gen.initcalls.sh "$(OBJDUMP)" "$(TARGET_BASE)" > $@)
+	@$(shell ./gen.initcalls.sh "$(OBJDUMP)" "$(TARGET_NIC)" > $@)
 
 $(SOURCES): $(VERSION_H)
