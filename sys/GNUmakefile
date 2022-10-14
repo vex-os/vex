@@ -32,7 +32,7 @@ TARGET	:= $(TOP_DIR)/kaneru.elf
 
 INITCALLS_C	:= initcalls.c
 INITCALLS_O	:= initcalls.o
-VERSION_H	:= $(TOP_DIR)/public/kaneru/version.h
+VERSION_H	:= $(TOP_DIR)/include/kaneru/version.h
 
 SOURCES		:=
 SOURCES		+= $(shell find $(GLOB_PATHS) -maxdepth 1 -name "*.c")
