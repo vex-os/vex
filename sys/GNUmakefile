@@ -23,7 +23,7 @@ LDFLAGS		+= -static -nostdlib
 
 GLOB_PATHS	:=
 GLOB_PATHS	+= kern
-GLOB_PATHS	+= libkern
+GLOB_PATHS	+= libk
 GLOB_PATHS	+= $(ARCH)
 
 TARGET_LDS	:= sys.$(ARCH).ld
