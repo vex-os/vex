@@ -6,8 +6,8 @@
 
 typedef void (*initcall_t)(void);
 
-/* defined in sys/kern/initcall_list.c */
-/* generated via scripts/initcall_list.sh */
+/* defined in sys/kern/initcalls.c */
+/* generated via scripts/gen.initcalls.sh */
 extern const initcall_t __initcalls[];
 
 /* bind a function to an initcall */

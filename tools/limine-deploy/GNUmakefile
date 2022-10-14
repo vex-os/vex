@@ -1,26 +1,23 @@
 ## SPDX-License-Identifier: BSD-2-Clause
 ## Copyright (c), 2022, Kaneru Contributors
 
-TREE_ROOT := ../..
-PRINTF_PREFIX := tools
+TOP_DIR		:= ../..
+LOG_PFX		:= tools
+include $(TOP_DIR)/build/base.mk
 
-include $(TREE_ROOT)/scripts/mk/common.mk
-include $(TREE_ROOT)/scripts/mk/host_override.mk
+CCFLAGS		+= -O2 -pipe
+CCFLAGS		+= -Wall -Wextra -Werror
+CCFLAGS		+= -std=gnu99
 
-CCFLAGS :=
-CCFLAGS += -O2 -pipe
-CCFLAGS += -pedantic -Wall -Wextra -Werror
-CCFLAGS += -std=gnu99
-
-BINARY := limine-deploy
+TARGET		:= limine-deploy
 
 .PHONY: all clean
 
-all: $(BINARY)
+all: $(TARGET)
 
 clean:
-	@$(RM) -v $(BINARY)
+	@$(RMV) $(TARGET)
 
-$(BINARY): limine-deploy.c limine-hdd.h
-	@$(PRINTF) "compiling and linking $@"
-	@$(CC) $(CCFLAGS) $(CPFLAGS) -o $@ limine-deploy.c
+$(TARGET): limine-deploy.c limine-hdd.h
+	@$(LOG) "building $@"
+	@$(CLANG) $(CCFLAGS) $(CPFLAGS) -o $@ limine-deploy.c

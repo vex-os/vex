@@ -1,74 +1,77 @@
 ## SPDX-License-Identifier: BSD-2-Clause
 ## Copyright (c), 2022, Kaneru Contributors
 
-TREE_ROOT := ..
-PRINTF_PREFIX := kern
+CLEAN_LIST	:=
+TOP_DIR		:= ..
+LOG_PFX		:= sys
+include $(TOP_DIR)/build/base.mk
+include $(TOP_DIR)/build/target.mk
 
-include $(TREE_ROOT)/scripts/mk/common.mk
-include $(TREE_ROOT)/scripts/mk/$(TARGET).mk
+XXFLAGS		:=
+XXFLAGS		+= -O2 -pipe
+XXFLAGS		+= -Wall -Wextra -Werror
+XXFLAGS		+= -ffreestanding
+XXFLAGS		+= -std=gnu99
 
-CLEAN_LIST :=
+ASFLAGS		+= $(XXFLAGS)
+CCFLAGS		+= $(XXFLAGS)
+CPFLAGS		+= -D __KERNEL__
+CPFLAGS		+= -D __kernel__
+CPFLAGS		+= -I $(TOP_DIR)/include
+LDFLAGS		+= -static -nostdlib
 
-XXFLAGS :=
-XXFLAGS += -O2 -pipe
-XXFLAGS += -pedantic -Wall -Wextra -Werror
-XXFLAGS += -ffreestanding -std=gnu99
+GLOB_PATHS	:=
+GLOB_PATHS	+= kern
+GLOB_PATHS	+= libkern
+GLOB_PATHS	+= $(ARCH)
 
-ASFLAGS += $(XXFLAGS)
-CCFLAGS += $(XXFLAGS)
-CPFLAGS += -I$(TREE_ROOT)/include
-CPFLAGS += -D__KERNEL__ -D__kernel__
-LDFLAGS += -static -nostdlib -lgcc
+TARGET_BASE	:= kaneru_base.o
+TARGET_LDS	:= sys.$(ARCH).ld
+TARGET	:= $(TOP_DIR)/kaneru.elf
 
-GLOB_PATHS :=
-GLOB_PATHS += kern
-GLOB_PATHS += libkern
-GLOB_PATHS += $(TARGET)
+INITCALLS_C	:= initcalls.c
+INITCALLS_O	:= initcalls.o
+VERSION_H	:= $(TOP_DIR)/include/sys/version.h
 
-BINARY := $(TREE_ROOT)/kaneru.elf
-BINARY_NOINIT := kaneru_noinit.o
-LD_SCRIPT := $(TARGET)/$(TARGET).ld
+SOURCES		:=
+SOURCES		+= $(shell find $(GLOB_PATHS) -maxdepth 1 -name "*.c")
+SOURCES		+= $(shell find $(GLOB_PATHS) -maxdepth 1 -name "*.S")
 
-INITCALL_LIST_C := initcall_list.c
-INITCALL_LIST_O := initcall_list.o
-VERSION_H := $(TREE_ROOT)/include/sys/version.h
+OBJECTS		:= $(SOURCES:=.o)
 
-SOURCES :=
-SOURCES += $(shell find $(GLOB_PATHS) -maxdepth 1 -name "*.c")
-SOURCES += $(shell find $(GLOB_PATHS) -maxdepth 1 -name "*.S")
-SOURCES += $(shell find $(GLOB_PATHS) -maxdepth 1 -name "*.s")
+CLEAN_LIST	+= $(TARGET)
+CLEAN_LIST	+= $(TARGET_BASE)
+CLEAN_LIST	+= $(TARGET_LDS)
+CLEAN_LIST	+= $(INITCALLS_C)
+CLEAN_LIST	+= $(INITCALLS_O)
+CLEAN_LIST	+= $(OBJECTS)
 
-OBJECTS := $(SOURCES:=.o)
-
-CLEAN_LIST += $(BINARY)
-CLEAN_LIST += $(BINARY_NOINIT)
-CLEAN_LIST += $(LD_SCRIPT)
-
-CLEAN_LIST += $(INITCALL_LIST_C)
-CLEAN_LIST += $(INITCALL_LIST_O)
-
-CLEAN_LIST += $(OBJECTS)
+include sys.$(ARCH).mk
 
 .PHONY: all clean frc
 
-all: $(BINARY)
+all: $(TARGET)
 
 clean:
-	@$(RM) -v $(CLEAN_LIST)
+	@$(RMV) $(CLEAN_LIST)
 
-$(BINARY): $(BINARY_NOINIT) $(LD_SCRIPT) $(INITCALL_LIST_O)
-	@$(PRINTF) "linking $@"
-	@$(LD) $(LDFLAGS) -T $(LD_SCRIPT) -o $@ $(BINARY_NOINIT) $(INITCALL_LIST_O)
-	@$(RM) $(INITCALL_LIST_C) $(INITCALL_LIST_O)
+frc:
 
-$(BINARY_NOINIT): $(VERSION_H) $(OBJECTS)
-	@$(PRINTF) "squashing $@"
-	@$(LD) $(LDFLAGS) -r -o $@ $(OBJECTS)
+$(TARGET): $(TARGET_BASE) $(TARGET_LDS) $(INITCALLS_O)
+	@$(LOG) "linking $@"
+	@$(LLD) $(LDFLAGS) -T $(TARGET_LDS) -o $@ $(TARGET_BASE) $(INITCALLS_O)
+	@$(RM) $(INITCALLS_C) $(INITCALLS_O)
+
+$(TARGET_BASE): $(OBJECTS)
+	@$(LOG) "squashing $@"
+	@$(LLD) $(LDFLAGS) -r -o $@ $(OBJECTS)
 
 $(VERSION_H): frc
-	@$(PRINTF) "generating $@"
-	@$(shell $(TREE_ROOT)/scripts/version.sh "$(VERSION)" "$(GIT_REV)" > $@)
+	@$(LOG) "generating $@"
+	@$(shell ./gen.version.sh "$(VERSION)" "$(GIT_REV)" > $@)
 
-$(INITCALL_LIST_C): frc $(BINARY_NOINIT)
-	@$(PRINTF) "generating $@"
-	@$(shell $(TREE_ROOT)/scripts/initcall_list.sh "$(OD)" "$(BINARY_NOINIT)" > $@)
+$(INITCALLS_C): $(TARGET_BASE)
+	@$(LOG) "generating $@"
+	@$(shell ./gen.initcalls.sh "$(OBJDUMP)" "$(TARGET_BASE)" > $@)
+
+$(SOURCES): $(VERSION_H)

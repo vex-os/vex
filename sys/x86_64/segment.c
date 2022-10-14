@@ -35,7 +35,7 @@ struct gdt_pointer {
 static struct gdt_entry gdt[16] = { 0 };
 static struct gdt_pointer gdt_ptr = { 0 };
 
-void set_entry_16(uint8_t id, uint32_t base, uint16_t limit, uint8_t flags)
+static void set_entry_16(uint8_t id, uint32_t base, uint16_t limit, uint8_t flags)
 {
     struct gdt_entry entry = { 0 };
     entry.limit_0 = limit;
@@ -46,7 +46,7 @@ void set_entry_16(uint8_t id, uint32_t base, uint16_t limit, uint8_t flags)
     memcpy(gdt + id, &entry, sizeof(entry));
 }
 
-void set_entry_32(uint8_t id, uint32_t base, uint32_t limit, uint8_t flags)
+static void set_entry_32(uint8_t id, uint32_t base, uint32_t limit, uint8_t flags)
 {
     struct gdt_entry entry = { 0 };
     entry.limit_0 = limit & 0xFFFF;
@@ -59,7 +59,7 @@ void set_entry_32(uint8_t id, uint32_t base, uint32_t limit, uint8_t flags)
     memcpy(gdt + id, &entry, sizeof(entry));
 }
 
-void set_entry_64(uint8_t id, uint8_t flags)
+static void set_entry_64(uint8_t id, uint8_t flags)
 {
     struct gdt_entry entry = { 0 };
     entry.flags_0 = flags | SEG_PRESENT;
@@ -96,7 +96,7 @@ static void init_segment(void)
         "movw %%ax, %%ss\n"
         "pushq %0       \n"
         "pushq $1f      \n"
-        "retfq          \n"
+        "lretq          \n"
         "1:             \n"
         :
         : "i"(SEG_SELECTOR(SEG_INDEX_KERN_CODE_64, 0, 0)), "i"(SEG_SELECTOR(SEG_INDEX_KERN_DATA_64, 0, 0))

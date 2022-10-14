@@ -1,38 +1,37 @@
 ## SPDX-License-Identifier: BSD-2-Clause
 ## Copyright (c), 2022, Kaneru Contributors
-## Requires ARCH, DASH and VEND defined
 
-TREE_ROOT := ..
-PRINTF_PREFIX := boot
+ALLS_DEPS	:=
+CLEAN_LIST	:=
+TOP_DIR		:= ..
+LOG_PFX		:= boot
+include $(TOP_DIR)/build/base.mk
 
-include $(TREE_ROOT)/scripts/mk/common.mk
-include $(TREE_ROOT)/scripts/mk/$(TARGET).mk
+SYS_ROOT	:= ./sysroot
+BOOT_DIR	:= $(SYS_ROOT)/boot
+SYS_BINARY	:= $(TOP_DIR)/kaneru.elf
+BOOT_FILES	:=
 
-ALLS_DEPS :=
-CLEAN_LIST :=
-
-KERNEL_BINARY := $(TREE_ROOT)/kaneru.elf
-
-IMG_ROOT := root
-DIR_BOOT := $(IMG_ROOT)/boot
-DIR_BOOT_FILES := $(KERNEL_BINARY)
-
-include $(TARGET)/GNUmakefile
+include boot.$(ARCH).mk
 
 .PHONY: all clear frc
-.PHONY: img_root img_files
+.PHONY: boot
 
 all: $(ALLS_DEPS)
 
 clean:
-	@$(RM) -v $(CLEAN_LIST)
-	@$(RM) -v -r $(IMG_ROOT)
+	@$(RMV) $(CLEAN_LIST)
+	@$(RMV) -r $(BOOT_DIR)
 
-img_root:
-	@$(PRINTF) "creating directory hierarchy"
-	@$(MKDIR) $(IMG_ROOT)
-	@$(MKDIR) $(DIR_BOOT)
+boot: $(BOOT_DIR)
+	@$(LOG) "copying files"
+	@$(CP) $(SYS_BINARY) $(BOOT_DIR)
+	@$(CP) $(BOOT_FILES) $(BOOT_DIR)
 
-img_files: $(DIR_BOOT_FILES) img_root
-	@$(PRINTF) "copying files"
-	@$(CP) $(DIR_BOOT_FILES) $(DIR_BOOT)
+$(BOOT_DIR): $(SYS_ROOT)
+	@$(LOG) "creating /boot/"
+	@$(MKDIR) $(BOOT_DIR)
+
+$(SYS_ROOT):
+	@$(LOG) "creating /"
+	@$(MKDIR) $(SYS_ROOT)

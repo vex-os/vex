@@ -21,10 +21,8 @@ static int uart_console_init(struct console *con)
     pmio_uint16_t d;
 
     pmio_write8(base + UART_SCR, PC_UART_TEST);
-    if(pmio_read8(base + UART_SCR) != PC_UART_TEST) {
-        /* not present */
+    if(pmio_read8(base + UART_SCR) != PC_UART_TEST)
         return -ENODEV;
-    }
 
     pmio_write8(base + UART_IER, 0);
 
@@ -39,10 +37,8 @@ static int uart_console_init(struct console *con)
 
     pmio_write8(base + UART_MCR, UART_MCR_RTS | UART_MCR_AO1 | UART_MCR_AO2 | UART_MCR_LBK);
     pmio_write8_throttle(base + UART_THR, PC_UART_TEST);
-    if(pmio_read8_throttle(base + UART_RBR) != PC_UART_TEST) {
-        /* faulty */
+    if(pmio_read8_throttle(base + UART_RBR) != PC_UART_TEST)
         return -ENODEV;
-    }
 
     pmio_write8(base + UART_MCR, UART_MCR_DTR | UART_MCR_RTS | UART_MCR_AO1 | UART_MCR_AO2);
 

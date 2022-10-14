@@ -1,5 +1,8 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
+OUTPUT_FORMAT(elf64-x86-64)
+ENTRY(0)
+
 #define FLAG_E (1 << 0)
 #define FLAG_W (1 << 1)
 #define FLAG_R (1 << 2)
