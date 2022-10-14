@@ -2,6 +2,7 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <errno.h>
 #include <string.h>
+#include <sprintf.h>
 
 int strerror_r(int errnum, char *restrict s, size_t n)
 {
@@ -247,6 +248,7 @@ int strerror_r(int errnum, char *restrict s, size_t n)
             strncpy_k(s, "no error", n);
             return 0;
         default:
+            snprintf(s, n, "unknown errnum (%d)", errnum);
             return -EINVAL;
     }
 }

@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
+#include <stdlib.h>
 #include <string.h>
 #include <psys/console.h>
 #include <psys/klog.h>
@@ -26,7 +27,8 @@ void register_console(struct console *con)
             console_head = con;
         }
         else {
-            klog(KL_CONSOLE, "%s: %s", con->name, strerror(errnum));
+            /* FIXME: we should expect a negative errnum here! */
+            klog(KL_CONSOLE, "%s: %s", con->name, strerror(abs(errnum)));
             return;
         }
     }
