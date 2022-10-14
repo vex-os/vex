@@ -13,11 +13,12 @@ XXFLAGS		+= -Wall -Wextra -Werror
 XXFLAGS		+= -ffreestanding
 XXFLAGS		+= -std=gnu99
 
-ASFLAGS		+= $(XXFLAGS)
-CCFLAGS		+= $(XXFLAGS)
+ASFLAGS		+= $(XXFLAGS) $(KCFLAGS)
+CCFLAGS		+= $(XXFLAGS) $(KCFLAGS)
 CPFLAGS		+= -D __KERNEL__
 CPFLAGS		+= -D __kernel__
 CPFLAGS		+= -I $(TOP_DIR)/include
+CPFLAGS		+= -I $(TOP_DIR)/public
 LDFLAGS		+= -static -nostdlib
 
 GLOB_PATHS	:=
@@ -31,7 +32,7 @@ TARGET	:= $(TOP_DIR)/kaneru.elf
 
 INITCALLS_C	:= initcalls.c
 INITCALLS_O	:= initcalls.o
-VERSION_H	:= $(TOP_DIR)/include/psys/version.h
+VERSION_H	:= $(TOP_DIR)/public/kaneru/version.h
 
 SOURCES		:=
 SOURCES		+= $(shell find $(GLOB_PATHS) -maxdepth 1 -name "*.c")

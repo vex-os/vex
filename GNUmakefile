@@ -4,10 +4,12 @@
 ARCH	?= x86_64
 VERSION := 0.0.0-dev.1
 GIT_REV	:= $(shell git rev-parse --short=8 HEAD 2> /dev/null || echo 0)
+KCFLAGS	?=
 
 export ARCH
 export VERSION
 export GIT_REV
+export KCFLAGS
 
 .PHONY: all clean frc
 .PHONY: boot sys tools

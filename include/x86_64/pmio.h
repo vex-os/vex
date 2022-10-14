@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef __PSYS_X86_64_PMIO_H__
-#define __PSYS_X86_64_PMIO_H__
+#ifndef __INCLUDE_X86_64_PMIO_H__
+#define __INCLUDE_X86_64_PMIO_H__
 #include <stdint.h>
 
 #define PMIO_READ8_NAME "inb"
@@ -45,4 +45,4 @@ pmio_define_write(16)
 pmio_define_write(32)
 #undef pmio_define_write
 
-#endif /* __PSYS_X86_64_PMIO_H__ */
+#endif /* __INCLUDE_X86_64_PMIO_H__ */

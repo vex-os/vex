@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
+#include <kaneru/console.h>
+#include <kaneru/klog.h>
 #include <sprintf.h>
 #include <string.h>
-#include <psys/console.h>
-#include <psys/klog.h>
 
 struct klog_msg {
     char message[KL_MSGSIZE];

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef __INCLUDE_PSYS_PANIC_H__
-#define __INCLUDE_PSYS_PANIC_H__
+#ifndef __INCLUDE_KANERU_PANIC_H__
+#define __INCLUDE_KANERU_PANIC_H__
 #include <stdarg.h>
 #include <sys/cdefs.h>
 
@@ -10,4 +10,4 @@ void panic_impl(const char *restrict file, unsigned long line, const char *restr
 #define panicv(fmt, ap) panicv_impl(__FILE__, __LINE__, (fmt), (ap))
 #define panic(fmt, ...) panic_impl(__FILE__, __LINE__, (fmt), ##__VA_ARGS__)
 
-#endif /* __INCLUDE_PSYS_PANIC_H__ */
+#endif /* __INCLUDE_KANERU_PANIC_H__ */

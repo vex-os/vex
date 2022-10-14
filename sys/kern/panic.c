@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
+#include <kaneru/klog.h>
+#include <kaneru/panic.h>
 #include <sprintf.h>
-#include <psys/klog.h>
-#include <psys/panic.h>
 
 void __noreturn panicv_impl(const char *restrict file, unsigned long line, const char *restrict fmt, va_list ap)
 {

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef __INCLUDE_PSYS_UART_H__
-#define __INCLUDE_PSYS_UART_H__
+#ifndef __PUBLIC_SYS_UART_H__
+#define __PUBLIC_SYS_UART_H__
 
 #define UART_THR 0 /* Transmitter Holding Register */
 #define UART_RBR 0 /* Receiver Buffer */
@@ -90,4 +90,4 @@
 #define UART_MSR_RNI (1 << 6) /* Ring Indicator */
 #define UART_MSR_CRD (1 << 7) /* Carrier Detect */
 
-#endif /* __INCLUDE_PSYS_UART_H__ */
+#endif /* __PUBLIC_SYS_UART_H__ */

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef __INCLUDE_SYS_CDEFS_H__
-#define __INCLUDE_SYS_CDEFS_H__
+#ifndef __PUBLIC_SYS_CDEFS_H__
+#define __PUBLIC_SYS_CDEFS_H__
 
 #if !defined(__STDC__) && !defined(__cplusplus)
 #error An ANSI-compliant C/C++ compiler is required!
@@ -52,4 +52,4 @@
 #define __weak                  __attribute__((weak))
 #define __weak_alias(x)         __attribute__((weakref(#x)))
 
-#endif /* __INCLUDE_SYS_CDEFS_H__ */
+#endif /* __PUBLIC_SYS_CDEFS_H__ */

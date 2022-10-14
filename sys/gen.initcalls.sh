@@ -5,7 +5,7 @@ initcalls=$(${1} -j ".discard.init" -s "${2}" | grep "^[ \t]*[0-9a-f]" | xxd -r 
 
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"
-printf "#include <psys/initcall.h>\n"
+printf "#include <kaneru/initcall.h>\n"
 printf "#include <stddef.h>\n"
 
 for i in ${initcalls}; do

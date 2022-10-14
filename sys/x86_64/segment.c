@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
+#include <kaneru/initcall.h>
+#include <kaneru/klog.h>
 #include <stdint.h>
 #include <string.h>
-#include <psys/initcall.h>
-#include <psys/klog.h>
-#include <psys/x86_64/segment.h>
+#include <x86_64/segment.h>
 
 #define SEG_READWRITE   (1 << 1)
 #define SEG_CONFORMING  (1 << 2)

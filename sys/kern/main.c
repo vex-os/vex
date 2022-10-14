@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#include <psys/initcall.h>
-#include <psys/klog.h>
-#include <psys/panic.h>
-#include <psys/version.h>
+#include <kaneru/initcall.h>
+#include <kaneru/klog.h>
+#include <kaneru/panic.h>
+#include <kaneru/version.h>
 #include <stddef.h>
 #include <limine.h>
 
@@ -20,7 +20,7 @@ static void __noreturn kmain(void)
     unsigned int i;
 
     /* print semver */
-    klog(KL_INIT, "kernel version %s", SEMVER);
+    klog(KL_INIT, "kernel version %s", K_SEMVER);
 
     /* initialize everything */
     for(i = 0; __initcalls[i]; __initcalls[i++]());

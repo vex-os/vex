@@ -6,7 +6,8 @@
             "cStandard": "gnu99",
             "defines": [ "__kernel__", "__X86_64__", "__x86_64__" ],
             "includePath": [
-                "${workspaceFolder}/include"
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/public"
             ]
         }
     ]

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef __INCLUDE_PSYS_INITCALL_H__
-#define __INCLUDE_PSYS_INITCALL_H__
+#ifndef __INCLUDE_KANERU_INITCALL_H__
+#define __INCLUDE_KANERU_INITCALL_H__
 #include <sys/cdefs.h>
 
 typedef void (*initcall_t)(void);
@@ -46,4 +46,4 @@ initcall_extern(tier_0);
 initcall_extern(tier_1);
 initcall_extern(tier_2);
 
-#endif /* __INCLUDE_PSYS_INITCALL_H__ */
+#endif /* __INCLUDE_KANERU_INITCALL_H__ */

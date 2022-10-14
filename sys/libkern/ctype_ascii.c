@@ -1,1 +1,0 @@
-../../lib/libc/ctype_ascii/ctype_ascii.c
