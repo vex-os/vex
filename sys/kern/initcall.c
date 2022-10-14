@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#include <sys/initcall.h>
+#include <sys/kern/initcall.h>
 
 static void tier_0_init(void)
 {

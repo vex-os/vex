@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#include <sys/console.h>
-#include <sys/errno.h>
-#include <sys/klog.h>
+#include <string.h>
+#include <sys/kern/console.h>
+#include <sys/kern/klog.h>
 
 static struct console *console_head = NULL;
 static struct console *active_console = NULL;
@@ -20,13 +20,13 @@ void register_console(struct console *con)
 
     if(con->init_fn) {
         errnum = con->init_fn(con);
-        if(errnum == EOK) {
+        if(errnum == 0) {
             klog_print_all(con);
             con->next = console_head;
             console_head = con;
         }
         else {
-            klog(KL_CONSOLE, "%s: %s", con->name, kstrerror(errnum));
+            klog(KL_CONSOLE, "%s: %s", con->name, strerror(errnum));
             return;
         }
     }

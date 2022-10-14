@@ -4,9 +4,17 @@
 #define __INCLUDE_STDARG_H__
 
 typedef __builtin_va_list va_list;
-#define va_start(va, x) __builtin_va_start(va, x)
-#define va_copy(va, dv) __builtin_va_copy(va, dv)
-#define va_arg(va, t)   __builtin_va_arg(va, t)
-#define va_end(va)      __builtin_va_end(va)
+
+#define va_arg(ap, type) \
+    __builtin_va_arg(ap, type)
+
+#define va_copy(dest, src) \
+    __builtin_va_copy(dest, src)
+
+#define va_end(ap) \
+    __builtin_va_end(ap)
+
+#define va_start(ap, parm) \
+    __builtin_va_start(ap, parm)
 
 #endif /* __INCLUDE_STDARG_H__ */

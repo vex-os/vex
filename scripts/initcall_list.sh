@@ -7,7 +7,7 @@ initcalls=$($objdump -j ".discard.init" -s $kernel_noinit | grep "^[ \t]*[0-9a-f
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"
 printf "#include <stddef.h>\n"
-printf "#include <sys/initcall.h>\n"
+printf "#include <sys/kern/initcall.h>\n"
 
 for initcall in $initcalls; do
     printf "initcall_extern($initcall);\n"

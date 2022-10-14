@@ -22,9 +22,7 @@ LDFLAGS += -static -nostdlib -lgcc
 
 GLOB_PATHS :=
 GLOB_PATHS += kern
-GLOB_PATHS += libk/ctype
-GLOB_PATHS += libk/sprintf
-GLOB_PATHS += libk/string
+GLOB_PATHS += libkern
 GLOB_PATHS += $(TARGET)
 
 BINARY := $(TREE_ROOT)/kaneru.elf

@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
+#include <sys/kern/initcall.h>
+#include <sys/kern/klog.h>
+#include <sys/kern/version.h>
 #include <limine.h>
-#include <sys/initcall.h>
-#include <sys/klog.h>
-#include <sys/version.h>
 
 static void kmain(void) __noreturn;
 static volatile struct limine_entry_point_request __used boot_entry_point = {

@@ -2,9 +2,9 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <stdint.h>
 #include <string.h>
-#include <sys/initcall.h>
-#include <sys/klog.h>
-#include <x86_64/segment.h>
+#include <sys/kern/initcall.h>
+#include <sys/kern/klog.h>
+#include <sys/x86_64/segment.h>
 
 #define SEG_READWRITE   (1 << 1)
 #define SEG_CONFORMING  (1 << 2)

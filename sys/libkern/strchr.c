@@ -1,0 +1,1 @@
+../../lib/libc/string/strchr.c

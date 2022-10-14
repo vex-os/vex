@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
+#include <errno.h>
 #include <string.h>
-#include <sys/console.h>
-#include <sys/errno.h>
-#include <sys/initcall.h>
-#include <sys/klog.h>
+#include <sys/kern/console.h>
+#include <sys/kern/initcall.h>
+#include <sys/kern/klog.h>
+#include <sys/x86_64/pmio.h>
 #include <sys/uart.h>
-#include <x86_64/pmio.h>
 
 #define PC_UART_TEST 0xAE
 #define PC_UART_CLOCK 115200
@@ -46,7 +46,7 @@ static int uart_console_init(struct console *con)
 
     pmio_write8(base + UART_MCR, UART_MCR_DTR | UART_MCR_RTS | UART_MCR_AO1 | UART_MCR_AO2);
 
-    return EOK;
+    return 0;
 }
 
 static size_t uart_console_write(struct console *con, const void *s, size_t n)
