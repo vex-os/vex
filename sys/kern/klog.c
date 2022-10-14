@@ -5,9 +5,6 @@
 #include <psys/console.h>
 #include <psys/klog.h>
 
-#define KL_MSGCOUNT 16
-#define KL_MSGSIZE 2048
-
 struct klog_msg {
     char message[KL_MSGSIZE];
     size_t length;
@@ -59,13 +56,13 @@ void klog_print_all(struct console *con)
     }
 }
 
-void klogv_impl(unsigned long origin, const char *file, unsigned long line, const char *fmt, va_list va)
+void klogv_impl(unsigned long origin, const char *file, unsigned long line, const char *fmt, va_list ap)
 {
     char tmpbuf[KL_MSGSIZE] = { 0 };
     struct klog_msg msg = { 0 };
 
     if(kl_mask & KL_MASK(origin)) {
-        vsnprintf(tmpbuf, sizeof(tmpbuf), fmt, va);
+        vsnprintf(tmpbuf, sizeof(tmpbuf), fmt, ap);
         snprintf(msg.message, sizeof(msg.message), "%.64s:%lu: %s\r\n", get_basename(file), line, tmpbuf);
         msg.length = strlen(msg.message);
         klog_push(&msg);
@@ -74,11 +71,11 @@ void klogv_impl(unsigned long origin, const char *file, unsigned long line, cons
 
 void klog_impl(unsigned long origin, const char *file, unsigned long line, const char *fmt, ...)
 {
-    va_list va;
+    va_list ap;
 
     if(kl_mask & KL_MASK(origin)) {
-        va_start(va, fmt);
-        klogv_impl(origin, file, line, fmt, va);
-        va_end(va);
+        va_start(ap, fmt);
+        klogv_impl(origin, file, line, fmt, ap);
+        va_end(ap);
     }
 }

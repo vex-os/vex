@@ -2,7 +2,9 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <psys/initcall.h>
 #include <psys/klog.h>
-#include <sys/version.h>
+#include <psys/panic.h>
+#include <psys/version.h>
+#include <stddef.h>
 #include <limine.h>
 
 static void kmain(void) __noreturn;
@@ -18,12 +20,11 @@ static void __noreturn kmain(void)
     unsigned int i;
 
     /* print semver */
-    klog(KL_INIT, "kernel version %s", K_SEMVER);
+    klog(KL_INIT, "kernel version %s", SEMVER);
 
     /* initialize everything */
     for(i = 0; __initcalls[i]; __initcalls[i++]());
 
     /* nothing else to do now */
-    klog(KL_INIT, "nothing to do!");
-    for(;;);
+    panic("nothing to do");
 }
