@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef __SYS_KERN_KLOG_H__
-#define __SYS_KERN_KLOG_H__
+#ifndef __INCLUDE_PSYS_KLOG_H__
+#define __INCLUDE_PSYS_KLOG_H__
 #include <stdarg.h>
 #include <stddef.h>
 #include <sys/cdefs.h>
@@ -25,4 +25,4 @@ void klog_impl(unsigned long origin, const char *file, unsigned long line, const
 #define klogv(origin, fmt, va) klogv_impl((origin), __FILE__, __LINE__, (fmt), (va))
 #define klog(origin, fmt, ...) klog_impl((origin), __FILE__, __LINE__, (fmt), ##__VA_ARGS__)
 
-#endif /* __SYS_KERN_KLOG_H__ */
+#endif /* __INCLUDE_PSYS_KLOG_H__ */

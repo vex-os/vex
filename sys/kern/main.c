@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#include <sys/kern/initcall.h>
-#include <sys/kern/klog.h>
-#include <sys/kern/version.h>
+#include <psys/initcall.h>
+#include <psys/klog.h>
+#include <sys/version.h>
 #include <limine.h>
 
 static void kmain(void) __noreturn;

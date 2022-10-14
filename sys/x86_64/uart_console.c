@@ -2,11 +2,11 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <errno.h>
 #include <string.h>
-#include <sys/kern/console.h>
-#include <sys/kern/initcall.h>
-#include <sys/kern/klog.h>
-#include <sys/x86_64/pmio.h>
-#include <sys/uart.h>
+#include <psys/console.h>
+#include <psys/initcall.h>
+#include <psys/klog.h>
+#include <psys/x86_64/pmio.h>
+#include <psys/uart.h>
 
 #define PC_UART_TEST 0xAE
 #define PC_UART_CLOCK 115200

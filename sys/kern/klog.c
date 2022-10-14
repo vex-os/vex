@@ -2,8 +2,8 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <sprintf.h>
 #include <string.h>
-#include <sys/kern/console.h>
-#include <sys/kern/klog.h>
+#include <psys/console.h>
+#include <psys/klog.h>
 
 #define KL_MSGCOUNT 16
 #define KL_MSGSIZE 2048

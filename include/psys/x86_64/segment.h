@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef __SYS_X86_64_SEGMENT_H__
-#define __SYS_X86_64_SEGMENT_H__
+#ifndef __PSYS_X86_64_SEGMENT_H__
+#define __PSYS_X86_64_SEGMENT_H__
 
 #define SEG_INDEX_NULL_NEITHER 0
 #define SEG_INDEX_KERN_CODE_16 1
@@ -15,8 +15,8 @@
 #define SEG_SELECTOR(index, ldt, ring) (((ring) & 4) | (((ldt) & 1) << 2) | (index) << 3)
 
 #if !defined(__ASSEMBLER__)
-#include <sys/kern/initcall.h>
+#include <psys/initcall.h>
 initcall_extern(segment);
 #endif
 
-#endif /* __SYS_X86_64_SEGMENT_H__ */
+#endif /* __PSYS_X86_64_SEGMENT_H__ */

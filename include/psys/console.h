@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef __SYS_KERN_CONSOLE_H__
-#define __SYS_KERN_CONSOLE_H__
+#ifndef __INCLUDE_PSYS_CONSOLE_H__
+#define __INCLUDE_PSYS_CONSOLE_H__
 #include <stddef.h>
 
 struct console;
@@ -20,4 +20,4 @@ void register_console(struct console *con);
 void set_active_console(struct console *con);
 size_t console_write(const void *s, size_t n);
 
-#endif /* __SYS_KERN_CONSOLE_H__ */
+#endif /* __INCLUDE_PSYS_CONSOLE_H__ */

@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <string.h>
-#include <sys/kern/console.h>
-#include <sys/kern/klog.h>
+#include <psys/console.h>
+#include <psys/klog.h>
 
 static struct console *console_head = NULL;
 static struct console *active_console = NULL;
