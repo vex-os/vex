@@ -4,7 +4,11 @@
         {
             "name": "default",
             "cStandard": "gnu99",
-            "defines": [ "__kernel__", "__X86_64__", "__x86_64__" ],
+            "defines": [
+                "__AMD64__", "__amd64__",
+                "__X86_64__", "__x86_64__",
+                "__KERNEL__", "__kernel__"
+            ],
             "includePath": [
                 "${workspaceFolder}/include",
                 "${workspaceFolder}/public"
