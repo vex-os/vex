@@ -154,6 +154,9 @@ static void charbuf_writenum(struct charbuf_s *charbuf, uintmax_t value, int neg
 static void charbuf_writestr(struct charbuf_s *charbuf, const char *s, unsigned int flags, size_t width, size_t precision)
 {
     size_t i, n;
+
+    if(!s)
+        s = "(null)";
     n = precision ? strnlen(s, precision) : strlen(s);
 
     /* Pad with spaces */
