@@ -2,8 +2,8 @@
 ## Copyright (c), 2022, Kaneru Contributors
 
 TOP_DIR		:= ../..
-LOG_PFX		:= tools
-include $(TOP_DIR)/build/base.mk
+include $(TOP_DIR)/build/tools.base.mk
+include $(TOP_DIR)/build/tools.compilers.mk
 
 CCFLAGS		+= -O2 -pipe
 CCFLAGS		+= -Wall -Wextra -Werror
@@ -16,8 +16,7 @@ TARGET		:= limine-deploy
 all: $(TARGET)
 
 clean:
-	@$(RMV) $(TARGET)
+	$(RM) $(TARGET)
 
 $(TARGET): limine-deploy.c limine-hdd.h
-	@$(LOG) "building $@"
-	@$(CLANG) $(CCFLAGS) $(CPFLAGS) -o $@ limine-deploy.c
+	$(CC) $(CCFLAGS) $(CPFLAGS) -o $@ limine-deploy.c

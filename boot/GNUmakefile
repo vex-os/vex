@@ -4,8 +4,7 @@
 ALLS_DEPS	:=
 CLEAN_LIST	:=
 TOP_DIR		:= ..
-LOG_PFX		:= boot
-include $(TOP_DIR)/build/base.mk
+include $(TOP_DIR)/build/tools.base.mk
 
 SYS_ROOT	:= ./sysroot
 BOOT_DIR	:= $(SYS_ROOT)/boot
@@ -20,18 +19,15 @@ include boot.$(ARCH).mk
 all: $(ALLS_DEPS)
 
 clean:
-	@$(RMV) $(CLEAN_LIST)
-	@$(RMV) -r $(SYS_ROOT)
+	$(RM) $(CLEAN_LIST)
+	$(RM) -r $(SYS_ROOT)
 
 boot: $(BOOT_DIR)
-	@$(LOG) "copying files"
-	@$(CP) $(SYS_BINARY) $(BOOT_DIR)
-	@$(CP) $(BOOT_FILES) $(BOOT_DIR)
+	$(CP) $(SYS_BINARY) $(BOOT_DIR)
+	$(CP) $(BOOT_FILES) $(BOOT_DIR)
 
 $(BOOT_DIR): $(SYS_ROOT)
-	@$(LOG) "creating /boot/"
-	@$(MKDIR) $(BOOT_DIR)
+	$(MKDIR) $(BOOT_DIR)
 
 $(SYS_ROOT):
-	@$(LOG) "creating /"
-	@$(MKDIR) $(SYS_ROOT)
+	$(MKDIR) $(SYS_ROOT)

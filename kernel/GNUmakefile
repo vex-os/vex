@@ -3,18 +3,16 @@
 
 CLEAN_LIST	:=
 TOP_DIR		:= ..
-LOG_PFX		:= sys
-include $(TOP_DIR)/build/base.mk
-include $(TOP_DIR)/build/target.mk
+include $(TOP_DIR)/build/tools.base.mk
+include $(TOP_DIR)/build/tools.compilers.mk
 
 XXFLAGS		:=
-XXFLAGS		+= -O2 -pipe
+XXFLAGS		+= -ffreestanding --target=$(ARCH)-none-elf
 XXFLAGS		+= -Wall -Wextra -Werror
-XXFLAGS		+= -ffreestanding
-XXFLAGS		+= -std=gnu99
+XXFLAGS		+= -O2 -std=gnu99
 
-ASFLAGS		+= $(XXFLAGS) $(KCFLAGS)
-CCFLAGS		+= $(XXFLAGS) $(KCFLAGS)
+ASFLAGS		+= $(XXFLAGS)
+CCFLAGS		+= $(XXFLAGS)
 CPFLAGS		+= -D __KERNEL__
 CPFLAGS		+= -D __kernel__
 CPFLAGS		+= -I $(TOP_DIR)/include
@@ -23,8 +21,8 @@ CPFLAGS		+= -nostdlibinc
 LDFLAGS		+= -static -nostdlib
 
 GLOB_PATHS	:=
-GLOB_PATHS	+= kern
-GLOB_PATHS	+= libk
+GLOB_PATHS	+= lib
+GLOB_PATHS	+= sys
 GLOB_PATHS	+= $(ARCH)
 
 TARGET_LDS	:= sys.$(ARCH).ld
@@ -55,25 +53,21 @@ include sys.$(ARCH).mk
 all: $(TARGET)
 
 clean:
-	@$(RMV) $(CLEAN_LIST)
+	$(RM) $(CLEAN_LIST)
 
 frc:
 
 $(TARGET): $(TARGET_NIC) $(TARGET_LDS) $(INITCALLS_O)
-	@$(LOG) "linking $@"
-	@$(LLD) $(LDFLAGS) -T $(TARGET_LDS) -o $@ $(TARGET_NIC) $(INITCALLS_O)
-	@$(RM) $(INITCALLS_C) $(INITCALLS_O)
+	$(LD) $(LDFLAGS) -T $(TARGET_LDS) -o $@ $(TARGET_NIC) $(INITCALLS_O)
+	$(RM) $(INITCALLS_C) $(INITCALLS_O)
 
 $(TARGET_NIC): $(OBJECTS)
-	@$(LOG) "squashing $@"
-	@$(LLD) $(LDFLAGS) -r -o $@ $(OBJECTS)
+	$(LD) $(LDFLAGS) -r -o $@ $(OBJECTS)
 
 $(VERSION_H): frc
-	@$(LOG) "generating $@"
-	@$(shell ./gen.version.sh "$(VERSION)" "$(GIT_REV)" > $@)
+	$(shell ./gen.version.sh "$(VERSION)" "$(GIT_REV)" > $@)
 
 $(INITCALLS_C): $(TARGET_NIC)
-	@$(LOG) "generating $@"
-	@$(shell ./gen.initcalls.sh "$(OBJDUMP)" "$(TARGET_NIC)" > $@)
+	$(shell ./gen.initcalls.sh "$(OBJDUMP)" "$(TARGET_NIC)" > $@)
 
 $(SOURCES): $(VERSION_H)
