@@ -3,6 +3,15 @@
 #ifndef __PUBLIC_KANERU_ERRNO_H__
 #define __PUBLIC_KANERU_ERRNO_H__
 
+/* This approximately represents the errno values
+ * defined by mlibc and follows kind of the same
+ * design except for some numbers. This header
+ * is a subject to some drastic changes because
+ * 
+ * I'd rather have groups of error codes complying
+ * to certain standards, say a block of POSIX errnums
+ * and then comes a block of Kaneru-esque errnums. */
+
 #define __K_EDOM 1
 #define __K_EILSEQ 2
 #define __K_ERANGE 3
