@@ -23,7 +23,7 @@ int strerror_r(int errnum, char *restrict s, size_t n)
             strncpy_k(s, "address family not supported", n);
             return 0;
         case EAGAIN:
-            strncpy_k(s, "resource unavailable, try again", n);
+            strncpy_k(s, "resource temporarily unavailable", n);
             return 0;
         case EALREADY:
             strncpy_k(s, "connection already in progress", n);
@@ -59,10 +59,10 @@ int strerror_r(int errnum, char *restrict s, size_t n)
             strncpy_k(s, "destination address required", n);
             return 0;
         case EDOM:
-            strncpy_k(s, "mathematics argument out of domain of function", n);
+            strncpy_k(s, "argument out of domain of function", n);
             return 0;
         case EDQUOT:
-            strncpy_k(s, "reserved", n);
+            strncpy_k(s, "disk quota exceeded", n);
             return 0;
         case EEXIST:
             strncpy_k(s, "file exists", n);
@@ -86,13 +86,13 @@ int strerror_r(int errnum, char *restrict s, size_t n)
             strncpy_k(s, "operation in progress", n);
             return 0;
         case EINTR:
-            strncpy_k(s, "interrupted function", n);
+            strncpy_k(s, "interrupted function call", n);
             return 0;
         case EINVAL:
             strncpy_k(s, "invalid argument", n);
             return 0;
         case EIO:
-            strncpy_k(s, "i/o error", n);
+            strncpy_k(s, "input/output error", n);
             return 0;
         case EISCONN:
             strncpy_k(s, "socket is connected", n);
@@ -104,16 +104,16 @@ int strerror_r(int errnum, char *restrict s, size_t n)
             strncpy_k(s, "too many levels of symbolic links", n);
             return 0;
         case EMFILE:
-            strncpy_k(s, "file descriptor value too large", n);
+            strncpy_k(s, "too many open files", n);
             return 0;
         case EMLINK:
             strncpy_k(s, "too many links", n);
             return 0;
         case EMSGSIZE:
-            strncpy_k(s, "message too large", n);
+            strncpy_k(s, "message too long", n);
             return 0;
         case EMULTIHOP:
-            strncpy_k(s, "reserved", n);
+            strncpy_k(s, "multihop attempted", n);
             return 0;
         case ENAMETOOLONG:
             strncpy_k(s, "filename too long", n);
@@ -143,13 +143,13 @@ int strerror_r(int errnum, char *restrict s, size_t n)
             strncpy_k(s, "no such file or directory", n);
             return 0;
         case ENOEXEC:
-            strncpy_k(s, "executable file format error", n);
+            strncpy_k(s, "exec format error", n);
             return 0;
         case ENOLCK:
             strncpy_k(s, "no locks available", n);
             return 0;
         case ENOLINK:
-            strncpy_k(s, "reserved", n);
+            strncpy_k(s, "link has been severed", n);
             return 0;
         case ENOMEM:
             strncpy_k(s, "not enough space", n);
@@ -170,25 +170,22 @@ int strerror_r(int errnum, char *restrict s, size_t n)
             strncpy_k(s, "not a stream", n);
             return 0;
         case ENOSYS:
-            strncpy_k(s, "functionality not supported", n);
+            strncpy_k(s, "function not implemented", n);
             return 0;
         case ENOTCONN:
             strncpy_k(s, "the socket is not connected", n);
             return 0;
         case ENOTDIR:
-            strncpy_k(s, "not a directory or a symbolic link to a directory", n);
+            strncpy_k(s, "not a directory", n);
             return 0;
         case ENOTEMPTY:
             strncpy_k(s, "directory not empty", n);
-            return 0;
-        case ENOTRECOVERABLE:
-            strncpy_k(s, "state not recoverable", n);
             return 0;
         case ENOTSOCK:
             strncpy_k(s, "not a socket", n);
             return 0;
         case ENOTSUP:
-            strncpy_k(s, "not supported", n);
+            strncpy_k(s, "operation not supported", n);
             return 0;
         case ENOTTY:
             strncpy_k(s, "inappropriate i/o control operation", n);
@@ -196,11 +193,11 @@ int strerror_r(int errnum, char *restrict s, size_t n)
         case ENXIO:
             strncpy_k(s, "no such device or address", n);
             return 0;
+        case EOPNOTSUPP:
+            strncpy_k(s, "operation not supported on socket", n);
+            return 0;
         case EOVERFLOW:
             strncpy_k(s, "value too large to be stored in data type", n);
-            return 0;
-        case EOWNERDEAD:
-            strncpy_k(s, "previous owner died", n);
             return 0;
         case EPERM:
             strncpy_k(s, "operation not permitted", n);
@@ -230,7 +227,7 @@ int strerror_r(int errnum, char *restrict s, size_t n)
             strncpy_k(s, "no such process", n);
             return 0;
         case ESTALE:
-            strncpy_k(s, "reserved", n);
+            strncpy_k(s, "stale file handle", n);
             return 0;
         case ETIME:
             strncpy_k(s, "stream ioctl() timeout", n);
@@ -240,6 +237,9 @@ int strerror_r(int errnum, char *restrict s, size_t n)
             return 0;
         case ETXTBSY:
             strncpy_k(s, "text file busy", n);
+            return 0;
+        case EWOULDBLOCK:
+            strncpy_k(s, "operation would block", n);
             return 0;
         case EXDEV:
             strncpy_k(s, "cross-device link", n);
