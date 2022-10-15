@@ -2,8 +2,8 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #ifndef __INCLUDE_KANERU_KLOG_H__
 #define __INCLUDE_KANERU_KLOG_H__
+#include <kaneru/cdefs.h>
 #include <stdarg.h>
-#include <sys/cdefs.h>
 
 #define KL_MASK(x)  ((unsigned long)(1 << (x)))
 #define KL_MASK_ALL ((unsigned long)0xFFFFFFFF)

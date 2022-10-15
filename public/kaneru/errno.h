@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef __INCLUDE_ERRNO_H__
-#define __INCLUDE_ERRNO_H__
+#ifndef __PUBLIC_KANERU_ERRNO_H__
+#define __PUBLIC_KANERU_ERRNO_H__
 
-#define _EDOM 1
-#define _EILSEQ 2
-#define _ERANGE 3
+#define __K_EDOM 1
+#define __K_EILSEQ 2
+#define __K_ERANGE 3
 
 #define E2BIG 1001
 #define EACCES 1002
@@ -24,14 +24,14 @@
 #define ECONNRESET 1015
 #define EDEADLK 1016
 #define EDESTADDRREQ 1017
-#define EDOM _EDOM
+#define EDOM __K_EDOM
 #define EDQUOT 1018
 #define EEXIST 1019
 #define EFAULT 1020
 #define EFBIG 1021
 #define EHOSTUNREACH 1022
 #define EIDRM 1023
-#define EILSEQ _EILSEQ
+#define EILSEQ __K_EILSEQ
 #define EINPROGRESS 1024
 #define EINTR 1025
 #define EINVAL 1026
@@ -78,7 +78,7 @@
 #define EPROTO 1066
 #define EPROTONOSUPPORT 1067
 #define EPROTOTYPE 1068
-#define ERANGE _ERANGE
+#define ERANGE __K_ERANGE
 #define EROFS 1069
 #define ESPIPE 1070
 #define ESRCH 1071
@@ -89,4 +89,4 @@
 #define EWOULDBLOCK EAGAIN
 #define EXDEV 1076
 
-#endif /* __INCLUDE_ERRNO_H__ */
+#endif /* __PUBLIC_KANERU_ERRNO_H__ */

@@ -2,8 +2,8 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #ifndef __INCLUDE_STRING_H__
 #define __INCLUDE_STRING_H__
+#include <kaneru/cdefs.h>
 #include <stddef.h>
-#include <sys/cdefs.h>
 
 /* UNDONE: memmove and locale-related strxxx.
  * In kernel mode, these shall have a check

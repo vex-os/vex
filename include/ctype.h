@@ -2,7 +2,7 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #ifndef __INCLUDE_CTYPE_H__
 #define __INCLUDE_CTYPE_H__
-#include <sys/cdefs.h>
+#include <kaneru/cdefs.h>
 
 #define _CT_NULL 0x000
 #define _CT_CTRL 0x001

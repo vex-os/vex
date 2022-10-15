@@ -19,6 +19,7 @@ CPFLAGS		+= -D __KERNEL__
 CPFLAGS		+= -D __kernel__
 CPFLAGS		+= -I $(TOP_DIR)/include
 CPFLAGS		+= -I $(TOP_DIR)/public
+CPFLAGS		+= -nostdlibinc
 LDFLAGS		+= -static -nostdlib
 
 GLOB_PATHS	:=

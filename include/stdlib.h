@@ -3,7 +3,7 @@
 #ifndef __INCLUDE_STDLIB_H__
 #define __INCLUDE_STDLIB_H__
 #include <stddef.h>
-#include <sys/cdefs.h>
+#include <kaneru/cdefs.h>
 
 int atoi(const char *restrict s) __weak;
 long int atol(const char *restrict s) __weak;

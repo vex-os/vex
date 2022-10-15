@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#include <errno.h>
+#include <kaneru/errno.h>
 #include <string.h>
 #include <sprintf.h>
 

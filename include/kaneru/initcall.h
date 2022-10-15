@@ -2,7 +2,7 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #ifndef __INCLUDE_KANERU_INITCALL_H__
 #define __INCLUDE_KANERU_INITCALL_H__
-#include <sys/cdefs.h>
+#include <kaneru/cdefs.h>
 
 typedef void (*initcall_t)(void);
 

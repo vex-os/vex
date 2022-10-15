@@ -21,7 +21,7 @@ all: $(ALLS_DEPS)
 
 clean:
 	@$(RMV) $(CLEAN_LIST)
-	@$(RMV) -r $(BOOT_DIR)
+	@$(RMV) -r $(SYS_ROOT)
 
 boot: $(BOOT_DIR)
 	@$(LOG) "copying files"
