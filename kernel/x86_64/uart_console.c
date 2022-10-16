@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <string.h>
-#include <kaneru/console.h>
 #include <kaneru/errno.h>
 #include <kaneru/initcall.h>
-#include <kaneru/klog.h>
+#include <kaneru/kprintf.h>
+#include <kaneru/syscon.h>
 #include <x86_64/pmio.h>
 #include <uart.h>
 
@@ -15,9 +15,9 @@
 #define from_driver_data(ptr) ((pmio_addr_t)((uintptr_t)(ptr)))
 #define to_driver_data(value) ((void *)((uintptr_t)(value)))
 
-static int uart_console_init(struct console *con)
+static int uart_console_init(struct sys_console *console)
 {
-    pmio_addr_t base = from_driver_data(con->driver_data);
+    pmio_addr_t base = from_driver_data(console->driver_data);
     pmio_uint16_t d;
 
     pmio_write8(base + UART_SCR, PC_UART_TEST);
@@ -45,11 +45,11 @@ static int uart_console_init(struct console *con)
     return 0;
 }
 
-static size_t uart_console_write(struct console *con, const void *s, size_t n)
+static size_t uart_console_write(struct sys_console *console, const void *s, size_t n)
 {
     size_t i;
     const pmio_uint8_t *sp = s;
-    pmio_addr_t base = from_driver_data(con->driver_data);
+    pmio_addr_t base = from_driver_data(console->driver_data);
     for(i = 0; i < n; i++) {
         while((pmio_read8(base + UART_LSR) & UART_LSR_ETHR) != UART_LSR_ETHR);
         pmio_write8(base + UART_THR, sp[i]);
@@ -59,7 +59,7 @@ static size_t uart_console_write(struct console *con, const void *s, size_t n)
 }
 
 #define NUM_UART_CONSOLES 4
-static struct console uart_consoles[NUM_UART_CONSOLES] = {
+static struct sys_console uart_consoles[NUM_UART_CONSOLES] = {
     {
         .name = "tty1",
         .driver_data = to_driver_data(0x3F8),
@@ -90,10 +90,14 @@ static struct console uart_consoles[NUM_UART_CONSOLES] = {
     },
 };
 
-static void init_uart_console(void)
+static unsigned int tty_num = 0;
+static int init_uart_console(void)
 {
-    unsigned int i;
-    for(i = 0; i < NUM_UART_CONSOLES; i++)
-        register_console(&uart_consoles[i]);
+    if(tty_num < NUM_UART_CONSOLES)
+        return register_console(&uart_consoles[tty_num++]);
+    return -ENODEV;
 }
-initcall_tier_0(uart_console, init_uart_console);
+initcall_tier_0(uart_console_1, init_uart_console);
+initcall_tier_0(uart_console_2, init_uart_console);
+initcall_tier_0(uart_console_3, init_uart_console);
+initcall_tier_0(uart_console_4, init_uart_console);

@@ -9,12 +9,12 @@ printf "#include <kaneru/initcall.h>\n"
 printf "#include <stddef.h>\n"
 
 for i in ${initcalls}; do
-    printf "extern void __init_$i(void);\n"
+    printf "extern int __init_${i}(void);\n"
 done
 
-printf "const initcall_t __initcalls[] = {\n"
+printf "const struct initcall __initcalls[] = {\n"
 for i in ${initcalls}; do
-    printf "&__init_$i,\n"
+    printf "{ .func = &__init_${i}, .name = \"${i:0:63}\" },\n"
 done
-printf "NULL\n"
+printf "{ .func = NULL, .name = { 0 } }\n"
 printf "};\n"

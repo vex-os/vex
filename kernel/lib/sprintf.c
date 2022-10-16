@@ -3,9 +3,9 @@
 #include <sprintf.h>
 #include <stdint.h>
 
-int sprintf(char *restrict s, const char *restrict fmt, ...)
+size_t sprintf(char *restrict s, const char *restrict fmt, ...)
 {
-    int r;
+    size_t r;
     va_list ap;
     va_start(ap, fmt);
     r = vsnprintf(s, SIZE_MAX, fmt, ap);

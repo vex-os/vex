@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <kaneru/initcall.h>
-#include <kaneru/klog.h>
+#include <kaneru/kprintf.h>
 #include <stdint.h>
 #include <string.h>
 #include <x86_64/segment.h>
@@ -67,7 +67,7 @@ static void set_entry_64(uint8_t id, uint8_t flags)
     memcpy(gdt + id, &entry, sizeof(entry));
 }
 
-static void init_segment(void)
+static int init_segment(void)
 {
     uint8_t code_flags = SEG_READWRITE | SEG_NONSYSTEM | SEG_EXECUTABLE;
     uint8_t data_flags = SEG_READWRITE | SEG_NONSYSTEM;
@@ -102,6 +102,8 @@ static void init_segment(void)
         : "i"(SEG_SELECTOR(SEG_INDEX_KERN_CODE_64, 0, 0)), "i"(SEG_SELECTOR(SEG_INDEX_KERN_DATA_64, 0, 0))
     );
 
-    klog(KL_MACHINE, "gdt limit=%hu, base=%p", gdt_ptr.limit, (void *)gdt_ptr.base);
+    kprintf(KP_MACHINE, "gdt limit=%hu, base=%p", gdt_ptr.limit, (void *)gdt_ptr.base);
+
+    return 0;
 }
 initcall_tier_0(segment, init_segment);

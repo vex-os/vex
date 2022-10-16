@@ -224,7 +224,7 @@ static uintmax_t remove_sign(uintmax_t value, int valtype, int *negative)
     #undef __hack
 }
 
-int vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list va)
+size_t vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list va)
 {
     struct charbuf_s charbuf;
     unsigned int flags, fval;
@@ -370,5 +370,5 @@ int vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list va)
     charbuf_writechar(&charbuf, 0);
     if(charbuf.buffer)
         charbuf.buffer[charbuf.length - 1] = 0;
-    return (int)(charbuf.writepos);
+    return charbuf.writepos;
 }
