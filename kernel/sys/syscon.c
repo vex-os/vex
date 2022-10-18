@@ -39,7 +39,7 @@ void set_active_console(struct sys_console *console)
     active_console = console;
 }
 
-size_t console_write(const void *s, size_t n)
+void console_write(const void *restrict s, size_t n)
 {
     struct sys_console *it;
     for(it = console_head; it; it = it->next) {
@@ -48,6 +48,4 @@ size_t console_write(const void *s, size_t n)
             continue;
         }
     }
-
-    return n;
 }

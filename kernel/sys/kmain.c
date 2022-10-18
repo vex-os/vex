@@ -10,41 +10,37 @@
 #include <limine.h>
 
 static void kmain(void) __noreturn;
-static volatile struct limine_entry_point_request __used boot_entry_point = {
+static volatile struct limine_entry_point_request __used kmain_request = {
     .id = LIMINE_ENTRY_POINT_REQUEST,
     .revision = 0,
     .response = NULL,
     .entry = (limine_entry_point)(&kmain),
 };
 
-static int init_kversion(void)
-{
-    kprintf(KP_INITIAL, "kernel version %s", K_SEMVER);
-    return 0;
-}
-initcall_tier_0(kversion, init_kversion);
-
-static int test_initcall(void)
-{
-    kprintf(KP_INITIAL, "testing initcall errnum");
-    return -EACCES;
-}
-initcall_tier_2(test, test_initcall);
-
 static void __noreturn kmain(void)
 {
     int errnum;
-    unsigned int i;
+    const struct initcall *ic;
 
-    /* initialize everything */
-    for(i = 0; __initcalls[i].func && __initcalls[i].name[0]; i++) {
-        errnum = __initcalls[i].func();
+    /* Print version */
+    kprintf(KP_INITIAL, "kmain: starting version %s", K_SEMVER);
+
+    /* Initialize all the subsystems */
+    for(ic = &__initcalls[0]; ic->func && ic->name[0]; ic++) {
+        errnum = ic->func();
         if(errnum != 0) {
             if(errnum == -ENODEV)
                 continue;
-            panic("initcall %s failed: %s", __initcalls[i].name, strerror(-errnum));
+            panic("init %s: %s", ic->name, strerror(-errnum));
         }
     }
 
     panic("nothing to do");
 }
+
+static int test_initcalls(void)
+{
+    kprintf(KP_INITIAL, "testing initcall errnum");
+    return -EACCES;
+}
+initcall_tier_2(test, test_initcalls);

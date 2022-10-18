@@ -45,6 +45,7 @@
 
 #define __concat_1(x, y) x##y
 #define __string_1(x) #x
+#define __string_va(...) #__VA_ARGS__
 #define __concat(x, y) __concat_1(x, y)
 #define __string(x) __string_1(x)
 
