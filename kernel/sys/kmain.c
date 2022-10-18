@@ -3,6 +3,7 @@
 #include <kaneru/debug.h>
 #include <kaneru/errno.h>
 #include <kaneru/initcall.h>
+#include <kaneru/interrupt.h>
 #include <kaneru/kprintf.h>
 #include <kaneru/version.h>
 #include <stddef.h>
@@ -16,6 +17,12 @@ static volatile struct limine_entry_point_request __used kmain_request = {
     .response = NULL,
     .entry = (limine_entry_point)(&kmain),
 };
+
+static void test_intr(void)
+{
+    kprintf(KP_INTERRUPT, "testing!");
+    x86_disable_interrupts();
+}
 
 static void __noreturn kmain(void)
 {
@@ -35,12 +42,14 @@ static void __noreturn kmain(void)
         }
     }
 
+    /* test interrupts */
+    int test_vec;
+    if(alloc_interrupt(&test_vec, -1)) {
+        add_interrupt_handler(test_vec, &test_intr);
+        x86_map_interrupt(test_vec, 0x80, false);
+        x86_enable_interrupts();
+        asm volatile("int $0x80");
+    }
+
     panic("nothing to do");
 }
-
-static int test_initcalls(void)
-{
-    kprintf(KP_INITIAL, "testing initcall errnum");
-    return -EACCES;
-}
-initcall_tier_2(test, test_initcalls);

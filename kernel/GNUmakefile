@@ -2,6 +2,7 @@
 ## Copyright (c), 2022, Kaneru Contributors
 
 CLEAN_LIST	:=
+BUILD_CLEAN	:=
 TOP_DIR		:= ..
 include $(TOP_DIR)/build/tools.base.mk
 include $(TOP_DIR)/build/tools.compilers.mk
@@ -37,16 +38,17 @@ SOURCES		:=
 SOURCES		+= $(shell find $(GLOB_PATHS) -maxdepth 1 -name "*.c")
 SOURCES		+= $(shell find $(GLOB_PATHS) -maxdepth 1 -name "*.S")
 
+include sys.$(ARCH).mk
+
 OBJECTS		:= $(SOURCES:=.o)
 
 CLEAN_LIST	+= $(TARGET_LDS)
 CLEAN_LIST	+= $(TARGET_NIC)
 CLEAN_LIST	+= $(TARGET)
-CLEAN_LIST	+= $(INITCALLS_C)
-CLEAN_LIST	+= $(INITCALLS_O)
 CLEAN_LIST	+= $(OBJECTS)
 
-include sys.$(ARCH).mk
+BUILD_CLEAN	+= $(INITCALLS_C)
+BUILD_CLEAN	+= $(INITCALLS_O)
 
 .PHONY: all clean frc
 
@@ -54,12 +56,13 @@ all: $(TARGET)
 
 clean:
 	$(RM) $(CLEAN_LIST)
+	$(RM) $(BUILD_CLEAN)
 
 frc:
 
 $(TARGET): $(TARGET_NIC) $(TARGET_LDS) $(INITCALLS_O)
 	$(LD) $(LDFLAGS) -T $(TARGET_LDS) -o $@ $(TARGET_NIC) $(INITCALLS_O)
-	$(RM) $(INITCALLS_C) $(INITCALLS_O)
+	$(RM) $(BUILD_CLEAN)
 
 $(TARGET_NIC): $(OBJECTS)
 	$(LD) $(LDFLAGS) -r -o $@ $(OBJECTS)

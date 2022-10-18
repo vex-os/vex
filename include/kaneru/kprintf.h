@@ -9,10 +9,11 @@
 #define KP_EVERYTHING   0xFFFFFFFF /* all the mask bits set */
 #define KP_NOTHING      0x00000000 /* all the mask bits clear */
 
-#define KP_UNDEFINED    0xFFFFFFFF /* undefined subsystems */
-#define KP_MACHINE      0x00000001 /* machine-specific subsystems */
-#define KP_INITIAL      0x00000002 /* initialization subsystems */
-#define KP_CONSOLE      0x00000004 /* console subsystems */
+#define KP_UNDEFINED    0xFFFFFFFF /* undefined origin */
+#define KP_MACHINE      0x00000001 /* machine-specific */
+#define KP_INITIAL      0x00000002 /* initialization */
+#define KP_CONSOLE      0x00000004 /* system console */
+#define KP_INTERRUPT    0x00000008 /* interrupt handling */
 
 #define KP_MSG_COUNT    16
 #define KP_MSG_LENGTH   1024
