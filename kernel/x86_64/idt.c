@@ -8,20 +8,11 @@
 #include <x86_64/gdt.h>
 #include <x86_64/idt.h>
 
-#define IDT_TRAP    (15 << 0)
-#define IDT_INTR    (14 << 0)
-#define IDT_RING_0  ( 0 << 5)
-#define IDT_RING_3  ( 3 << 5)
-#define IDT_PRESENT ( 1 << 7)
-
-/* UNDONE: move it somewhere*/
-struct intr_frame {
-    uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
-    uint64_t rdi, rsi, rbp, rdx, rcx, rbx, rax;
-    uint64_t vector, error;
-    uint64_t rip, cs, rflags;
-    uint64_t rsp, ss;
-} __packed;
+#define IDT_TRAP    (0x0F << 0)
+#define IDT_INTR    (0x0E << 0)
+#define IDT_RING_0  (0x00 << 5)
+#define IDT_RING_3  (0x03 << 5)
+#define IDT_PRESENT (0x01 << 7)
 
 struct idt_entry {
     uint16_t offset_0;
@@ -40,80 +31,78 @@ struct idt_pointer {
 
 static struct idt_entry idt[X86_IDT_SIZE] = { 0 };
 static struct idt_pointer idt_ptr = { 0 };
-static int interrupt_map[X86_IDT_SIZE] = { 0 };
+static intvec_t interrupt_map[X86_IDT_SIZE] = { 0 };
 
-/* see sys/gen.x86_64.interrupts.sh */
-extern const uintptr_t __interrupt_stubs[X86_IDT_SIZE];
+/* defined in sys/interrupts.S */
+/* generated via gen.x86_64.interrupts.sh */
+extern const uintptr_t __x86_interrupts[X86_IDT_SIZE];
 
-/* called from sys/x86_64/idt_trampoline.S */
-void __used __interrupt_handler(struct intr_frame *frame)
+/* called from sys/x86_64/idt.S */
+void __used __x86_c_interrupt_handler(struct x86_interrupt_frame *restrict frame)
 {
-    //interrupt_handler_t fn;
-    const struct interrupt *intr;
-
     frame->vector %= X86_IDT_SIZE;
     if(interrupt_map[frame->vector] < 0)
         return;
-
-    intr = &__interrupts[interrupt_map[frame->vector]];
-    if(!intr->is_occupied)
-        return;
-
-    if(intr->handlers[0])
-        intr->handlers[0]();
-}
-
-static void set_entry(int vector, uintptr_t offset, bool user)
-{
-    struct idt_entry entry = { 0 };
-    entry.offset_0 = offset & 0xFFFF;
-    entry.offset_1 = (offset >> 16) & 0xFFFF;
-    entry.offset_2 = (offset >> 32) & 0xFFFFFFFF;
-    entry.selector = GDT_SEL(GDT_KERN_CODE_64, 0, 0);
-    entry.flags = IDT_PRESENT;
-    if(vector == 0 || vector == 1 || (vector >= 3 && vector <= 31))
-        entry.flags |= IDT_TRAP;
-    else
-        entry.flags |= IDT_INTR;
-    entry.flags |= user ? IDT_RING_3 : IDT_RING_0;
-    memcpy(idt + (uint8_t)(vector % X86_IDT_SIZE), &entry, sizeof(entry));
+    trigger_interrupt(interrupt_map[frame->vector], frame);
 }
 
 void x86_enable_interrupts(void)
 {
-    asm volatile("cli");
+    asm volatile("sti");
 }
 
 void x86_disable_interrupts(void)
 {
-    asm volatile("sti");
+    asm volatile("cli");
 }
 
-bool x86_map_interrupt(int intvec, int idtvec, bool user)
+bool x86_map_interrupt(intvec_t intvec, unsigned int vector, bool user)
 {
+    struct idt_entry *entry;
+
     if(intvec < 0 || intvec >= MAX_INTERRUPTS)
         return false;
-    if(idtvec < 0 || idtvec >= X86_IDT_SIZE)
-        return false;
-    if(interrupt_map[idtvec] >= 0)
+
+    if(vector >= X86_IDT_SIZE)
         return false;
 
-    set_entry(idtvec, __interrupt_stubs[idtvec], user);
+    if(interrupt_map[vector] != INTVEC_NULL)
+        return false;
 
-    interrupt_map[idtvec] = intvec;
+    entry = &idt[vector];
+    entry->flags &= ~IDT_RING_0;
+    entry->flags &= ~IDT_RING_3;
+    entry->flags |= user ? IDT_RING_3 : IDT_RING_0;
+
+    interrupt_map[vector] = intvec;
 
     return true;
 }
 
-static int init_idt(void)
+static int init_x86_idt(void)
 {
-    int i;
+    unsigned int vector;
+    struct idt_entry *entry;
+
+    memset(idt, 0, sizeof(idt));
+
+    for(vector = 0; vector < X86_IDT_SIZE; vector++) {
+        entry = &idt[vector];
+
+        entry->offset_0 = __x86_interrupts[vector] & 0xFFFF;
+        entry->offset_1 = (__x86_interrupts[vector] >> 16) & 0xFFFF;
+        entry->offset_2 = (__x86_interrupts[vector] >> 32) & 0xFFFFFFFF;
+        entry->selector = GDT_SEL(GDT_KERN_CODE_64, 0, 0);
+        entry->flags = IDT_PRESENT;
+        if(vector == 0 || vector == 1 || (vector >= 3 && vector <= 31))
+            entry->flags |= IDT_TRAP;
+        else
+            entry->flags |= IDT_INTR;
+        entry->flags |= IDT_RING_0;
+    }
 
     idt_ptr.limit = (uint16_t)(sizeof(idt) - 1);
     idt_ptr.base = (uintptr_t)(&idt[0]);
-
-    for(i = 0; i < X86_IDT_SIZE; i++)
-        set_entry(i, __interrupt_stubs[i], false);
 
     asm volatile("lidtq %0"::"m"(idt_ptr));
 
@@ -121,5 +110,6 @@ static int init_idt(void)
 
     return 0;
 }
-initcall_tier_0(x86_idt, init_idt);
+initcall_tier_0(x86_idt, init_x86_idt);
+initcall_depend(x86_idt, interrupt);
 initcall_depend(x86_idt, x86_gdt);

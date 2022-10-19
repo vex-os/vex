@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"

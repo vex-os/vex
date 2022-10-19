@@ -18,10 +18,10 @@ static volatile struct limine_entry_point_request __used kmain_request = {
     .entry = (limine_entry_point)(&kmain),
 };
 
-static void test_intr(void)
+static void test_intr(void *restrict frame)
 {
-    kprintf(KP_INTERRUPT, "testing!");
-    x86_disable_interrupts();
+    struct x86_interrupt_frame *xframe = frame;
+    kprintf(KP_UNDEFINED, "interrupt test: int $%#02lX was issued", xframe->vector);
 }
 
 static void __noreturn kmain(void)
@@ -43,11 +43,14 @@ static void __noreturn kmain(void)
     }
 
     /* test interrupts */
-    int test_vec;
-    if(alloc_interrupt(&test_vec, -1)) {
-        add_interrupt_handler(test_vec, &test_intr);
+    intvec_t test_vec = alloc_interrupt(INTVEC_NULL);
+    if(test_vec != INTVEC_NULL) {
+        bind_interrupt_handler(test_vec, &test_intr);
+        x86_map_interrupt(test_vec, 0x20, false);
+        x86_map_interrupt(test_vec, 0x40, false);
         x86_map_interrupt(test_vec, 0x80, false);
-        x86_enable_interrupts();
+        asm volatile("int $0x20");
+        asm volatile("int $0x40");
         asm volatile("int $0x80");
     }
 

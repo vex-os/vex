@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
 .section .text
-.global __interrupt_trampoline
-__interrupt_trampoline:
+.global __x86_S_interrupt_handler
+__x86_S_interrupt_handler:
     pushq %rax
     pushq %rbx
     pushq %rcx
@@ -21,7 +21,7 @@ __interrupt_trampoline:
     pushq %r15
 
     mov %rsp, %rdi
-    call __interrupt_handler
+    call __x86_c_interrupt_handler
 
     popq %r15
     popq %r14

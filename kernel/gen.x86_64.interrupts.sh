@@ -1,23 +1,29 @@
-#!/bin/sh
+#!/bin/bash
+
+vectors=$(seq 0 255)
 
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"
+
 printf ".section .text\n"
-for i in $(seq 0 255); do
-    printf "interrupt_$i:\n"
+for i in ${vectors}; do
+    printf "interrupt_${i}:\n"
 
-    # These interrupts appear to "misbehave" and
-    # have an error code pushed before we can do
-    # anything. Hence others must do the same thing.
-    (( i != 8 && ( i < 10 || i > 14 ) && i != 21 )) && \
+    ## x86 exceptions 8, 10, 11, 12, 13, 14 and 21
+    ## push an error code describing what caused them.
+    ## In any other case, we have to push a dummy error
+    ## code to maintain x86_interrupt_frame structure.
+    if (( i != 8 && ( i < 10 || i > 14 ) && i != 21 )); then
         printf "pushq \$0\n"
+    fi
 
-    printf "pushq \$$i\n"
-    printf "jmp __interrupt_trampoline\n"
+    printf "pushq \$${i}\n"
+    printf "jmp __x86_S_interrupt_handler\n"
 done
+
 printf ".section .rodata\n"
-printf ".global __interrupt_stubs\n"
-printf "__interrupt_stubs:\n"
-for i in $(seq 0 255); do
-printf ".quad interrupt_$i\n"
+printf ".global __x86_interrupts\n"
+printf "__x86_interrupts:\n"
+for i in ${vectors}; do
+    printf ".quad interrupt_${i}\n"
 done

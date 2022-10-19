@@ -2,7 +2,6 @@
 ## Copyright (c), 2022, Kaneru Contributors
 
 CLEAN_LIST	:=
-BUILD_CLEAN	:=
 TOP_DIR		:= ..
 include $(TOP_DIR)/build/tools.base.mk
 include $(TOP_DIR)/build/tools.compilers.mk
@@ -28,7 +27,7 @@ GLOB_PATHS	+= $(ARCH)
 
 TARGET_LDS	:= sys.$(ARCH).ld
 TARGET_NIC	:= kaneru_noinit.o
-TARGET	:= $(TOP_DIR)/kaneru.elf
+TARGET		:= $(TOP_DIR)/kaneru.elf
 
 INITCALLS_C	:= initcalls.c
 INITCALLS_O	:= initcalls.o
@@ -45,24 +44,22 @@ OBJECTS		:= $(SOURCES:=.o)
 CLEAN_LIST	+= $(TARGET_LDS)
 CLEAN_LIST	+= $(TARGET_NIC)
 CLEAN_LIST	+= $(TARGET)
+CLEAN_LIST	+= $(INITCALLS_C)
+CLEAN_LIST	+= $(INITCALLS_O)
 CLEAN_LIST	+= $(OBJECTS)
 
-BUILD_CLEAN	+= $(INITCALLS_C)
-BUILD_CLEAN	+= $(INITCALLS_O)
-
 .PHONY: all clean frc
+.PHONY: clean_initcalls
 
 all: $(TARGET)
 
 clean:
 	$(RM) $(CLEAN_LIST)
-	$(RM) $(BUILD_CLEAN)
 
 frc:
 
-$(TARGET): $(TARGET_NIC) $(TARGET_LDS) $(INITCALLS_O)
+$(TARGET): clean_initcalls $(TARGET_NIC) $(TARGET_LDS) $(INITCALLS_O)
 	$(LD) $(LDFLAGS) -T $(TARGET_LDS) -o $@ $(TARGET_NIC) $(INITCALLS_O)
-	$(RM) $(BUILD_CLEAN)
 
 $(TARGET_NIC): $(OBJECTS)
 	$(LD) $(LDFLAGS) -r -o $@ $(OBJECTS)
@@ -70,7 +67,7 @@ $(TARGET_NIC): $(OBJECTS)
 $(VERSION_H): frc
 	$(shell ./gen.version.sh "$(VERSION)" "$(GIT_REV)" > $@)
 
-$(INITCALLS_C): $(TARGET_NIC)
+$(INITCALLS_C): $(TARGET_NIC) frc
 	$(shell ./gen.initcalls.sh "$(OBJDUMP)" "$(TARGET_NIC)" > $@)
 
 $(SOURCES): $(VERSION_H)

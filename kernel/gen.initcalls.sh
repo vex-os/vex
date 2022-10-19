@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 ## Gather and dependency-sort the initcall list
 initcalls=$(${1} -j ".discard.init" -s "${2}" | grep "^[ \t]*[0-9a-f]" | xxd -r | tr "\0" "\n" | tsort)

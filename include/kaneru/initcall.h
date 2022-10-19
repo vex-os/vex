@@ -9,7 +9,7 @@ struct initcall {
     const char name[64];
 };
 
-/* defined in sys/kern/initcalls.c */
+/* defined in kernel/initcalls.c */
 /* generated via scripts/gen.initcalls.sh */
 extern const struct initcall __initcalls[];
 

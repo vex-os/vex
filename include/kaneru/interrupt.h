@@ -3,6 +3,8 @@
 #ifndef __INCLUDE_KANERU_INTERRUPT_H__
 #define __INCLUDE_KANERU_INTERRUPT_H__
 #include <kaneru/cdefs.h>
+#include <kaneru/initcall.h>
+#include <kaneru/intvec.h>
 #include <stdbool.h>
 #include <stddef.h>
 
@@ -13,18 +15,14 @@
 #error "Have your heard of the popular hit game among us?"
 #endif
 
-typedef void(*interrupt_handler_t)(void);
+/* multiple of these are bound to an
+ * existing interrupt vector (intvec_t) */
+typedef void(*interrupt_handler_t)(void *restrict frame);
 
-#define MAX_INTERRUPT_HANDLERS 32
-struct interrupt {
-    bool is_occupied;
-    interrupt_handler_t handlers[MAX_INTERRUPT_HANDLERS];
-};
+intvec_t alloc_interrupt(intvec_t hint);
+bool bind_interrupt_handler(intvec_t intvec, interrupt_handler_t handler);
+bool trigger_interrupt(intvec_t intvec, void *restrict frame);
 
-/* used by machine-specific code to invoke handlers */
-extern struct interrupt __interrupts[MAX_INTERRUPTS];
-
-bool alloc_interrupt(int *intvec, int wish_intvec);
-bool add_interrupt_handler(int intvec, interrupt_handler_t fn);
+initcall_extern(interrupt);
 
 #endif /* __INCLUDE_KANERU_INTERRUPT_H__ */
