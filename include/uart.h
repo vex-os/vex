@@ -41,10 +41,13 @@
 #define UART_FCR_CTF (1 << 2) /* Clear Transmit FIFO */
 #define UART_FCR_DMS (1 << 3) /* DMA Mode Select */
 #define UART_FCR_F64 (1 << 5) /* Enable 64 Byte FIFO (16750) */
-#define UART_FCR_TRG_01_01 0x00 /* ITL 1B, TL 1B */
-#define UART_FCR_TRG_04_16 0x40 /* ITL 4B, TL 16B */
-#define UART_FCR_TRG_08_32 0x80 /* ITL 8B, TL 32B */
-#define UART_FCR_TRG_14_56 0xC0 /* ITL 14B, TL 56B */
+#define UART_FCR_TRG_01 0x00 /* FIFO trigger at 1 byte */
+#define UART_FCR_TRG_04 0x40 /* FIFO trigger at 4 bytes */
+#define UART_FCR_TRG_08 0x80 /* FIFO trigger at 8 bytes */
+#define UART_FCR_TRG_14 0xC0 /* FIFO trigger at 14 bytes */
+#define UART_FCR_TRG_16 0x40 /* FIFO trigger at 16 bytes (F64) */
+#define UART_FCR_TRG_32 0x80 /* FIFO trigger at 32 bytes (F64) */
+#define UART_FCR_TRG_56 0xC0 /* FIFO trigger at 56 bytes (F64) */
 #define UART_FCR_TRG_MASK 0xC0
 
 #define UART_LCR_1SB (0 << 2) /* 1 stop bit */

@@ -17,7 +17,7 @@ void __noreturn panicv_impl(const char *restrict file, unsigned long line, const
     static char buffer[KP_MSG_LENGTH] = { 0 };
     n = snprintf(buffer, sizeof(buffer), "panic at %s:%lu: ", get_basename(file), line);
     vsnprintf(buffer + n - 1, sizeof(buffer) - n, fmt, ap);
-    kputs(KP_EVERYTHING, buffer);
+    kputs(KP_UNDEFINED, buffer);
     for(;;) { /* undone */ }
 }
 

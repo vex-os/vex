@@ -2,62 +2,72 @@
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <kaneru/errno.h>
 #include <kaneru/kprintf.h>
-#include <kaneru/syscon.h>
 #include <sprintf.h>
 #include <string.h>
 
-struct message {
+struct kp_message {
     char message[KP_MSG_LENGTH];
     size_t length;
 };
 
-static unsigned long mask = KP_NOTHING;
-static struct message ring[KP_MSG_COUNT] = { 0 };
-static unsigned long first = 0;
-static unsigned long last = 0;
+static kp_callback_t kp_callbacks[KP_CALLBACKS] = { 0 };
+static unsigned long kp_mask = KP_NOTHING;
+static struct kp_message kp_ring[KP_MSG_COUNT] = { 0 };
+static unsigned long kp_first = 0;
+static unsigned long kp_last = 0;
 
-static void push_message(const struct message *msg)
+static void push_message(const struct kp_message *msg)
 {
-    struct message *target = &ring[last];
-    memcpy(target, msg, sizeof(struct message));
+    unsigned int i;
+    struct kp_message *target = &kp_ring[kp_last];
+    memcpy(target, msg, sizeof(struct kp_message));
 
-    console_write(target->message, target->length);
+    for(i = 0; i < KP_CALLBACKS; i++) {
+        if(!kp_callbacks[i])
+            continue;
+        kp_callbacks[i](target->message, target->length);
+    }
 
-    first = last++ / KP_MSG_COUNT;
-    last %= KP_MSG_COUNT;
+    kp_first = kp_last++ / KP_MSG_COUNT;
+    kp_last %= KP_MSG_COUNT;
 }
 
-unsigned long kp_getmask(void)
+unsigned long kp_get_mask(void)
 {
-    return mask;
+    return kp_mask;
 }
 
-unsigned long kp_setmask(unsigned long new_mask)
+unsigned long kp_set_mask(unsigned long new_mask)
 {
-    unsigned long old_mask = mask;
-    mask = new_mask;
+    unsigned long old_mask = kp_mask;
+    kp_mask = new_mask;
     return old_mask;
 }
 
-void kp_flush_buffer(struct sys_console *console)
+int kp_bind_callback(unsigned int slot, kp_callback_t callback)
 {
     unsigned long i;
-    const struct message *msg;
+    const struct kp_message *msg;
 
-    for(i = 0; i < KP_MSG_COUNT; i++) {
-        if(console->write_fn) {
-            msg = &ring[(i + last) % KP_MSG_COUNT];
-            console->write_fn(console, msg->message, msg->length);
+    if(slot < KP_CALLBACKS && callback) {
+        kp_callbacks[slot] = callback;
+        for(i = 0; i < KP_MSG_COUNT; i++) {
+            msg = &kp_ring[(i + kp_last) % KP_MSG_COUNT];
+            callback(msg->message, msg->length);
         }
+
+        return 0;
     }
+
+    return -ERANGE;
 }
 
 void kputs(unsigned long origin, const char *restrict s)
 {
     static const char crlf[] = "\r\n";
-    struct message msg = { 0 };
+    struct kp_message msg = { 0 };
 
-    if(!(origin & mask)) {
+    if(!(origin & kp_mask)) {
         strncpy_k(msg.message, s, sizeof(msg.message) - sizeof(crlf));
         strncat_k(msg.message, crlf, sizeof(msg.message));
         msg.length = strlen(msg.message);
@@ -68,7 +78,7 @@ void kputs(unsigned long origin, const char *restrict s)
 void kvprintf(unsigned long origin, const char *restrict fmt, va_list ap)
 {
     char buffer[KP_MSG_LENGTH] = { 0 };
-    if(!(origin & mask)) {
+    if(!(origin & kp_mask)) {
         vsnprintf(buffer, sizeof(buffer), fmt, ap);
         kputs(origin, buffer);
     }
@@ -77,9 +87,16 @@ void kvprintf(unsigned long origin, const char *restrict fmt, va_list ap)
 void kprintf(unsigned long origin, const char *restrict fmt, ...)
 {
     va_list ap;
-    if(!(origin & mask)) {
+    if(!(origin & kp_mask)) {
         va_start(ap, fmt);
         kvprintf(origin, fmt, ap);
         va_end(ap);
     }
 }
+
+static int init_kprintf(void)
+{
+    memset(kp_callbacks, 0, sizeof(kp_callbacks));
+    return 0;
+}
+initcall_tier_0(kprintf, init_kprintf);
