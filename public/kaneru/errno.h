@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+/* SPDX-License-Identifier: Unlicense */
 /* Copyright (c), 2022, Kaneru Contributors */
 #ifndef __PUBLIC_KANERU_ERRNO_H__
 #define __PUBLIC_KANERU_ERRNO_H__
