@@ -4,6 +4,40 @@
 #include <kaneru/resource.h>
 #include <string.h>
 
+static struct resource *resources = NULL;
+
+bool register_resource(struct resource *restrict r)
+{
+    if(!find_resource(r->name)) {
+        r->next = resources;
+        resources = r;
+        return true;
+    }
+
+    return false;
+}
+
+const struct resource *find_resource(const char *restrict name)
+{
+    const struct resource *res;
+
+    /* find in the link-time resource list */
+    for(res = &__resources_beg; res != &__resources_end; res++) {
+        if(strncmp(res->name, name, sizeof(res->name)) != 0)
+            continue;
+        return res;
+    }
+
+    /* find in the run-time resource list */
+    for(res = resources; res; res = res->next) {
+        if(strncmp(res->name, name, sizeof(res->name)) != 0)
+            continue;
+        return res;
+    }
+
+    return NULL;
+}
+
 static volatile void *get_aligned_mmio(unsigned int flags, uintptr_t base, uintptr_t off)
 {
     if(flags & RESOURCE_MMIO_A_16)
@@ -11,18 +45,6 @@ static volatile void *get_aligned_mmio(unsigned int flags, uintptr_t base, uintp
     if(flags & RESOURCE_MMIO_A_32)
         return &((volatile uint32_t *)base)[off];
     return &((volatile uint8_t *)base)[off];
-}
-
-const struct resource *find_resource(const char *restrict name)
-{
-    const struct resource *res;
-    for(res = &__resources_beg; res != &__resources_end; res++) {
-        if(strncmp(res->name, name, sizeof(res->name)) != 0)
-            continue;
-        return res;
-    }
-
-    return NULL;
 }
 
 int resource_read8(const struct resource *restrict r, uintptr_t off, uint8_t *restrict val)

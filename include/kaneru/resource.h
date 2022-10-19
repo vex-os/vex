@@ -3,17 +3,18 @@
 #ifndef __INCLUDE_KANERU_RESOURCE_H__
 #define __INCLUDE_KANERU_RESOURCE_H__
 #include <kaneru/cdefs.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 #if defined(__X86_64__)
 #include <x86_64/pmio.h>
-#define pmio_read8 x86_pmio_read8
-#define pmio_read16 x86_pmio_read16
-#define pmio_read32 x86_pmio_read32
-#define pmio_write8 x86_pmio_write8
-#define pmio_write16 x86_pmio_write16
-#define pmio_write32 x86_pmio_write32
-#define pmio_throttle x86_pmio_throttle
+#define pmio_read8(x, y) x86_pmio_read8((x), (y))
+#define pmio_read16(x, y) x86_pmio_read16((x), (y))
+#define pmio_read32(x, y) x86_pmio_read32((x), (y))
+#define pmio_write8(x, y) x86_pmio_write8((x), (y))
+#define pmio_write16(x, y) x86_pmio_write16((x), (y))
+#define pmio_write32(x, y) x86_pmio_write32((x), (y))
+#define pmio_throttle() x86_pmio_throttle()
 #endif
 
 #define RESOURCE_MMIO       (1 << 0)
@@ -26,15 +27,17 @@ struct resource {
     char name[64];
     uintptr_t base;
     unsigned int flags;
+    struct resource *next;
 };
 
-#define new_resource \
+#define static_resource \
     static struct resource __section(".rodata.resources") __used
 
 /* defined in kernel/sys.<arch>.lds */
 extern struct resource __resources_beg;
 extern struct resource __resources_end;
 
+bool register_resource(struct resource *restrict r);
 const struct resource *find_resource(const char *restrict name);
 int resource_read8(const struct resource *restrict r, uintptr_t off, uint8_t *restrict val);
 int resource_read16(const struct resource *restrict r, uintptr_t off, uint16_t *restrict val);
