@@ -107,7 +107,7 @@ static int init_gdt(void)
         1:;
     )::"i"(GDT_SEL(GDT_KERN_CODE_64, 0, 0)));
 
-    kprintf(KP_EARLY, "gdt: limit=%hu, base=%p", gdt_ptr.limit, (void *)gdt_ptr.base);
+    kprintf(KP_MACHINE, "gdt: base=%p, limit=%zu", (void *)gdt_ptr.base, (size_t)gdt_ptr.limit);
 
     return 0;
 }

@@ -11,9 +11,9 @@
 #define KP_NOTHING      0x00000000 /* all the mask bits clear */
 
 #define KP_UNDEFINED    0xFFFFFFFF /* undefined origin */
-#define KP_EARLY        0x00000001 /* early initialization */
-#define KP_KPRINTF      0x00000002 /* kprintf and its callbacks */
-#define KP_INTERRUPT    0x00000004 /* interrupt handling */
+#define KP_MACHINE      0x00000001 /* machine-specific subsystems */
+#define KP_INITIAL      0x00000002 /* initialization subsystems */
+#define KP_KPRINTF      0x00000004 /* kprintf and backends */
 
 #define KP_MSG_COUNT    16
 #define KP_MSG_LENGTH   1024

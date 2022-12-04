@@ -3,7 +3,7 @@
 #ifndef __INCLUDE_KANERU_RESOURCE_H__
 #define __INCLUDE_KANERU_RESOURCE_H__
 #include <kaneru/cdefs.h>
-#include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #if defined(__X86_64__)
@@ -26,19 +26,13 @@
 struct resource {
     char name[64];
     uintptr_t base;
+    uintptr_t limit;
     unsigned int flags;
     struct resource *next;
 };
 
-#define static_resource \
-    static struct resource __section(".rodata.resources") __used
-
-/* defined in kernel/sys.<arch>.lds */
-extern struct resource __resources_beg;
-extern struct resource __resources_end;
-
-bool register_resource(struct resource *restrict r);
-const struct resource *find_resource(const char *restrict name);
+int resource_register(struct resource *restrict r);
+const struct resource *resource_find(const char *name);
 int resource_read8(const struct resource *restrict r, uintptr_t off, uint8_t *restrict val);
 int resource_read16(const struct resource *restrict r, uintptr_t off, uint16_t *restrict val);
 int resource_read32(const struct resource *restrict r, uintptr_t off, uint32_t *restrict val);

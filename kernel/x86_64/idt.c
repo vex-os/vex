@@ -106,7 +106,7 @@ static int init_x86_idt(void)
 
     asm volatile("lidtq %0"::"m"(idt_ptr));
 
-    kprintf(KP_INTERRUPT, "idt: limit=%hu, base=%p", idt_ptr.limit, (void *)idt_ptr.base);
+    kprintf(KP_MACHINE, "idt: base=%p, limit=%hu", (void *)idt_ptr.base, idt_ptr.limit);
 
     return 0;
 }

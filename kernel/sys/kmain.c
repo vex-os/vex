@@ -21,7 +21,7 @@ static volatile struct limine_entry_point_request __used kmain_request = {
 static void test_intr(void *restrict frame)
 {
     struct x86_interrupt_frame *xframe = frame;
-    kprintf(KP_EARLY, "interrupt test: int $%#02lX was issued", xframe->vector);
+    kprintf(KP_INITIAL, "interrupt test: int $%#02lX was issued", xframe->vector);
 }
 
 static void __noreturn kmain(void)
@@ -30,7 +30,7 @@ static void __noreturn kmain(void)
     const struct initcall *ic;
 
     /* Print version */
-    kprintf(KP_EARLY, "kmain: starting version %s", K_SEMVER);
+    kprintf(KP_INITIAL, "kmain: starting version %s", K_SEMVER);
 
     /* Initialize all the subsystems */
     for(ic = &__initcalls[0]; ic->func && ic->name[0]; ic++) {

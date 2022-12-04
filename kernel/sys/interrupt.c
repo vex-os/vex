@@ -40,46 +40,42 @@ intvec_t alloc_interrupt(intvec_t hint)
     return INTVEC_NULL;
 }
 
-bool bind_interrupt_handler(intvec_t intvec, interrupt_handler_t handler)
+void bind_interrupt_handler(intvec_t intvec, interrupt_handler_t handler)
 {
     struct interrupt *intr;
 
-    if(intvec < 0 || intvec >= MAX_INTERRUPTS)
-        return false;
-
-    if(!handler)
-        return false;
+    if(intvec < 0 || intvec >= MAX_INTERRUPTS) {
+        /* invalid intvec */
+        return;
+    }
 
     intr = &interrupts[intvec];
-
-    if(!intr->occupied)
-        return false;
-    
-    if(intr->num_handlers >= MAX_HANDLERS)
-        return false;
+    if(!intr->occupied || intr->num_handlers >= MAX_HANDLERS) {
+        /* invalid interrupt */
+        return;
+    }
 
     intr->handlers[intr->num_handlers++] = handler;
-
-    return true;
 }
 
-bool trigger_interrupt(intvec_t intvec, void *restrict frame)
+void trigger_interrupt(intvec_t intvec, void *restrict frame)
 {
     size_t i;
     struct interrupt *intr;
 
-    if(intvec < 0 || intvec >= MAX_INTERRUPTS)
-        return false;
+    if(intvec < 0 || intvec >= MAX_INTERRUPTS) {
+        /* invalid intvec */
+        return;
+    }
 
     intr = &interrupts[intvec];
+    if(!intr->occupied || intr->num_handlers >= MAX_HANDLERS) {
+        /* invalid interrupt */
+        return;
+    }
 
-    if(!intr->occupied)
-        return false;
-
-    for(i = 0; i < intr->num_handlers; i++)
-        intr->handlers[i](frame);
-
-    return true;
+    /* trigger all the registered handlers */
+    for(i = 0; i < intr->num_handlers; intr->handlers[i++](frame));
 }
 
 static int init_interrupt(void)

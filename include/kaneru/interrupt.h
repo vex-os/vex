@@ -12,16 +12,14 @@
 #include <x86_64/idt.h>
 #define MAX_INTERRUPTS X86_IDT_SIZE
 #else
-#error "Have your heard of the popular hit game among us?"
+#error "Have your heard of a popular hit game among us?"
 #endif
 
-/* multiple of these are bound to an
- * existing interrupt vector (intvec_t) */
 typedef void(*interrupt_handler_t)(void *restrict frame);
 
 intvec_t alloc_interrupt(intvec_t hint);
-bool bind_interrupt_handler(intvec_t intvec, interrupt_handler_t handler);
-bool trigger_interrupt(intvec_t intvec, void *restrict frame);
+void bind_interrupt_handler(intvec_t intvec, interrupt_handler_t handler);
+void trigger_interrupt(intvec_t intvec, void *restrict frame);
 
 initcall_extern(interrupt);
 

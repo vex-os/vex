@@ -6,29 +6,20 @@
 
 static struct resource *resources = NULL;
 
-bool register_resource(struct resource *restrict r)
+int resource_register(struct resource *restrict r)
 {
-    if(!find_resource(r->name)) {
+    if(!resource_find(r->name)) {
         r->next = resources;
         resources = r;
-        return true;
+        return 0;
     }
 
-    return false;
+    return -EBUSY;
 }
 
-const struct resource *find_resource(const char *restrict name)
+const struct resource *resource_find(const char *name)
 {
     const struct resource *res;
-
-    /* find in the link-time resource list */
-    for(res = &__resources_beg; res != &__resources_end; res++) {
-        if(strncmp(res->name, name, sizeof(res->name)) != 0)
-            continue;
-        return res;
-    }
-
-    /* find in the run-time resource list */
     for(res = resources; res; res = res->next) {
         if(strncmp(res->name, name, sizeof(res->name)) != 0)
             continue;
