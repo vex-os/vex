@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
 #include <kaneru/errno.h>
+#include <kaneru/kprintf.h>
 #include <kaneru/resource.h>
 #include <string.h>
 
@@ -8,13 +9,15 @@ static struct resource *resources = NULL;
 
 int resource_register(struct resource *restrict r)
 {
-    if(!resource_find(r->name)) {
-        r->next = resources;
-        resources = r;
-        return 0;
+    if(resource_find(r->name)) {
+        kprintf(KP_RESOURCE, "resource [%s] already exists", r->name);
+        return -EBUSY;
     }
 
-    return -EBUSY;
+    r->next = resources;
+    resources = r;
+    
+    return 0;
 }
 
 const struct resource *resource_find(const char *name)

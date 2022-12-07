@@ -7,33 +7,27 @@
 #include <stdarg.h>
 #include <stddef.h>
 
-#define KP_EVERYTHING   0xFFFFFFFF /* all the mask bits set */
-#define KP_NOTHING      0x00000000 /* all the mask bits clear */
+#define KP_EVERYTHING   0xFFFFFFFF
+#define KP_NOTHING      0x00000000
 
-#define KP_UNDEFINED    0xFFFFFFFF /* undefined origin */
-#define KP_MACHINE      0x00000001 /* machine-specific subsystems */
-#define KP_INITIAL      0x00000002 /* initialization subsystems */
-#define KP_KPRINTF      0x00000004 /* kprintf and backends */
-
-#define KP_MSG_COUNT    16
-#define KP_MSG_LENGTH   1024
-
-#define KP_CALLBACKS    32
-#define KP_CALLBACK_0   0x00
-#define KP_CALLBACK_1   0x01
-#define KP_CALLBACK_2   0x02
-#define KP_CALLBACK_3   0x03
+#define KP_UNDEFINED    0xFFFFFFFF
+#define KP_MACHINE      0x00000001
+#define KP_INITCALL     0x00000002
+#define KP_INTERRUPT    0x00000004
+#define KP_RESOURCE     0x00000008
 
 typedef void(*kp_callback_t)(const void *restrict, size_t);
 
 unsigned long kp_get_mask(void);
-unsigned long kp_set_mask(unsigned long new_mask);
-int kp_bind_callback(unsigned int slot, kp_callback_t callback);
+unsigned long kp_set_mask(unsigned long mask);
+void kp_set_callback(kp_callback_t callback);
 
-void kputs(unsigned long origin, const char *restrict s);
-void kvprintf(unsigned long origin, const char *restrict fmt, va_list ap);
-void kprintf(unsigned long origin, const char *restrict fmt, ...) __format(printf, 2, 3);
+void kputs_impl(unsigned long source, const char *restrict file, unsigned long line, const char *restrict s);
+void kvprintf_impl(unsigned long source, const char *restrict file, unsigned long line, const char *restrict fmt, va_list ap);
+void kprintf_impl(unsigned long source, const char *restrict file, unsigned long line, const char *restrict fmt, ...) __format(printf, 4, 5);
 
-initcall_extern(kprintf);
+#define kputs(source, s) ({kputs_impl((source),__FILE__,__LINE__,(s));})
+#define kvprintf(source, fmt, ap) ({kvprintf_impl((source),__FILE__,__LINE__,(fmt),(ap));})
+#define kprintf(source, fmt, ...) ({kprintf_impl((source),__FILE__,__LINE__,(fmt),##__VA_ARGS__);})
 
 #endif /* __INCLUDE_KANERU_KPRINTF_H__ */

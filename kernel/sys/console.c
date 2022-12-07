@@ -23,12 +23,10 @@ static void console_callback(const void *restrict s, size_t n)
 static int init_console(void)
 {
     if(request.response && request.response->terminal_count) {
-        kprintf(KP_KPRINTF, "console: init with %zu terminals", (size_t)request.response->terminal_count);
-        kp_bind_callback(KP_CALLBACK_0, &console_callback);
+        kp_set_callback(&console_callback);
         return 0;
     }
 
     return -ENODEV;
 }
 initcall_tier_0(console, init_console);
-initcall_depend(console, kprintf);

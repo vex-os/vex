@@ -1,6 +1,8 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
+#include <kaneru/errno.h>
 #include <kaneru/interrupt.h>
+#include <kaneru/kprintf.h>
 #include <string.h>
 
 #define MAX_HANDLERS 32
@@ -16,9 +18,12 @@ intvec_t alloc_interrupt(intvec_t hint)
 {
     intvec_t intvec;
 
-    if(hint < 0 || hint >= MAX_INTERRUPTS)
+    if(hint < 0 || hint >= MAX_INTERRUPTS) {
+        /* no desired interrupt */
         hint = 0;
+    }
 
+    /* try to allocate the desired interrupt vector */
     for(intvec = hint; intvec < MAX_INTERRUPTS; intvec++) {
         if(!interrupts[intvec].occupied) {
             memset(&interrupts[intvec], 0, sizeof(interrupts[intvec]));
@@ -28,6 +33,7 @@ intvec_t alloc_interrupt(intvec_t hint)
         }
     }
 
+    /* try to allocate a free interrupt vector */
     for(intvec = 0; intvec < hint; intvec++) {
         if(!interrupts[intvec].occupied) {
             memset(&interrupts[intvec], 0, sizeof(interrupts[intvec]));
@@ -37,25 +43,35 @@ intvec_t alloc_interrupt(intvec_t hint)
         }
     }
 
+    /* that's a bad thing really but not a death sentence */
+    kprintf(KP_INTERRUPT, "out of spare interrupt vectors!");
+
     return INTVEC_NULL;
 }
 
-void bind_interrupt_handler(intvec_t intvec, interrupt_handler_t handler)
+int bind_interrupt_handler(intvec_t intvec, interrupt_handler_t handler)
 {
     struct interrupt *intr;
 
     if(intvec < 0 || intvec >= MAX_INTERRUPTS) {
-        /* invalid intvec */
-        return;
+        kprintf(KP_INTERRUPT, "vector <%ld> is out of range", intvec);
+        return -ERANGE;
     }
 
     intr = &interrupts[intvec];
-    if(!intr->occupied || intr->num_handlers >= MAX_HANDLERS) {
-        /* invalid interrupt */
-        return;
+    if(!intr->occupied){ 
+        kprintf(KP_INTERRUPT, "vector <%ld> is not allocated", intvec);
+        return -EINVAL;
+    }
+
+    if(intr->num_handlers >= MAX_HANDLERS) {
+        kprintf(KP_INTERRUPT, "vector <%ld> is out of handlers", intvec);
+        return -ENOMEM;
     }
 
     intr->handlers[intr->num_handlers++] = handler;
+
+    return 0;
 }
 
 void trigger_interrupt(intvec_t intvec, void *restrict frame)
@@ -64,13 +80,13 @@ void trigger_interrupt(intvec_t intvec, void *restrict frame)
     struct interrupt *intr;
 
     if(intvec < 0 || intvec >= MAX_INTERRUPTS) {
-        /* invalid intvec */
+        kprintf(KP_INTERRUPT, "vector <%ld> is out of range", intvec);
         return;
     }
 
     intr = &interrupts[intvec];
-    if(!intr->occupied || intr->num_handlers >= MAX_HANDLERS) {
-        /* invalid interrupt */
+    if(!intr->occupied){ 
+        kprintf(KP_INTERRUPT, "vector <%ld> is not allocated", intvec);
         return;
     }
 

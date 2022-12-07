@@ -24,13 +24,13 @@ struct idt_entry {
     uint32_t reserved;
 } __packed;
 
-struct idt_pointer {
-    uint16_t limit;
-    uintptr_t base;
+struct idt_register {
+    uint16_t size;
+    uintptr_t offset;
 } __packed;
 
 static struct idt_entry idt[X86_IDT_SIZE] = { 0 };
-static struct idt_pointer idt_ptr = { 0 };
+static struct idt_register idtr = { 0 };
 static intvec_t interrupt_map[X86_IDT_SIZE] = { 0 };
 
 /* defined in sys/interrupts.S */
@@ -101,12 +101,14 @@ static int init_x86_idt(void)
         entry->flags |= IDT_RING_0;
     }
 
-    idt_ptr.limit = (uint16_t)(sizeof(idt) - 1);
-    idt_ptr.base = (uintptr_t)(&idt[0]);
+    idtr.size = (uint16_t)(sizeof(idt) - 1);
+    idtr.offset = (uintptr_t)(&idt[0]);
 
-    asm volatile("lidtq %0"::"m"(idt_ptr));
+    asm volatile(__string_va(
+        lidtq %0;
+    )::"m"(idtr));
 
-    kprintf(KP_MACHINE, "idt: base=%p, limit=%hu", (void *)idt_ptr.base, idt_ptr.limit);
+    kprintf(KP_MACHINE, "idtr.size=%zu, idtr.offset=%p", (size_t)idtr.size, (const void *)idtr.offset);
 
     return 0;
 }

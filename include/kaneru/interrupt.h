@@ -18,7 +18,7 @@
 typedef void(*interrupt_handler_t)(void *restrict frame);
 
 intvec_t alloc_interrupt(intvec_t hint);
-void bind_interrupt_handler(intvec_t intvec, interrupt_handler_t handler);
+int bind_interrupt_handler(intvec_t intvec, interrupt_handler_t handler);
 void trigger_interrupt(intvec_t intvec, void *restrict frame);
 
 initcall_extern(interrupt);

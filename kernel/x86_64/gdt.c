@@ -27,13 +27,13 @@ struct gdt_entry {
     uint8_t base_2;
 } __packed;
 
-struct gdt_pointer {
-    uint16_t limit;
-    uintptr_t base;
+struct gdt_register {
+    uint16_t size;
+    uintptr_t offset;
 } __packed;
 
 static struct gdt_entry gdt[16] = { 0 };
-static struct gdt_pointer gdt_ptr = { 0 };
+static struct gdt_register gdtr = { 0 };
 
 static void set_entry_16(uint8_t id, uint32_t base, uint16_t limit, uint8_t flags)
 {
@@ -83,12 +83,12 @@ static int init_gdt(void)
     set_entry_64(GDT_USER_CODE_64, code_flags | GDT_RING_3);
     set_entry_64(GDT_USER_DATA_64, data_flags | GDT_RING_3);
 
-    gdt_ptr.limit = (uint16_t)(sizeof(gdt) - 1);
-    gdt_ptr.base = (uintptr_t)(&gdt[0]);
+    gdtr.size = (uint16_t)(sizeof(gdt) - 1);
+    gdtr.offset = (uintptr_t)(&gdt[0]);
 
     asm volatile(__string_va(
         lgdtq %0;
-    )::"m"(gdt_ptr));
+    )::"m"(gdtr));
 
     /* Shake up data segments */
     asm volatile(__string_va(
@@ -107,7 +107,7 @@ static int init_gdt(void)
         1:;
     )::"i"(GDT_SEL(GDT_KERN_CODE_64, 0, 0)));
 
-    kprintf(KP_MACHINE, "gdt: base=%p, limit=%zu", (void *)gdt_ptr.base, (size_t)gdt_ptr.limit);
+    kprintf(KP_MACHINE, "gdtr.size=%zu, gdtr.offset=%p", (size_t)gdtr.size, (const void *)gdtr.offset);
 
     return 0;
 }
