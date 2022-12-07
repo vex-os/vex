@@ -1,4 +1,8 @@
-kaneru_noinit.o
 initcalls.c
 initcalls.o
 interrupts.x86_64.S
+kaneru_noinit.o
+kaneru_nosym.elf
+symtab.c
+symtab.o
+symtab.stub.o

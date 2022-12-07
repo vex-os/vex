@@ -57,13 +57,13 @@
 
 #define __alias(x)              __attribute__((alias(#x)))
 #define __aligned(x)            __attribute__((aligned(x)))
+#define __always_inline         __attribute__((always_inline)) inline
 #define __cold                  __attribute__((cold))
 #define __deprecated            __attribute__((deprecated))
 #define __format(x, y, z)       __attribute__((format(x, y, z)))
 #define __hot                   __attribute__((hot))
 #define __maybe_unused          __attribute__((unused))
 #define __noreturn              __attribute__((noreturn))
-#define __optimize(x)           __attribute__((optimize(x)))
 #define __packed                __attribute__((packed))
 #define __pure                  __attribute__((pure))
 #define __returns_twice         __attribute__((returns_twice))

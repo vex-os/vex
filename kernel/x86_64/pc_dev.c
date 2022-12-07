@@ -12,7 +12,7 @@ static struct resource pc_serial0 = {
 
 static int init_pc_dev(void)
 {
-    resource_register(&pc_serial0);
+    register_resource(&pc_serial0);
 
     return 0;
 }

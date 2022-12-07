@@ -3,6 +3,7 @@
 #ifndef __INCLUDE_KANERU_RESOURCE_H__
 #define __INCLUDE_KANERU_RESOURCE_H__
 #include <kaneru/cdefs.h>
+#include <kaneru/errno.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -15,6 +16,14 @@
 #define pmio_write16(x, y) x86_pmio_write16((x), (y))
 #define pmio_write32(x, y) x86_pmio_write32((x), (y))
 #define pmio_throttle() x86_pmio_throttle()
+#else
+#define pmio_read8(x, y) ((int)(-EIO))
+#define pmio_read16(x, y) ((int)(-EIO))
+#define pmio_read32(x, y) ((int)(-EIO))
+#define pmio_write8(x, y) ((int)(-EIO))
+#define pmio_write16(x, y) ((int)(-EIO))
+#define pmio_write32(x, y) ((int)(-EIO))
+#define pmio_throttle() ((int)(-EIO))
 #endif
 
 #define RESOURCE_MMIO       (1 << 0)
@@ -31,13 +40,13 @@ struct resource {
     struct resource *next;
 };
 
-int resource_register(struct resource *restrict r);
-const struct resource *resource_find(const char *name);
-int resource_read8(const struct resource *restrict r, uintptr_t off, uint8_t *restrict val);
-int resource_read16(const struct resource *restrict r, uintptr_t off, uint16_t *restrict val);
-int resource_read32(const struct resource *restrict r, uintptr_t off, uint32_t *restrict val);
-int resource_write8(const struct resource *restrict r, uintptr_t off, uint8_t val);
-int resource_write16(const struct resource *restrict r, uintptr_t off, uint16_t val);
-int resource_write32(const struct resource *restrict r, uintptr_t off, uint32_t val);
+int register_resource(struct resource *restrict r);
+const struct resource *find_resource(const char *name);
+int resource_read8(const struct resource *restrict r, uintptr_t offset, uint8_t *restrict val);
+int resource_read16(const struct resource *restrict r, uintptr_t offset, uint16_t *restrict val);
+int resource_read32(const struct resource *restrict r, uintptr_t offset, uint32_t *restrict val);
+int resource_write8(const struct resource *restrict r, uintptr_t offset, uint8_t val);
+int resource_write16(const struct resource *restrict r, uintptr_t offset, uint16_t val);
+int resource_write32(const struct resource *restrict r, uintptr_t offset, uint32_t val);
 
 #endif /* __INCLUDE_KANERU_RESOURCE_H__ */

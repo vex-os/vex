@@ -86,11 +86,10 @@ static int init_gdt(void)
     gdtr.size = (uint16_t)(sizeof(gdt) - 1);
     gdtr.offset = (uintptr_t)(&gdt[0]);
 
-    asm volatile(__string_va(
-        lgdtq %0;
-    )::"m"(gdtr));
+    /* set gdtr value (load gdt) */
+    asm volatile("lgdtq %0"::"m"(gdtr));
 
-    /* Shake up data segments */
+    /* shake up all the data segments */
     asm volatile(__string_va(
         movw %%ax, %%ds;
         movw %%ax, %%es;
@@ -99,7 +98,7 @@ static int init_gdt(void)
         movw %%ax, %%ss;
     )::"a"(GDT_SEL(GDT_KERN_DATA_64, 0, 0)));
 
-    /* Far jump to the new segment */
+    /* far jump into the new code segment */
     asm volatile(__string_va(
         pushq %0;
         pushq $1f;

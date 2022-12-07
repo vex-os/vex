@@ -24,13 +24,35 @@ static void test_intr(void *restrict frame)
     kprintf(KP_INITCALL, "x86 interrupt $%#02lX was issued", xframe->vector);
 }
 
+#pragma clang optimize off
+static void trace_test_3(void)
+{
+    panic("panic test");
+}
+
+static void trace_test_2(void)
+{
+    trace_test_3();
+}
+
+static void trace_test_1(void)
+{
+    trace_test_2();
+}
+
+static void trace_test_0(void)
+{
+    trace_test_1();
+}
+#pragma clang optimize on
+
 static void __noreturn kmain(void)
 {
     int errnum;
     const struct initcall *ic;
 
     /* Print version */
-    kprintf(KP_INITCALL, "starting version %s", K_SEMVER);
+    kprintf(KP_UNMASKABLE, "starting version %s", K_SEMVER);
 
     /* Initialize all the subsystems */
     for(ic = &__initcalls[0]; ic->func && ic->name[0]; ic++) {
@@ -38,7 +60,7 @@ static void __noreturn kmain(void)
         if(errnum != 0) {
             if(errnum == -ENODEV)
                 continue;
-            panic("init %s: %s", ic->name, strerror(-errnum));
+            panic("%s: %s", ic->name, strerror(-errnum));
         }
     }
 
@@ -53,6 +75,8 @@ static void __noreturn kmain(void)
         asm volatile("int $0x40");
         asm volatile("int $0x80");
     }
+
+    trace_test_0();
 
     panic("nothing to do");
 }

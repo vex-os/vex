@@ -50,35 +50,29 @@ void kp_set_callback(kp_callback_t callback)
     }
 }
 
-void kputs_impl(unsigned long source, const char *restrict file, unsigned long line, const char *restrict s)
+void kputs(unsigned long source, const char *restrict s)
 {
-    if(source & kp_mask) {
-        snprintf(kp_staging, sizeof(kp_staging), "%s:%lu: ", file, line);
-        kp_ring_puts(kp_staging);
+    if(source == KP_UNMASKABLE || (source & kp_mask)) {
         kp_ring_puts(s);
         kp_ring_puts("\r\n");
     }
 }
 
-void kvprintf_impl(unsigned long source, const char *restrict file, unsigned long line, const char *restrict fmt, va_list ap)
+void kvprintf(unsigned long source, const char *restrict fmt, va_list ap)
 {
-    if(source & kp_mask) {
-        snprintf(kp_staging, sizeof(kp_staging), "%s:%lu: ", file, line);
-        kp_ring_puts(kp_staging);
+    if(source == KP_UNMASKABLE || (source & kp_mask)) {
         vsnprintf(kp_staging, sizeof(kp_staging), fmt, ap);
         kp_ring_puts(kp_staging);
         kp_ring_puts("\r\n");
     }
 }
 
-void kprintf_impl(unsigned long source, const char *restrict file, unsigned long line, const char *restrict fmt, ...)
+void kprintf(unsigned long source, const char *restrict fmt, ...)
 {
     va_list ap;
 
-    if(source & kp_mask) {
+    if(source == KP_UNMASKABLE || (source & kp_mask)) {
         va_start(ap, fmt);
-        snprintf(kp_staging, sizeof(kp_staging), "%s:%lu: ", file, line);
-        kp_ring_puts(kp_staging);
         vsnprintf(kp_staging, sizeof(kp_staging), fmt, ap);
         kp_ring_puts(kp_staging);
         kp_ring_puts("\r\n");

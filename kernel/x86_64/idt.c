@@ -104,9 +104,8 @@ static int init_x86_idt(void)
     idtr.size = (uint16_t)(sizeof(idt) - 1);
     idtr.offset = (uintptr_t)(&idt[0]);
 
-    asm volatile(__string_va(
-        lidtq %0;
-    )::"m"(idtr));
+    /* set idtr value (load idt) */
+    asm volatile("lidtq %0"::"m"(idtr));
 
     kprintf(KP_MACHINE, "idtr.size=%zu, idtr.offset=%p", (size_t)idtr.size, (const void *)idtr.offset);
 

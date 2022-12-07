@@ -10,7 +10,7 @@
 #define KP_EVERYTHING   0xFFFFFFFF
 #define KP_NOTHING      0x00000000
 
-#define KP_UNDEFINED    0xFFFFFFFF
+#define KP_UNMASKABLE   0x00000000 /* always printed */
 #define KP_MACHINE      0x00000001
 #define KP_INITCALL     0x00000002
 #define KP_INTERRUPT    0x00000004
@@ -22,12 +22,8 @@ unsigned long kp_get_mask(void);
 unsigned long kp_set_mask(unsigned long mask);
 void kp_set_callback(kp_callback_t callback);
 
-void kputs_impl(unsigned long source, const char *restrict file, unsigned long line, const char *restrict s);
-void kvprintf_impl(unsigned long source, const char *restrict file, unsigned long line, const char *restrict fmt, va_list ap);
-void kprintf_impl(unsigned long source, const char *restrict file, unsigned long line, const char *restrict fmt, ...) __format(printf, 4, 5);
-
-#define kputs(source, s) ({kputs_impl((source),__FILE__,__LINE__,(s));})
-#define kvprintf(source, fmt, ap) ({kvprintf_impl((source),__FILE__,__LINE__,(fmt),(ap));})
-#define kprintf(source, fmt, ...) ({kprintf_impl((source),__FILE__,__LINE__,(fmt),##__VA_ARGS__);})
+void kputs(unsigned long source, const char *restrict s);
+void kvprintf(unsigned long source, const char *restrict fmt, va_list ap);
+void kprintf(unsigned long source, const char *restrict fmt, ...) __format(printf, 2, 3);
 
 #endif /* __INCLUDE_KANERU_KPRINTF_H__ */
