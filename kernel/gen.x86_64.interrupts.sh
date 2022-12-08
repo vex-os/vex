@@ -7,7 +7,7 @@ printf "/* warning: changes will be lost */\n"
 
 printf ".section .text\n"
 for i in ${vectors}; do
-    printf "interrupt_${i}:\n"
+    printf "x86_interrupt_${i}:\n"
 
     ## x86 exceptions 8, 10, 11, 12, 13, 14 and 21
     ## push an error code describing what caused them.
@@ -25,5 +25,5 @@ printf ".section .rodata\n"
 printf ".global __x86_interrupts\n"
 printf "__x86_interrupts:\n"
 for i in ${vectors}; do
-    printf ".quad interrupt_${i}\n"
+    printf ".quad x86_interrupt_${i}\n"
 done

@@ -82,6 +82,6 @@ $(INITCALLS_C): $(TARGET_NIC) frc
 	$(shell ./gen.initcalls.sh "$(OBJDUMP)" "$(TARGET_NIC)" > $@)
 
 $(SYMTAB_C): $(TARGET_NST) frc
-	$(shell ./gen.symtab.sh "$(OBJDUMP)" "$(TARGET_NST)" > $@)
+	$(shell ./gen.symtab.sh "$(NM)" "$(TARGET_NST)" > $@)
 
 $(SOURCES): $(VERSION_H)

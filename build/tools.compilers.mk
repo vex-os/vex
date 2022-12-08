@@ -5,6 +5,7 @@ AS		:= clang -pipe
 CC		:= clang -pipe
 LD		:= ld.lld
 OBJDUMP	:= llvm-objdump
+NM		:= llvm-nm
 
 ASFLAGS	:=
 CCFLAGS	:=

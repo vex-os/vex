@@ -6,7 +6,7 @@
 
 struct initcall {
     int(*func)(void);
-    const char name[64];
+    const char *name;
 };
 
 /* defined in kernel/initcalls.c */

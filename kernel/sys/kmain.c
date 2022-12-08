@@ -21,29 +21,26 @@ static volatile struct limine_entry_point_request __used kmain_request = {
 static void test_intr(void *restrict frame)
 {
     struct x86_interrupt_frame *xframe = frame;
-    kprintf(KP_INITCALL, "x86 interrupt $%#02lX was issued", xframe->vector);
+    kprintf(KP_INTERRUPT, "x86_64: int $%#02lX", xframe->vector);
 }
 
 #pragma clang optimize off
-static void trace_test_3(void)
+static void trace_test_recurse(int level)
 {
-    panic("panic test");
+    if(level == 10) {
+        panic("trace test");
+        return;
+    }
+
+    trace_test_recurse(level + 1);
 }
 
-static void trace_test_2(void)
+static int init_trace_test(void)
 {
-    trace_test_3();
+    trace_test_recurse(0);
+    return 0;
 }
-
-static void trace_test_1(void)
-{
-    trace_test_2();
-}
-
-static void trace_test_0(void)
-{
-    trace_test_1();
-}
+initcall_tier_2(trace_test, init_trace_test);
 #pragma clang optimize on
 
 static void __noreturn kmain(void)
@@ -75,8 +72,6 @@ static void __noreturn kmain(void)
         asm volatile("int $0x40");
         asm volatile("int $0x80");
     }
-
-    trace_test_0();
 
     panic("nothing to do");
 }

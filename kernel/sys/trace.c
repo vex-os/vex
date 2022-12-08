@@ -44,11 +44,11 @@ bool trace_address(uintptr_t address, struct symbol *restrict sym, uintptr_t *re
     return false;
 }
 
-void print_stack_backtrace(const uintptr_t *base_pointer)
+void print_backtrace(unsigned long kprintf_source, const uintptr_t *base_pointer)
 {
     size_t frame;
-    uintptr_t next_base;
-    uintptr_t return_addr;
+    const void *next_base;
+    const void *return_addr;
     uintptr_t sym_offset;
     struct symbol sym;
 
@@ -58,22 +58,22 @@ void print_stack_backtrace(const uintptr_t *base_pointer)
     }
 
     if(!base_pointer) {
-        kputs(KP_UNMASKABLE, "stack backtrace not available!");
+        /* still no base pointer, hence no backtrace */
         return;
     }
 
-    kputs(KP_UNMASKABLE, "stack backtrace:");
     for(frame = 0;; frame++) {
-        next_base = base_pointer[0];
-        return_addr = base_pointer[1];
-        if(!next_base || !return_addr)
-            break;
+        next_base = (const void *)base_pointer[0];
+        return_addr = (const void *)base_pointer[1];
+        if(next_base && return_addr) {
+            if(trace_address((uintptr_t)return_addr, &sym, &sym_offset))
+                kprintf(kprintf_source, " #%-2zu %p (%s+%#02jX)", frame, return_addr, sym.name, (uintmax_t)sym_offset);
+            else
+                kprintf(kprintf_source, " #%-2zu %p", frame, return_addr);
+            base_pointer = next_base;
+            continue;
+        }
 
-        if(trace_address(return_addr, &sym, &sym_offset))
-            kprintf(KP_UNMASKABLE, " %3zu [%p] %s+%#jX", frame, (const void *)return_addr, sym.name, (uintmax_t)sym_offset);
-        else
-            kprintf(KP_UNMASKABLE, " %3zu [%p]", frame, (const void *)return_addr);
-
-        base_pointer = (const uintptr_t *)next_base;
+        break;
     }
 }

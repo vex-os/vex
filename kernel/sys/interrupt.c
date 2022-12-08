@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
+#include <kaneru/debug.h>
 #include <kaneru/errno.h>
 #include <kaneru/interrupt.h>
 #include <kaneru/kprintf.h>
@@ -43,9 +44,7 @@ intvec_t alloc_interrupt(intvec_t hint)
         }
     }
 
-    /* that's a bad thing really but not a death sentence */
-    kprintf(KP_INTERRUPT, "out of spare interrupt vectors!");
-
+    panic("out of interrupt vectors");
     return INTVEC_NULL;
 }
 

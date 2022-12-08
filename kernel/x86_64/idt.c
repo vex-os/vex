@@ -46,16 +46,6 @@ void __used __x86_c_interrupt_handler(struct x86_interrupt_frame *restrict frame
     trigger_interrupt(interrupt_map[frame->vector], frame);
 }
 
-void x86_enable_interrupts(void)
-{
-    asm volatile("sti");
-}
-
-void x86_disable_interrupts(void)
-{
-    asm volatile("cli");
-}
-
 bool x86_map_interrupt(intvec_t intvec, unsigned int vector, bool user)
 {
     struct idt_entry *entry;

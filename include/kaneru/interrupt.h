@@ -11,8 +11,12 @@
 #if defined(__X86_64__)
 #include <x86_64/idt.h>
 #define MAX_INTERRUPTS X86_IDT_SIZE
+#define disable_interrupts() x86_disable_interrupts()
+#define enable_interrupts() x86_enable_interrupts()
 #else
-#error "Have your heard of a popular hit game among us?"
+#define MAX_INTERRUPTS 0
+#define disable_interrupts() ({})
+#define enable_interrupts() ({})
 #endif
 
 typedef void(*interrupt_handler_t)(void *restrict frame);

@@ -30,6 +30,6 @@ extern const struct symbol __kernel_symbols[];
 
 void register_symtab(struct symtab *restrict st);
 bool trace_address(uintptr_t address, struct symbol *restrict sym, uintptr_t *restrict offset);
-void print_stack_backtrace(const uintptr_t *base_pointer);
+void print_backtrace(unsigned long kprintf_source, const uintptr_t *base_pointer);
 
 #endif /* __INCLUDE_KANERU_TRACE_H__ */

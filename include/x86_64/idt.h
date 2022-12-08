@@ -18,9 +18,17 @@ struct x86_interrupt_frame {
     uint64_t rsp, ss;
 } __packed;
 
-void x86_enable_interrupts(void);
-void x86_disable_interrupts(void);
 bool x86_map_interrupt(intvec_t intvec, unsigned int vector, bool user);
+
+static __always_inline void x86_disable_interrupts(void)
+{
+    asm volatile("cli");
+}
+
+static __always_inline void x86_enable_interrupts(void)
+{
+    asm volatile("sti");
+}
 
 initcall_extern(x86_idt);
 
