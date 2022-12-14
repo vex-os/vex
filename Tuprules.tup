@@ -1,0 +1,30 @@
+TARGET = x86_64
+VERSION = 0.0.0-dev.2
+
+&boot = boot/
+&kernel = kernel/
+&libk = libk/
+
+build_dir = $(TUP_CWD)/build/
+scripts_dir = $(TUP_CWD)/scripts/
+sys_include = $(TUP_CWD)/include/
+pub_include = $(TUP_CWD)/public/
+
+CCFLAGS += -ffreestanding --target=$(TARGET)-none-elf
+CCFLAGS += -Wall -Wextra -Werror -pedantic
+CCFLAGS += -O2 -std=gnu99
+
+CPFLAGS += -D __KERNEL__
+CPFLAGS += -D __kernel__
+CPFLAGS += -I $(sys_include)
+CPFLAGS += -I $(pub_include)
+CPFLAGS += -nostdlibinc 
+
+LDFLAGS += -static
+LDFLAGS += -nostdlib
+
+include Tuprules.$(TARGET).tup
+
+!r_as = |> clang $(CCFLAGS) $(CPFLAGS) -c %f -o %o |>
+!r_cc = |> clang $(CCFLAGS) $(CPFLAGS) -c %f -o %o |>
+!r_ar = |> llvm-ar -rcs %o %f |>

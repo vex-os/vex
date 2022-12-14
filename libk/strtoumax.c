@@ -1,0 +1,30 @@
+/* SPDX-License-Identifier: BSD-2-Clause */
+/* Copyright (c), 2022, Kaneru Contributors */
+#include <stdlib.h>
+
+uintmax_t strtoumax(const char *restrict s, const char **restrict endptr, int base)
+{
+    uintmax_t r;
+    strtoxx_ctx_t ctx = { 0 };
+    ctx.base = base;
+    ctx.sign = '+';
+    
+    strtoxx_init(s, &ctx);
+    if(!ctx.s) {
+        if(endptr)
+            *endptr = NULL;
+        return 0;
+    }
+
+    ctx.error = (uintmax_t)(UINTMAX_MAX);
+    ctx.limval = (uintmax_t)(UINTMAX_MAX / ctx.base);
+    ctx.limdigit = (int)(UINTMAX_MAX % ctx.base);
+
+    r = (uintmax_t)strtoxx_main(&ctx);
+    if(ctx.sign != '+')
+        r = -r;
+    
+    if(endptr)
+        *endptr = ctx.s ? ctx.s : s;
+    return r;
+}

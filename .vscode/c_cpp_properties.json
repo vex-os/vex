@@ -11,8 +11,8 @@
                 "__KERNEL__", "__kernel__"
             ],
             "includePath": [
-                "${workspaceFolder}/include",
-                "${workspaceFolder}/public"
+                "${workspaceFolder}/public",
+                "${workspaceFolder}/include"
             ]
         }
     ]

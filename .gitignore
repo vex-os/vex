@@ -1,10 +1,6 @@
+.tup/*
 .vscode/*
 !.vscode/c_cpp_properties.json
-*.a
-*.c.o
-*.S.o
-*.s.o
+include/conf/version.h
+*.o
 *.ld
-kaneru.elf
-kaneru.iso
-kaneru.ld

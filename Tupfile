@@ -1,0 +1,5 @@
+include_rules
+
+# Generates a version header.
+# FIXME: is there a way to force Tup to overwrite it every time?
+: |> sh $(scripts_dir)/mkversion.sh $(VERSION) > %o |> $(pub_include)/config/version.h
