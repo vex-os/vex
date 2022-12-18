@@ -1,14 +1,9 @@
 TARGET = x86_64
 VERSION = 0.0.0-dev.2
 
-&boot = boot/
-&kernel = kernel/
-&libk = libk/
-
-build_dir = $(TUP_CWD)/build/
-scripts_dir = $(TUP_CWD)/scripts/
-sys_include = $(TUP_CWD)/include/
-pub_include = $(TUP_CWD)/public/
+build_dir = $(TUP_CWD)/build
+include_dir = $(TUP_CWD)/include
+source_dir = $(TUP_CWD)/src
 
 CCFLAGS += -ffreestanding --target=$(TARGET)-none-elf
 CCFLAGS += -Wall -Wextra -Werror -pedantic
@@ -16,9 +11,9 @@ CCFLAGS += -O2 -std=gnu99
 
 CPFLAGS += -D __KERNEL__
 CPFLAGS += -D __kernel__
-CPFLAGS += -I $(sys_include)
-CPFLAGS += -I $(pub_include)
-CPFLAGS += -nostdlibinc 
+CPFLAGS += -I $(include_dir)
+CPFLAGS += -I $(source_dir)
+CPFLAGS += -nostdlibinc
 
 LDFLAGS += -static
 LDFLAGS += -nostdlib

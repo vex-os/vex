@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-/* UNDONE: floating point support if not __kernel__ */
 #include <ctype.h>
 #include <sprintf.h>
 #include <stdint.h>

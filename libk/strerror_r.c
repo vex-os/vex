@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
+#include <kan/errno.h>
 #include <string.h>
 #include <sprintf.h>
-#include <sys/errno.h>
 
 int strerror_r(int errnum, char *restrict s, size_t n)
 {

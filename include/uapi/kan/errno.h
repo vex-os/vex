@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef _PUBLIC_SYS_ERRNO_H__
-#define _PUBLIC_SYS_ERRNO_H__
+#ifndef _INCLUDE_UAPI_KAN_ERRNO_H__
+#define _INCLUDE_UAPI_KAN_ERRNO_H__
 
 #define E2BIG           1
 #define EACCES          2
@@ -83,4 +83,4 @@
 #define EWOULDBLOCK     78
 #define EXDEV           79
 
-#endif /* _PUBLIC_SYS_ERRNO_H__ */
+#endif /* _INCLUDE_UAPI_KAN_ERRNO_H__ */

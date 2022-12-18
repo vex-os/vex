@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef _PUBLIC_SYS_CDEFS_H__
-#define _PUBLIC_SYS_CDEFS_H__
+#ifndef _INCLUDE_UAPI_KAN_COMPILER_H__
+#define _INCLUDE_UAPI_KAN_COMPILER_H__
 
 #if __STDC_VERSION__ >= 199901L
 #define __stdc_compliance 99
@@ -23,6 +23,21 @@
 #define inline __inline
 #endif
 
+#if !defined(__has_builtin)
+#define __has_builtin(x) 0
+#endif
+
+#if __has_builtin(__builtin_unreachable)
+#define unreachable() __builtin_unreachable()
+#else
+#define unreachable() ({for(;;);})
+#endif
+
+#define ___concat(x, y) x##y
+#define ___string(x) #x
+#define __concat(x, y) ___concat(x, y)
+#define __string(x) ___string(x)
+
 #define __alias(x)          __attribute__((alias(#x)))
 #define __aligned(x)        __attribute__((aligned(x)))
 #define __always_inline     __attribute__((always_inline)) inline
@@ -39,4 +54,4 @@
 #define __nodiscard         __attribute__((warn_unused_result))
 #define __weak              __attribute__((weak))
 
-#endif /* _PUBLIC_SYS_CDEFS_H__ */
+#endif /* _INCLUDE_UAPI_KAN_COMPILER_H__ */
