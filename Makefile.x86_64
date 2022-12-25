@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: BSD-2-Clause 
-# Copyright (c), 2022, Kaneru Contributors 
+# Copyright (c), 2022, Kaneru Contributors
+CTARGET := x86_64-none-elf
 LTARGET	:= x86_64
 STARGET	:= x86
 
@@ -17,8 +18,8 @@ LDFLAGS	+= --no-pie
 LDFLAGS	+= -z max-page-size=0x1000
 
 SOURCES	+= temp/idt_stub.S
-CLEAN	+= temp/idt_stub.S
+DCLEAN	+= temp/idt_stub.S
 temp/idt_stub.S:
 	@mkdir -p temp
-	@printf "generating $@\n"
+	@printf "[kernel] generating $@\n"
 	@sh scripts/gen.idt_stub.x86.sh > $@

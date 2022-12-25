@@ -36,6 +36,8 @@
 #define __string(x) ___string(x)
 #define __string_va(...) #__VA_ARGS__
 
+#define __unused_var(x) ((void)(x))
+
 #define __alias(x)          __attribute__((alias(#x)))
 #define __aligned(x)        __attribute__((aligned(x)))
 #define __always_inline     __attribute__((always_inline)) inline
