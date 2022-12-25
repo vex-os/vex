@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2022, Kaneru Contributors */
+/* Copyright (c), 2022, KanOS Contributors */
 #ifndef _INCLUDE_UAPI_KAN_RESOURCE_H__
 #define _INCLUDE_UAPI_KAN_RESOURCE_H__
 #include <stddef.h>

@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2022, Kaneru Contributors */
+/* Copyright (c), 2022, KanOS Contributors */
 #include <sprintf.h>
 #include <stdint.h>
 

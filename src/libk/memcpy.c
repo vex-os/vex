@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2022, Kaneru Contributors */
+/* Copyright (c), 2022, KanOS Contributors */
 #include <string.h>
 
 void *memcpy(void *restrict s1, const void *restrict s2, size_t n)

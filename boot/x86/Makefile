@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: BSD-2-Clause 
-# Copyright (c), 2022, Kaneru Contributors 
+# Copyright (c), 2022, KanOS Contributors 
 # This is not meant to be run separately, instead
 # it is included by the tree root's Makefile.
 

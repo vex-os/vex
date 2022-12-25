@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2022, Kaneru Contributors */
+/* Copyright (c), 2022, KanOS Contributors */
 #include <sprintf.h>
 
 size_t snprintf(char *restrict s, size_t n, const char *restrict fmt, ...)

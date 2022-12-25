@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2022, Kaneru Contributors */
+/* Copyright (c), 2022, KanOS Contributors */
 #ifndef _INCLUDE_KAN_KPRINTF_H__
 #define _INCLUDE_KAN_KPRINTF_H__
 #include <kan/compiler.h>
