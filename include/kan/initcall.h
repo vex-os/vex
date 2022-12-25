@@ -6,7 +6,7 @@
 
 typedef struct initcall_s {
     int(*func)(void);
-    const char name[64];
+    char name[64];
 } initcall_t;
 
 /* Defined in build/kernel/initcalls.c */
@@ -19,12 +19,9 @@ extern const initcall_t __initcalls[];
     extern int __init_##init(void)
 
 #define initcall_depend(init, dep) \
-    static const void __used __section(".discard") *\
-        __concat(__test_init, __COUNTER__) = &__init_##dep; \
-    static const void __used __section(".discard") *\
-        __concat(__test_init, __COUNTER__) = &__init_##init; \
-    static const char __used __section(".discard.init") __aligned(1) \
-        __concat(__depend_init, __COUNTER__)[] = #dep " " #init
+    static const void __used __section(".discard") *__concat(__test_init, __COUNTER__) = &__init_##dep; \
+    static const void __used __section(".discard") *__concat(__test_init, __COUNTER__) = &__init_##init; \
+    static const char __used __section(".discard.init") __aligned(1) __concat(__depend_init, __COUNTER__)[] = #dep " " #init
 
 initcall_extern(tier_0);
 initcall_extern(tier_1);

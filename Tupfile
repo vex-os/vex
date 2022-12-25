@@ -1,6 +1,0 @@
-include_rules
-
-# Generates a version header.
-# FIXME: is there a way to force Tup to overwrite it every time?
-# FIXME: only kernel uses this, so we might move it to the respective subdirectory.
-# : |> sh $(scripts_dir)/mkversion.sh $(VERSION) > %o |> $(pub_include)/kan/version.h

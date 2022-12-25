@@ -7,21 +7,11 @@
 #include <stdbool.h>
 #include <stddef.h>
 
-/* These symbols are exposed manually
- * for certain functions and objects that
- * are going to be useful within a kernel module.
- * FIXME: these are only declared!!!!!
- * UNDONE: kernel modules and whatnot. */
-extern symbol_t __ksymtab_begin;
-extern symbol_t __ksymtab_end;
+/* These symbols are automatically exported
+ * from an intermediate kernel executable
+ * using llvm-nm and are sorted by address */
+extern const symbol_t kernel_syms[];
 
-/* Unlike section .ksymtab symbols, these
- * are automatically pulled from an intermediate
- * kernel binary (via llvm-nm) and used within
- * backtrace subroutine to walk the stack. */
-extern const symbol_t __trace_ksyms[];
-
-int find_symbol(const char *restrict name, symbol_t *restrict sym);
 bool trace_address(uintptr_t address, symbol_t *restrict sym, ptrdiff_t *restrict off);
 
 #endif /* _INCLUDE_KAN_SYMBOL_H__ */

@@ -10,7 +10,7 @@ typedef int(*syscon_init_t)(struct syscon_s *restrict con);
 typedef void(*syscon_write_t)(struct syscon_s *restrict con, const void *restrict s, size_t n);
 
 typedef struct syscon_s {
-    const char name[64];
+    char name[64];
     syscon_init_t init_fn;
     syscon_write_t write_fn;
     struct syscon_s *next;

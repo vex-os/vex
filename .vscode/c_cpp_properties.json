@@ -10,10 +10,7 @@
                 "__X86_64__", "__x86_64__",
                 "__KERNEL__", "__kernel__"
             ],
-            "includePath": [
-                "${workspaceFolder}/include",
-                "${workspaceFolder}/public"
-            ]
+            "includePath": [ "${workspaceFolder}/include" ]
         }
     ]
 }

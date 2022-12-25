@@ -15,10 +15,7 @@
 #define __inline
 #endif
 
-#if __stdc_compliance >= 99
-#include <stdnoreturn.h>
-#else
-#define noreturn __attribute__((noreturn))
+#if __stdc_compliance < 99
 #define restrict __restrict
 #define inline __inline
 #endif
@@ -37,6 +34,7 @@
 #define ___string(x) #x
 #define __concat(x, y) ___concat(x, y)
 #define __string(x) ___string(x)
+#define __string_va(...) #__VA_ARGS__
 
 #define __alias(x)          __attribute__((alias(#x)))
 #define __aligned(x)        __attribute__((aligned(x)))
@@ -45,6 +43,7 @@
 #define __deprecated        __attribute__((deprecated))
 #define __format(x, y, z)   __attribute__((format(x, y, z)))
 #define __hot               __attribute__((hot))
+#define __noreturn          __attribute__((noreturn))
 #define __packed            __attribute__((packed))
 #define __printf(x, y)      __attribute__((format(printf, x, y)))
 #define __pure              __attribute__((pure))

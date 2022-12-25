@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: BSD-2-Clause 
+# Copyright (c), 2022, Kaneru Contributors 
+LTARGET	:= x86_64
+STARGET	:= x86
+
+CXFLAGS	+= -fno-pic
+CXFLAGS	+= -mcmodel=kernel
+CXFLAGS	+= -mno-3dnow -mno-80387 -mno-mmx
+CXFLAGS	+= -mno-red-zone -mno-sse -mno-sse2
+
+CPFLAGS	+= -D __X86_64__
+CPFLAGS	+= -D __x86_64__
+CPFLAGS	+= -D __AMD64__
+CPFLAGS	+= -D __amd64__
+
+LDFLAGS	+= --no-pie
+LDFLAGS	+= -z max-page-size=0x1000
+
+SOURCES	+= temp/idt_stub.S
+CLEAN	+= temp/idt_stub.S
+temp/idt_stub.S:
+	@mkdir -p temp
+	@printf "generating $@\n"
+	@sh scripts/gen.idt_stub.x86.sh > $@
