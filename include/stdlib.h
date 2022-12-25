@@ -1,22 +1,39 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, Kaneru Contributors */
-#ifndef __INCLUDE_STDLIB_H__
-#define __INCLUDE_STDLIB_H__
+#ifndef _INCLUDE_STDLIB_H__
+#define _INCLUDE_STDLIB_H__
+#include <kan/compiler.h>
 #include <stddef.h>
-#include <kaneru/cdefs.h>
+#include <stdint.h>
 
-int atoi(const char *restrict s) __weak;
-long int atol(const char *restrict s) __weak;
-long long int atoll(const char *restrict s) __weak;
+typedef struct strtoxx_ctx_s {
+    const char *s;
+    uintmax_t error;
+    uintmax_t limval;
+    int limdigit;
+    int sign;
+    int base;
+} strtoxx_ctx_t;
 
-long int strtol(const char *restrict s, const char *restrict *restrict endptr, int base) __weak;
-long long int strtoll(const char *restrict s, const char *restrict *restrict endptr, int base) __weak;
-unsigned long int strtoul(const char *restrict s, const char *restrict *restrict endptr, int base) __weak;
-unsigned long long int strtoull(const char *restrict s, const char *restrict *restrict endptr, int base) __weak;
-size_t strtouz(const char *restrict s, const char *restrict *restrict endptr, int base) __weak;
+void strtoxx_init(const char *restrict s, strtoxx_ctx_t *restrict ctx);
+uintmax_t strtoxx_main(strtoxx_ctx_t *restrict ctx);
 
-int abs(int j) __weak;
-long int labs(long int j) __weak;
-long long int llabs(long long int j) __weak;
+int atoi(const char *restrict s);
+long atol(const char *restrict s);
+long long atoll(const char *restrict s);
 
-#endif /* __INCLUDE_STDLIB_H__ */
+long strtol(const char *restrict s, const char **restrict endptr, int base);
+long long strtoll(const char *restrict s, const char **restrict endptr, int base);
+unsigned long strtoul(const char *restrict s, const char **restrict endptr, int base);
+unsigned long long strtoull(const char *restrict s, const char **restrict endptr, int base);
+
+intmax_t strtoimax(const char *restrict s, const char **restrict endptr, int base);
+uintmax_t strtoumax(const char *restrict s, const char **restrict endptr, int base);
+
+size_t strtouz(const char *restrict s, const char **restrict endptr, int base);
+
+int abs(int x);
+long labs(long x);
+long long llabs(long long x);
+
+#endif /* _INCLUDE_STDLIB_H__ */
