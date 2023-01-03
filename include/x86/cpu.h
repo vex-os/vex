@@ -5,24 +5,24 @@
 #include <kan/compiler.h>
 #include <stdint.h>
 
-static __always_inline const uintptr_t *x86_cpu_get_baseptr(void)
+static __force_inline const uintptr_t *x86_cpu_get_baseptr(void)
 {
     const uintptr_t *rbp;
     asm volatile("movq %%rbp, %0":"=r"(rbp)::"memory");
     return rbp;
 }
 
-static __always_inline void x86_cpu_disable_interrupts(void)
+static __force_inline void x86_cpu_disable_interrupts(void)
 {
     asm volatile("cli");
 }
 
-static __always_inline void x86_cpu_enable_interrupts(void)
+static __force_inline void x86_cpu_enable_interrupts(void)
 {
     asm volatile("sti");
 }
 
-static __always_inline void x86_cpu_idle(void)
+static __force_inline void x86_cpu_idle(void)
 {
     asm volatile("hlt");
 }

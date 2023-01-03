@@ -6,23 +6,20 @@
 #include <kan/symbol.h>
 #include <limits.h>
 #include <sprintf.h>
+#include <string.h>
 
 void __noreturn vpanic(const char *restrict fmt, va_list ap)
 {
-    static char msg[KP_MSG_SIZE] = { 0 };
+    static char msg[KP_MSG_SZ] = { 0 };
 
     cpu_disable_interrupts();
 
-    /* Print EVERYTHNG */
-    kp_loglevel = SHRT_MAX;
-    kp_mask = KP_MASK_NONE;
-
+    memset(msg, 0, sizeof(msg));
     vsnprintf(msg, sizeof(msg), fmt, ap);
-    pr_emerg(KP_UNMASKABLE, "kernel panic: %s", msg);
 
-    /* Print backtrace with the same
-     * loglevel as the panic message */
-    print_backtrace(KP_EMERG, KP_UNMASKABLE, NULL);
+    kp_verbosity = SHRT_MAX;
+    kprint_backtrace(SHRT_MIN, NULL);
+    kprintf(SHRT_MIN, "panic: %s", msg);
 
     for(;;) {
         cpu_idle();
@@ -31,20 +28,20 @@ void __noreturn vpanic(const char *restrict fmt, va_list ap)
 
     unreachable();
 }
+EXPORT_SYMBOL(vpanic);
 
 void __noreturn panic(const char *restrict fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
     vpanic(fmt, ap);
-    va_end(ap);
-
     unreachable();
+    va_end(ap);
 }
+EXPORT_SYMBOL(panic);
 
-void print_backtrace(short level, unsigned long source, const uintptr_t *restrict baseptr)
+void kprint_backtrace(short severity, const uintptr_t *restrict baseptr)
 {
-    size_t i;
     uintptr_t next;
     uintptr_t rptr;
     ptrdiff_t off;
@@ -54,29 +51,24 @@ void print_backtrace(short level, unsigned long source, const uintptr_t *restric
         baseptr = cpu_get_baseptr();
 
         if(!baseptr) {
-            /* Not available */
+            kputs(severity, "backtrace: not available");
             return;
         }
     }
 
-    for(i = 0;; i++) {
+    for(;;) {
         next = baseptr[0];
         rptr = baseptr[1];
-
-        if(next == 0 || rptr == 0) {
-            /* Any of these being zero indicates end of trace*/
-            break;
+        if(next && rptr) {
+            if(trace_address(rptr, &sym, &off))
+                kprintf(severity, "backtrace: [%p] %s+%#03tX", (void *)rptr, sym.name, off);
+            else
+                kprintf(severity, "backtrace: [%p]", (void *)rptr);
+            baseptr = (const uintptr_t *)next;
+            continue;
         }
 
-        if(trace_address(rptr, &sym, &off)) {
-            /* Traceable symbol found */
-            kprintf(level, source, "#%02zX [%p] %s(%#02tX)", i, (void *)rptr, sym.name, off);
-        }
-        else {
-            /* Untraceable address, possibly within a module... */
-            kprintf(level, source, "#%02zX [%p]", i, (void *)rptr);
-        }
-
-        baseptr = (const uintptr_t *)next;
+        break;
     }
 }
+EXPORT_SYMBOL(kprint_backtrace);

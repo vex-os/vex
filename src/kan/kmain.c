@@ -13,11 +13,15 @@ void __noreturn __used kmain(void)
     size_t i;
 
     /* Print some information about ourselves... */
-    pr_inform(KP_UNMASKABLE, "starting version %s", kernel_semver);
+    pr_inform("starting version %s", kernel_semver);
 
-    for(i = 0; __initcalls[i].func; i++) {
-        if((r = __initcalls[i].func()) < 0 && r != -ENODEV) {
-            panic("%s: %s", __initcalls[i].name, strerror(r));
+    for(i = 0; initcalls[i].func; i++) {
+        /* An initcall returning ENODEV is a special case,
+         * it just means the initcall wasn't successful but
+         * it didn't fail either (for instance there was no
+         * device associated with the driver or whatever). */
+        if((r = initcalls[i].func()) != 0 && r != ENODEV) {
+            panic("%s: %s", initcalls[i].name, strerror(r));
             unreachable();
         }
     }

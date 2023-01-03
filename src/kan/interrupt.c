@@ -3,6 +3,7 @@
 #include <kan/errno.h>
 #include <kan/interrupt.h>
 #include <kan/kprintf.h>
+#include <kan/symbol.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <string.h>
@@ -24,7 +25,6 @@ long alloc_interrupt(long hint)
         hint = 0;
     }
 
-    /* try to allocate after the hint */
     for(vector = hint; vector < MAX_INTERRUPTS; vector++) {
         if(!interrupts[vector].is_allocated) {
             memset(&interrupts[vector], 0, sizeof(interrupt_t));
@@ -34,7 +34,6 @@ long alloc_interrupt(long hint)
         }
     }
 
-    /* try to allocate before the hint */
     for(vector = 0; vector < hint; vector++) {
         if(!interrupts[vector].is_allocated) {
             memset(&interrupts[vector], 0, sizeof(interrupt_t));
@@ -44,34 +43,32 @@ long alloc_interrupt(long hint)
         }
     }
 
-    pr_error(KP_INTERRUPT, "interrupt: out of vectors!");
+    pr_debug("interrupt: out of free vectors");
 
     return NULL_INTERRUPT;
 }
+EXPORT_SYMBOL(alloc_interrupt);
 
 int add_interrupt_handler(long vector, interrupt_handler_t handler)
 {
     interrupt_t *interrupt;
 
-    if(vector < 0 || vector >= MAX_INTERRUPTS) {
-        pr_warning(KP_INTERRUPT, "interrupt: vector <%ld> out of range", vector);
-        return -ERANGE;
-    }
+    if(vector < 0 || vector >= MAX_INTERRUPTS)
+        return ERANGE;
 
     interrupt = &interrupts[vector];
-    if(!interrupt->is_allocated) {
-        pr_warning(KP_INTERRUPT, "interrupt: vector <%ld> is not allocated", vector);
-        return -EINVAL;
-    }
 
-    if(interrupt->num_handlers >= MAX_INTERRUPT_HANDLERS) {
-        pr_warning(KP_INTERRUPT, "interrupt: vector <%ld> is out of handlers", vector);
-        return -ENOMEM;
-    }
+    if(!interrupt->is_allocated)
+        return EINVAL;
+
+    if(interrupt->num_handlers >= MAX_INTERRUPT_HANDLERS)
+        return ENOMEM;
 
     interrupt->handlers[interrupt->num_handlers++] = handler;
+
     return 0;
 }
+EXPORT_SYMBOL(add_interrupt_handler);
 
 void trigger_interrupt(long vector, interrupt_frame_t *restrict frame)
 {
@@ -79,13 +76,14 @@ void trigger_interrupt(long vector, interrupt_frame_t *restrict frame)
     interrupt_t *interrupt;
 
     if(vector < 0 || vector >= MAX_INTERRUPTS) {
-        pr_warning(KP_INTERRUPT, "interrupt: vector <%ld> out of range", vector);
+        pr_warning("interrupt: vector <%ld> out of range", vector);
         return;
     }
 
     interrupt = &interrupts[vector];
+
     if(!interrupt->is_allocated) {
-        pr_warning(KP_INTERRUPT, "interrupt: vector <%ld> is not allocated", vector);
+        pr_warning("interrupt: vector <%ld> is not allocated", vector);
         return;
     }
 

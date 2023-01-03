@@ -15,13 +15,13 @@
 #define pmio_write32(x, y) x86_pmio_write32((x), (y))
 #define pmio_throttle() x86_pmio_throttle()
 #else
-#define pmio_read8(x, y) ((void)(x),(void)(y),(int)(-EIO))
-#define pmio_read16(x, y) ((void)(x),(void)(y),(int)(-EIO))
-#define pmio_read32(x, y) ((void)(x),(void)(y),(int)(-EIO))
-#define pmio_write8(x, y) ((void)(x),(void)(y),(int)(-EIO))
-#define pmio_write16(x, y) ((void)(x),(void)(y),(int)(-EIO))
-#define pmio_write32(x, y) ((void)(x),(void)(y),(int)(-EIO))
-#define pmio_throttle() ((void)(x),(void)(y),(int)(-EIO))
+#define pmio_read8(x, y) ((void)(x),(void)(y),(int)(EIO))
+#define pmio_read16(x, y) ((void)(x),(void)(y),(int)(EIO))
+#define pmio_read32(x, y) ((void)(x),(void)(y),(int)(EIO))
+#define pmio_write8(x, y) ((void)(x),(void)(y),(int)(EIO))
+#define pmio_write16(x, y) ((void)(x),(void)(y),(int)(EIO))
+#define pmio_write32(x, y) ((void)(x),(void)(y),(int)(EIO))
+#define pmio_throttle() ((void)(x),(void)(y),(int)(EIO))
 #endif
 
 int register_resource(resource_t *restrict r);

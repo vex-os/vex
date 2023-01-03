@@ -13,7 +13,7 @@ for initcall in ${initcalls}; do
     printf "extern int __init_${initcall}(void);\n"
 done
 
-printf "const initcall_t __initcalls[] = {\n"
+printf "const initcall_t initcalls[] = {\n"
 for initcall in ${initcalls}; do
     printf "{ .func = &__init_${initcall}, .name = \"${initcall}\" },\n"
 done

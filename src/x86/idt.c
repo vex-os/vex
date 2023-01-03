@@ -4,6 +4,7 @@
 #include <kan/initcall.h>
 #include <kan/interrupt.h>
 #include <kan/kprintf.h>
+#include <kan/symbol.h>
 #include <stdint.h>
 #include <string.h>
 #include <x86/gdt.h>
@@ -51,18 +52,18 @@ int x86_map_interrupt(long vector, unsigned short x86_vector, bool user)
     idt_entry_t *entry;
 
     if(vector < 0 || vector >= MAX_INTERRUPTS) {
-        pr_warning(KP_MACHINE, "x86_idt: interrupt vector <%ld> out of range", vector);
-        return -ERANGE;
+        pr_warning("x86_idt: interrupt vector <%ld> out of range", vector);
+        return ERANGE;
     }
 
     if(x86_vector >= X86_MAX_INTERRUPTS) {
-        pr_warning(KP_MACHINE, "x86_idt: x86 vector <%hu> out of range", x86_vector);
-        return -ERANGE;
+        pr_warning("x86_idt: x86 vector <%hu> out of range", x86_vector);
+        return ERANGE;
     }
 
     if(intmap[x86_vector] != NULL_INTERRUPT) {
-        pr_warning(KP_MACHINE, "x86_idt: interrupt vector <%ld> is already mapped", vector);
-        return -EBUSY;
+        pr_warning("x86_idt: interrupt vector <%ld> is already mapped", vector);
+        return EBUSY;
     }
 
     entry = &idt[x86_vector];
@@ -74,6 +75,7 @@ int x86_map_interrupt(long vector, unsigned short x86_vector, bool user)
 
     return 0;
 }
+EXPORT_SYMBOL(x86_map_interrupt);
 
 static int init_x86_idt(void)
 {
@@ -100,11 +102,10 @@ static int init_x86_idt(void)
     idtr.size = (uint16_t)(sizeof(idt) - 1);
     idtr.offset = (uintptr_t)(&idt[0]);
 
-    /* set idtr value (load idt) */
     asm volatile("lidtq %0"::"m"(idtr));
 
-    pr_inform(KP_MACHINE, "x86_idt: idtr.size=%zu", (size_t)(idtr.size));
-    pr_inform(KP_MACHINE, "x86_idt: idtr.offset=%p", (void *)(idtr.offset));
+    pr_inform("x86_idt: idtr.size=%zu", (size_t)(idtr.size));
+    pr_inform("x86_idt: idtr.offset=%p", (void *)(idtr.offset));
 
     return 0;
 }

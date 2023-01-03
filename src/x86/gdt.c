@@ -87,10 +87,8 @@ static int init_gdt(void)
     gdtr.size = (uint16_t)(sizeof(gdt) - 1);
     gdtr.offset = (uintptr_t)(&gdt[0]);
 
-    /* set gdtr value (load gdt) */
     asm volatile("lgdtq %0"::"m"(gdtr));
 
-    /* shake up all the data segments */
     asm volatile(__string_va(
         movw %%ax, %%ds;
         movw %%ax, %%es;
@@ -99,7 +97,10 @@ static int init_gdt(void)
         movw %%ax, %%ss;
     )::"a"(GDT_SEL(GDT_KERN_DATA_64, 0, 0)));
 
-    /* far jump into the new code segment */
+    /* Long mode really doesn't have far jumping
+     * per se, so we would want to improvise and
+     * use LRETQ which in these circumstances acts
+     * as a far jump (setting the new code segment) */
     asm volatile(__string_va(
         pushq %0;
         pushq $1f;
@@ -107,8 +108,8 @@ static int init_gdt(void)
         1:;
     )::"i"(GDT_SEL(GDT_KERN_CODE_64, 0, 0)));
 
-    pr_inform(KP_MACHINE, "x86_gdt: gdtr.size=%zu", (size_t)(gdtr.size));
-    pr_inform(KP_MACHINE, "x86_gdt: gdtr.offset=%p", (void *)(gdtr.offset));
+    pr_inform("gdtr.size=%zu", (size_t)(gdtr.size));
+    pr_inform("gdtr.offset=%p", (void *)(gdtr.offset));
 
     return 0;
 }

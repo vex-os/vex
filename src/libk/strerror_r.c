@@ -249,6 +249,6 @@ int strerror_r(int errnum, char *restrict s, size_t n)
             return 0;
         default:
             snprintf(s, n, "unknown errnum (%d)", errnum);
-            return -EINVAL;
+            return EINVAL;
     }
 }

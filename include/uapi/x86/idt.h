@@ -5,7 +5,6 @@
 #include <kan/compiler.h>
 #include <stdint.h>
 
-/* Maximum IDT size */
 #define X86_MAX_INTERRUPTS 256
 
 struct x86_interrupt_frame {

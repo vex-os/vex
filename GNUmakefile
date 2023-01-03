@@ -33,7 +33,7 @@ OBJECTS	:=
 DCLEAN	:=
 CLEAN	:=
 
-include Makefile.$(TARGET)
+include GNUmakefile.$(TARGET)
 
 GLOBS	:=
 GLOBS	+= src/kan
@@ -71,8 +71,8 @@ CLEAN	+= $(KBIN_1)
 CLEAN	+= $(KERNEL)
 CLEAN	+= $(LINK)
 
--include boot/$(STARGET)/Makefile
--include boot/$(LTARGET)/Makefile
+-include boot/$(STARGET)/GNUmakefile
+-include boot/$(LTARGET)/GNUmakefile
 
 .PHONY: force_run
 force_run:

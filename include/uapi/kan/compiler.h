@@ -36,13 +36,14 @@
 #define __string(x) ___string(x)
 #define __string_va(...) #__VA_ARGS__
 
-#define __unused_var(x) ((void)(x))
+#define __align_ceil(x, align) (((x) + (align) - 1) & ~((align) - 1))
+#define __align_floor(x, align) ((x) & ~((align) - 1))
 
 #define __alias(x)          __attribute__((alias(#x)))
 #define __aligned(x)        __attribute__((aligned(x)))
-#define __always_inline     __attribute__((always_inline)) inline
 #define __cold              __attribute__((cold))
 #define __deprecated        __attribute__((deprecated))
+#define __force_inline      __attribute__((always_inline)) inline
 #define __format(x, y, z)   __attribute__((format(x, y, z)))
 #define __hot               __attribute__((hot))
 #define __noreturn          __attribute__((noreturn))

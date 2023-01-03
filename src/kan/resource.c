@@ -1,23 +1,22 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, KanOS Contributors */
-#include <kan/kprintf.h>
 #include <kan/resource.h>
+#include <kan/symbol.h>
 #include <string.h>
 
 static resource_t *resources = NULL;
 
 int register_resource(resource_t *restrict r)
 {
-    if(find_resource(r->name)) {
-        pr_warning(KP_RESOURCE, "resource [%s] already exists", r->name);
-        return -EBUSY;
+    if(!find_resource(r->name)) {
+        r->next = resources;
+        resources = r;
+        return 0;
     }
 
-    r->next = resources;
-    resources = r;
-    
-    return 0;
+    return EBUSY;
 }
+EXPORT_SYMBOL(register_resource);
 
 const resource_t *find_resource(const char *name)
 {
@@ -30,6 +29,7 @@ const resource_t *find_resource(const char *name)
 
     return NULL;
 }
+EXPORT_SYMBOL(find_resource);
 
 static volatile void *get_aligned_mmio(unsigned int flags, uintptr_t base, uintptr_t offset)
 {
@@ -56,8 +56,9 @@ int resource_read8(const resource_t *restrict r, uintptr_t offset, uint8_t *rest
         return 0;
     }
 
-    return -EIO;
+    return EIO;
 }
+EXPORT_SYMBOL(resource_read8);
 
 int resource_read16(const resource_t *restrict r, uintptr_t offset, uint16_t *restrict val)
 {
@@ -75,8 +76,9 @@ int resource_read16(const resource_t *restrict r, uintptr_t offset, uint16_t *re
         return 0;
     }
 
-    return -EIO;
+    return EIO;
 }
+EXPORT_SYMBOL(resource_read16);
 
 int resource_read32(const resource_t *restrict r, uintptr_t offset, uint32_t *restrict val)
 {
@@ -94,8 +96,9 @@ int resource_read32(const resource_t *restrict r, uintptr_t offset, uint32_t *re
         return 0;
     }
 
-    return -EIO;
+    return EIO;
 }
+EXPORT_SYMBOL(resource_read32);
 
 int resource_write8(const resource_t *restrict r, uintptr_t offset, uint8_t val)
 {
@@ -113,8 +116,9 @@ int resource_write8(const resource_t *restrict r, uintptr_t offset, uint8_t val)
         return 0;
     }
 
-    return -EIO;
+    return EIO;
 }
+EXPORT_SYMBOL(resource_write8);
 
 int resource_write16(const resource_t *restrict r, uintptr_t offset, uint16_t val)
 {
@@ -132,8 +136,9 @@ int resource_write16(const resource_t *restrict r, uintptr_t offset, uint16_t va
         return 0;
     }
 
-    return -EIO;
+    return EIO;
 }
+EXPORT_SYMBOL(resource_write16);
 
 int resource_write32(const resource_t *restrict r, uintptr_t offset, uint32_t val)
 {
@@ -151,5 +156,6 @@ int resource_write32(const resource_t *restrict r, uintptr_t offset, uint32_t va
         return 0;
     }
 
-    return -EIO;
+    return EIO;
 }
+EXPORT_SYMBOL(resource_write32);
