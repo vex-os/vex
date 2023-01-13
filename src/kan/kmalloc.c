@@ -88,7 +88,6 @@ void *kmalloc(size_t n)
         if(!slab->head && !extend_slab(slab))
             return NULL;
 
-        /* Unlink the block from the slab */
         ptr = slab->head;
         slab->head = slab->head[0];
 
@@ -144,7 +143,6 @@ void kfree(void *restrict ptr)
     if(aptr != (uintptr_t)ptr) {
         slab = ((slab_t **)aptr)[0];
 
-        /* Link the block back to the slab */
         new_head = ptr;
         new_head[0] = slab->head;
         slab->head = new_head;
