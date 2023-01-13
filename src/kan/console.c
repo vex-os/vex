@@ -10,7 +10,6 @@ static console_t *console_drivers = NULL;
 
 int register_console(console_t *restrict con)
 {
-    int r;
     char *sptr;
     console_t *bcon;
 
@@ -30,13 +29,6 @@ int register_console(console_t *restrict con)
 
     pr_inform("console: registering %s", con->name);
 
-    if(con->init_fn) {
-        if((r = con->init_fn(con)) != 0) {
-            /* Pass the error code */
-            return r;
-        }
-    }
-
     if(con->write_fn) {
         sptr = kp_ring + kp_ring_pos;
         con->write_fn(con, sptr, strnlen(sptr, KP_RING_SZ - kp_ring_pos));
@@ -46,7 +38,7 @@ int register_console(console_t *restrict con)
     con->next = console_drivers;
     console_drivers = con;
 
-    return 0;
+    return EOK;
 }
 EXPORT_SYMBOL(register_console);
 

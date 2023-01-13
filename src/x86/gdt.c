@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, KanOS Contributors */
+#include <kan/errno.h>
 #include <kan/compiler.h>
 #include <kan/initcall.h>
 #include <kan/kprintf.h>
@@ -111,6 +112,6 @@ static int init_gdt(void)
     pr_inform("x86_gdt: gdtr.size=%zu", (size_t)(gdtr.size));
     pr_inform("x86_gdt: gdtr.offset=%p", (void *)(gdtr.offset));
 
-    return 0;
+    return EOK;
 }
 initcall_tier_0(x86_gdt, init_gdt);

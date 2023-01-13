@@ -73,7 +73,7 @@ int x86_map_interrupt(long vector, unsigned short x86_vector, bool user)
 
     intmap[x86_vector] = vector;
 
-    return 0;
+    return EOK;
 }
 EXPORT_SYMBOL(x86_map_interrupt);
 
@@ -107,7 +107,7 @@ static int init_x86_idt(void)
     pr_inform("x86_idt: idtr.size=%zu", (size_t)(idtr.size));
     pr_inform("x86_idt: idtr.offset=%p", (void *)(idtr.offset));
 
-    return 0;
+    return EOK;
 }
 initcall_tier_0(x86_idt, init_x86_idt);
 initcall_depend(x86_idt, x86_gdt);

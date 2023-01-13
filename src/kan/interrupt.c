@@ -66,7 +66,7 @@ int add_interrupt_handler(long vector, interrupt_handler_t handler)
 
     interrupt->handlers[interrupt->num_handlers++] = handler;
 
-    return 0;
+    return EOK;
 }
 EXPORT_SYMBOL(add_interrupt_handler);
 

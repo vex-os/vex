@@ -3,6 +3,7 @@
 #include <bitmap.h>
 #include <kan/boot.h>
 #include <kan/debug.h>
+#include <kan/errno.h>
 #include <kan/kprintf.h>
 #include <kan/pmem.h>
 #include <kan/symbol.h>
@@ -96,10 +97,10 @@ static int init_pmem(void)
                 entry_name = "bad memory";
                 break;
             case LIMINE_MEMMAP_BOOTLOADER_RECLAIMABLE:
-                entry_name = "bootloader";
+                entry_name = "bootloader reclaimable";
                 break;
             case LIMINE_MEMMAP_KERNEL_AND_MODULES:
-                entry_name = "kernel";
+                entry_name = "kernel and modules";
                 break;
             case LIMINE_MEMMAP_FRAMEBUFFER:
                 entry_name = "framebuffer";
@@ -109,7 +110,7 @@ static int init_pmem(void)
                 break;
         }
 
-        pr_debug("pmem: [%p - %p] %s", (void *)entry->base, (void *)entry_end, entry_name);
+        pr_debug("pmem: %p-%p, %s", (void *)entry->base, (void *)entry_end, entry_name);
 
         switch(entry->type) {
             case LIMINE_MEMMAP_USABLE:
@@ -160,6 +161,6 @@ static int init_pmem(void)
     pr_debug("pmem: bitmap.size=%zu (%zu MiB)", bitmap.size, bitmap.size / 0x100000);
     pr_debug("pmem: phys_limit=%p (%zu MiB)", (void *)phys_limit, (phys_limit + 1) / 0x100000);
 
-    return 0;
+    return EOK;
 }
 initcall_tier_0(pmem, init_pmem);

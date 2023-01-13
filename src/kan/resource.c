@@ -11,7 +11,7 @@ int register_resource(resource_t *restrict r)
     if(!find_resource(r->name)) {
         r->next = resources;
         resources = r;
-        return 0;
+        return EOK;
     }
 
     return EBUSY;
@@ -53,7 +53,7 @@ int resource_read8(const resource_t *restrict r, uintptr_t offset, uint8_t *rest
     if(r->flags & RESOURCE_MMIO) {
         mmio_base = get_aligned_mmio(r->flags, r->base, offset);
         val[0] = mmio_base[0];
-        return 0;
+        return EOK;
     }
 
     return EIO;
@@ -73,7 +73,7 @@ int resource_read16(const resource_t *restrict r, uintptr_t offset, uint16_t *re
     if(r->flags & RESOURCE_MMIO) {
         mmio_base = get_aligned_mmio(r->flags, r->base, offset);
         val[0] = mmio_base[0];
-        return 0;
+        return EOK;
     }
 
     return EIO;
@@ -93,7 +93,7 @@ int resource_read32(const resource_t *restrict r, uintptr_t offset, uint32_t *re
     if(r->flags & RESOURCE_MMIO) {
         mmio_base = get_aligned_mmio(r->flags, r->base, offset);
         val[0] = mmio_base[0];
-        return 0;
+        return EOK;
     }
 
     return EIO;
@@ -113,7 +113,7 @@ int resource_write8(const resource_t *restrict r, uintptr_t offset, uint8_t val)
     if(r->flags & RESOURCE_MMIO) {
         mmio_base = get_aligned_mmio(r->flags, r->base, offset);
         mmio_base[0] = val;
-        return 0;
+        return EOK;
     }
 
     return EIO;
@@ -133,7 +133,7 @@ int resource_write16(const resource_t *restrict r, uintptr_t offset, uint16_t va
     if(r->flags & RESOURCE_MMIO) {
         mmio_base = get_aligned_mmio(r->flags, r->base, offset);
         mmio_base[0] = val;
-        return 0;
+        return EOK;
     }
 
     return EIO;
@@ -153,7 +153,7 @@ int resource_write32(const resource_t *restrict r, uintptr_t offset, uint32_t va
     if(r->flags & RESOURCE_MMIO) {
         mmio_base = get_aligned_mmio(r->flags, r->base, offset);
         mmio_base[0] = val;
-        return 0;
+        return EOK;
     }
 
     return EIO;

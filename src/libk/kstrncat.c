@@ -2,7 +2,7 @@
 /* Copyright (c), 2022, KanOS Contributors */
 #include <string.h>
 
-char *strlcat(char *restrict s1, const char *restrict s2, size_t n)
+char *kstrncat(char *restrict s1, const char *restrict s2, size_t n)
 {
     size_t nc;
     char *save = s1;

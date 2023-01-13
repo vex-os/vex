@@ -25,7 +25,7 @@ void __noreturn __used kmain(void)
          * it just means the initcall wasn't successful but
          * it didn't fail either (for instance there was no
          * device associated with the driver or whatever). */
-        if((r = initcalls[i].func()) != 0 && r != ENODEV) {
+        if((r = initcalls[i].func()) != EOK && r != ENODEV) {
             panic("%s: %s", initcalls[i].name, strerror(r));
             unreachable();
         }

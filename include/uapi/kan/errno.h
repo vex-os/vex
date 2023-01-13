@@ -3,6 +3,7 @@
 #ifndef _INCLUDE_UAPI_KAN_ERRNO_H__
 #define _INCLUDE_UAPI_KAN_ERRNO_H__
 
+#define EOK             0
 #define E2BIG           1
 #define EACCES          2
 #define EADDRINUSE      3
