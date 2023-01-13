@@ -108,8 +108,8 @@ static int init_gdt(void)
         1:;
     )::"i"(GDT_SEL(GDT_KERN_CODE_64, 0, 0)));
 
-    pr_inform("gdtr.size=%zu", (size_t)(gdtr.size));
-    pr_inform("gdtr.offset=%p", (void *)(gdtr.offset));
+    pr_inform("x86_gdt: gdtr.size=%zu", (size_t)(gdtr.size));
+    pr_inform("x86_gdt: gdtr.offset=%p", (void *)(gdtr.offset));
 
     return 0;
 }

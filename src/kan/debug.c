@@ -61,9 +61,9 @@ void kprint_backtrace(short severity, const uintptr_t *restrict baseptr)
         rptr = baseptr[1];
         if(next && rptr) {
             if(trace_address(rptr, &sym, &off))
-                kprintf(severity, "backtrace: [%p] %s+%#03tX", (void *)rptr, sym.name, off);
+                kprintf(severity, "backtrace: %p <%s+%#03tX>", (void *)rptr, sym.name, off);
             else
-                kprintf(severity, "backtrace: [%p]", (void *)rptr);
+                kprintf(severity, "backtrace: %p <unknown>", (void *)rptr);
             baseptr = (const uintptr_t *)next;
             continue;
         }

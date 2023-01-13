@@ -36,10 +36,10 @@ static idt_register_t idtr = { 0 };
 static long intmap[X86_MAX_INTERRUPTS] = { 0 };
 
 /* generated as build/x86_interrupts.c */
-extern const uintptr_t __x86_interrupts[X86_MAX_INTERRUPTS];
+extern const uintptr_t x86_interrupts[X86_MAX_INTERRUPTS];
 
 /* called from assembly (idt.S) */
-void __used __x86_interrupt_handler(interrupt_frame_t *restrict frame)
+void __used x86_interrupt_handler(interrupt_frame_t *restrict frame)
 {
     frame->vector %= X86_MAX_INTERRUPTS;
     if(intmap[frame->vector] < 0)
@@ -87,9 +87,9 @@ static int init_x86_idt(void)
     for(vector = 0; vector < X86_MAX_INTERRUPTS; vector++) {
         entry = &idt[vector];
 
-        entry->offset_0 = __x86_interrupts[vector] & 0xFFFF;
-        entry->offset_1 = (__x86_interrupts[vector] >> 16) & 0xFFFF;
-        entry->offset_2 = (__x86_interrupts[vector] >> 32) & 0xFFFFFFFF;
+        entry->offset_0 = x86_interrupts[vector] & 0xFFFF;
+        entry->offset_1 = (x86_interrupts[vector] >> 16) & 0xFFFF;
+        entry->offset_2 = (x86_interrupts[vector] >> 32) & 0xFFFFFFFF;
         entry->selector = GDT_SEL(GDT_KERN_CODE_64, 0, 0);
         entry->flags = IDT_PRESENT;
         if(vector == 0 || vector == 1 || (vector >= 3 && vector <= 31))

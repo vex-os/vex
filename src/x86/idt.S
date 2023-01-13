@@ -2,8 +2,8 @@
 /* Copyright (c), 2022, KanOS Contributors */
 
 .section .text
-.global __x86_interrupt_handler_asm
-__x86_interrupt_handler_asm:
+.global x86_interrupt_handler_S
+x86_interrupt_handler_S:
     pushq %rax
     pushq %rbx
     pushq %rcx
@@ -22,7 +22,7 @@ __x86_interrupt_handler_asm:
     pushq %r15
 
     movq %rsp, %rdi
-    call __x86_interrupt_handler
+    call x86_interrupt_handler
 
     popq %r15
     popq %r14

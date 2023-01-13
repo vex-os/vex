@@ -18,12 +18,12 @@ for i in ${vectors}; do
     fi
 
     printf "pushq \$${i}\n"
-    printf "jmp __x86_interrupt_handler_asm\n"
+    printf "jmp x86_interrupt_handler_S\n"
 done
 
 printf ".section .rodata\n"
-printf ".global __x86_interrupts\n"
-printf "__x86_interrupts:\n"
+printf ".global x86_interrupts\n"
+printf "x86_interrupts:\n"
 for i in ${vectors}; do
     printf ".quad x86_interrupt_${i}\n"
 done

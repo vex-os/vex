@@ -8,244 +8,244 @@ int strerror_r(int errnum, char *restrict s, size_t n)
 {
     switch(errnum) {
         case E2BIG:
-            strncpy_k(s, "argument list too long", n);
+            strlcpy(s, "argument list too long", n);
             return 0;
         case EACCES:
-            strncpy_k(s, "permission denied", n);
+            strlcpy(s, "permission denied", n);
             return 0;
         case EADDRINUSE:
-            strncpy_k(s, "address in use", n);
+            strlcpy(s, "address in use", n);
             return 0;
         case EADDRNOTAVAIL:
-            strncpy_k(s, "address not available", n);
+            strlcpy(s, "address not available", n);
             return 0;
         case EAFNOSUPPORT:
-            strncpy_k(s, "address family not supported", n);
+            strlcpy(s, "address family not supported", n);
             return 0;
         case EAGAIN:
-            strncpy_k(s, "resource temporarily unavailable", n);
+            strlcpy(s, "resource temporarily unavailable", n);
             return 0;
         case EALREADY:
-            strncpy_k(s, "connection already in progress", n);
+            strlcpy(s, "connection already in progress", n);
             return 0;
         case EBADF:
-            strncpy_k(s, "bad file descriptor", n);
+            strlcpy(s, "bad file descriptor", n);
             return 0;
         case EBADMSG:
-            strncpy_k(s, "bad message", n);
+            strlcpy(s, "bad message", n);
             return 0;
         case EBUSY:
-            strncpy_k(s, "device or resource busy", n);
+            strlcpy(s, "device or resource busy", n);
             return 0;
         case ECANCELED:
-            strncpy_k(s, "operation canceled", n);
+            strlcpy(s, "operation canceled", n);
             return 0;
         case ECHILD:
-            strncpy_k(s, "no child processes", n);
+            strlcpy(s, "no child processes", n);
             return 0;
         case ECONNABORTED:
-            strncpy_k(s, "connection aborted", n);
+            strlcpy(s, "connection aborted", n);
             return 0;
         case ECONNREFUSED:
-            strncpy_k(s, "connection refused", n);
+            strlcpy(s, "connection refused", n);
             return 0;
         case ECONNRESET:
-            strncpy_k(s, "connection reset", n);
+            strlcpy(s, "connection reset", n);
             return 0;
         case EDEADLK:
-            strncpy_k(s, "resource deadlock would occur", n);
+            strlcpy(s, "resource deadlock would occur", n);
             return 0;
         case EDESTADDRREQ:
-            strncpy_k(s, "destination address required", n);
+            strlcpy(s, "destination address required", n);
             return 0;
         case EDOM:
-            strncpy_k(s, "argument out of domain of function", n);
+            strlcpy(s, "argument out of domain of function", n);
             return 0;
         case EDQUOT:
-            strncpy_k(s, "disk quota exceeded", n);
+            strlcpy(s, "disk quota exceeded", n);
             return 0;
         case EEXIST:
-            strncpy_k(s, "file exists", n);
+            strlcpy(s, "file exists", n);
             return 0;
         case EFAULT:
-            strncpy_k(s, "bad address", n);
+            strlcpy(s, "bad address", n);
             return 0;
         case EFBIG:
-            strncpy_k(s, "file too large", n);
+            strlcpy(s, "file too large", n);
             return 0;
         case EHOSTUNREACH:
-            strncpy_k(s, "host is unreachable", n);
+            strlcpy(s, "host is unreachable", n);
             return 0;
         case EIDRM:
-            strncpy_k(s, "identifier removed", n);
+            strlcpy(s, "identifier removed", n);
             return 0;
         case EILSEQ:
-            strncpy_k(s, "illegal byte sequence", n);
+            strlcpy(s, "illegal byte sequence", n);
             return 0;
         case EINPROGRESS:
-            strncpy_k(s, "operation in progress", n);
+            strlcpy(s, "operation in progress", n);
             return 0;
         case EINTR:
-            strncpy_k(s, "interrupted function call", n);
+            strlcpy(s, "interrupted function call", n);
             return 0;
         case EINVAL:
-            strncpy_k(s, "invalid argument", n);
+            strlcpy(s, "invalid argument", n);
             return 0;
         case EIO:
-            strncpy_k(s, "input/output error", n);
+            strlcpy(s, "input/output error", n);
             return 0;
         case EISCONN:
-            strncpy_k(s, "socket is connected", n);
+            strlcpy(s, "socket is connected", n);
             return 0;
         case EISDIR:
-            strncpy_k(s, "is a directory", n);
+            strlcpy(s, "is a directory", n);
             return 0;
         case ELOOP:
-            strncpy_k(s, "too many levels of symbolic links", n);
+            strlcpy(s, "too many levels of symbolic links", n);
             return 0;
         case EMFILE:
-            strncpy_k(s, "too many open files", n);
+            strlcpy(s, "too many open files", n);
             return 0;
         case EMLINK:
-            strncpy_k(s, "too many links", n);
+            strlcpy(s, "too many links", n);
             return 0;
         case EMSGSIZE:
-            strncpy_k(s, "message too long", n);
+            strlcpy(s, "message too long", n);
             return 0;
         case EMULTIHOP:
-            strncpy_k(s, "multihop attempted", n);
+            strlcpy(s, "multihop attempted", n);
             return 0;
         case ENAMETOOLONG:
-            strncpy_k(s, "filename too long", n);
+            strlcpy(s, "filename too long", n);
             return 0;
         case ENETDOWN:
-            strncpy_k(s, "network is down", n);
+            strlcpy(s, "network is down", n);
             return 0;
         case ENETRESET:
-            strncpy_k(s, "connection aborted by network", n);
+            strlcpy(s, "connection aborted by network", n);
             return 0;
         case ENETUNREACH:
-            strncpy_k(s, "network unreachable", n);
+            strlcpy(s, "network unreachable", n);
             return 0;
         case ENFILE:
-            strncpy_k(s, "too many files open in system", n);
+            strlcpy(s, "too many files open in system", n);
             return 0;
         case ENOBUFS:
-            strncpy_k(s, "no buffer space available", n);
+            strlcpy(s, "no buffer space available", n);
             return 0;
         case ENODATA:
-            strncpy_k(s, "no message is available on the stream head read queue", n);
+            strlcpy(s, "no message is available on the stream head read queue", n);
             return 0;
         case ENODEV:
-            strncpy_k(s, "no such device", n);
+            strlcpy(s, "no such device", n);
             return 0;
         case ENOENT:
-            strncpy_k(s, "no such file or directory", n);
+            strlcpy(s, "no such file or directory", n);
             return 0;
         case ENOEXEC:
-            strncpy_k(s, "exec format error", n);
+            strlcpy(s, "exec format error", n);
             return 0;
         case ENOLCK:
-            strncpy_k(s, "no locks available", n);
+            strlcpy(s, "no locks available", n);
             return 0;
         case ENOLINK:
-            strncpy_k(s, "link has been severed", n);
+            strlcpy(s, "link has been severed", n);
             return 0;
         case ENOMEM:
-            strncpy_k(s, "not enough space", n);
+            strlcpy(s, "not enough space", n);
             return 0;
         case ENOMSG:
-            strncpy_k(s, "no message of the desired type", n);
+            strlcpy(s, "no message of the desired type", n);
             return 0;
         case ENOPROTOOPT:
-            strncpy_k(s, "protocol not available", n);
+            strlcpy(s, "protocol not available", n);
             return 0;
         case ENOSPC:
-            strncpy_k(s, "no space left on device", n);
+            strlcpy(s, "no space left on device", n);
             return 0;
         case ENOSR:
-            strncpy_k(s, "no stream resources", n);
+            strlcpy(s, "no stream resources", n);
             return 0;
         case ENOSTR:
-            strncpy_k(s, "not a stream", n);
+            strlcpy(s, "not a stream", n);
             return 0;
         case ENOSYS:
-            strncpy_k(s, "function not implemented", n);
+            strlcpy(s, "function not implemented", n);
             return 0;
         case ENOTCONN:
-            strncpy_k(s, "the socket is not connected", n);
+            strlcpy(s, "the socket is not connected", n);
             return 0;
         case ENOTDIR:
-            strncpy_k(s, "not a directory", n);
+            strlcpy(s, "not a directory", n);
             return 0;
         case ENOTEMPTY:
-            strncpy_k(s, "directory not empty", n);
+            strlcpy(s, "directory not empty", n);
             return 0;
         case ENOTSOCK:
-            strncpy_k(s, "not a socket", n);
+            strlcpy(s, "not a socket", n);
             return 0;
         case ENOTSUP:
-            strncpy_k(s, "operation not supported", n);
+            strlcpy(s, "operation not supported", n);
             return 0;
         case ENOTTY:
-            strncpy_k(s, "inappropriate i/o control operation", n);
+            strlcpy(s, "inappropriate i/o control operation", n);
             return 0;
         case ENXIO:
-            strncpy_k(s, "no such device or address", n);
+            strlcpy(s, "no such device or address", n);
             return 0;
         case EOPNOTSUPP:
-            strncpy_k(s, "operation not supported on socket", n);
+            strlcpy(s, "operation not supported on socket", n);
             return 0;
         case EOVERFLOW:
-            strncpy_k(s, "value too large to be stored in data type", n);
+            strlcpy(s, "value too large to be stored in data type", n);
             return 0;
         case EPERM:
-            strncpy_k(s, "operation not permitted", n);
+            strlcpy(s, "operation not permitted", n);
             return 0;
         case EPIPE:
-            strncpy_k(s, "broken pipe", n);
+            strlcpy(s, "broken pipe", n);
             return 0;
         case EPROTO:
-            strncpy_k(s, "protocol error", n);
+            strlcpy(s, "protocol error", n);
             return 0;
         case EPROTONOSUPPORT:
-            strncpy_k(s, "protocol not supported", n);
+            strlcpy(s, "protocol not supported", n);
             return 0;
         case EPROTOTYPE:
-            strncpy_k(s, "protocol wrong type for socket", n);
+            strlcpy(s, "protocol wrong type for socket", n);
             return 0;
         case ERANGE:
-            strncpy_k(s, "result too large", n);
+            strlcpy(s, "result too large", n);
             return 0;
         case EROFS:
-            strncpy_k(s, "read-only file system", n);
+            strlcpy(s, "read-only file system", n);
             return 0;
         case ESPIPE:
-            strncpy_k(s, "invalid seek", n);
+            strlcpy(s, "invalid seek", n);
             return 0;
         case ESRCH:
-            strncpy_k(s, "no such process", n);
+            strlcpy(s, "no such process", n);
             return 0;
         case ESTALE:
-            strncpy_k(s, "stale file handle", n);
+            strlcpy(s, "stale file handle", n);
             return 0;
         case ETIME:
-            strncpy_k(s, "stream ioctl() timeout", n);
+            strlcpy(s, "stream ioctl() timeout", n);
             return 0;
         case ETIMEDOUT:
-            strncpy_k(s, "connection timed out", n);
+            strlcpy(s, "connection timed out", n);
             return 0;
         case ETXTBSY:
-            strncpy_k(s, "text file busy", n);
+            strlcpy(s, "text file busy", n);
             return 0;
         case EWOULDBLOCK:
-            strncpy_k(s, "operation would block", n);
+            strlcpy(s, "operation would block", n);
             return 0;
         case EXDEV:
-            strncpy_k(s, "cross-device link", n);
+            strlcpy(s, "cross-device link", n);
             return 0;
         case 0:
-            strncpy_k(s, "no error", n);
+            strlcpy(s, "no error", n);
             return 0;
         default:
             snprintf(s, n, "unknown errnum (%d)", errnum);

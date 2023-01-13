@@ -4,13 +4,13 @@
 #include <kan/symbol.h>
 #include <string.h>
 
-const void *get_kexport(const char *restrict sym)
+const void *get_export(const char *restrict sym)
 {
     const symbol_t *esym;
     for(esym = &exports_begin; esym != &exports_end; esym++) {
         if(strcmp(esym->name, sym))
             continue;
-        return esym;
+        return (void *)esym->address;
     }
 
     return NULL;

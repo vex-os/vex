@@ -9,7 +9,7 @@
 #include <stdint.h>
 
 uintptr_t pmalloc(size_t n);
-void pmfree(uintptr_t p, size_t n);
+void pmfree(uintptr_t pptr, size_t n);
 
 initcall_extern(pmem);
 

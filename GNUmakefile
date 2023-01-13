@@ -16,15 +16,15 @@ CPFLAGS	+= -nostdlibinc
 LDFLAGS	+= -static
 LDFLAGS	+= -nostdlib
 
-%.c.o %.o: %.c
+%.c.o: %.c
 	@printf "[kernel] compiling $<\n"
 	@clang $(CXFLAGS) $(CPFLAGS) -c -o $@ $<
 
-%.S.o %.o: %.S
+%.S.o: %.S
 	@printf "[kernel] assembling $<\n"
 	@clang $(CXFLAGS) $(CPFLAGS) -c -o $@ $<
 
-%.s.o %.o: %.s
+%.s.o: %.s
 	@printf "[kernel] assembling $<\n"
 	@clang $(CXFLAGS) $(CPFLAGS) -c -o $@ $<
 
@@ -46,11 +46,11 @@ OBJECTS += $(SOURCES:=.o)
 
 VERHDR	:= include/conf/version.h
 INIT_C	:= temp/initcalls.c
-INIT_O	:= temp/initcalls.o
+INIT_O	:= temp/initcalls.c.o
 SYM0_C	:= temp/sym0.c
-SYM0_O	:= temp/sym0.o
+SYM0_O	:= temp/sym0.c.o
 SYM1_C	:= temp/sym1.c
-SYM1_O	:= temp/sym1.o
+SYM1_O	:= temp/sym1.c.o
 KBIN_0	:= temp/kan_noinit.o
 KBIN_1	:= temp/kan_nosyms.elf
 KERNEL	:= kan.elf

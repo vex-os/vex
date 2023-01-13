@@ -24,6 +24,14 @@
 #define __has_builtin(x) 0
 #endif
 
+#if __has_builtin(__builtin_expect)
+#define __likely(x) __builtin_expect((x), 1)
+#define __unlikely(x) __builtin_expect((x), 0)
+#else
+#define __likely(x) (x)
+#define __unlikely(x) (x)
+#endif
+
 #if __has_builtin(__builtin_unreachable)
 #define unreachable() __builtin_unreachable()
 #else

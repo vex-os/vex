@@ -1,29 +1,17 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2023, Kirill GPRB */
 #include <bitmap.h>
+#include <kan/boot.h>
 #include <kan/debug.h>
 #include <kan/kprintf.h>
 #include <kan/pmem.h>
-#include <limine.h>
-#include <stdbool.h>
+#include <kan/symbol.h>
 #include <string.h>
 
-static uintptr_t hhdm_offset = 0;
+/* for this bitmap, bitweight=PAGE_SIZE */
 static uintptr_t phys_limit = 0;
 static bitmap_t bitmap = { 0 };
-static size_t last_page = 0;
-
-static volatile __used struct limine_hhdm_request hhdm_request = {
-    .id = LIMINE_HHDM_REQUEST,
-    .revision = 0,
-    .response = NULL,
-};
-
-static volatile __used struct limine_memmap_request memmap_request = {
-    .id = LIMINE_MEMMAP_REQUEST,
-    .revision = 0,
-    .response = NULL,
-};
+static size_t last_bit = 0;
 
 static __force_inline size_t get_page_bit(uintptr_t address)
 {
@@ -34,14 +22,14 @@ uintptr_t pmalloc(size_t n)
 {
     size_t i;
 
-    for(i = last_page; i < bitmap.num_bits; i++) {
-        if(!bitmap_check_range(&bitmap, i, i + n - 1))
+    for(i = last_bit; i < bitmap.nbits; i++) {
+        if(!read_bitmap_range(&bitmap, i, i + n - 1))
             continue;
         goto found;
     }
 
-    for(i = 0; i < last_page; i++) {
-        if(!bitmap_check_range(&bitmap, i, i + n - 1))
+    for(i = 0; i < last_bit; i++) {
+        if(!read_bitmap_range(&bitmap, i, i + n - 1))
             continue;
         goto found;
     }
@@ -55,17 +43,19 @@ uintptr_t pmalloc(size_t n)
     return 0;
 
 found:
-    last_page = i + 1;
-    bitmap_clear_range(&bitmap, i, i + n - 1);
+    last_bit = i + 1;
+    clear_bitmap_range(&bitmap, i, i + n - 1);
     return i * PAGE_SIZE;
 }
+EXPORT_SYMBOL(pmalloc);
 
-void pmfree(uintptr_t p, size_t n)
+void pmfree(uintptr_t pptr, size_t n)
 {
-    size_t page = get_page_bit(p);
-    bitmap_set_range(&bitmap, page, page + n - 1);
-    last_page = page;
+    size_t page = get_page_bit(pptr);
+    set_bitmap_range(&bitmap, page, page + n - 1);
+    last_bit = page;
 }
+EXPORT_SYMBOL(pmfree);
 
 static int init_pmem(void)
 {
@@ -76,19 +66,18 @@ static int init_pmem(void)
     const char *entry_name;
     const struct limine_memmap_entry *entry;
 
-    kassertf(hhdm_request.response, "pmem: no limine_hhdm_response");
-    kassertf(memmap_request.response, "pmem: no limine_memmap_response");
+    panic_if(!boot_hhdm.response, "pmem: no boot_hhdm");
+    panic_if(!boot_memmap.response, "pmem: no boot_memmap");
 
-    hhdm_offset = hhdm_request.response->offset;
     phys_limit = 0;
     bitmap.data = NULL;
-    bitmap.num_bits = 0;
-    bitmap.num_bytes = 0;
-    last_page = 0;
+    bitmap.nbits = 0;
+    bitmap.size = 0;
+    last_bit = 0;
 
     /* Determine physical memory limit */
-    for(i = 0; i < memmap_request.response->entry_count; i++) {
-        entry = memmap_request.response->entries[i];
+    for(i = 0; i < boot_memmap.response->entry_count; i++) {
+        entry = boot_memmap.response->entries[i];
         entry_end = entry->base + entry->length - 1;
         switch(entry->type) {
             case LIMINE_MEMMAP_USABLE:
@@ -120,7 +109,7 @@ static int init_pmem(void)
                 break;
         }
 
-        pr_debug("pmem: [%p..%p] %s", (void *)entry->base, (void *)entry_end, entry_name);
+        pr_debug("pmem: [%p - %p] %s", (void *)entry->base, (void *)entry_end, entry_name);
 
         switch(entry->type) {
             case LIMINE_MEMMAP_USABLE:
@@ -134,41 +123,41 @@ static int init_pmem(void)
         }
     }
 
-    bitmap_init(&bitmap, get_page_count(phys_limit));
+    init_bitmap(&bitmap, get_page_count(phys_limit));
 
     /* Determine a suitable place for the bitmap */
-    for(i = 0; i < memmap_request.response->entry_count; i++) {
-        entry = memmap_request.response->entries[i];
-        if(entry->type == LIMINE_MEMMAP_USABLE && entry->length >= bitmap.num_bytes) {
-            bitmap.data = (uint8_t *)(entry->base + hhdm_offset);
-            memset(bitmap.data, 0, bitmap.num_bytes);
+    for(i = 0; i < boot_memmap.response->entry_count; i++) {
+        entry = boot_memmap.response->entries[i];
+        if(entry->type == LIMINE_MEMMAP_USABLE && entry->length >= bitmap.size) {
+            bitmap.data = (uint32_t *)(entry->base + boot_hhdm.response->offset);
+            memset(bitmap.data, 0, bitmap.size);
             break;
         }
     }
 
-    kassertf(bitmap.data, "pmem: not enough memory to initialize");
+    panic_if(!bitmap.data, "pmem: not enough memory to initialize");
 
     /* Mark USABLE pages as free memory */
-    for(i = 0; i < memmap_request.response->entry_count; i++) {
-        entry = memmap_request.response->entries[i];
+    for(i = 0; i < boot_memmap.response->entry_count; i++) {
+        entry = boot_memmap.response->entries[i];
         if(entry->type == LIMINE_MEMMAP_USABLE) {
             a = get_page_bit(entry->base);
             b = get_page_bit(entry->base + entry->length - 1);
-            bitmap_set_range(&bitmap, a, b);
+            set_bitmap_range(&bitmap, a, b);
         }
     }
 
     /* Mark bitmap as non-free memory */
-    a = get_page_bit((uintptr_t)bitmap.data - hhdm_offset);
-    b = get_page_bit((uintptr_t)bitmap.data - hhdm_offset + bitmap.num_bytes - 1);
-    bitmap_clear_range(&bitmap, a, b);
+    a = get_page_bit((uintptr_t)bitmap.data - boot_hhdm.response->offset);
+    b = get_page_bit((uintptr_t)bitmap.data - boot_hhdm.response->offset + bitmap.size - 1);
+    clear_bitmap_range(&bitmap, a, b);
 
-    /* Ensure pmalloc seeks at the first available page */
+    /* Set last_bit */
     pmfree(pmalloc(1), 1);
 
     pr_debug("pmem: bitmap.data=%p", (void *)bitmap.data);
-    pr_debug("pmem: bitmap.num_bits=%zu", bitmap.num_bits);
-    pr_debug("pmem: bitmap.num_bytes=%zu", bitmap.num_bytes);
+    pr_debug("pmem: bitmap.nbits=%zu", bitmap.nbits);
+    pr_debug("pmem: bitmap.size=%zu (%zu MiB)", bitmap.size, bitmap.size / 0x100000);
     pr_debug("pmem: phys_limit=%p (%zu MiB)", (void *)phys_limit, (phys_limit + 1) / 0x100000);
 
     return 0;

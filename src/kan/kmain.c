@@ -3,7 +3,9 @@
 #include <kan/debug.h>
 #include <kan/errno.h>
 #include <kan/initcall.h>
+#include <kan/kmalloc.h>
 #include <kan/kprintf.h>
+#include <kan/symbol.h>
 #include <kan/version.h>
 #include <string.h>
 
@@ -11,6 +13,9 @@ void __noreturn __used kmain(void)
 {
     int r;
     size_t i;
+    void *p1;
+    void *p2;
+    void *p3;
 
     /* Print some information about ourselves... */
     pr_inform("starting version %s", kernel_semver);
@@ -25,6 +30,23 @@ void __noreturn __used kmain(void)
             unreachable();
         }
     }
+
+    /* Test export table */
+    kassert(get_export("kputs") == (void *)(&kputs));
+    kassert(get_export("kmalloc") == (void *)(&kmalloc));
+
+    /* Test kmalloc */
+    kassert((p1 = kmalloc(64)) != NULL);
+    kassert((p2 = kmalloc(64)) != NULL);
+    kfree(p1);
+    kassert((p3 = kmalloc(64)) != NULL);
+    kassert(p1 == p3);
+    kfree(p2);
+    kfree(p3);
+
+    /* UNDONE: it's okay if it fails */
+    kassert((p1 = kmalloc(2048)) != NULL);
+    kfree(p1);
 
     panic("nothing to do");
     unreachable();

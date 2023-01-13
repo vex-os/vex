@@ -12,7 +12,7 @@ IFILES	+= root/boot/limine.cfg
 IFILES	+= root/boot/limine.sys
 
 DCLEAN	+= root
-DCLEAN	+= boot/x86/limine-deploy
+DCLEAN	+= temp/limine-deploy
 
 CLEAN	+= root/boot/kan.elf
 CLEAN	+= $(IMAGE)
@@ -21,15 +21,15 @@ CLEAN	+= $(IMAGE)
 boot: $(IMAGE)
 	@printf "[boot] done!\n"
 
-$(IMAGE): boot/x86/limine-deploy root/boot/kan.elf $(IFILES)
+$(IMAGE): temp/limine-deploy root/boot/kan.elf $(IFILES)
 	@printf "[boot] generating $@\n"
 	@xorriso \
 		-as mkisofs -b boot/limine-cd.bin -no-emul-boot -boot-load-size 4 \
 		-boot-info-table --efi-boot boot/limine-cd-efi.bin -efi-boot-part \
 		--efi-boot-image --protective-msdos-label -o $@ root
-	@boot/x86/limine-deploy $@
+	@temp/limine-deploy $@
 
-boot/x86/limine-deploy: boot/x86/limine-deploy.c boot/x86/limine-hdd.h
+temp/limine-deploy: boot/x86/limine-deploy.c boot/x86/limine-hdd.h
 	@mkdir -p temp
 	@printf "[boot] building $@\n"
 	@clang -std=c99 -Wall -Wextra -Werror -pedantic -o $@ boot/x86/limine-deploy.c
