@@ -158,7 +158,7 @@ static int init_pmem(void)
 
     pr_debug("pmem: bitmap.data=%p", (void *)bitmap.data);
     pr_debug("pmem: bitmap.nbits=%zu", bitmap.nbits);
-    pr_debug("pmem: bitmap.size=%zu (%zu MiB)", bitmap.size, bitmap.size / 0x100000);
+    pr_debug("pmem: bitmap.size=%zu (%zu KiB)", bitmap.size, bitmap.size / 0x400);
     pr_debug("pmem: phys_limit=%p (%zu MiB)", (void *)phys_limit, (phys_limit + 1) / 0x100000);
 
     return EOK;

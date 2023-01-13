@@ -17,7 +17,7 @@ typedef struct bitmap_s {
 static __force_inline void init_bitmap(bitmap_t *restrict bitmap, size_t nbits)
 {
     bitmap->nbits = __align_ceil(nbits, 32);
-    bitmap->size = bitmap->nbits / CHAR_BIT;
+    bitmap->size = bitmap->nbits / 8;
 }
 
 static __force_inline bool read_bitmap(const bitmap_t *restrict bitmap, size_t bit)
