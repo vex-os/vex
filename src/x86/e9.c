@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2023, VxEngine Contributors */
+/* Copyright (c), 2023, KanOS Contributors */
 #include <kan/console.h>
 #include <kan/errno.h>
 #include <kan/initcall.h>

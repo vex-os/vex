@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2023, Kirill GPRB */
+/* Copyright (c), 2023, KanOS Contributors */
 #ifndef _INCLUDE_BITMAP_H__
 #define _INCLUDE_BITMAP_H__
 #include <kan/compiler.h>

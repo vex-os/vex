@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2023, Kirill GPRB */
+/* Copyright (c), 2023, KanOS Contributors */
 #include <kan/boot.h>
 #include <kan/debug.h>
 #include <kan/errno.h>
@@ -54,7 +54,7 @@ static bool extend_slab(slab_t *restrict slab)
         slab->head[0] = slab;
         slab->head = (void **)((uintptr_t)slab->head + hsize);
 
-        /* Last free block's next shall always be NULL. */
+        /* Last free block's <next> shall always be NULL. */
         last_block = (PAGE_SIZE - hsize) / slab->bsize - 1;
 
         /* Because we maintain free blocks in a linked list,
