@@ -8,8 +8,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-uintptr_t pmalloc(size_t n);
-void pmfree(uintptr_t pptr, size_t n);
+uintptr_t pmalloc(size_t psize);
+void *pmalloc_hhdm(size_t psize);
+void pmfree(uintptr_t pptr, size_t psize);
+void pmfree_hhdm(void *restrict ptr, size_t psize);
 
 initcall_extern(pmem);
 

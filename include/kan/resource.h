@@ -24,13 +24,13 @@
 #define pmio_throttle() ((void)(x),(void)(y),(int)(EIO))
 #endif
 
-int register_resource(resource_t *restrict r);
+int register_resource(resource_t *restrict res);
 const resource_t *find_resource(const char *name);
-int resource_read8(const resource_t *restrict r, uintptr_t offset, uint8_t *restrict val);
-int resource_read16(const resource_t *restrict r, uintptr_t offset, uint16_t *restrict val);
-int resource_read32(const resource_t *restrict r, uintptr_t offset, uint32_t *restrict val);
-int resource_write8(const resource_t *restrict r, uintptr_t offset, uint8_t val);
-int resource_write16(const resource_t *restrict r, uintptr_t offset, uint16_t val);
-int resource_write32(const resource_t *restrict r, uintptr_t offset, uint32_t val);
+int resource_read8(const resource_t *restrict res, uintptr_t offset, uint8_t *restrict val);
+int resource_read16(const resource_t *restrict res, uintptr_t offset, uint16_t *restrict val);
+int resource_read32(const resource_t *restrict res, uintptr_t offset, uint32_t *restrict val);
+int resource_write8(const resource_t *restrict res, uintptr_t offset, uint8_t val);
+int resource_write16(const resource_t *restrict res, uintptr_t offset, uint16_t val);
+int resource_write32(const resource_t *restrict res, uintptr_t offset, uint32_t val);
 
 #endif /* _INCLUDE_KAN_RESOURCE_H__ */

@@ -5,12 +5,9 @@
 #include <kan/compiler.h>
 #include <stddef.h>
 
-struct console_s;
-typedef void(*console_write_t)(struct console_s *restrict con, const void *restrict s, size_t n);
-
 typedef struct console_s {
     char name[64];
-    console_write_t write_fn;
+    void(*write)(struct console_s *restrict con, const void *restrict str, size_t size);
     struct console_s *next;
 } console_t;
 

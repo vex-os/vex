@@ -6,10 +6,10 @@
 #include <kan/initcall.h>
 #include <stddef.h>
 
-void *kmalloc(size_t n);
-void *kcalloc(size_t count, size_t n);
-void *krealloc(void *restrict ptr, size_t n);
-char *kstrdup(const char *restrict s);
+void *kmalloc(size_t size);
+void *kcalloc(size_t count, size_t size);
+void *krealloc(void *restrict ptr, size_t size);
+char *kstrdup(const char *restrict str);
 void kfree(void *restrict ptr);
 
 #endif /* _INCLUDE_KAN_KMALLOC_H__ */

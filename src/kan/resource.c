@@ -6,11 +6,11 @@
 
 static resource_t *resources = NULL;
 
-int register_resource(resource_t *restrict r)
+int register_resource(resource_t *restrict res)
 {
-    if(!find_resource(r->name)) {
-        r->next = resources;
-        resources = r;
+    if(!find_resource(res->name)) {
+        res->next = resources;
+        resources = res;
         return EOK;
     }
 
@@ -40,18 +40,18 @@ static volatile void *get_aligned_mmio(unsigned int flags, uintptr_t base, uintp
     return &((volatile uint8_t *)base)[offset];
 }
 
-int resource_read8(const resource_t *restrict r, uintptr_t offset, uint8_t *restrict val)
+int resource_read8(const resource_t *restrict res, uintptr_t offset, uint8_t *restrict val)
 {
     volatile uint8_t *mmio_base;
 
-    if(r->flags & RESOURCE_PMIO) {
-        if(r->flags & RESOURCE_PMIO_SLOW)
+    if(res->flags & RESOURCE_PMIO) {
+        if(res->flags & RESOURCE_PMIO_SLOW)
             pmio_throttle();
-        return pmio_read8(r->base + offset, val);
+        return pmio_read8(res->base + offset, val);
     }
 
-    if(r->flags & RESOURCE_MMIO) {
-        mmio_base = get_aligned_mmio(r->flags, r->base, offset);
+    if(res->flags & RESOURCE_MMIO) {
+        mmio_base = get_aligned_mmio(res->flags, res->base, offset);
         val[0] = mmio_base[0];
         return EOK;
     }
@@ -60,18 +60,18 @@ int resource_read8(const resource_t *restrict r, uintptr_t offset, uint8_t *rest
 }
 EXPORT_SYMBOL(resource_read8);
 
-int resource_read16(const resource_t *restrict r, uintptr_t offset, uint16_t *restrict val)
+int resource_read16(const resource_t *restrict res, uintptr_t offset, uint16_t *restrict val)
 {
     volatile uint16_t *mmio_base;
 
-    if(r->flags & RESOURCE_PMIO) {
-        if(r->flags & RESOURCE_PMIO_SLOW)
+    if(res->flags & RESOURCE_PMIO) {
+        if(res->flags & RESOURCE_PMIO_SLOW)
             pmio_throttle();
-        return pmio_read16(r->base + offset, val);
+        return pmio_read16(res->base + offset, val);
     }
 
-    if(r->flags & RESOURCE_MMIO) {
-        mmio_base = get_aligned_mmio(r->flags, r->base, offset);
+    if(res->flags & RESOURCE_MMIO) {
+        mmio_base = get_aligned_mmio(res->flags, res->base, offset);
         val[0] = mmio_base[0];
         return EOK;
     }
@@ -80,18 +80,18 @@ int resource_read16(const resource_t *restrict r, uintptr_t offset, uint16_t *re
 }
 EXPORT_SYMBOL(resource_read16);
 
-int resource_read32(const resource_t *restrict r, uintptr_t offset, uint32_t *restrict val)
+int resource_read32(const resource_t *restrict res, uintptr_t offset, uint32_t *restrict val)
 {
     volatile uint32_t *mmio_base;
 
-    if(r->flags & RESOURCE_PMIO) {
-        if(r->flags & RESOURCE_PMIO_SLOW)
+    if(res->flags & RESOURCE_PMIO) {
+        if(res->flags & RESOURCE_PMIO_SLOW)
             pmio_throttle();
-        return pmio_read32(r->base + offset, val);
+        return pmio_read32(res->base + offset, val);
     }
 
-    if(r->flags & RESOURCE_MMIO) {
-        mmio_base = get_aligned_mmio(r->flags, r->base, offset);
+    if(res->flags & RESOURCE_MMIO) {
+        mmio_base = get_aligned_mmio(res->flags, res->base, offset);
         val[0] = mmio_base[0];
         return EOK;
     }
@@ -100,18 +100,18 @@ int resource_read32(const resource_t *restrict r, uintptr_t offset, uint32_t *re
 }
 EXPORT_SYMBOL(resource_read32);
 
-int resource_write8(const resource_t *restrict r, uintptr_t offset, uint8_t val)
+int resource_write8(const resource_t *restrict res, uintptr_t offset, uint8_t val)
 {
     volatile uint8_t *mmio_base;
 
-    if(r->flags & RESOURCE_PMIO) {
-        if(r->flags & RESOURCE_PMIO_SLOW)
+    if(res->flags & RESOURCE_PMIO) {
+        if(res->flags & RESOURCE_PMIO_SLOW)
             pmio_throttle();
-        return pmio_write8(r->base + offset, val);
+        return pmio_write8(res->base + offset, val);
     }
 
-    if(r->flags & RESOURCE_MMIO) {
-        mmio_base = get_aligned_mmio(r->flags, r->base, offset);
+    if(res->flags & RESOURCE_MMIO) {
+        mmio_base = get_aligned_mmio(res->flags, res->base, offset);
         mmio_base[0] = val;
         return EOK;
     }
@@ -120,18 +120,18 @@ int resource_write8(const resource_t *restrict r, uintptr_t offset, uint8_t val)
 }
 EXPORT_SYMBOL(resource_write8);
 
-int resource_write16(const resource_t *restrict r, uintptr_t offset, uint16_t val)
+int resource_write16(const resource_t *restrict res, uintptr_t offset, uint16_t val)
 {
     volatile uint16_t *mmio_base;
 
-    if(r->flags & RESOURCE_PMIO) {
-        if(r->flags & RESOURCE_PMIO_SLOW)
+    if(res->flags & RESOURCE_PMIO) {
+        if(res->flags & RESOURCE_PMIO_SLOW)
             pmio_throttle();
-        return pmio_write16(r->base + offset, val);
+        return pmio_write16(res->base + offset, val);
     }
 
-    if(r->flags & RESOURCE_MMIO) {
-        mmio_base = get_aligned_mmio(r->flags, r->base, offset);
+    if(res->flags & RESOURCE_MMIO) {
+        mmio_base = get_aligned_mmio(res->flags, res->base, offset);
         mmio_base[0] = val;
         return EOK;
     }
@@ -140,18 +140,18 @@ int resource_write16(const resource_t *restrict r, uintptr_t offset, uint16_t va
 }
 EXPORT_SYMBOL(resource_write16);
 
-int resource_write32(const resource_t *restrict r, uintptr_t offset, uint32_t val)
+int resource_write32(const resource_t *restrict res, uintptr_t offset, uint32_t val)
 {
     volatile uint32_t *mmio_base;
 
-    if(r->flags & RESOURCE_PMIO) {
-        if(r->flags & RESOURCE_PMIO_SLOW)
+    if(res->flags & RESOURCE_PMIO) {
+        if(res->flags & RESOURCE_PMIO_SLOW)
             pmio_throttle();
-        return pmio_write32(r->base + offset, val);
+        return pmio_write32(res->base + offset, val);
     }
 
-    if(r->flags & RESOURCE_MMIO) {
-        mmio_base = get_aligned_mmio(r->flags, r->base, offset);
+    if(res->flags & RESOURCE_MMIO) {
+        mmio_base = get_aligned_mmio(res->flags, res->base, offset);
         mmio_base[0] = val;
         return EOK;
     }

@@ -11,7 +11,7 @@ extern short kp_verbosity;
 extern char kp_ring[KP_RING_SZ];
 extern size_t kp_ring_pos;
 
-void kputs(short severity, const char *restrict s);
+void kputs(short severity, const char *restrict str);
 void kvprintf(short severity, const char *restrict fmt, va_list ap);
 void kprintf(short severity, const char *restrict fmt, ...) __printf(2, 3);
 

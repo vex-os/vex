@@ -3,6 +3,7 @@
 #include <kan/bootinfo.h>
 #include <kan/debug.h>
 #include <kan/kprintf.h>
+#include <kan/symbol.h>
 #include <stddef.h>
 
 static volatile struct limine_bootloader_info_request info_request = {
@@ -37,16 +38,19 @@ uintptr_t get_hhdm_offset(void)
 {
     return hhdm_offset;
 }
+EXPORT_SYMBOL(get_hhdm_offset);
 
 uintptr_t get_kernel_address_phys(void)
 {
     return kernel_address_phys;
 }
+EXPORT_SYMBOL(get_kernel_address_phys);
 
 uintptr_t get_kernel_address_virt(void)
 {
     return kernel_address_virt;
 }
+EXPORT_SYMBOL(get_kernel_address_virt);
 
 const struct limine_memmap_response *get_memmap(void)
 {

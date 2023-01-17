@@ -9,23 +9,23 @@ short kp_verbosity = KP_TRACE;
 char kp_ring[KP_RING_SZ] = { 0 };
 size_t kp_ring_pos = 0;
 
-static void kp_ring_puts(const char *restrict s)
+static void kp_ring_puts(const char *restrict str)
 {
     size_t n;
 
     /* Acts as strlen of sorts */
-    for(n = 0; s[n]; n++) {
-        kp_ring[kp_ring_pos++] = s[n];
+    for(n = 0; str[n]; n++) {
+        kp_ring[kp_ring_pos++] = str[n];
         kp_ring_pos %= KP_RING_SZ;
     }
 
-    console_write(s, n);
+    console_write(str, n);
 }
 
-void kputs(short severity, const char *restrict s)
+void kputs(short severity, const char *restrict str)
 {
     if(severity <= kp_verbosity) {
-        kp_ring_puts(s);
+        kp_ring_puts(str);
         kp_ring_puts("\r\n");
     }
 }

@@ -6,6 +6,6 @@
 
 int register_console(console_t *restrict con);
 void unregister_console(console_t *restrict con);
-void console_write(const void *restrict s, size_t n);
+void console_write(const void *restrict str, size_t size);
 
 #endif /* _INCLUDE_KAN_CONSOLE_H__ */

@@ -33,18 +33,18 @@ static __force_inline bool try_occupy_range(size_t a, size_t b)
     return true;
 }
 
-uintptr_t pmalloc(size_t n)
+uintptr_t pmalloc(size_t psize)
 {
     size_t i;
 
     for(i = lastbit; i < bitmap.nbits; i++) {
-        if(!try_occupy_range(i, i + n - 1))
+        if(!try_occupy_range(i, i + psize - 1))
             continue;
         goto found;
     }
 
     for(i = 0; i < lastbit; i++) {
-        if(!try_occupy_range(i, i + n - 1))
+        if(!try_occupy_range(i, i + psize - 1))
             continue;
         goto found;
     }
@@ -53,7 +53,7 @@ uintptr_t pmalloc(size_t n)
      * applications won't benefit from the kernel
      * straight up shitting itself when they go
      * "please sir I want some more memory!"... */
-    panic("pmem: not enough memory (can't allocate %zu pages)", n);
+    panic("pmem: not enough memory (can't allocate %zu pages)", psize);
     unreachable();
     return 0;
 
@@ -63,13 +63,28 @@ found:
 }
 EXPORT_SYMBOL(pmalloc);
 
-void pmfree(uintptr_t pptr, size_t n)
+void *pmalloc_hhdm(size_t psize)
+{
+    uintptr_t pptr = pmalloc(psize);
+    if(pptr)
+        return (void *)(pptr + get_hhdm_offset());
+    return NULL;
+}
+EXPORT_SYMBOL(pmalloc_hhdm);
+
+void pmfree(uintptr_t pptr, size_t psize)
 {
     size_t page = get_page_bit(pptr);
-    set_bitmap_range(&bitmap, page, page + n - 1);
+    set_bitmap_range(&bitmap, page, page + psize - 1);
     lastbit = page;
 }
 EXPORT_SYMBOL(pmfree);
+
+void pmfree_hhdm(void *restrict ptr, size_t psize)
+{
+    pmfree((uintptr_t)ptr - get_hhdm_offset(), psize);
+}
+EXPORT_SYMBOL(pmfree_hhdm);
 
 static int init_pmem(void)
 {
@@ -124,7 +139,7 @@ static int init_pmem(void)
                 break;
         }
 
-        pr_debug("pmem: %p-%p, %s", (void *)entry->base, (void *)entry_end, entry_name);
+        pr_debug("pmem: %p-%p %s", (void *)entry->base, (void *)entry_end, entry_name);
 
         switch(entry->type) {
             case LIMINE_MEMMAP_USABLE:

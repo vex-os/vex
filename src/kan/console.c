@@ -23,16 +23,16 @@ int register_console(console_t *restrict con)
     /* Certain console drivers may actually set
      * the write callback after registering, so
      * we might not want to bail out here */
-    if(!con->write_fn)
+    if(!con->write)
         return EINVAL;
 #endif
 
     pr_inform("console: registering %s", con->name);
 
-    if(con->write_fn) {
+    if(con->write) {
         sptr = kp_ring + kp_ring_pos;
-        con->write_fn(con, sptr, strnlen(sptr, KP_RING_SZ - kp_ring_pos));
-        con->write_fn(con, kp_ring, strnlen(kp_ring, kp_ring_pos));
+        con->write(con, sptr, strnlen(sptr, KP_RING_SZ - kp_ring_pos));
+        con->write(con, kp_ring, strnlen(kp_ring, kp_ring_pos));
     }
 
     con->next = console_drivers;
@@ -65,12 +65,12 @@ void unregister_console(console_t *restrict con)
 }
 EXPORT_SYMBOL(unregister_console);
 
-void console_write(const void *restrict s, size_t n)
+void console_write(const void *restrict str, size_t size)
 {
     console_t *bcon;
     for(bcon = console_drivers; bcon; bcon = bcon->next) {
-        if(!bcon->write_fn)
+        if(!bcon->write)
             continue;
-        bcon->write_fn(bcon, s, n);
+        bcon->write(bcon, str, size);
     }
 }

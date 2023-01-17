@@ -14,7 +14,7 @@ static void e9_write(console_t *restrict con, const void *restrict s, size_t n)
 
 static console_t e9_console = {
     .name = "bochs_e9_console",
-    .write_fn = &e9_write,
+    .write = &e9_write,
     .next = NULL,
 };
 
