@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2023, KanOS Contributors */
-#include <kan/boot.h>
+#include <kan/bootinfo.h>
 #include <kan/debug.h>
 #include <kan/errno.h>
 #include <kan/initcall.h>
@@ -12,19 +12,18 @@
 #include <string.h>
 
 typedef struct slab_s {
-    size_t bsize;
+    size_t blocksize;
     void **head;
 } slab_t;
 
-static size_t num_slabs = 0;
+static uintptr_t hhdm_offset = 0;
 static slab_t *slabs = NULL;
 
-static slab_t *find_slab(size_t n)
+static slab_t *find_matching_slab(size_t n)
 {
     size_t i;
-
-    for(i = 0; i < num_slabs; i++) {
-        if(slabs[i].bsize < n)
+    for(i = 0; slabs[i].blocksize; i++) {
+        if(slabs[i].blocksize < n)
             continue;
         return &slabs[i];
     }
@@ -32,68 +31,75 @@ static slab_t *find_slab(size_t n)
     return NULL;
 }
 
-static bool extend_slab(slab_t *restrict slab)
+static bool expand_slab(slab_t *restrict slab)
 {
     size_t i;
-    size_t hsize;
-    size_t last_block, gap;
-    uintptr_t head_addr = pmalloc(1);
+    size_t offset;
+    size_t numblocks;
+    size_t blockgap;
+    uintptr_t headptr;
 
-    kassert(slab->bsize >= sizeof(void *));
-    kassert(slab->bsize % sizeof(void *) == 0);
-    kassert(boot_hhdm.response != NULL);
+    /* Paranoically ensure bsize is valid */
+    kassert(slab->blocksize / sizeof(void *) >= 1);
+    kassert(slab->blocksize % sizeof(void *) == 0);
 
-    if(head_addr) {
-        slab->head = (void **)(head_addr + boot_hhdm.response->offset);
+    headptr = pmalloc(1);
 
-        /* The page contains a header with the size
-         * ceil-aligned to slab->bsize that has a pointer
-         * to the slab structure that owns that page. */
-        hsize = __align_ceil(sizeof(slab_t *), slab->bsize);
+    if(headptr) {
+        slab->head = (void **)(headptr + hhdm_offset);
+
+        /* Ensure the header takes a whole number of blocks */
+        offset = __align_ceil(sizeof(slab_t *), slab->blocksize);
 
         slab->head[0] = slab;
-        slab->head = (void **)((uintptr_t)slab->head + hsize);
+        slab->head = (void **)((uintptr_t)slab->head + offset);
 
-        /* Last free block's <next> shall always be NULL. */
-        last_block = (PAGE_SIZE - hsize) / slab->bsize - 1;
+        numblocks = (PAGE_SIZE - offset) / slab->blocksize;
+        blockgap = slab->blocksize / sizeof(void *);
 
-        /* Because we maintain free blocks in a linked list,
-         * bsize is a multiple of a pointer size, meaning
-         * there there is a gap of (N >= 1) pointer-sized objects. */
-        gap = slab->bsize / sizeof(void *);
-
-        for(i = 0; i < last_block; i++)
-            slab->head[i * gap] = &slab->head[(i + 1) * gap];
-        slab->head[last_block * gap] = NULL;
+        for(i = 1; i < numblocks; i++)
+            slab->head[(i - 1) * blockgap] = &slab->head[i * blockgap];
+        slab->head[(numblocks - 1) * blockgap] = NULL;
 
         return true;
     }
 
+    /* Out of memory. Too Bad! */
     return false;
 }
 
-static void init_slab(slab_t *restrict slab, size_t bsize)
+static void init_slab(slab_t *restrict slab, size_t blocksize)
 {
-    slab->bsize = bsize;
+    slab->blocksize = blocksize;
     slab->head = NULL;
-    panic_if(!extend_slab(slab), "kmalloc: not enough memory to initialize");
+    panic_if(!expand_slab(slab), "kmalloc: not enough memory to initialize");
 }
 
 void *kmalloc(size_t n)
 {
-    void *ptr;
-    slab_t *slab = find_slab(n);
+    slab_t *slab = find_matching_slab(n);
+    uintptr_t pptr;
+    void *headptr;
+    size_t psize;
 
     if(slab) {
-        if(!slab->head && !extend_slab(slab))
+        if(!slab->head && !expand_slab(slab))
             return NULL;
-
-        ptr = slab->head;
+        headptr = slab->head;
         slab->head = slab->head[0];
-
-        return ptr;
+        return headptr;
+    }
+    else {
+        psize = get_page_count(n);
+        pptr = pmalloc(psize + 1);
+        if(pptr) {
+            pptr += hhdm_offset;
+            ((size_t *)pptr)[0] = psize;
+            return (void *)(pptr + PAGE_SIZE);
+        }
     }
 
+    /* Out of memory. Too Bad! */
     return NULL;
 }
 EXPORT_SYMBOL(kmalloc);
@@ -103,20 +109,20 @@ void *kcalloc(size_t count, size_t n)
     void *ptr = kmalloc(count * n);
     if(ptr)
         return memset(ptr, 0, count * n);
-    return ptr;
+    return NULL;
 }
 EXPORT_SYMBOL(kcalloc);
 
 void *krealloc(void *restrict ptr, size_t n)
 {
-    void *new_ptr = kmalloc(n);
-    if(new_ptr) {
+    void *nptr = kmalloc(n);
+    if(nptr) {
         if(ptr) {
-            memcpy(new_ptr, ptr, n);
+            memcpy(nptr, ptr, n);
             kfree(ptr);
         }
 
-        return new_ptr;
+        return nptr;
     }
 
     return NULL;
@@ -136,45 +142,51 @@ EXPORT_SYMBOL(kstrdup);
 void kfree(void *restrict ptr)
 {
     slab_t *slab;
-    void **new_head;
-    uintptr_t aptr = page_align_address((uintptr_t)ptr);
+    void **headptr;
+    void *aptr = (void *)page_align_ptr(ptr);
+    size_t psize;
 
-    /* Slab allocated blocks are never page-aligned */
-    if(aptr != (uintptr_t)ptr) {
-        slab = ((slab_t **)aptr)[0];
-
-        new_head = ptr;
-        new_head[0] = slab->head;
-        slab->head = new_head;
-
-        return;
+    if(ptr) {
+        if(aptr != ptr) {
+            slab = ((slab_t **)aptr)[0];
+            headptr = ptr;
+            headptr[0] = slab->head;
+            slab->head = headptr;
+        }
+        else {
+            aptr = (void *)((uintptr_t)aptr - PAGE_SIZE);
+            psize = ((size_t *)aptr)[0];
+            pmfree((uintptr_t)aptr - hhdm_offset, psize + 1);
+        }
     }
 }
 EXPORT_SYMBOL(kfree);
 
 static int init_kmalloc(void)
 {
-    uintptr_t slabs_ptr;
+    /* Usable slab count */
+    size_t numslabs = 8;
+    uintptr_t slabsptr;
 
-    kassert(boot_hhdm.response != NULL);
+    slabsptr = pmalloc(get_page_count(sizeof(slab_t) * (numslabs + 1)));
+    panic_if(!slabsptr, "kmalloc: not enough memory to initialize");
 
-    num_slabs = 10;
-    slabs_ptr = pmalloc(get_page_count(num_slabs * sizeof(slab_t)));
-    panic_if(!slabs_ptr, "kmalloc: not enough memory to initialize");
+    hhdm_offset = get_hhdm_offset();
+    slabs = (slab_t *)(slabsptr + hhdm_offset);
+    slabs[numslabs].blocksize = 0;
+    slabs[numslabs].head = NULL;
 
-    slabs = (slab_t *)(slabs_ptr + boot_hhdm.response->offset);
-    init_slab(&slabs[0], 8);
-    init_slab(&slabs[1], 16);
-    init_slab(&slabs[2], 24);
-    init_slab(&slabs[3], 32);
-    init_slab(&slabs[4], 48);
-    init_slab(&slabs[5], 64);
-    init_slab(&slabs[6], 128);
-    init_slab(&slabs[7], 256);
-    init_slab(&slabs[8], 512);
-    init_slab(&slabs[9], 1024);
+    init_slab(&slabs[0], PAGE_SIZE / 512);
+    init_slab(&slabs[1], PAGE_SIZE / 256);
+    init_slab(&slabs[2], PAGE_SIZE / 128);
+    init_slab(&slabs[3], PAGE_SIZE / 64);
+    init_slab(&slabs[4], PAGE_SIZE / 32);
+    init_slab(&slabs[5], PAGE_SIZE / 16);
+    init_slab(&slabs[6], PAGE_SIZE / 8);
+    init_slab(&slabs[7], PAGE_SIZE / 4);
 
-    return EOK;
+    return 0;
 }
 initcall_tier_0(kmalloc, init_kmalloc);
+initcall_depend(kmalloc, bootinfo);
 initcall_depend(kmalloc, pmem);

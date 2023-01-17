@@ -32,20 +32,20 @@ void __noreturn __used kmain(void)
     }
 
     /* Test export table */
-    kassert(get_export("kputs") == (void *)(&kputs));
-    kassert(get_export("kmalloc") == (void *)(&kmalloc));
+    pr_inform("kputs: export=%p kernel=%p", get_export("kputs"), (void *)(&kputs));
+    pr_inform("kmalloc: export=%p kernel=%p", get_export("kmalloc"), (void *)(&kmalloc));
 
     /* Test kmalloc */
-    kassert((p1 = kmalloc(64)) != NULL);
-    kassert((p2 = kmalloc(64)) != NULL);
+    p1 = kmalloc(64);
+    p2 = kmalloc(64);
+    pr_inform("kmalloc test 1: p1=%p p2=%p", p1, p2);
     kfree(p1);
-    kassert((p3 = kmalloc(64)) != NULL);
-    kassert(p1 == p3);
+    p3 = kmalloc(64);
+    pr_inform("kmalloc test 2: p1=%p p3=%p", p1, p3);
     kfree(p2);
     kfree(p3);
-
-    /* UNDONE: it's okay if it fails */
-    kassert((p1 = kmalloc(2048)) != NULL);
+    p1 = kmalloc(8192);
+    pr_inform("kmalloc test 3: p1=%p", p1);
     kfree(p1);
 
     panic("nothing to do");

@@ -19,6 +19,18 @@ static __force_inline uintptr_t page_align_address(uintptr_t address)
     return __align_floor(address, PAGE_SIZE);
 }
 
+/* Returns page-aligned pointer */
+static __force_inline void *page_align_ptr(void *restrict ptr)
+{
+    return (void *)__align_floor((uintptr_t)ptr, PAGE_SIZE);
+}
+
+/* Returns page-aligned pointer */
+static __force_inline const void *page_align_cptr(const void *restrict ptr)
+{
+    return (const void *)__align_floor((uintptr_t)ptr, PAGE_SIZE);
+}
+
 /* Converts byte count to page count */
 static __force_inline size_t get_page_count(size_t n)
 {
