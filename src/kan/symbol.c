@@ -7,7 +7,7 @@
 const void *get_export(const char *restrict sym)
 {
     const symbol_t *esym;
-    for(esym = &exports_begin; esym != &exports_end; esym++) {
+    for(esym = &__exports_begin; esym != &__exports_end; esym++) {
         if(strcmp(esym->name, sym))
             continue;
         return (void *)esym->address;
@@ -21,15 +21,15 @@ bool trace_address(uintptr_t address, symbol_t *restrict sym, ptrdiff_t *restric
     size_t i;
     symbol_t psym;
 
-    psym = ksymtab[0];
-    for(i = 0; ksymtab[i].address; i++) {
-        if(ksymtab[i].address >= address) {
+    psym = __ksymtab[0];
+    for(i = 0; __ksymtab[i].address; i++) {
+        if(__ksymtab[i].address >= address) {
             *off = address - psym.address;
             *sym = psym;
             return true;
         }
 
-        psym = ksymtab[i];
+        psym = __ksymtab[i];
     }
 
     return false;

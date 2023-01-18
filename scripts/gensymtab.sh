@@ -8,7 +8,7 @@ printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"
 printf "#include <kan/symbol.h>\n"
 
-printf "const symbol_t ksymtab[] = {\n"
+printf "const symbol_t __ksymtab[] = {\n"
 printf "%s" "${symbols}" | while read -r symbol
 do
     printf "{ .address = 0x${symbol%% *}, .name = \"${symbol##* }\" },\n"

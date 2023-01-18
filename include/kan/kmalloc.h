@@ -12,4 +12,6 @@ void *krealloc(void *restrict ptr, size_t size);
 char *kstrdup(const char *restrict str);
 void kfree(void *restrict ptr);
 
+initcall_extern(kmalloc);
+
 #endif /* _INCLUDE_KAN_KMALLOC_H__ */

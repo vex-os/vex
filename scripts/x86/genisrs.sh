@@ -7,7 +7,7 @@ printf "/* warning: changes will be lost */\n"
 
 printf ".section .text\n"
 for i in ${vectors}; do
-    printf "x86_interrupt_${i}:\n"
+    printf "__isr_${i}:\n"
 
     ## x86 exceptions 8, 10, 11, 12, 13, 14 and 21
     ## push an error code describing what caused them.
@@ -18,12 +18,13 @@ for i in ${vectors}; do
     fi
 
     printf "pushq \$${i}\n"
-    printf "jmp x86_interrupt_handler_S\n"
+    printf "jmp __x86_common_isr_asm\n"
 done
 
 printf ".section .rodata\n"
-printf ".global x86_interrupts\n"
-printf "x86_interrupts:\n"
+printf ".global __x86_isrs\n"
+printf ".type __x86_isrs, @object\n"
+printf "__x86_isrs:\n"
 for i in ${vectors}; do
-    printf ".quad x86_interrupt_${i}\n"
+    printf ".quad __isr_${i}\n"
 done

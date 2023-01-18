@@ -26,9 +26,9 @@ SECTIONS
 
     .rodata ALIGN(CONSTANT(MAXPAGESIZE)) : {
         *(.rodata)
-        exports_begin = .;
+        __exports_begin = .;
         *(.rodata.exports)
-        exports_end = .;
+        __exports_end = .;
         *(.rodata.*)
     } :rodata
 

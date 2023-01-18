@@ -3,7 +3,8 @@
 #ifndef _INCLUDE_KAN_RESOURCE_H__
 #define _INCLUDE_KAN_RESOURCE_H__
 #include <kan/compiler.h>
-#include <uapi/kan/resource.h>
+#include <stddef.h>
+#include <stdint.h>
 
 #if defined(__X86_64__)
 #include <x86/pmio.h>
@@ -23,6 +24,20 @@
 #define pmio_write32(x, y) ((void)(x),(void)(y),(int)(EIO))
 #define pmio_throttle() ((void)(x),(void)(y),(int)(EIO))
 #endif
+
+#define RESOURCE_MMIO       (1 << 0)
+#define RESOURCE_MMIO_A_16  (1 << 1)
+#define RESOURCE_MMIO_A_32  (1 << 2)
+#define RESOURCE_PMIO       (1 << 3)
+#define RESOURCE_PMIO_SLOW  (1 << 4)
+
+typedef struct resource_s {
+    char name[64];
+    size_t size;
+    uintptr_t base;
+    unsigned int flags;
+    struct resource_s *next;
+} resource_t;
 
 int register_resource(resource_t *restrict res);
 const resource_t *find_resource(const char *name);

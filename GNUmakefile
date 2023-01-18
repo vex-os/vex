@@ -54,8 +54,8 @@ SYM1_O	:= temp/sym1.c.o
 KBIN_0	:= temp/kan_noinit.o
 KBIN_1	:= temp/kan_nosyms.elf
 KERNEL	:= kan.elf
-LINK	:= temp/link.ld
-LINK_S	:= scripts/link.$(LTARGET).lds
+LINK	:= temp/ldscript.ld
+LINK_S	:= scripts/$(STARGET)/ldscript.lds
 
 DCLEAN	+= $(SYM0_C)
 DCLEAN	+= $(SYM0_O)
@@ -98,7 +98,7 @@ src/kan/version.c: $(VERHDR)
 
 $(VERHDR): force_run
 	@printf "[kernel] generating $@\n"
-	@sh scripts/gen.version.sh $(VERSION) > $@
+	@sh scripts/genversion.sh $(VERSION) > $@
 
 $(KERNEL): $(INIT_O) $(KBIN_1) $(SYM1_O) $(LINK)
 	@printf "[kernel] linking $@\n"
@@ -107,7 +107,7 @@ $(KERNEL): $(INIT_O) $(KBIN_1) $(SYM1_O) $(LINK)
 $(SYM1_C): $(KBIN_1) force_run
 	@mkdir -p temp
 	@printf "[kernel] generating $@\n"
-	@sh scripts/gen.symtab.sh $(KBIN_1) > $@
+	@sh scripts/gensymtab.sh $(KBIN_1) > $@
 
 $(KBIN_1): $(INIT_O) $(KBIN_0) $(SYM0_O) $(LINK)
 	@mkdir -p temp
@@ -117,12 +117,12 @@ $(KBIN_1): $(INIT_O) $(KBIN_0) $(SYM0_O) $(LINK)
 $(INIT_C): $(KBIN_0) force_run
 	@mkdir -p temp
 	@printf "[kernel] generating $@\n"
-	@sh scripts/gen.initcalls.sh $(KBIN_0) > $@
+	@sh scripts/geninitcalls.sh $(KBIN_0) > $@
 
 $(SYM0_C):
 	@mkdir -p temp
 	@printf "[kernel] generating $@\n"
-	@sh scripts/gen.symtab.sh > $@
+	@sh scripts/gensymtab.sh > $@
 
 $(LINK): $(LINK_S)
 	@mkdir -p temp

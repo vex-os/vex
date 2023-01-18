@@ -17,9 +17,9 @@ CPFLAGS	+= -D __amd64__
 LDFLAGS	+= --no-pie
 LDFLAGS	+= -z max-page-size=0x1000
 
-SOURCES	+= temp/idt_stub.S
-DCLEAN	+= temp/idt_stub.S
-temp/idt_stub.S:
+SOURCES	+= temp/x86_isrs.S
+DCLEAN	+= temp/x86_isrs.S
+temp/x86_isrs.S:
 	@mkdir -p temp
 	@printf "[kernel] generating $@\n"
-	@sh scripts/gen.idt_stub.x86.sh > $@
+	@sh scripts/x86/genisrs.sh > $@

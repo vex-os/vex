@@ -3,11 +3,18 @@
 #include <kan/debug.h>
 #include <kan/errno.h>
 #include <kan/initcall.h>
+#include <kan/interrupt.h>
 #include <kan/kmalloc.h>
 #include <kan/kprintf.h>
 #include <kan/symbol.h>
 #include <kan/version.h>
 #include <string.h>
+
+static int int42_handler(interrupt_frame_t *restrict frame, void *restrict arg)
+{
+    pr_inform("interrupts test: handler called (int $%#02zX)", (size_t)frame->vector);
+    return INTERRUPT_CONSUME;
+}
 
 void __noreturn __used kmain(void)
 {
@@ -20,16 +27,26 @@ void __noreturn __used kmain(void)
     /* Print some information about ourselves... */
     pr_inform("starting version %s", kernel_semver);
 
-    for(i = 0; initcalls[i].func; i++) {
+    for(i = 0; __initcalls[i].func; i++) {
+        r = __initcalls[i].func();
+
         /* An initcall returning ENODEV is a special case,
          * it just means the initcall wasn't successful but
          * it didn't fail either (for instance there was no
          * device associated with the driver or whatever). */
-        if((r = initcalls[i].func()) != EOK && r != ENODEV) {
-            panic("%s: %s", initcalls[i].name, strerror(r));
+        if(r != EOK && r != ENODEV) {
+            panic("%s: %s", __initcalls[i].name, strerror(r));
             unreachable();
         }
     }
+
+    /* Test interrupt handling */
+    add_interrupt_handler(alloc_interrupt(0x42), &int42_handler, NULL);
+    add_interrupt_handler(alloc_interrupt(0x43), &int42_handler, NULL);
+    add_interrupt_handler(alloc_interrupt(0x44), &int42_handler, NULL);
+    asm volatile("int $0x42");
+    asm volatile("int $0x43");
+    asm volatile("int $0x44");
 
     /* Test export table */
     pr_inform("kputs: export=%p kernel=%p", get_export("kputs"), (void *)(&kputs));

@@ -2,16 +2,17 @@
 /* Copyright (c), 2022, KanOS Contributors */
 
 .section .text
-.global x86_interrupt_handler_S
-x86_interrupt_handler_S:
+.global __x86_common_isr_asm
+.type __x86_common_isr_asm, @function
+
+__x86_common_isr_asm:
     pushq %rax
-    pushq %rbx
     pushq %rcx
     pushq %rdx
+    pushq %rbx
     pushq %rbp
     pushq %rsi
     pushq %rdi
-
     pushq %r8
     pushq %r9
     pushq %r10
@@ -22,7 +23,7 @@ x86_interrupt_handler_S:
     pushq %r15
 
     movq %rsp, %rdi
-    call x86_interrupt_handler
+    call __x86_common_isr
 
     popq %r15
     popq %r14
@@ -32,13 +33,12 @@ x86_interrupt_handler_S:
     popq %r10
     popq %r9
     popq %r8
-
     popq %rdi
     popq %rsi
     popq %rbp
+    popq %rbx
     popq %rdx
     popq %rcx
-    popq %rbx
     popq %rax
 
     addq $0x10, %rsp

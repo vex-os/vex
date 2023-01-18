@@ -7,7 +7,7 @@ vga: extension=vbe, update_freq=15, realtime=1, ddc=builtin
 keyboard: type=mf, serial_delay=200, paste_delay=100000
 mouse: enabled=0
 pci: enabled=1, chipset=i440fx, slot1=none, slot2=none, slot3=none, slot4=none, slot5=none
-clock: sync=both, time0=utc, rtc_sync=0
+clock: sync=none, time0=utc, rtc_sync=0
 
 floppya: 1_44=none, status=ejected
 floppyb: 1_44=none, status=ejected
@@ -20,6 +20,6 @@ boot: floppy, cdrom, disk
 
 debug: action=ignore
 info: action=ignore
-error: action=ignore
+error: action=report
 panic: action=fatal
 port_e9_hack: enabled=1
