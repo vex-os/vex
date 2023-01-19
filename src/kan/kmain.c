@@ -72,14 +72,14 @@ void __noreturn __used kmain(void)
     e9.size = 1;
     e9.mode = IO_PORT_MAPPED;
     pr_inform("io test: writing string to pmio %p", (void *)e9.base);
-    io_write8(&e9, 0, 'T');
-    io_write8(&e9, 0, 'E');
-    io_write8(&e9, 0, 'S');
-    io_write8(&e9, 0, 'T');
-    io_write8(&e9, 0, ' ');
-    io_write8(&e9, 0, 'I');
-    io_write8(&e9, 0, 'O');
-    io_write8(&e9, 0, 012);
+    io_write(&e9, 0, 'T');
+    io_write(&e9, 0, 'E');
+    io_write(&e9, 0, 'S');
+    io_write(&e9, 0, 'T');
+    io_write(&e9, 0, ' ');
+    io_write(&e9, 0, 'I');
+    io_write(&e9, 0, 'O');
+    io_write(&e9, 0, 012);
 
     panic("nothing to do");
     unreachable();
