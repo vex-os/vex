@@ -4,6 +4,7 @@
 #include <kan/errno.h>
 #include <kan/initcall.h>
 #include <kan/interrupt.h>
+#include <kan/io.h>
 #include <kan/kmalloc.h>
 #include <kan/kprintf.h>
 #include <kan/symbol.h>
@@ -23,6 +24,7 @@ void __noreturn __used kmain(void)
     void *p1;
     void *p2;
     void *p3;
+    io_block_t e9 = { 0 };
 
     /* Print some information about ourselves... */
     pr_inform("starting version %s", kernel_semver);
@@ -64,6 +66,20 @@ void __noreturn __used kmain(void)
     p1 = kmalloc(8192);
     pr_inform("kmalloc test 3: p1=%p", p1);
     kfree(p1);
+
+    /* Test IO */
+    e9.base = 0x00E9;
+    e9.size = 1;
+    e9.mode = IO_PORT_MAPPED;
+    pr_inform("io test: writing string to pmio %p", (void *)e9.base);
+    io_write8(&e9, 0, 'T');
+    io_write8(&e9, 0, 'E');
+    io_write8(&e9, 0, 'S');
+    io_write8(&e9, 0, 'T');
+    io_write8(&e9, 0, ' ');
+    io_write8(&e9, 0, 'I');
+    io_write8(&e9, 0, 'O');
+    io_write8(&e9, 0, 012);
 
     panic("nothing to do");
     unreachable();
