@@ -30,6 +30,18 @@ static volatile struct limine_memmap_request memmap_request = {
     .revision = 0,
 };
 
+static volatile struct limine_module_request module_request = {
+    .id = LIMINE_MODULE_REQUEST,
+    .response = NULL,
+    .revision = 0,
+};
+
+static volatile struct limine_framebuffer_request framebuffer_request = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST,
+    .response = NULL,
+    .revision = 0,
+};
+
 static uintptr_t hhdm_offset = 0;
 static uintptr_t kernel_address_phys = 0;
 static uintptr_t kernel_address_virt = 0;
@@ -55,6 +67,16 @@ EXPORT_SYMBOL(get_kernel_address_virt);
 const struct limine_memmap_response *get_memmap(void)
 {
     return memmap_request.response;
+}
+
+const struct limine_module_response *get_modules(void)
+{
+    return module_request.response;
+}
+
+const struct limine_framebuffer_response *get_framebuffers(void)
+{
+    return framebuffer_request.response;
 }
 
 static int init_bootinfo(void)

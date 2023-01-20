@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, KanOS Contributors */
+#include <blob/kfont.h>
 #include <kan/debug.h>
 #include <kan/errno.h>
 #include <kan/initcall.h>
@@ -9,6 +10,7 @@
 #include <kan/kprintf.h>
 #include <kan/symbol.h>
 #include <kan/version.h>
+#include <stdlib.h>
 #include <string.h>
 
 static int int42_handler(interrupt_frame_t *restrict frame, void *restrict arg)
@@ -80,6 +82,15 @@ void __noreturn __used kmain(void)
     io_write(&e9, 0, 'I');
     io_write(&e9, 0, 'O');
     io_write(&e9, 0, 012);
+
+    /* Test MBS/WCS */
+    const char *mbs = "П";
+    uint32_t wcc = 0;
+    size_t rx = mbtowc(&wcc, mbs, strlen(mbs));
+    pr_inform("WCTEST: %zu:%#08zX", rx, (size_t)wcc);
+
+    pr_inform("kfont loaded at %p", (void *)&__kfont);
+    pr_inform("kfont size: %zu", (size_t)(__kfont_size[0]));
 
     panic("nothing to do");
     unreachable();

@@ -7,7 +7,7 @@
 #include <stddef.h>
 
 #define KP_MSG_SZ   0x200
-#define KP_RING_SZ  0x1000
+#define KP_RING_SZ  0x2000
 
 #define KP_TRACE    50
 #define KP_DEBUG    25

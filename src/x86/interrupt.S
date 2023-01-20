@@ -1,10 +1,9 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, KanOS Contributors */
-
 .section .text
+
 .global __x86_common_isr_asm
 .type __x86_common_isr_asm, @function
-
 __x86_common_isr_asm:
     pushq %rax
     pushq %rcx

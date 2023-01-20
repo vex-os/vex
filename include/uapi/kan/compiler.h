@@ -50,7 +50,7 @@
 #define __alias(x)          __attribute__((alias(#x)))
 #define __aligned(x)        __attribute__((aligned(x)))
 #define __cold              __attribute__((cold))
-#define __deprecated        __attribute__((deprecated))
+#define __deprecated(x)     __attribute__((deprecated(x)))
 #define __force_inline      __attribute__((always_inline)) inline
 #define __format(x, y, z)   __attribute__((format(x, y, z)))
 #define __hot               __attribute__((hot))

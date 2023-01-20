@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, KanOS Contributors */
-#include <string.h>
+#include <wchar.h>
 
-const char *strrchr(const char *restrict s, int c)
+const uint32_t *wcsrchr(const uint32_t *restrict s, uint32_t c)
 {
-    const char *cp = NULL;
+    const uint32_t *cp = NULL;
     do {
-        if(*s == (char)c)
+        if(*s == c)
             cp = s;
     } while(*s++);
     return cp;

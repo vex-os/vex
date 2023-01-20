@@ -31,6 +31,7 @@ static console_t bootcon = {
 
 static int init_bootcon(void)
 {
+    (void)bootcon;
     if(terminal_request.response)
         return register_console(&bootcon);
     return ENODEV;

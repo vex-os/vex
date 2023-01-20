@@ -6,11 +6,17 @@
             "cStandard": "gnu99",
             "intelliSenseMode": "clang-x64",
             "defines": [
-                "__AMD64__", "__amd64__",
-                "__X86_64__", "__x86_64__",
-                "__KERNEL__", "__kernel__"
+                "__AMD64__",
+                "__amd64__",
+                "__X86_64__",
+                "__x86_64__",
+                "__KERNEL__",
+                "__kernel__"
             ],
-            "includePath": [ "${workspaceFolder}/include" ]
+            "includePath": [
+                "${workspaceFolder}/include"
+            ],
+            "configurationProvider": "ms-vscode.makefile-tools"
         }
     ]
 }

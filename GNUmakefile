@@ -3,9 +3,22 @@
 TARGET	?= x86_64
 VERSION	:= 0.0.0-dev.3
 
+CXFLAGS	:=
+CPFLAGS	:=
+LDFLAGS	:=
+BLOBS	:=
+SOURCES	:=
+OBJECTS	:=
+DCLEAN	:=
+CLEAN	:=
+
+include GNUmakefile.$(TARGET)
+
 CXFLAGS	+= -ffreestanding --target=$(CTARGET)
 CXFLAGS	+= -Wall -Wextra -Werror
 CXFLAGS += -Wno-unused-parameter
+CXFLAGS	+= -Wno-pointer-sign
+CXFLAGS += -funsigned-char
 CXFLAGS	+= -O3 -std=gnu99
 
 CPFLAGS	+= -D __KERNEL__
@@ -28,20 +41,17 @@ LDFLAGS	+= -nostdlib
 	@printf "[kernel] assembling $<\n"
 	@clang $(CXFLAGS) $(CPFLAGS) -c -o $@ $<
 
-SOURCES	:=
-OBJECTS	:=
-DCLEAN	:=
-CLEAN	:=
+BLOBS	+= kfont
 
-include GNUmakefile.$(TARGET)
+SEARCH	:=
+SEARCH	+= src/kan
+SEARCH	+= src/libk
+SEARCH	+= src/$(STARGET)
 
-GLOBS	:=
-GLOBS	+= src/kan
-GLOBS	+= src/libk
-GLOBS	+= src/$(STARGET)
-SOURCES	+= $(shell find $(GLOBS) -maxdepth 1 -name "*.c")
-SOURCES	+= $(shell find $(GLOBS) -maxdepth 1 -name "*.S")
-SOURCES += $(shell find $(GLOBS) -maxdepth 1 -name "*.s")
+SOURCES	+= $(shell find $(SEARCH) -maxdepth 1 -name "*.c")
+SOURCES	+= $(shell find $(SEARCH) -maxdepth 1 -name "*.S")
+SOURCES += $(shell find $(SEARCH) -maxdepth 1 -name "*.s")
+SOURCES	+= $(foreach blob,$(BLOBS),src/blob/$(blob).S)
 OBJECTS += $(SOURCES:=.o)
 
 VERHDR	:= include/conf/version.h
@@ -71,8 +81,8 @@ CLEAN	+= $(KBIN_1)
 CLEAN	+= $(KERNEL)
 CLEAN	+= $(LINK)
 
--include boot/$(STARGET)/GNUmakefile
--include boot/$(LTARGET)/GNUmakefile
+-include boot/$(LTARGET)/GNUmakefile.boot
+-include boot/$(STARGET)/GNUmakefile.boot
 
 .PHONY: force_run
 force_run:
@@ -98,7 +108,7 @@ src/kan/version.c: $(VERHDR)
 
 $(VERHDR): force_run
 	@printf "[kernel] generating $@\n"
-	@sh scripts/genversion.sh $(VERSION) > $@
+	@sh scripts/gen_version.sh $(VERSION) > $@
 
 $(KERNEL): $(INIT_O) $(KBIN_1) $(SYM1_O) $(LINK)
 	@printf "[kernel] linking $@\n"
@@ -107,7 +117,7 @@ $(KERNEL): $(INIT_O) $(KBIN_1) $(SYM1_O) $(LINK)
 $(SYM1_C): $(KBIN_1) force_run
 	@mkdir -p temp
 	@printf "[kernel] generating $@\n"
-	@sh scripts/gensymtab.sh $(KBIN_1) > $@
+	@sh scripts/gen_symtab.sh $(KBIN_1) > $@
 
 $(KBIN_1): $(INIT_O) $(KBIN_0) $(SYM0_O) $(LINK)
 	@mkdir -p temp
@@ -117,12 +127,12 @@ $(KBIN_1): $(INIT_O) $(KBIN_0) $(SYM0_O) $(LINK)
 $(INIT_C): $(KBIN_0) force_run
 	@mkdir -p temp
 	@printf "[kernel] generating $@\n"
-	@sh scripts/geninitcalls.sh $(KBIN_0) > $@
+	@sh scripts/gen_initcalls.sh $(KBIN_0) > $@
 
 $(SYM0_C):
 	@mkdir -p temp
 	@printf "[kernel] generating $@\n"
-	@sh scripts/gensymtab.sh > $@
+	@sh scripts/gen_symtab.sh > $@
 
 $(LINK): $(LINK_S)
 	@mkdir -p temp

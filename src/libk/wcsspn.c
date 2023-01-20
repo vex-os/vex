@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, KanOS Contributors */
-#include <string.h>
+#include <wchar.h>
 
-size_t strspn(const char *restrict s1, const char *restrict s2)
+size_t wcsspn(const uint32_t *restrict s1, const uint32_t *restrict s2)
 {
     size_t i = 0;
-    while(*s1 && strchr(s2, *s1++))
+    while(*s1 && wcschr(s2, *s1++))
         i++;
     return i;
 }

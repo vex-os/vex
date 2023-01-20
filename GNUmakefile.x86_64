@@ -22,4 +22,4 @@ DCLEAN	+= temp/x86_isrs.S
 temp/x86_isrs.S:
 	@mkdir -p temp
 	@printf "[kernel] generating $@\n"
-	@sh scripts/x86/genisrs.sh > $@
+	@sh scripts/x86/gen_isrs.sh > $@
