@@ -1,96 +1,115 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2023, KanOS Contributors */
 #include <kan/errno.h>
-#include <kan/kmalloc.h>
 #include <kan/pmem.h>
 #include <kan/psf2.h>
-#include <kan/symbol.h>
 #include <stdlib.h>
 #include <string.h>
+#include <kan/kprintf.h>
 
-static wchar_t fill_unicode(psf2_t *restrict psf, size_t size)
+static wchar_t fill_unicode(psf2_font_t *restrict psf, size_t size)
 {
     size_t i;
-    size_t j;
-    size_t nwc;
+    size_t nmb;
     size_t glyph;
-    size_t start;
+    size_t usize;
     wchar_t maxwc;
-    wchar_t wcs[16] = { 0 };
-    const psf2_header_t *header = psf->header;
-    const char *ppsf = (const char *)header;
+    wchar_t wc;
 
     glyph = 0;
-    start = header->header_size + (header->num_glyphs * header->glyph_size);
+    usize = size - psf->header->header_size - (psf->header->num_glyphs * psf->header->glyph_size);
     maxwc = 0;
 
-    for(i = start; ppsf[i] && (i < size) && (glyph < header->num_glyphs); i++) {
-        if(ppsf[i] == 0xFF) {
+    for(i = 0; psf->utable[i] && (i < usize) && (glyph < psf->header->num_glyphs); i++) {
+        if(psf->utable[i] == 0xFF) {
             glyph++;
             continue;
         }
 
-        nwc = mbstowcs(wcs, &ppsf[i], 16);
-        if(nwc != SIZE_MAX && nwc) {
-            for(j = 0; j < nwc; j++) {
-                if(psf->unicode)
-                    psf->unicode[wcs[j]] = glyph;
-                if(wcs[j] < maxwc)
-                    continue;
-                maxwc = wcs[j];
-            }
+        if(psf->utable[i] == 0xFE) {
+            while((i < usize) && (psf->utable[i + 1] != 0xFF))
+                i++;
+            continue;
         }
 
-        /* Seek until the separator */
-        while(i < size && ppsf[i + 1] != 0xFF)
-            i++;
-        continue;
+        nmb = 4;
+        if(i + nmb > size)
+            nmb = size - i - 1;
+
+        nmb = mbtowc(&wc, &psf->utable[i], nmb);
+        if(nmb != SIZE_MAX) {
+            if(psf->unicode) {
+                psf->unicode[wc] = glyph;
+            }
+            if(wc > maxwc)
+                maxwc = wc;
+            i += nmb - 1;
+        }
     }
 
     return maxwc;
 }
 
-int psf2_load(psf2_t *restrict psf, const void *restrict ptr, size_t size)
+int load_psf2(psf2_font_t *restrict psf, const void *ptr, size_t size)
 {
     psf->header = ptr;
 
-    if(!psf2_is_valid(psf))
+    if(psf->header->magic[0] != PSF2_MAGIC_0)
+        return EINVAL;
+    if(psf->header->magic[1] != PSF2_MAGIC_1)
+        return EINVAL;
+    if(psf->header->magic[2] != PSF2_MAGIC_2)
+        return EINVAL;
+    if(psf->header->magic[3] != PSF2_MAGIC_3)
+        return EINVAL;
+    if(psf->header->version != PSF2_VERSION)
         return EINVAL;
 
-    psf->max_codepoint = psf->header->num_glyphs;
-    psf->unicode_psize = 0;
+    psf->glyphs = ptr;
+    psf->glyphs += psf->header->header_size;
+    psf->utable = NULL;
     psf->unicode = NULL;
+    psf->max_codepoint = (wchar_t)(psf->header->num_glyphs - 1);
+    psf->unicode_psize = 0;
     psf->bwidth = __align_ceil(psf->header->glyph_width, 8) / 8;
 
     if(psf->header->flags & PSF2_UNICODE) {
+        psf->utable = psf->glyphs;
+        psf->utable += psf->header->num_glyphs * psf->header->glyph_size;
         psf->max_codepoint = fill_unicode(psf, size);
-        psf->unicode_psize = get_page_count((psf->max_codepoint + 1) * sizeof(uint32_t));
+        psf->unicode_psize = get_page_count((psf->max_codepoint + 1) * sizeof(size_t));
         psf->unicode = pmalloc_hhdm(psf->unicode_psize);
         if(!psf->unicode)
             return ENOMEM;
+        memset(psf->unicode, 0, psf->unicode_psize * PAGE_SIZE);
         fill_unicode(psf, size);
     }
 
     return EOK;
 }
-EXPORT_SYMBOL(psf2_load);
 
-void psf2_unload(psf2_t *restrict psf)
+void unload_psf2(psf2_font_t *restrict psf)
 {
     if(psf->unicode)
         pmfree_hhdm(psf->unicode, psf->unicode_psize);
     psf->header = NULL;
+    psf->glyphs = NULL;
+    psf->utable = NULL;
     psf->unicode = NULL;
+    psf->max_codepoint = 0;
     psf->unicode_psize = 0;
+    psf->bwidth = 0;
 }
-EXPORT_SYMBOL(psf2_unload);
 
-uint32_t psf2_get_glyph(const psf2_t *restrict psf, uint32_t wc)
+const uint8_t *get_psf2_glyph(const psf2_font_t *restrict psf, wchar_t wc)
 {
+    if(psf->unicode) {
+        if(wc > psf->max_codepoint)
+            return &psf->glyphs[psf->unicode[0]];
+        return &psf->glyphs[psf->unicode[wc] * psf->header->glyph_size];
+    }
+
     if(wc > psf->max_codepoint)
-        return 0;
-    if(psf->unicode)
-        return psf->unicode[wc];
-    return wc;
+        return &psf->glyphs[0];
+    return &psf->glyphs[wc * psf->header->glyph_size];
 }
-EXPORT_SYMBOL(psf2_get_glyph);

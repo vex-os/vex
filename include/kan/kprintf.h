@@ -6,20 +6,21 @@
 #include <stdarg.h>
 #include <stddef.h>
 
-#define KP_MSG_SZ   0x200
-#define KP_RING_SZ  0x2000
+#define KP_MSG_SZ       0x200
+#define KP_HISTORY_SZ   0x100
 
-#define KP_TRACE    50
-#define KP_DEBUG    25
-#define KP_NOTICE   10
-#define KP_INFORM    0
-#define KP_WARNING -10
-#define KP_ERROR   -25
-#define KP_EMERG   -50
+#define KP_TRACE        50
+#define KP_DEBUG        25
+#define KP_NOTICE       10
+#define KP_INFORM        0
+#define KP_WARNING     -10
+#define KP_ERROR       -25
+#define KP_EMERG       -50
 
+typedef char kp_msg_t[KP_MSG_SZ];
 extern short kp_verbosity;
-extern char kp_ring[KP_RING_SZ];
-extern size_t kp_ring_pos;
+extern kp_msg_t kp_history[KP_HISTORY_SZ];
+extern size_t kp_msg_count;
 
 void kputs(short severity, const char *restrict str);
 void kvprintf(short severity, const char *restrict fmt, va_list ap);

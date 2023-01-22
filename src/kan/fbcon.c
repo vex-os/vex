@@ -9,17 +9,16 @@
 #include <kan/kprintf.h>
 #include <kan/pmem.h>
 #include <kan/psf2.h>
+#include <kan/vterm.h>
 #include <stdlib.h>
 #include <string.h>
 
-static size_t cursor = 0;
-static size_t cwidth = 0;
-static size_t cheight = 0;
 static uint32_t mask_r = 0;
 static uint32_t mask_g = 0;
 static uint32_t mask_b = 0;
 static struct limine_framebuffer fb = { 0 };
-static psf2_t psf = { 0 };
+static psf2_font_t psf = { 0 };
+static vt_t vterm = { 0 };
 
 static __force_inline uint32_t make_mask(uint8_t n)
 {
@@ -28,7 +27,7 @@ static __force_inline uint32_t make_mask(uint8_t n)
     return i;
 }
 
-static __force_inline __used uint32_t remap_color(uint32_t xrgb)
+static __force_inline uint32_t remap_color(uint32_t xrgb)
 {
     uint32_t result = 0;
     result |= ((xrgb >> 16) & mask_r) << fb.red_mask_shift;
@@ -37,11 +36,15 @@ static __force_inline __used uint32_t remap_color(uint32_t xrgb)
     return result;
 }
 
-static void draw_char(wchar_t wc, uint32_t rbg, uint32_t rfg, size_t cx, size_t cy)
+static void draw_cell(vt_t *restrict vt, const vt_cell_t *restrict c, size_t cx, size_t cy)
 {
     size_t i;
     size_t gx;
     size_t gy;
+    bool visible;
+    uint32_t temp;
+    uint32_t rbg = vt_get_bg(&vterm, &c->attr);
+    uint32_t rfg = vt_get_fg(&vterm, &c->attr);
     uint32_t *fbp = fb.address;
     const uint8_t *glyph;
 
@@ -55,13 +58,20 @@ static void draw_char(wchar_t wc, uint32_t rbg, uint32_t rfg, size_t cx, size_t 
         return;
     fbp += i;
 
-    glyph = (const uint8_t *)psf.header;
-    glyph += psf.header->header_size;
-    glyph += psf2_get_glyph(&psf, wc) * psf.header->glyph_size;
+    rbg = remap_color(rbg);
+    rfg = remap_color(rfg);
 
+    if(c->attr.mode & VT_REVERSE) {
+        temp = rbg;
+        rbg = rfg;
+        rfg = temp;
+    }
+
+    glyph = get_psf2_glyph(&psf, c->wc);
+    visible = !(c->attr.mode & VT_CONCEAL);
     for(gy = 0; gy < psf.header->glyph_height; gy++) {
         for(gx = 0; gx < psf.header->glyph_width; gx++) {
-            if(glyph[gx >> 3] & (0x80 >> (gx & 7)))
+            if(visible && (glyph[gx >> 3] & (0x80 >> (gx & 7))))
                 fbp[gx] = rfg;
             else
                 fbp[gx] = rbg;
@@ -72,20 +82,54 @@ static void draw_char(wchar_t wc, uint32_t rbg, uint32_t rfg, size_t cx, size_t 
     }
 }
 
+static void draw_cursor(vt_t *restrict vt, const vt_cursor_t *restrict cursor)
+{
+    size_t i;
+    size_t gx;
+    size_t gy;
+    uint32_t *fbp = fb.address;
+
+    i = cursor->y * psf.header->glyph_height;
+    if(i > fb.height)
+        return;
+    fbp += i * fb.width;
+
+    i = cursor->x * psf.header->glyph_width;
+    if(i > fb.width)
+        return;
+    fbp += i;
+
+    for(gy = 0; gy < psf.header->glyph_height; gy++) {
+        for(gx = 0; gx < psf.header->glyph_width; gx++)
+            fbp[gx] = 0xFFFFFFFF;
+        fbp += fb.width;
+    }
+}
+
+static void fbcon_puts(console_t *restrict con, const char *restrict s)
+{
+    vt_puts(&vterm, s);
+}
+
+static console_t fbcon = {
+    .name = "fbcon",
+    .puts_fn = &fbcon_puts,
+    .next = NULL,
+};
+
 static int init_fbcon(void)
 {
     int r;
     size_t i;
+    size_t cwidth;
+    size_t cheight;
     const char *ext;
+    const char *base;
     const struct limine_file *file = NULL;
-    const struct limine_module_response *modules = NULL;
-    const struct limine_framebuffer_response *framebuffers = NULL;
+    const struct limine_module_response *modules = get_modules();
+    const struct limine_framebuffer_response *framebuffers = get_framebuffers();
 
-    fb.address = NULL;
-    psf.header = NULL;
-    psf.unicode = NULL;
-
-    framebuffers = get_framebuffers();
+    /* FIXME: can we not depend on 32-bit framebuffers? */
     if(framebuffers && framebuffers->framebuffer_count) {
         for(i = 0; i < framebuffers->framebuffer_count; i++) {
             if(framebuffers->framebuffers[i]->bpp == 32) {
@@ -95,67 +139,69 @@ static int init_fbcon(void)
         }
     }
 
-    if(fb.address) {
-        pr_inform("fbcon: fb.address=%p", (void *)fb.address);
-        pr_inform("fbcon: fb.size=%zux%zu", (size_t)fb.width, (size_t)fb.height);
-        pr_inform("fbcon: fb.pitch=%zu", (size_t)fb.pitch);
-        pr_inform("fbcon: fb.red_mask_size=%02zX", (size_t)fb.red_mask_size);
-        pr_inform("fbcon: fb.red_mask_shift=%zu", (size_t)fb.red_mask_shift);
-    }
-    else return ENODEV;
+    if(!fb.address)
+        return ENODEV;
+    pr_inform("fbcon: fb.address=%p", (void *)fb.address);
+    pr_inform("fbcon: fb.size=%zux%zu", (size_t)fb.width, (size_t)fb.height);
+    pr_inform("fbcon: fb.pitch=%zu", (size_t)fb.pitch);
 
-    modules = get_modules();
-    if(modules) {
+    if(modules && modules->module_count) {
         for(i = 0; i < modules->module_count; i++) {
             file = modules->modules[i];
             ext = strchr(file->path, '.');
-            if(ext && (!strcmp(ext, ".psf") || !strcmp(ext, ".psfu"))) {
-                pr_inform("fbcon: loading %s", file->path);
-                r = psf2_load(&psf, file->address, file->size);
-                if(r != EOK) {
-                    psf2_unload(&psf);
-                    continue;
-                }
+            base = strrchr(file->path, '/');
+            base = base ? (base + 1) : file->path;
 
+            if(!ext || (strcmp(ext, ".psf") && strcmp(ext, ".psfu")))
+                continue;
+            r = load_psf2(&psf, file->address, file->size);
+
+            if(r == EOK) {
+                pr_inform("fbcon: loaded font %s, %zu KiB", base, file->size / 1024);
                 break;
             }
+
+            unload_psf2(&psf);
         }
     }
 
     if(!psf.header) {
-        pr_inform("fbcon: loading built-in font at %p", (void *)(&__kfont));
-        r = psf2_load(&psf, &__kfont, __kfont_size[0]);
+        r = load_psf2(&psf, &__kfont, __kfont_size[0]);
         panic_if(r == EINVAL, "fbcon: invalid built-in font");
         panic_if(r == ENOMEM, "fbcon: insufficient memory");
+        panic_if(r != EOK, "fbcon: failed to load built-in font: %s", strerror(r));
+
+        base = strrchr(__kfont_path, '/');
+        base = base ? (base + 1) : __kfont_path;
+        pr_inform("fbcon: loaded built-in font %s, %zu KiB", base, __kfont_size[0] / 1024);
     }
 
-    pr_inform("fbcon: psf.bwidth=%zu", psf.bwidth);
+    pr_inform("fbcon: psf.num_glyphs=%zu", (size_t)psf.header->num_glyphs);
     pr_inform("fbcon: psf.glyph_width=%zu", (size_t)psf.header->glyph_width);
     pr_inform("fbcon: psf.glyph_height=%zu", (size_t)psf.header->glyph_height);
-    pr_inform("fbcon: psf.max_codepoint=%08zX", (size_t)psf.max_codepoint);
-    pr_inform("fbcon: psf.unicode_psize=%zu", psf.unicode_psize);
+    pr_inform("fbcon: psf.max_codepoint=%zX", (size_t)psf.max_codepoint);
+    pr_inform("fbcon: psf.unicode=%p", (void *)psf.unicode);
 
-    cursor = 0;
-    cwidth = fb.width / psf.header->glyph_width;
-    cheight = fb.height / psf.header->glyph_height;
+    /* We use these to remap the 0xXXRRGGBB values we use
+     * across fbcon and vterm to values the framebuffer actually expects. */
     mask_r = make_mask(fb.red_mask_size);
     mask_g = make_mask(fb.green_mask_size);
     mask_b = make_mask(fb.blue_mask_size);
 
-    return EOK;
+    /* Setup VT callbacks */
+    vterm.draw_cell = &draw_cell;
+    vterm.draw_cursor = &draw_cursor;
+
+    cwidth = fb.width / psf.header->glyph_width;
+    cheight = fb.height / psf.header->glyph_height;
+
+    r = vt_init(&vterm, cwidth, cheight);
+    panic_if(r == ENOMEM, "fbcon: insufficient memory");
+    panic_if(r != EOK, "fbcon: failed to initialize vterm: %s", strerror(r));
+
+    /* UNDONE: clear the framebuffer? */
+    return register_console(&fbcon);
 }
 initcall_tier_0(fbcon, init_fbcon);
 initcall_depend(fbcon, bootinfo);
 initcall_depend(fbcon, pmem);
-
-static int test_fbcon(void)
-{
-    size_t i, j;
-    const wchar_t *wcs = L"KanOS теперь понимает Юникод!";
-    for(j = 0; j < 10; j++) {
-        for(i = 0; wcs[i]; i++)
-            draw_char(wcs[i], 0x00000000, 0xFFFFFFFF, i + 64, j + 1);
-    }
-    return EOK;
-}
-initcall_tier_2(test_fbcon, test_fbcon);

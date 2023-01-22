@@ -23,7 +23,8 @@ static __force_inline bool try_occupy_range(size_t a, size_t b)
     size_t i;
     for(i = a; i <= b; i++) {
         if(!read_bitmap(&bitmap, i)) {
-            set_bitmap_range(&bitmap, a, i);
+            if(i > a)
+                set_bitmap_range(&bitmap, a, i - 1);
             return false;
         }
 
@@ -53,7 +54,7 @@ uintptr_t pmalloc(size_t psize)
      * applications won't benefit from the kernel
      * straight up shitting itself when they go
      * "please sir I want some more memory!"... */
-    panic("pmem: not enough memory (can't allocate %zu pages)", psize);
+    panic("pmem: insufficient memory (can't allocate %zu pages)", psize);
     unreachable();
     return 0;
 
@@ -74,14 +75,19 @@ EXPORT_SYMBOL(pmalloc_hhdm);
 
 void pmfree(uintptr_t pptr, size_t psize)
 {
-    size_t page = get_page_bit(pptr);
-    set_bitmap_range(&bitmap, page, page + psize - 1);
-    lastbit = page;
+    size_t page;
+    if(pptr) {
+        page = get_page_bit(pptr);
+        clear_bitmap_range(&bitmap, page, page + psize - 1);
+        lastbit = page;
+    }
 }
 EXPORT_SYMBOL(pmfree);
 
 void pmfree_hhdm(void *restrict ptr, size_t psize)
 {
+    if(!ptr)
+        return;
     pmfree((uintptr_t)ptr - get_hhdm_offset(), psize);
 }
 EXPORT_SYMBOL(pmfree_hhdm);
@@ -165,7 +171,7 @@ static int init_pmem(void)
         }
     }
 
-    panic_if(!bitmap.data, "pmem: not enough memory to initialize");
+    panic_if(!bitmap.data, "pmem: insufficient memory");
 
     /* Mark USABLE pages as free memory */
     for(i = 0; i < memmap->entry_count; i++) {

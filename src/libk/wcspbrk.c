@@ -2,7 +2,7 @@
 /* Copyright (c), 2022, KanOS Contributors */
 #include <wchar.h>
 
-const uint32_t *wcspbrk(const uint32_t *restrict s1, const uint32_t *restrict s2)
+const wchar_t *wcspbrk(const wchar_t *restrict s1, const wchar_t *restrict s2)
 {
     while(*s1) {
         if(wcschr(s2, *s1))

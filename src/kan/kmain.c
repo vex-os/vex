@@ -1,11 +1,9 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, KanOS Contributors */
-#include <blob/kfont.h>
 #include <kan/debug.h>
 #include <kan/errno.h>
 #include <kan/initcall.h>
 #include <kan/interrupt.h>
-#include <kan/io.h>
 #include <kan/kmalloc.h>
 #include <kan/kprintf.h>
 #include <kan/symbol.h>
@@ -26,7 +24,6 @@ void __noreturn __used kmain(void)
     void *p1;
     void *p2;
     void *p3;
-    io_block_t e9 = { 0 };
 
     /* Print some information about ourselves... */
     pr_inform("starting version %s", kernel_semver);
@@ -69,28 +66,42 @@ void __noreturn __used kmain(void)
     pr_inform("kmalloc test 3: p1=%p", p1);
     kfree(p1);
 
-    /* Test IO */
-    e9.base = 0x00E9;
-    e9.size = 1;
-    e9.mode = IO_PORT_MAPPED;
-    pr_inform("io test: writing string to pmio %p", (void *)e9.base);
-    io_write(&e9, 0, 'T');
-    io_write(&e9, 0, 'E');
-    io_write(&e9, 0, 'S');
-    io_write(&e9, 0, 'T');
-    io_write(&e9, 0, ' ');
-    io_write(&e9, 0, 'I');
-    io_write(&e9, 0, 'O');
-    io_write(&e9, 0, 012);
+    pr_inform("Unicode test: если это работает, то всё хорошо");
+    pr_inform("\x1B[91mэтот текст должен быть красным \x1B[0m");
+    pr_inform("\x1B[92mэтот текст должен быть зелёным \x1B[0m");
+    pr_inform("\x1B[94mэтот текст должен быть синим \x1B[0m");
 
-    /* Test MBS/WCS */
-    const char *mbs = "П";
-    uint32_t wcc = 0;
-    size_t rx = mbtowc(&wcc, mbs, strlen(mbs));
-    pr_inform("WCTEST: %zu:%#08zX", rx, (size_t)wcc);
-
-    pr_inform("kfont loaded at %p", (void *)&__kfont);
-    pr_inform("kfont size: %zu", (size_t)(__kfont_size[0]));
+    pr_inform("ANSI escape test");
+    pr_inform("NORMAL BG:\t\x1B[0m"
+        "\x1B[40m    \x1B[41m    "
+        "\x1B[42m    \x1B[43m    "
+        "\x1B[44m    \x1B[45m    "
+        "\x1B[46m    \x1B[47m    \x1B[0m");
+    pr_inform("BRIGHT BG:\t\x1B[0m"
+        "\x1B[100m    \x1B[101m    "
+        "\x1B[102m    \x1B[103m    "
+        "\x1B[104m    \x1B[105m    "
+        "\x1B[106m    \x1B[107m    \x1B[0m");
+    pr_inform("FAINT  FG:\t\x1B[2m"
+        "\x1B[30mXXXX\x1B[31mXXXX"
+        "\x1B[32mXXXX\x1B[33mXXXX"
+        "\x1B[34mXXXX\x1B[35mXXXX"
+        "\x1B[36mXXXX\x1B[37mXXXX\x1B[0m");
+    pr_inform("NORMAL FG:\t\x1B[0m"
+        "\x1B[30mXXXX\x1B[31mXXXX"
+        "\x1B[32mXXXX\x1B[33mXXXX"
+        "\x1B[34mXXXX\x1B[35mXXXX"
+        "\x1B[36mXXXX\x1B[37mXXXX\x1B[0m");
+    pr_inform("BRIGHT FG:\t\x1B[1m"
+        "\x1B[90mXXXX\x1B[91mXXXX"
+        "\x1B[92mXXXX\x1B[93mXXXX"
+        "\x1B[94mXXXX\x1B[95mXXXX"
+        "\x1B[96mXXXX\x1B[97mXXXX\x1B[0m");
+    pr_inform("x\ttab");
+    pr_inform("xx\ttab");
+    pr_inform("xxx\ttab");
+    pr_inform("xxxx\ttab");
+    pr_inform("xxxxx\ttab");
 
     panic("nothing to do");
     unreachable();

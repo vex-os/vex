@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: BSD-2-Clause 
 # Copyright (c), 2022, KanOS Contributors 
 TARGET	?= x86_64
-VERSION	:= 0.0.0-dev.3
+VERSION	:= 0.0.0-dev.4
 
 CXFLAGS	:=
 CPFLAGS	:=

@@ -3,10 +3,10 @@
 #include <string.h>
 #include <wchar.h>
 
-uint32_t *kwcsncat(uint32_t *restrict s1, const uint32_t *restrict s2, size_t n)
+wchar_t *kwcsncat(wchar_t *restrict s1, const wchar_t *restrict s2, size_t n)
 {
     size_t nc;
-    uint32_t *save = s1;
+    wchar_t *save = s1;
     while(*s1 && n--)
         s1++;
     nc = wcsnlen(s2, --n);

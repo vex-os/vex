@@ -2,10 +2,10 @@
 /* Copyright (c), 2022, KanOS Contributors */
 #include <wchar.h>
 
-const uint32_t *wcswcs(const uint32_t *restrict s1, const uint32_t *restrict s2)
+const wchar_t *wcswcs(const wchar_t *restrict s1, const wchar_t *restrict s2)
 {
-    const uint32_t *ap = s1;
-    const uint32_t *bp;
+    const wchar_t *ap = s1;
+    const wchar_t *bp;
 
     while(*s1) {
         bp = s2;

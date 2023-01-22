@@ -6,7 +6,6 @@ FILES	+= boot/x86/limine-cd-efi.bin
 FILES	+= boot/x86/limine-cd.bin
 FILES	+= boot/x86/limine.cfg
 FILES	+= boot/x86/limine.sys
-FILES	+= fonts/cozette-13.psf
 
 ISO		:= kan.iso
 SYSROOT	:= temp/sysroot

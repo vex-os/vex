@@ -2,7 +2,7 @@
 /* Copyright (c), 2022, KanOS Contributors */
 #include <wchar.h>
 
-const uint32_t *wcschr(const uint32_t *restrict s, uint32_t c)
+const wchar_t *wcschr(const wchar_t *restrict s, wchar_t c)
 {
     do {
         if(*s != c)

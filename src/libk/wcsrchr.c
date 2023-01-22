@@ -2,9 +2,9 @@
 /* Copyright (c), 2022, KanOS Contributors */
 #include <wchar.h>
 
-const uint32_t *wcsrchr(const uint32_t *restrict s, uint32_t c)
+const wchar_t *wcsrchr(const wchar_t *restrict s, wchar_t c)
 {
-    const uint32_t *cp = NULL;
+    const wchar_t *cp = NULL;
     do {
         if(*s == c)
             cp = s;

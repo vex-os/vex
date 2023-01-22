@@ -2,9 +2,9 @@
 /* Copyright (c), 2022, KanOS Contributors */
 #include <wchar.h>
 
-uint32_t *wcscat(uint32_t *restrict s1, const uint32_t *restrict s2)
+wchar_t *wcscat(wchar_t *restrict s1, const wchar_t *restrict s2)
 {
-    uint32_t *save = s1;
+    wchar_t *save = s1;
     if(*s1)
         while(*++s1);
     while((*s1++ = *s2++));

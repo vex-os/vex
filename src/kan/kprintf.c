@@ -4,30 +4,34 @@
 #include <kan/kprintf.h>
 #include <kan/symbol.h>
 #include <sprintf.h>
+#include <string.h>
 
 short kp_verbosity = KP_TRACE;
-char kp_ring[KP_RING_SZ] = { 0 };
-size_t kp_ring_pos = 0;
+kp_msg_t kp_history[KP_HISTORY_SZ] = { 0 };
+size_t kp_msg_count = 0;
 
 static void kp_ring_puts(const char *restrict str)
 {
-    size_t n;
+    size_t i;
 
-    /* Acts as strlen of sorts */
-    for(n = 0; str[n]; n++) {
-        kp_ring[kp_ring_pos++] = str[n];
-        kp_ring_pos %= KP_RING_SZ;
+    /* Append to the list */
+    kstrncpy(kp_history[kp_msg_count++], str, sizeof(kp_msg_t));
+
+    /* Discard an older message */
+    if(kp_msg_count >= KP_HISTORY_SZ) {
+        for(i = 1; i < KP_HISTORY_SZ; i++)
+            memcpy(&kp_history[i - 1], &kp_history[i], sizeof(kp_msg_t));
+        kp_msg_count = KP_HISTORY_SZ - 1;
     }
 
-    console_write(str, n);
+    console_puts(str);
 }
 
 void kputs(short severity, const char *restrict str)
 {
-    if(severity <= kp_verbosity) {
-        kp_ring_puts(str);
-        kp_ring_puts("\r\n");
-    }
+    if(severity > kp_verbosity)
+        return;
+    kp_ring_puts(str);
 }
 EXPORT_SYMBOL(kputs);
 
@@ -38,7 +42,6 @@ void kvprintf(short severity, const char *restrict fmt, va_list ap)
     if(severity <= kp_verbosity) {
         vsnprintf(msg, sizeof(msg), fmt, ap);
         kp_ring_puts(msg);
-        kp_ring_puts("\r\n");
     }
 }
 EXPORT_SYMBOL(kvprintf);

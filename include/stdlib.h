@@ -36,8 +36,8 @@ int abs(int x);
 long labs(long x);
 long long llabs(long long x);
 
-size_t mbtowc(uint32_t *restrict wc, const char *restrict s, size_t n);
-size_t mbstowcs(uint32_t *restrict wcs, const char *restrict s, size_t n);
+size_t mbtowc(wchar_t *restrict wc, const char *restrict s, size_t n);
+size_t mbstowcs(wchar_t *restrict wcs, const char *restrict s, size_t n);
 #define mblen(s, n) mbtowc(NULL, (s), (n))
 
 #endif /* _INCLUDE_STDLIB_H__ */

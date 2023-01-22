@@ -4,8 +4,8 @@
 #define _INCLUDE_KAN_PSF2_H__
 #include <uapi/kan/psf2.h>
 
-int psf2_load(psf2_t *restrict psf, const void *restrict ptr, size_t size);
-void psf2_unload(psf2_t *restrict psf);
-uint32_t psf2_get_glyph(const psf2_t *restrict psf, uint32_t wc);
+int load_psf2(psf2_font_t *restrict psf, const void *ptr, size_t size);
+void unload_psf2(psf2_font_t *restrict psf);
+const uint8_t *get_psf2_glyph(const psf2_font_t *restrict psf, wchar_t wc);
 
 #endif /* _INCLUDE_KAN_PSF2_H__ */
