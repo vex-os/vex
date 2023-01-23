@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: BSD-2-Clause 
 # Copyright (c), 2022, KanOS Contributors 
-TARGET := x86_64
+TARGET ?= x86_64
+TOOLCHAIN ?= clang
 VERSION := 0.0.0-dev.4
 
 CP ?= cp
@@ -17,24 +18,16 @@ DISTCLEAN :=
 ALL_DEPS :=
 
 # This should define these:
-#	CC (the C compiler)
-#	LD (the linker)
-include conf/tools.mk
-
-# This should define these:
-#	C_TARGET (--target argument for clang)
+#	C_TARGET (target argument for clang, e.g x86_64-none-elf)
+#	G_TARGET (target triplet for gcc, e.g. x86_64-elf)
 #	L_TARGET (full target name, e.g. x86_64)
 #	S_TARGET (a short target name, e.g. x86)
 include Makefile.$(TARGET)
 
-ifeq ($(findstring clang,$(CC)),clang)
-include Makefile.clang
-endif
-
-# UNDONE: implement me!
-ifeq ($(findstring gcc,$(CC)),gcc)
-include Makefile.gcc
-endif
+# This should define those:
+#	CC (the c compiler)
+#	LD (the linker)
+include Makefile.$(TOOLCHAIN)
 
 CFLAGS += -ffreestanding
 CFLAGS += -Wall -Wextra -Werror
@@ -46,7 +39,6 @@ CFLAGS += -O2
 CPPFLAGS += -D __KERNEL__
 CPPFLAGS += -D __kernel__
 CPPFLAGS += -I include
-CPPFLAGS += -nostdlibinc
 
 LDFLAGS += -static
 LDFLAGS += -nostdlib

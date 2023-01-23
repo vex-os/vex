@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: BSD-2-Clause 
 # Copyright (c), 2022, KanOS Contributors
 C_TARGET := x86_64-none-elf
+G_TARGET := x86_64-elf
 L_TARGET := x86_64
 S_TARGET := x86
 
