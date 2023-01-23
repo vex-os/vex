@@ -1,7 +1,7 @@
 #!/bin/sh
 # [1]: object file to parse
 
-initcalls=$(llvm-readelf -p .discard.init "${1}" | grep -P "^\s*\[" | cut -d "]" -f2 | tsort)
+initcalls=$(readelf -p .discard.init "${1}" | grep -P "^\s*\[" | cut -d "]" -f2 | tsort)
 
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"

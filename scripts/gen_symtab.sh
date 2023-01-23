@@ -2,7 +2,7 @@
 # [1]: elf binary to demangle
 
 # Having an extra printf there allows us to dry-run the script
-symbols=$(llvm-nm ${1} 2> /dev/null | grep " [TtWw] " | sort | cut -d " " -f "1,3" || printf "")
+symbols=$(nm ${1} 2> /dev/null | grep " [TtWw] " | sort | cut -d " " -f "1,3" || printf "")
 
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"

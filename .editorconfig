@@ -7,5 +7,5 @@ charset = utf-8
 indent_style = space
 indent_size = 4
 
-[{GNUmakefile,GNUmakefile.*,*.mk}]
+[{Makefile,Makefile.*,*.mk}]
 indent_style = tab

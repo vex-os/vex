@@ -13,7 +13,7 @@ for i in ${vectors}; do
     ## push an error code describing what caused them.
     ## In any other case, we have to push a dummy error
     ## code to maintain x86_interrupt_frame structure.
-    if (( i != 8 && ( i < 10 || i > 14 ) && i != 21 )); then
+    if [ ${i} -ne 8 ] && [ ${i} -lt 10 ] || [ ${i} -gt 14 ] && [ ${i} -ne 21 ]; then
         printf "pushq \$0\n"
     fi
 

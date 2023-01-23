@@ -25,7 +25,7 @@ extern symbol_t __exports_end;
 
 /* These symbols are automatically exported
  * from an intermediate kernel executable
- * using llvm-nm and are sorted by address.
+ * using (llvm-)nm and are sorted by address.
  * UNDONE: multiple symbol tables so kernel
  * modules can export their symbols as well. */
 extern const symbol_t __ksymtab[];

@@ -66,7 +66,7 @@ void __noreturn __used kmain(void)
     pr_inform("kmalloc test 3: p1=%p", p1);
     kfree(p1);
 
-    pr_inform("Unicode test: если это работает, то всё хорошо");
+    pr_inform("Unicode test: ЕСЛИ ЭТО ЧИТАЕМО, ТО ЮНИКОД ПОДДЕРЖИВАЕТСЯ");
     pr_inform("\x1B[91mэтот текст должен быть красным \x1B[0m");
     pr_inform("\x1B[92mэтот текст должен быть зелёным \x1B[0m");
     pr_inform("\x1B[94mэтот текст должен быть синим \x1B[0m");
