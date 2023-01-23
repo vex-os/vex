@@ -514,13 +514,21 @@ int vt_init(vt_t *restrict vt, size_t cwidth, size_t cheight)
         vt->parser.state = VT_STATE_ESC;
         vt->parser.argc = 0;
 
+        vt->cursor_color = VT_D1_WHITE;
+
         /* Non-concealed NUL characters result in some
         * wonky shit before the first scroll occurs. */
         for(i = 0; i < vt->clength; i++) {
             vt->cells[i].attr = vt->attr;
             vt->cells[i].attr.mode = VT_CONCEAL;
+            vt->cells[i].dirty = true;
             vt->cells[i].wc = VT_NUL;
         }
+
+        /* Make sure we are all nice and clean */
+        VT_CALL(vt->draw_clear, vt, vt_get_bg(vt, &vt->attr));
+
+        vt_redraw(vt);
 
         return EOK;
     }
@@ -607,9 +615,10 @@ void vt_puts(vt_t *restrict vt, const char *restrict s)
                 vt_newline(vt, 1);
                 continue;
             case VT_FF:
-                vt_clear(vt, 0, 0, vt->cwidth, vt->cheight - 1);
                 vt->cursor.x = 0;
                 vt->cursor.y = 0;
+                vt_clear(vt, 0, 0, vt->cwidth, vt->cheight - 1);
+                VT_CALL(vt->draw_clear, vt, vt_get_bg(vt, &vt->attr));
                 continue;
             case VT_CR:
                 vt->cursor.x = 0;

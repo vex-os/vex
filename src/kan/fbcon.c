@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2023, KanOS Contributors */
 #include <blob/kfont.h>
-#include <kan/bootinfo.h>
+#include <kan/boot.h>
 #include <kan/console.h>
 #include <kan/debug.h>
 #include <kan/errno.h>
@@ -106,6 +106,15 @@ static void draw_cursor(vt_t *restrict vt, const vt_cursor_t *restrict cursor)
     }
 }
 
+static void draw_clear(vt_t *restrict vt, uint32_t xrgb)
+{
+    size_t i;
+    size_t fblen = fb.width * fb.height;
+    uint32_t rcolor = remap_color(xrgb);
+    uint32_t *fbp = fb.address;
+    for(i = 0; i < fblen; fbp[i++] = rcolor);
+}
+
 static void fbcon_puts(console_t *restrict con, const char *restrict s)
 {
     vt_puts(&vterm, s);
@@ -191,6 +200,7 @@ static int init_fbcon(void)
     /* Setup VT callbacks */
     vterm.draw_cell = &draw_cell;
     vterm.draw_cursor = &draw_cursor;
+    vterm.draw_clear = &draw_clear;
 
     cwidth = fb.width / psf.header->glyph_width;
     cheight = fb.height / psf.header->glyph_height;
@@ -199,9 +209,10 @@ static int init_fbcon(void)
     panic_if(r == ENOMEM, "fbcon: insufficient memory");
     panic_if(r != EOK, "fbcon: failed to initialize vterm: %s", strerror(r));
 
-    /* UNDONE: clear the framebuffer? */
+    unregister_boot_console();
     return register_console(&fbcon);
 }
 initcall_tier_0(fbcon, init_fbcon);
-initcall_depend(fbcon, bootinfo);
+initcall_depend(fbcon, boot_console);
+initcall_depend(fbcon, boot_info);
 initcall_depend(fbcon, pmem);

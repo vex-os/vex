@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2023, KanOS Contributors */
 #include <bitmap.h>
-#include <kan/bootinfo.h>
+#include <kan/boot.h>
 #include <kan/debug.h>
 #include <kan/errno.h>
 #include <kan/kprintf.h>
@@ -199,4 +199,4 @@ static int init_pmem(void)
     return EOK;
 }
 initcall_tier_0(pmem, init_pmem);
-initcall_depend(pmem, bootinfo);
+initcall_depend(pmem, boot_info);

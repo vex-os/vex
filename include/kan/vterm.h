@@ -124,11 +124,12 @@ typedef struct vt_s {
     vt_cursor_t pcursor;
     vt_palette_t palette;
     vt_parser_t parser;
+    uint32_t cursor_color;
     void(*term_bell)(struct vt_s *restrict vt);
     void(*term_pseq)(struct vt_s *restrict vt, char c);
     void(*draw_cell)(struct vt_s *restrict vt, const vt_cell_t *restrict c, size_t cx, size_t cy);
     void(*draw_cursor)(struct vt_s *restrict vt, const vt_cursor_t *restrict cursor);
-    void(*draw_clear)(struct vt_s *restrict vt, uint32_t color);
+    void(*draw_clear)(struct vt_s *restrict vt, uint32_t xrgb);
     void(*draw_end)(struct vt_s *restrict vt);
 } vt_t;
 

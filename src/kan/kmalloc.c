@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2023, KanOS Contributors */
-#include <kan/bootinfo.h>
+#include <kan/boot.h>
 #include <kan/debug.h>
 #include <kan/errno.h>
 #include <kan/initcall.h>
@@ -178,5 +178,5 @@ static int init_kmalloc(void)
     return 0;
 }
 initcall_tier_0(kmalloc, init_kmalloc);
-initcall_depend(kmalloc, bootinfo);
+initcall_depend(kmalloc, boot_info);
 initcall_depend(kmalloc, pmem);
