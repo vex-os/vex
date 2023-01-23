@@ -27,3 +27,14 @@ typedef struct io_block_s {
 * The `size` field describes the amount of registers the block is allowed to read from and write to.
 * If the register size (`IO_16_BIT` or `IO_32_BIT`) is not specified, a 8-bit register size and offset alignment is assumed.
 
+### Functions
+```c
+#include <kan/io.h>
+typedef struct io_block_s io_block_t;
+int io_read(const io_block_t *restrict io, uintptr_t offset, uintmax_t *restrict out);
+int io_write(const io_block_t *restrict io, uintptr_t offset, uintmax_t value);
+```
+* `io_read` performs a read operation, writes the result to `out`. Returns `EIO` if PMIO is not available, `EINVAL` if mode field doesn't have MMIO or PMIO bits, `ERANGE` if the offset is out of range.
+* `io_write` performs a write operation. Returns `EIO` if PMIO is not available, `EINVAL` if mode field doesn't have MMIO or PMIO bits, `ERANGE` if the offset is out of range.
+
+
