@@ -138,7 +138,7 @@ $(KERNEL): $(INITCALLS_O) $(KBIN_NOSYMS) $(KBIN_NOINIT) $(SYM1_O) $(LD_SCRIPT)
 	$(LD) $(LDFLAGS) -T $(LD_SCRIPT) -o $@ $(INITCALLS_O) $(KBIN_NOINIT) $(SYM1_O)
 
 $(SYM1_C): $(TEMP) $(KBIN_NOSYMS) force
-	$(SH) scripts/gen_symtab.sh $(KBIN_NOINIT) > $@
+	$(SH) scripts/gen_symtab.sh $(KBIN_NOSYMS) > $@
 
 $(KBIN_NOSYMS): $(TEMP) $(INITCALLS_O) $(KBIN_NOINIT) $(SYM0_O) $(LD_SCRIPT)
 	$(LD) $(LDFLAGS) -T $(LD_SCRIPT) -o $@ $(INITCALLS_O) $(KBIN_NOINIT) $(SYM0_O)
