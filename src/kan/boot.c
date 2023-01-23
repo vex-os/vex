@@ -9,6 +9,7 @@
 #include <kan/symbol.h>
 #include <stddef.h>
 #include <string.h>
+#include <messages/kan/boot.h>
 
 static volatile struct limine_bootloader_info_request info_request = {
     .id = LIMINE_BOOTLOADER_INFO_REQUEST,
@@ -68,7 +69,7 @@ static void boot_console_puts(console_t *restrict con, const char *restrict s)
 }
 
 static console_t boot_console = {
-    .name = "boot_console",
+    .name = BOOT_CONSOLE_NAME,
     .puts_fn = &boot_console_puts,
     .next = NULL,
 };
@@ -122,7 +123,7 @@ void reclaim_bootloader_memory(void)
         }
     }
 
-    pr_inform("boot_info: reclaimed %zu KiB", fsize);
+    pr_inform(RECLAIMED_KIB_MSG, fsize);
 }
 
 void unregister_boot_console(void)
@@ -150,15 +151,15 @@ static int init_boot_info(void)
         version = info_request.response->version;
     }
     else {
-        name = "unknown";
+        name = UNKNOWN_NAME;
         version = "0.0.0";
     }
 
-    pr_inform("boot_info: %s %s", name, version);
+    pr_inform(BOOT_INFO_VERSION_MSG, name, version);
 
-    panic_if(!hhdm_request.response, "boot_info: no hhdm_response");
-    panic_if(!kernel_address_request.response, "boot_info: no kernel_address_response");
-    panic_if(!memmap_request.response, "boot_info: no memmap_response");
+    panic_if(!hhdm_request.response, NO_HHDM_RESPONSE_MSG);
+    panic_if(!kernel_address_request.response, NO_KERNEL_ADDRESS_RESPONSE_MSG);
+    panic_if(!memmap_request.response, NO_MEMMAP_RESPONSE_MSG);
 
     hhdm_offset = hhdm_request.response->offset;
     kernel_address_phys = kernel_address_request.response->physical_base;
