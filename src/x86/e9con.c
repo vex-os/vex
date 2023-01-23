@@ -19,7 +19,7 @@ static console_t e9con = {
 static int init_e9con(void)
 {
     uintmax_t c;
-    if(x86_pmio_read8(0xE9, &c) == 0 && c == 0xE9)
+    if(x86_pmio_read8(0xE9, &c) == EOK && c == 0xE9)
         return register_console(&e9con);
     return ENODEV;
 }
