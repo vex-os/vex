@@ -1,0 +1,229 @@
+rm -f -vrf temp/x86_isrs.S temp/sym0.c temp/sym0.c.o temp/ temp/x86boot temp/limine-deploy
+удалён 'temp/x86_isrs.S'
+удалён 'temp/sym0.c'
+удалён 'temp/sym0.c.o'
+удалён 'temp/ldscript.ld'
+удалён 'temp/sym1.c.o'
+удалён 'temp/kan_nosyms.elf'
+удалён 'temp/initcalls.c.o'
+удалён 'temp/limine-deploy'
+удалён 'temp/x86boot/boot/kan.elf'
+удалён 'temp/x86boot/boot/limine.sys'
+удалён 'temp/x86boot/boot/limine-cd.bin'
+удалён 'temp/x86boot/boot/limine.cfg'
+удалён 'temp/x86boot/boot/limine-cd-efi.bin'
+удалён каталог 'temp/x86boot/boot'
+удалён каталог 'temp/x86boot'
+удалён 'temp/sym1.c'
+удалён 'temp/x86_isrs.S.o'
+удалён 'temp/kan_noinit.o'
+удалён 'temp/initcalls.c'
+удалён каталог 'temp/'
+rm -f -vrf temp/x86_isrs.S.o src/kan/boot.c.o src/kan/console.c.o src/kan/debug.c.o src/kan/fbcon.c.o src/kan/initcall.c.o src/kan/interrupt.c.o src/kan/io.c.o src/kan/kmain.c.o src/kan/kmalloc.c.o src/kan/kprintf.c.o src/kan/pmem.c.o src/kan/psf2.c.o src/kan/symbol.c.o src/kan/version.c.o src/kan/vterm.c.o src/libk/abs.c.o src/libk/atoi.c.o src/libk/atol.c.o src/libk/atoll.c.o src/libk/ctype.c.o src/libk/kstrncat.c.o src/libk/kstrncpy.c.o src/libk/kwcsncat.c.o src/libk/kwcsncpy.c.o src/libk/labs.c.o src/libk/llabs.c.o src/libk/mbstowcs.c.o src/libk/mbtowc.c.o src/libk/memchr.c.o src/libk/memcmp.c.o src/libk/memcpy.c.o src/libk/memset.c.o src/libk/snprintf.c.o src/libk/sprintf.c.o src/libk/strcat.c.o src/libk/strchr.c.o src/libk/strcmp.c.o src/libk/strcpy.c.o src/libk/strcspn.c.o src/libk/strerror.c.o src/libk/strerror_r.c.o src/libk/strlen.c.o src/libk/strncat.c.o src/libk/strncmp.c.o src/libk/strncpy.c.o src/libk/strnlen.c.o src/libk/strpbrk.c.o src/libk/strrchr.c.o src/libk/strspn.c.o src/libk/strstr.c.o src/libk/strtoimax.c.o src/libk/strtol.c.o src/libk/strtoll.c.o src/libk/strtoul.c.o src/libk/strtoull.c.o src/libk/strtoumax.c.o src/libk/strtouz.c.o src/libk/strtoxx.c.o src/libk/vsnprintf.c.o src/libk/vsprintf.c.o src/libk/wcscat.c.o src/libk/wcschr.c.o src/libk/wcscmp.c.o src/libk/wcscpy.c.o src/libk/wcscspn.c.o src/libk/wcslen.c.o src/libk/wcsncat.c.o src/libk/wcsncmp.c.o src/libk/wcsncpy.c.o src/libk/wcsnlen.c.o src/libk/wcspbrk.c.o src/libk/wcsrchr.c.o src/libk/wcsspn.c.o src/libk/wcsstr.c.o src/x86/e9con.c.o src/x86/interrupt.c.o src/x86/segment.c.o src/x86/interrupt.S.o src/blob/kfont.S.o temp/initcalls.c temp/initcalls.c.o temp/sym1.c temp/sym1.c.o temp/kan_noinit.o temp/kan_nosyms.elf kan.elf temp/ldscript.ld kan.iso
+удалён 'src/kan/boot.c.o'
+удалён 'src/kan/console.c.o'
+удалён 'src/kan/debug.c.o'
+удалён 'src/kan/fbcon.c.o'
+удалён 'src/kan/initcall.c.o'
+удалён 'src/kan/interrupt.c.o'
+удалён 'src/kan/io.c.o'
+удалён 'src/kan/kmain.c.o'
+удалён 'src/kan/kmalloc.c.o'
+удалён 'src/kan/kprintf.c.o'
+удалён 'src/kan/pmem.c.o'
+удалён 'src/kan/psf2.c.o'
+удалён 'src/kan/symbol.c.o'
+удалён 'src/kan/version.c.o'
+удалён 'src/kan/vterm.c.o'
+удалён 'src/libk/abs.c.o'
+удалён 'src/libk/atoi.c.o'
+удалён 'src/libk/atol.c.o'
+удалён 'src/libk/atoll.c.o'
+удалён 'src/libk/ctype.c.o'
+удалён 'src/libk/kstrncat.c.o'
+удалён 'src/libk/kstrncpy.c.o'
+удалён 'src/libk/kwcsncat.c.o'
+удалён 'src/libk/kwcsncpy.c.o'
+удалён 'src/libk/labs.c.o'
+удалён 'src/libk/llabs.c.o'
+удалён 'src/libk/mbstowcs.c.o'
+удалён 'src/libk/mbtowc.c.o'
+удалён 'src/libk/memchr.c.o'
+удалён 'src/libk/memcmp.c.o'
+удалён 'src/libk/memcpy.c.o'
+удалён 'src/libk/memset.c.o'
+удалён 'src/libk/snprintf.c.o'
+удалён 'src/libk/sprintf.c.o'
+удалён 'src/libk/strcat.c.o'
+удалён 'src/libk/strchr.c.o'
+удалён 'src/libk/strcmp.c.o'
+удалён 'src/libk/strcpy.c.o'
+удалён 'src/libk/strcspn.c.o'
+удалён 'src/libk/strerror.c.o'
+удалён 'src/libk/strerror_r.c.o'
+удалён 'src/libk/strlen.c.o'
+удалён 'src/libk/strncat.c.o'
+удалён 'src/libk/strncmp.c.o'
+удалён 'src/libk/strncpy.c.o'
+удалён 'src/libk/strnlen.c.o'
+удалён 'src/libk/strpbrk.c.o'
+удалён 'src/libk/strrchr.c.o'
+удалён 'src/libk/strspn.c.o'
+удалён 'src/libk/strstr.c.o'
+удалён 'src/libk/strtoimax.c.o'
+удалён 'src/libk/strtol.c.o'
+удалён 'src/libk/strtoll.c.o'
+удалён 'src/libk/strtoul.c.o'
+удалён 'src/libk/strtoull.c.o'
+удалён 'src/libk/strtoumax.c.o'
+удалён 'src/libk/strtouz.c.o'
+удалён 'src/libk/strtoxx.c.o'
+удалён 'src/libk/vsnprintf.c.o'
+удалён 'src/libk/vsprintf.c.o'
+удалён 'src/libk/wcscat.c.o'
+удалён 'src/libk/wcschr.c.o'
+удалён 'src/libk/wcscmp.c.o'
+удалён 'src/libk/wcscpy.c.o'
+удалён 'src/libk/wcscspn.c.o'
+удалён 'src/libk/wcslen.c.o'
+удалён 'src/libk/wcsncat.c.o'
+удалён 'src/libk/wcsncmp.c.o'
+удалён 'src/libk/wcsncpy.c.o'
+удалён 'src/libk/wcsnlen.c.o'
+удалён 'src/libk/wcspbrk.c.o'
+удалён 'src/libk/wcsrchr.c.o'
+удалён 'src/libk/wcsspn.c.o'
+удалён 'src/libk/wcsstr.c.o'
+удалён 'src/x86/e9con.c.o'
+удалён 'src/x86/interrupt.c.o'
+удалён 'src/x86/segment.c.o'
+удалён 'src/x86/interrupt.S.o'
+удалён 'src/blob/kfont.S.o'
+удалён 'kan.elf'
+удалён 'kan.iso'
+mkdir -p temp/
+mkdir -p temp/x86boot
+mkdir -p temp/x86boot/boot
+cp boot/x86/limine-cd-efi.bin boot/x86/limine-cd.bin boot/x86/limine.cfg boot/x86/limine.sys temp/x86boot/boot
+sh scripts/x86/gen_isrs.sh > temp/x86_isrs.S
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o temp/x86_isrs.S.o temp/x86_isrs.S
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/boot.c.o src/kan/boot.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/console.c.o src/kan/console.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/debug.c.o src/kan/debug.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/fbcon.c.o src/kan/fbcon.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/initcall.c.o src/kan/initcall.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/interrupt.c.o src/kan/interrupt.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/io.c.o src/kan/io.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/kmain.c.o src/kan/kmain.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/kmalloc.c.o src/kan/kmalloc.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/kprintf.c.o src/kan/kprintf.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/pmem.c.o src/kan/pmem.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/psf2.c.o src/kan/psf2.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/symbol.c.o src/kan/symbol.c
+sh scripts/gen_version.sh 0.0.0-dev.4 > include/conf/version.h
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/version.c.o src/kan/version.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/kan/vterm.c.o src/kan/vterm.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/abs.c.o src/libk/abs.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/atoi.c.o src/libk/atoi.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/atol.c.o src/libk/atol.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/atoll.c.o src/libk/atoll.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/ctype.c.o src/libk/ctype.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/kstrncat.c.o src/libk/kstrncat.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/kstrncpy.c.o src/libk/kstrncpy.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/kwcsncat.c.o src/libk/kwcsncat.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/kwcsncpy.c.o src/libk/kwcsncpy.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/labs.c.o src/libk/labs.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/llabs.c.o src/libk/llabs.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/mbstowcs.c.o src/libk/mbstowcs.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/mbtowc.c.o src/libk/mbtowc.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/memchr.c.o src/libk/memchr.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/memcmp.c.o src/libk/memcmp.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/memcpy.c.o src/libk/memcpy.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/memset.c.o src/libk/memset.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/snprintf.c.o src/libk/snprintf.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/sprintf.c.o src/libk/sprintf.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strcat.c.o src/libk/strcat.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strchr.c.o src/libk/strchr.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strcmp.c.o src/libk/strcmp.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strcpy.c.o src/libk/strcpy.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strcspn.c.o src/libk/strcspn.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strerror.c.o src/libk/strerror.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strerror_r.c.o src/libk/strerror_r.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strlen.c.o src/libk/strlen.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strncat.c.o src/libk/strncat.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strncmp.c.o src/libk/strncmp.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strncpy.c.o src/libk/strncpy.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strnlen.c.o src/libk/strnlen.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strpbrk.c.o src/libk/strpbrk.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strrchr.c.o src/libk/strrchr.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strspn.c.o src/libk/strspn.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strstr.c.o src/libk/strstr.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strtoimax.c.o src/libk/strtoimax.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strtol.c.o src/libk/strtol.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strtoll.c.o src/libk/strtoll.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strtoul.c.o src/libk/strtoul.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strtoull.c.o src/libk/strtoull.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strtoumax.c.o src/libk/strtoumax.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strtouz.c.o src/libk/strtouz.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/strtoxx.c.o src/libk/strtoxx.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/vsnprintf.c.o src/libk/vsnprintf.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/vsprintf.c.o src/libk/vsprintf.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcscat.c.o src/libk/wcscat.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcschr.c.o src/libk/wcschr.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcscmp.c.o src/libk/wcscmp.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcscpy.c.o src/libk/wcscpy.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcscspn.c.o src/libk/wcscspn.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcslen.c.o src/libk/wcslen.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcsncat.c.o src/libk/wcsncat.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcsncmp.c.o src/libk/wcsncmp.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcsncpy.c.o src/libk/wcsncpy.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcsnlen.c.o src/libk/wcsnlen.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcspbrk.c.o src/libk/wcspbrk.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcsrchr.c.o src/libk/wcsrchr.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcsspn.c.o src/libk/wcsspn.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/libk/wcsstr.c.o src/libk/wcsstr.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/x86/e9con.c.o src/x86/e9con.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/x86/interrupt.c.o src/x86/interrupt.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/x86/segment.c.o src/x86/segment.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/x86/interrupt.S.o src/x86/interrupt.S
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o src/blob/kfont.S.o src/blob/kfont.S
+ld.lld --no-pie -z max-page-size=0x1000 -static -nostdlib -r -o temp/kan_noinit.o temp/x86_isrs.S.o src/kan/boot.c.o src/kan/console.c.o src/kan/debug.c.o src/kan/fbcon.c.o src/kan/initcall.c.o src/kan/interrupt.c.o src/kan/io.c.o src/kan/kmain.c.o src/kan/kmalloc.c.o src/kan/kprintf.c.o src/kan/pmem.c.o src/kan/psf2.c.o src/kan/symbol.c.o src/kan/version.c.o src/kan/vterm.c.o src/libk/abs.c.o src/libk/atoi.c.o src/libk/atol.c.o src/libk/atoll.c.o src/libk/ctype.c.o src/libk/kstrncat.c.o src/libk/kstrncpy.c.o src/libk/kwcsncat.c.o src/libk/kwcsncpy.c.o src/libk/labs.c.o src/libk/llabs.c.o src/libk/mbstowcs.c.o src/libk/mbtowc.c.o src/libk/memchr.c.o src/libk/memcmp.c.o src/libk/memcpy.c.o src/libk/memset.c.o src/libk/snprintf.c.o src/libk/sprintf.c.o src/libk/strcat.c.o src/libk/strchr.c.o src/libk/strcmp.c.o src/libk/strcpy.c.o src/libk/strcspn.c.o src/libk/strerror.c.o src/libk/strerror_r.c.o src/libk/strlen.c.o src/libk/strncat.c.o src/libk/strncmp.c.o src/libk/strncpy.c.o src/libk/strnlen.c.o src/libk/strpbrk.c.o src/libk/strrchr.c.o src/libk/strspn.c.o src/libk/strstr.c.o src/libk/strtoimax.c.o src/libk/strtol.c.o src/libk/strtoll.c.o src/libk/strtoul.c.o src/libk/strtoull.c.o src/libk/strtoumax.c.o src/libk/strtouz.c.o src/libk/strtoxx.c.o src/libk/vsnprintf.c.o src/libk/vsprintf.c.o src/libk/wcscat.c.o src/libk/wcschr.c.o src/libk/wcscmp.c.o src/libk/wcscpy.c.o src/libk/wcscspn.c.o src/libk/wcslen.c.o src/libk/wcsncat.c.o src/libk/wcsncmp.c.o src/libk/wcsncpy.c.o src/libk/wcsnlen.c.o src/libk/wcspbrk.c.o src/libk/wcsrchr.c.o src/libk/wcsspn.c.o src/libk/wcsstr.c.o src/x86/e9con.c.o src/x86/interrupt.c.o src/x86/segment.c.o src/x86/interrupt.S.o src/blob/kfont.S.o
+sh scripts/gen_initcalls.sh temp/kan_noinit.o > temp/initcalls.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o temp/initcalls.c.o temp/initcalls.c
+sh scripts/gen_symtab.sh > temp/sym0.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o temp/sym0.c.o temp/sym0.c
+clang -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -E -xc -D __ASSEMBLER__ scripts/x86/ldscript.lds | grep -v "^#" > temp/ldscript.ld || true
+ld.lld --no-pie -z max-page-size=0x1000 -static -nostdlib -T temp/ldscript.ld -o temp/kan_nosyms.elf temp/initcalls.c.o temp/kan_noinit.o temp/sym0.c.o
+sh scripts/gen_symtab.sh temp/kan_nosyms.elf > temp/sym1.c
+clang -fno-pic -mcmodel=kernel -mno-3dnow -mno-80387 -mno-mmx -mno-red-zone -mno-sse -mno-sse2 --target=x86_64-none-elf -ffreestanding -Wall -Wextra -Werror -Wno-unused-parameter -Wno-pointer-sign -funsigned-char -O2 -D __X86_64__ -D __x86_64__ -D __AMD64__ -D __amd64__ -nostdlibinc -D __KERNEL__ -D __kernel__ -I include -c -o temp/sym1.c.o temp/sym1.c
+ld.lld --no-pie -z max-page-size=0x1000 -static -nostdlib -T temp/ldscript.ld -o kan.elf temp/initcalls.c.o temp/kan_noinit.o temp/sym1.c.o
+cp kan.elf temp/x86boot/boot/kan.elf
+c99 -Wall -Wextra -Werror -pedantic -o temp/limine-deploy boot/x86/limine-deploy.c
+xorriso -as mkisofs -b boot/limine-cd.bin -no-emul-boot \
+	-boot-load-size 4 -boot-info-table --efi-boot boot/limine-cd-efi.bin \
+	-efi-boot-part --efi-boot-image --protective-msdos-label -o kan.iso temp/x86boot
+xorriso 1.5.4 : RockRidge filesystem manipulator, libburnia project.
+
+Drive current: -outdev 'stdio:kan.iso'
+Media current: stdio file, overwriteable
+Media status : is blank
+Media summary: 0 sessions, 0 data blocks, 0 data,  168g free
+Added to ISO image: directory '/'='/home/und/documents/GitHub/kan/temp/x86boot'
+xorriso : UPDATE :       6 files added in 1 seconds
+xorriso : UPDATE :       6 files added in 1 seconds
+ISO image produced: 1068 sectors
+Written to medium : 1068 sectors at LBA 0
+Writing to 'stdio:kan.iso' completed successfully.
+
+temp/limine-deploy kan.iso
+Physical block size of 512 bytes.
+Deploying to GPT. Logical block size of 512 bytes.
+Secondary header at LBA 0x10af.
+Secondary header valid.
+GPT partition NOT specified. Attempting GPT embedding.
+New maximum count of partition entries: 44.
+Stage 2 to be located at 0x1a00 and 0x20f800.
+Reminder: Remember to copy the limine.sys file in either
+          the root, /boot, /limine, or /boot/limine directories of
+          one of the partitions on the device, or boot will fail!
+Limine deployed successfully!

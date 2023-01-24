@@ -8,7 +8,7 @@
 
 #define X86_MAX_PMIO_OFFSET 0xFFFF
 
-static __force_inline int x86_pmio_read8(uintptr_t offset, uintmax_t *restrict out)
+static inline int x86_pmio_read8(uintptr_t offset, uintmax_t *restrict out)
 {
     uint8_t value;
     if(offset > X86_MAX_PMIO_OFFSET)
@@ -18,7 +18,7 @@ static __force_inline int x86_pmio_read8(uintptr_t offset, uintmax_t *restrict o
     return EOK;
 }
 
-static __force_inline int x86_pmio_read16(uintptr_t offset, uintmax_t *restrict out)
+static inline int x86_pmio_read16(uintptr_t offset, uintmax_t *restrict out)
 {
     uint16_t value;
     if(offset > X86_MAX_PMIO_OFFSET)
@@ -28,7 +28,7 @@ static __force_inline int x86_pmio_read16(uintptr_t offset, uintmax_t *restrict 
     return EOK;
 }
 
-static __force_inline int x86_pmio_read32(uintptr_t offset, uintmax_t *restrict out)
+static inline int x86_pmio_read32(uintptr_t offset, uintmax_t *restrict out)
 {
     uint32_t value;
     if(offset > X86_MAX_PMIO_OFFSET)
@@ -38,7 +38,7 @@ static __force_inline int x86_pmio_read32(uintptr_t offset, uintmax_t *restrict 
     return EOK;
 }
 
-static __force_inline int x86_pmio_write8(uintptr_t offset, uintmax_t value)
+static inline int x86_pmio_write8(uintptr_t offset, uintmax_t value)
 {
     if(offset > X86_MAX_PMIO_OFFSET)
         return EIO;
@@ -46,7 +46,7 @@ static __force_inline int x86_pmio_write8(uintptr_t offset, uintmax_t value)
     return EOK;
 }
 
-static __force_inline int x86_pmio_write16(uintptr_t offset, uintmax_t value)
+static inline int x86_pmio_write16(uintptr_t offset, uintmax_t value)
 {
     if(offset > X86_MAX_PMIO_OFFSET)
         return EIO;
@@ -54,7 +54,7 @@ static __force_inline int x86_pmio_write16(uintptr_t offset, uintmax_t value)
     return EOK;
 }
 
-static __force_inline int x86_pmio_write32(uintptr_t offset, uintmax_t value)
+static inline int x86_pmio_write32(uintptr_t offset, uintmax_t value)
 {
     if(offset > X86_MAX_PMIO_OFFSET)
         return EIO;
@@ -62,7 +62,7 @@ static __force_inline int x86_pmio_write32(uintptr_t offset, uintmax_t value)
     return EOK;
 }
 
-static __force_inline void x86_pmio_throttle(void)
+static inline void x86_pmio_throttle(void)
 {
     /* FIXME: this may not work on certain
      * platforms as this port is taken by some

@@ -84,6 +84,9 @@
 
 #define VT_MAX_ARGS     0x20
 
+#define VT_SCROLLING    0x0001
+#define VT_UNBLANK      0x0002
+
 typedef struct vt_attrib_s {
     uint16_t mode;
     uint32_t fg;
@@ -125,6 +128,7 @@ typedef struct vt_s {
     vt_palette_t palette;
     vt_parser_t parser;
     uint32_t cursor_color;
+    uint16_t flags;
     void(*term_bell)(struct vt_s *restrict vt);
     void(*term_pseq)(struct vt_s *restrict vt, char c);
     void(*draw_cell)(struct vt_s *restrict vt, const vt_cell_t *restrict c, size_t cx, size_t cy);

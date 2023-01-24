@@ -3,7 +3,7 @@ display_library: x
 
 cpu: model=bx_generic
 megs: 128
-vga: extension=vbe, update_freq=15, realtime=1, ddc=builtin
+vga: extension=vbe, update_freq=60, realtime=1, ddc=builtin
 keyboard: type=mf, serial_delay=200, paste_delay=100000
 mouse: enabled=0
 pci: enabled=1, chipset=i440fx, slot1=none, slot2=none, slot3=none, slot4=none, slot5=none

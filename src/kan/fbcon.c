@@ -20,14 +20,14 @@ static struct limine_framebuffer fb = { 0 };
 static psf2_font_t psf = { 0 };
 static vt_t vterm = { 0 };
 
-static __force_inline uint32_t make_mask(uint8_t n)
+static inline uint32_t make_mask(uint8_t n)
 {
     uint32_t i;
     for(i = 0; n; i |= (1 << ((n--) - 1)));
     return i;
 }
 
-static __force_inline uint32_t remap_color(uint32_t xrgb)
+static inline uint32_t remap_color(uint32_t xrgb)
 {
     uint32_t result = 0;
     result |= ((xrgb >> 16) & mask_r) << fb.red_mask_shift;
@@ -204,6 +204,9 @@ static int init_fbcon(void)
 
     cwidth = fb.width / psf.header->glyph_width;
     cheight = fb.height / psf.header->glyph_height;
+
+    vterm.flags |= VT_SCROLLING;
+    vterm.flags |= VT_UNBLANK;
 
     r = vt_init(&vterm, cwidth, cheight);
     panic_if(r == ENOMEM, "fbcon: insufficient memory");

@@ -13,12 +13,12 @@ static uintptr_t phys_limit = 0;
 static bitmap_t bitmap = { 0 };
 static size_t lastbit = 0;
 
-static __force_inline size_t get_page_bit(uintptr_t address)
+static inline size_t get_page_bit(uintptr_t address)
 {
     return page_align_address(address) / PAGE_SIZE;
 }
 
-static __force_inline bool try_occupy_range(size_t a, size_t b)
+static inline bool try_occupy_range(size_t a, size_t b)
 {
     size_t i;
     for(i = a; i <= b; i++) {

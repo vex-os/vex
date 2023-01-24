@@ -29,9 +29,10 @@ static void vt_redraw(vt_t *restrict vt)
     }
 
     /* Draw the cell supposed to be under the old cursor */
-    /* UNDONE: control this with a flag maybe possibly perhaps? */
-    cell = &vt->cells[vt->pcursor.y * vt->cwidth + vt->pcursor.x];
-    VT_CALL(vt->draw_cell, vt, cell, vt->pcursor.x, vt->pcursor.y);
+    if(vt->flags & VT_UNBLANK) {
+        cell = &vt->cells[vt->pcursor.y * vt->cwidth + vt->pcursor.x];
+        VT_CALL(vt->draw_cell, vt, cell, vt->pcursor.x, vt->pcursor.y);
+    }
 
     /* Draw the new cursor */
     VT_CALL(vt->draw_cursor, vt, &vt->cursor);
@@ -81,17 +82,6 @@ static void vt_scroll_up(vt_t *restrict vt, size_t lines)
     }
 }
 
-/* Move cursor to a new line <lines> times */
-static void vt_newline(vt_t *restrict vt, size_t lines)
-{
-    vt->cursor.y += lines;
-
-    if(vt->cursor.y >= vt->cheight) {
-        vt_scroll_up(vt, vt->cursor.y - vt->cheight + 1);
-        vt->cursor.y = vt->cheight - 1;
-    }
-}
-
 /* Clear a range of cells from X0:Y0 to X1:Y1 */
 static void vt_clear(vt_t *restrict vt, size_t x0, size_t y0, size_t x1, size_t y1)
 {
@@ -106,6 +96,24 @@ static void vt_clear(vt_t *restrict vt, size_t x0, size_t y0, size_t x1, size_t 
         cell->attr.mode = VT_CONCEAL;
         cell->dirty = true;
         cell->wc = VT_NUL;
+    }
+}
+
+/* Move cursor to a new line <lines> times */
+static void vt_newline(vt_t *restrict vt, size_t lines)
+{
+    vt->cursor.y += lines;
+
+    if(vt->cursor.y >= vt->cheight) {
+        if(vt->flags & VT_SCROLLING) {
+            vt_scroll_up(vt, vt->cursor.y - vt->cheight + 1);
+            vt->cursor.y = vt->cheight - 1;
+        }
+        else {
+            vt->cursor.x = 0;
+            vt->cursor.y = 0;
+            vt_clear(vt, 0, 0, vt->cwidth - 1, vt->cheight - 1);
+        }
     }
 }
 
