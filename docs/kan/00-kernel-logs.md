@@ -40,4 +40,3 @@ The `console_puts` is called by internal `kprintf` code and writes a certain str
 
 ### What next?
 At least now I have some plans on extending the console subsystem to make unregistering a faster and easier process and implement an ability for consoles to replace each other (for instance, the boot-time Limine-provided terminal is going to be replaced with an in-house framebuffer-based console).
-

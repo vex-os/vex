@@ -36,5 +36,3 @@ int io_write(const io_block_t *restrict io, uintptr_t offset, uintmax_t value);
 ```
 * `io_read` performs a read operation, writes the result to `out`. Returns `EIO` if PMIO is not available, `EINVAL` if mode field doesn't have MMIO or PMIO bits, `ERANGE` if the offset is out of range.
 * `io_write` performs a write operation. Returns `EIO` if PMIO is not available, `EINVAL` if mode field doesn't have MMIO or PMIO bits, `ERANGE` if the offset is out of range.
-
-
