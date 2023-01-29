@@ -25,6 +25,7 @@ typedef struct vfs_super_s {
   uint64_t nblocks;
   uint64_t ninodes;
   void *base;
+  struct vfs_node_t *inodes;
 } vfs_super_t;
 
 #define O_CREATE 0x01
@@ -44,6 +45,8 @@ typedef struct vfs_super_s {
 #define S_IROTH 0x0004
 #define S_IWOTH 0x0002
 #define S_IXOTH 0x0001
+
+vfs_super_t vfs_register_fs(char fs_name[VFS_FILENAME_LENGTH], size_t block_size, void *base);
 
 int vfs_create(const char *pathname);
 int vfs_remove(const char *pathname, const char *displace);
