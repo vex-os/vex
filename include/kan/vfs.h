@@ -18,27 +18,23 @@ typedef struct vfs_node_s {
   struct vfs_node_s *children; /* NULL for files */
 } vfs_node_t;
 
-typedef enum {
-  O_CREATE = 0x01,
-  O_TRUNCATE = 0x02,
-  O_APPEND = 0x04,
-  O_READ = 0x08,
-  O_WRITE = 0x10,
-  O_RDWR = 0x20,
-  O_SYNC = 0x40
-} vfs_mode_t;
+#define O_CREATE 0x01
+#define O_TRUNCATE 0x02
+#define O_APPEND 0x04
+#define O_READ 0x08
+#define O_WRITE 0x10
+#define O_RDWR 0x20
+#define O_SYNC 0x40
 
-typedef enum {
-  S_IRUSR = 0x0400,
-  S_IWUSR = 0x0200,
-  S_IXUSR = 0x0100,
-  S_IRGRP = 0x0040,
-  S_IWGRP = 0x0020,
-  S_IXGRP = 0x0010,
-  S_IROTH = 0x0004,
-  S_IWOTH = 0x0002,
-  S_IXOTH = 0x0001
-} vfs_perm_t;
+#define S_IRUSR 0x0400
+#define S_IWUSR 0x0200
+#define S_IXUSR 0x0100
+#define S_IRGRP 0x0040
+#define S_IWGRP 0x0020
+#define S_IXGRP 0x0010
+#define S_IROTH 0x0004
+#define S_IWOTH 0x0002
+#define S_IXOTH 0x0001
 
 int vfs_create(const char *pathname); /* returns whether or not creation of file was successful */
 
@@ -47,7 +43,7 @@ int vfs_create(const char *pathname); /* returns whether or not creation of file
    to directory <displace>
  */
 int vfs_remove(const char *pathname, const char *displace); /* returns whether or not deletion was successful */
-int vfs_open(const char *pathname, vfs_mode_t mode); /* returns file descriptor */
+int vfs_open(const char *pathname, short mode); /* returns file descriptor */
 int vfs_close(int fd); /* returns whether or not the closing of <fd> was successful */
 
 /* vfs_copy
@@ -64,12 +60,12 @@ int vfs_close(int fd); /* returns whether or not the closing of <fd> was success
      in truncate mode, but instead wait for any io operatings to <destpath> to complete
      before copying contents of <srcpath>
 */
-int vfs_copy(const char *destpath, const char *srcpath, vfs_mode_t mode);
+int vfs_copy(const char *destpath, const char *srcpath, short mode);
 size_t vfs_read(int fd, void *buffer, size_t bytes); /* returns number of bytes read */
 size_t vfs_write(int fd, const void *buffer, size_t bytes); /* returns number of bytes written */
 
 // permissions related stuff
 uint64_t vfs_chown(const char *pathname, uint32_t uid, uint32_t gid); /* returns previous gid*32 |= previous uid */
-uint64_t vfs_chmod(const char *pathname, vfs_perm_t mode); /* returns previous permissions */
+uint64_t vfs_chmod(const char *pathname, short permissions); /* returns previous permissions */
 
 #endif /* _INCLUDE_KAN_VFS_H__ */
