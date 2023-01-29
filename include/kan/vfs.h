@@ -12,6 +12,8 @@ typedef struct vfs_node_s {
   size_t size;
   size_t nblocks;
   void *direct;
+  uint32_t group;
+  uint32_t owner;
   struct vfs_node_s *parent;
   struct vfs_node_s *children; /* NULL for files */
 } vfs_node_t;
