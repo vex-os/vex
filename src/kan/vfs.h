@@ -2,7 +2,6 @@
 /* Copyright (c), 2023, KanOS Contributors */
 #ifndef _INCLUDE_KAN_VFS_H__
 #define _INCLUDE_KAN_VFS_H__
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -15,7 +14,7 @@ typedef struct vfs_node_s {
   void *direct;
   uint32_t group;
   uint32_t owner;
-  bool read_only;
+  uint64_t id;
   struct vfs_node_s *parent;
   struct vfs_node_s *children; /* NULL for files */
 } vfs_node_t;
@@ -26,7 +25,7 @@ typedef struct vfs_super_s {
   uint64_t nblocks;
   uint64_t ninodes;
   void *base;
-  vfs_node_t *inodes;
+  struct vfs_node_t *inodes;
 } vfs_super_t;
 
 #define O_CREATE 0x01
@@ -48,8 +47,6 @@ typedef struct vfs_super_s {
 #define S_IXOTH 0x0001
 
 vfs_super_t vfs_register_fs(char fs_name[VFS_FILENAME_LENGTH], size_t block_size, void *base);
-int vfs_mount_fs(const char *rootpath, vfs_super_t fs, bool read_only);
-int vfs_unmount_fs(const char *rootpath);
 
 int vfs_create(const char *pathname);
 int vfs_remove(const char *pathname, const char *displace);
