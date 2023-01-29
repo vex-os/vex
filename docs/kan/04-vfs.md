@@ -1,7 +1,14 @@
 ﻿# Virtual File System
 To allow for interfacing between real filesystems and the kernel, KanOS utilizes a virtual filesystem (VFS)
 ###  Functions
+
 All functions are defined within `src/kan/vfs.c` and `include/kan/vfs.h`.
+```c
+vfs_super_t vfs_register_fs(char fs_name[VFS_FILENAME_LENGTH], size_t block_size, void *base);
+```
+`vfs_register_fs` is used to register a file system for use with the VFS. By default, `8` blocks are allocated with `kmalloc`. The amount of inodes is always `ceil(blocks/8)`. Returns the registered filesystem as a `vfs_super_t` struct.
+<hr>
+
 ```c
 int vfs_create(const char *pathname);
 ```
