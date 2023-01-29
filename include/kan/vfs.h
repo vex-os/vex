@@ -18,4 +18,16 @@ typedef struct vfs_node_s {
   struct vfs_node_s *children; /* NULL for files */
 } vfs_node_t;
 
+typedef enum {
+  O_CREATE = 0x01,
+  O_TRUNCATE = 0x02,
+  O_APPEND = 0x04,
+  O_READ = 0x08,
+  O_WRITE = 0x10,
+  O_RDWR = 0x20,
+  O_SYNC = 0x40,
+} vfs_mode_t;
+
+int vfs_open(const char *restrict pathname, vfs_mode_t mode);
+
 #endif /* _INCLUDE_KAN_VFS_H__ */
