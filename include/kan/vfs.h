@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define VFS_FILENAME_LENGTH 255
+#define VFS_FILENAME_LENGTH 256
 
 typedef struct vfs_node_s {
   char name[VFS_FILENAME_LENGTH];
@@ -18,6 +18,14 @@ typedef struct vfs_node_s {
   struct vfs_node_s *parent;
   struct vfs_node_s *children; /* NULL for files */
 } vfs_node_t;
+
+typedef struct vfs_super_s {
+  char fs_name[VFS_FILENAME_LENGTH];
+  size_t fs_block_size;
+  uint64_t nblocks;
+  uint64_t ninodes;
+  void *base;
+} vfs_super_t;
 
 #define O_CREATE 0x01
 #define O_TRUNCATE 0x02
