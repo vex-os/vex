@@ -16,6 +16,7 @@ typedef struct vfs_node_s {
   uint32_t group;
   uint32_t owner;
   bool read_only;
+  uint64_t nchildren;
   struct vfs_node_s *parent;
   struct vfs_node_s *children; /* NULL for files */
 } vfs_node_t;
@@ -58,7 +59,7 @@ int vfs_unregister_fs(vfs_super_t fs);
 int vfs_mount_fs(const char *rootpath, vfs_super_t fs, bool read_only);
 int vfs_unmount_fs(vfs_super_t fs);
 
-int vfs_create(const char *pathname);
+int vfs_create(char * parent_path, const char *pathname);
 int vfs_remove(const char *pathname, const char *displace);
 int vfs_open(const char *pathname, short mode);
 int vfs_close(int fd);
