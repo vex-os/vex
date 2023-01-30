@@ -21,6 +21,7 @@ typedef struct vfs_node_s {
 } vfs_node_t;
 
 typedef struct vfs_super_s {
+  uint64_t fs_id;
   char fs_name[VFS_FILENAME_LENGTH];
   size_t fs_block_size;
   uint64_t nblocks;
@@ -28,6 +29,11 @@ typedef struct vfs_super_s {
   void *base;
   vfs_node_t *inodes;
 } vfs_super_t;
+
+typedef struct vfs_fsystems_s {
+  vfs_super_t *fsystems;
+  uint64_t nsystems;
+} vfs_fsystems_t;
 
 #define O_CREATE 0x01
 #define O_TRUNCATE 0x02
@@ -50,7 +56,7 @@ typedef struct vfs_super_s {
 vfs_super_t vfs_register_fs(char fs_name[VFS_FILENAME_LENGTH], size_t block_size, void *base);
 int vfs_unregister_fs(vfs_super_t fs);
 int vfs_mount_fs(const char *rootpath, vfs_super_t fs, bool read_only);
-int vfs_unmount_fs(const char *rootpath);
+int vfs_unmount_fs(vfs_super_t fs);
 
 int vfs_create(const char *pathname);
 int vfs_remove(const char *pathname, const char *displace);
