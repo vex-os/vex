@@ -48,6 +48,7 @@ typedef struct vfs_super_s {
 #define S_IXOTH 0x0001
 
 vfs_super_t vfs_register_fs(char fs_name[VFS_FILENAME_LENGTH], size_t block_size, void *base);
+int vfs_unregister_fs(vfs_super_t fs);
 int vfs_mount_fs(const char *rootpath, vfs_super_t fs, bool read_only);
 int vfs_unmount_fs(const char *rootpath);
 
