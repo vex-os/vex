@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2022, KanOS Contributors */
+/* Copyright (c), 2023, KanOS Contributors */
 #include <kan/vfs.h>
 #include <kan/debug.h>
 #include <kan/errno.h>
@@ -104,7 +104,9 @@ void __noreturn __used kmain(void)
     pr_inform("xxxx\ttab");
     pr_inform("xxxxx\ttab");
 
-    vfs_super_t superblock = vfs_register_fs("test_fs", 1024, 0);
+    /* Test VFS */
+    uint64_t superblock_base = 0x00100000;
+    vfs_super_t superblock = vfs_register_fs("test_fs", 1024, (void *)superblock_base);
     pr_inform("vfs: registered filesystem");
     pr_inform("vfs: fs_name=%s",superblock.fs_name);
     pr_inform("vfs: fs_block_size=%zu",superblock.fs_block_size);
@@ -112,6 +114,12 @@ void __noreturn __used kmain(void)
     pr_inform("vfs: ninodes=%lu",superblock.ninodes);
     pr_inform("vfs: base=%p",superblock.base);
 
+    vfs_mount_fs("/", superblock, false);
+    pr_inform("vfs: mounted %s at %s", superblock.fs_name, (char *)superblock_base);
+    
+    vfs_unmount_fs(superblock);
+    pr_inform("vfs: unmounted %s", superblock.fs_name);
+    
     vfs_unregister_fs(superblock);
     pr_inform("vfs: unregistered filesystem");
     
