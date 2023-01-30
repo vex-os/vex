@@ -105,11 +105,15 @@ void __noreturn __used kmain(void)
     pr_inform("xxxxx\ttab");
 
     vfs_super_t superblock = vfs_register_fs("test_fs", 1024, 0);
+    pr_inform("vfs: registered filesystem");
     pr_inform("vfs: fs_name=%s",superblock.fs_name);
     pr_inform("vfs: fs_block_size=%zu",superblock.fs_block_size);
     pr_inform("vfs: nblocks=%lu",superblock.nblocks);
     pr_inform("vfs: ninodes=%lu",superblock.ninodes);
     pr_inform("vfs: base=%p",superblock.base);
+
+    vfs_unregister_fs(superblock);
+    pr_inform("vfs: unregistered filesystem");
     
     panic("nothing to do");
     unreachable();

@@ -20,6 +20,14 @@ vfs_super_t vfs_register_fs(char fs_name[VFS_FILENAME_LENGTH], size_t block_size
 }
 EXPORT_SYMBOL(vfs_register_fs);
 
+int vfs_unregister_fs(vfs_super_t fs){
+  fs.nblocks = 0;
+  fs.ninodes = 0;
+  kfree(fs.inodes);
+  return 0;
+}
+EXPORT_SYMBOL(vfs_unregister_fs);
+
 int vfs_mount_fs(const char *rootpath, vfs_super_t fs, bool read_only){
   // set inode[0] of superblock to root filepath
   fs.inodes[0].size = fs.fs_block_size;
