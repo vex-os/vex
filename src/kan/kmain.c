@@ -105,9 +105,10 @@ void __noreturn __used kmain(void)
     pr_inform("xxxxx\ttab");
 
     /* Test VFS */
-    uint64_t superblock_base = 0x00100000;
+    uint64_t superblock_base = 0x01000000;
     vfs_super_t superblock = vfs_register_fs("test_fs", 1024, (void *)superblock_base);
     pr_inform("vfs: registered filesystem");
+    pr_inform("vfs: fs_id=%lu", superblock.fs_id);
     pr_inform("vfs: fs_name=%s",superblock.fs_name);
     pr_inform("vfs: fs_block_size=%zu",superblock.fs_block_size);
     pr_inform("vfs: nblocks=%lu",superblock.nblocks);
