@@ -10,6 +10,25 @@ vfs_super_t vfs_register_fs(char fs_name[VFS_FILENAME_LENGTH], size_t block_size
 <hr>
 
 ```c
+int vfs_unregister_fs(vfs_super_t fs);
+```
+`vfs_unregister_fs` sets the total block/inode count of a superblock to `0` and frees the memory taken up by the inodes of the specified filesystem.
+<hr>  
+
+```c
+int vfs_mount_fs(const char *rootpath, vfs_super_t fs, bool read_only);
+```
+`vfs_mount_fs` takes a registered filesystem, passed as a superblock, and copies its inodes into memory at `<rootpath>`. inode `0` of the filesystem is always registered as the root directory.
+<hr> 
+
+```c
+int vfs_unmount_fs(vfs_super_t fs);
+```
+`vfs_unmount_fs` unmounts a filesystem specified by `fs`.
+It does this by setting the block size of the filesystem to `0`.
+<hr>
+
+```c
 int vfs_create(const char *pathname);
 ```
 `vfs_create` is used to create files within a filesystem at a `<pathname>`.
