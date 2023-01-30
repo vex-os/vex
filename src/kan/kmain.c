@@ -114,9 +114,18 @@ void __noreturn __used kmain(void)
     pr_inform("vfs: nblocks=%lu",superblock.nblocks);
     pr_inform("vfs: ninodes=%lu",superblock.ninodes);
     pr_inform("vfs: base=%p",superblock.base);
-
+        
     vfs_mount_fs("/", superblock, false);
     pr_inform("vfs: mounted %s at %s", superblock.fs_name, (char *)superblock_base);
+
+    vfs_create("/", "testdir/");
+    vfs_create("/testdir/", "test_file_1"); 
+    vfs_create("/", "test_file_2");
+    vfs_create("/testdir/", "test_file_3");
+
+    vfs_remove("/testdir/test_file_3", "/");
+    vfs_remove("/testdir/test_file_1", "/");
+    vfs_create("/testdir/","test_file_1");
     
     vfs_unmount_fs(superblock);
     pr_inform("vfs: unmounted %s", superblock.fs_name);
