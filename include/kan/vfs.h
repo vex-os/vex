@@ -59,9 +59,9 @@ int vfs_unregister_fs(vfs_super_t fs);
 int vfs_mount_fs(const char *rootpath, vfs_super_t fs, bool read_only);
 int vfs_unmount_fs(vfs_super_t fs);
 
-int vfs_create(char * parent_path, const char *pathname);
+void * vfs_create(char * parent_path, const char *pathname);
 int vfs_remove(const char *pathname, const char *displace);
-int vfs_open(const char *pathname, short mode);
+void * vfs_open(const char *pathname, short mode);
 int vfs_close(int fd);
 int vfs_copy(const char *destpath, const char *srcpath, short mode);
 size_t vfs_read(int fd, void *buffer, size_t bytes);
