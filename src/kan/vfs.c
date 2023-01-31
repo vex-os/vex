@@ -92,7 +92,10 @@ int vfs_unmount_fs(vfs_super_t fs){
 }
 EXPORT_SYMBOL(vfs_unmount_fs);
 
-int vfs_create(char *parent_path, const char *pathname){
+/* TODO
+   Check for overwriting of files
+ */
+void * vfs_create(char *parent_path, const char *pathname){
   vfs_node_t new_file = {
     0
   };
@@ -102,6 +105,7 @@ int vfs_create(char *parent_path, const char *pathname){
     if (memcmp(&vfs_systems.fsystems[i], &null_fs, sizeof(vfs_super_t)) != 0){
       for (uint64_t j = 0 ; j < vfs_systems.fsystems[i].ninodes ; j++){	
 	if (strncmp(vfs_systems.fsystems[i].inodes[j].name, parent_path, VFS_FILENAME_LENGTH) == 0){
+
 	  /* <parent_path> was found, and now new_file is being created within <parent_path>  */
 	  strcpy(new_file.name, parent_path);
 	  strcat(new_file.name, pathname);
@@ -109,6 +113,7 @@ int vfs_create(char *parent_path, const char *pathname){
 	  new_file.size = vfs_systems.fsystems[i].fs_block_size * 8;
 	  new_file.nblocks = 8;
 	  new_file.direct = (void *) vfs_systems.fsystems[i].base + (vfs_systems.fsystems[i].nblocks * vfs_systems.fsystems[i].fs_block_size);
+
 	  vfs_systems.fsystems[i].nblocks += 8;
 
 	  new_file.read_only = false;	  
@@ -123,13 +128,13 @@ int vfs_create(char *parent_path, const char *pathname){
 	   */
 	  
 	  pr_inform("vfs: %s location=%p",new_file.name, new_file.direct);
-	  return 0;
+	  return new_file.direct;
 	}
       }
     }
   }
   pr_inform("vfs: directory not found");
-  return -1;
+  return NULL;
 }
 EXPORT_SYMBOL(vfs_create);
 
@@ -158,3 +163,17 @@ int vfs_remove(const char *pathname, const char *displace){
   return -1;
 }
 EXPORT_SYMBOL(vfs_remove);
+
+void * vfs_open(const char *pathname, short mode){
+  for (uint64_t i = 0 ; i < vfs_systems.nsystems ; i++){
+    if (memcmp(&vfs_systems.fsystems[i], &null_fs, sizeof(vfs_super_t)) != 0){
+      for (uint64_t j = 0 ; j < vfs_systems.fsystems[j].ninodes ; j++){
+	if (strncmp(vfs_systems.fsystems[i].inodes[j].name, pathname, VFS_FILENAME_LENGTH) == 0){
+	  return vfs_systems.fsystems[i].inodes[j].direct;
+	}
+      }
+    }
+  }
+  pr_inform("vfs: directory not found");
+  return NULL;
+}

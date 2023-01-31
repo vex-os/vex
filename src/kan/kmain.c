@@ -125,7 +125,6 @@ void __noreturn __used kmain(void)
 
     vfs_remove("/testdir/test_file_3", "/");
     vfs_remove("/testdir/test_file_1", "/");
-    vfs_create("/testdir/","test_file_1");
     
     vfs_unmount_fs(superblock);
     pr_inform("vfs: unmounted %s", superblock.fs_name);
@@ -136,3 +135,4 @@ void __noreturn __used kmain(void)
     panic("nothing to do");
     unreachable();
 }
+
