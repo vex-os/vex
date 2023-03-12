@@ -10,7 +10,6 @@ MKDIR ?= mkdir
 SH ?= sh
 RM ?= rm
 
-BLOBS :=
 SOURCES :=
 OBJECTS :=
 CLEAN :=
@@ -55,46 +54,39 @@ LDFLAGS += -nostdlib
 # The build system will look
 # for source files in these directories
 SEARCH :=
-SEARCH += src/kan
-SEARCH += src/libk
+SEARCH += src/lib/bitmap
+SEARCH += src/lib/ctype
+SEARCH += src/lib/printf
+SEARCH += src/lib/stdlib
+SEARCH += src/lib/string
+SEARCH += src/lib/strings
+SEARCH += src/lib/strtoi
+SEARCH += src/lib/wchar
+SEARCH += src/sys
 SEARCH += src/$(S_TARGET)
-
-# A blob is a binary object that
-# is embedded to the kernel binary.
-# TODO: add blobs to the list here.
-BLOBS += kfont
 
 SOURCES += $(wildcard $(addsuffix /*.c,$(SEARCH)))
 SOURCES += $(wildcard $(addsuffix /*.S,$(SEARCH)))
 SOURCES += $(wildcard $(addsuffix /*.s,$(SEARCH)))
-SOURCES += $(foreach blob,$(BLOBS),src/blob/$(blob).S)
 OBJECTS += $(addsuffix .o,$(SOURCES))
 
-VERSION_H := include/conf/version.h
-INITCALLS_C := temp/initcalls.c
-INITCALLS_O := temp/initcalls.c.o
-SYM0_C := temp/sym0.c
-SYM0_O := temp/sym0.c.o
-SYM1_C := temp/sym1.c
-SYM1_O := temp/sym1.c.o
-KBIN_NOINIT := temp/kan_noinit.o
-KBIN_NOSYMS := temp/kan_nosyms.elf
+INITCALLS_C := $(GEN)/initcalls.c
+INITCALLS_O := $(GEN)/initcalls.c.o
+KBIN_NOINIT := $(GEN)/kan_noinit.o
+VERSION_C := $(GEN)/version.c
 KERNEL := kan.elf
-LD_SCRIPT := temp/ldscript.ld
+LD_SCRIPT := $(GEN)/ldscript.ld
 LDS_SCRIPT := scripts/$(S_TARGET)/ldscript.lds
-TEMP := temp/
+GEN := gen/
 
-DISTCLEAN += $(SYM0_C)
-DISTCLEAN += $(SYM0_O)
-DISTCLEAN += $(TEMP)
+SOURCES += $(VERSION_C)
+
+DISTCLEAN += $(GEN)
 
 CLEAN += $(OBJECTS)
 CLEAN += $(INITCALLS_C)
 CLEAN += $(INITCALLS_O)
-CLEAN += $(SYM1_C)
-CLEAN += $(SYM1_O)
 CLEAN += $(KBIN_NOINIT)
-CLEAN += $(KBIN_NOSYMS)
 CLEAN += $(KERNEL)
 CLEAN += $(LD_SCRIPT)
 
@@ -119,33 +111,20 @@ distclean:
 	$(RM) -vrf $(DISTCLEAN)
 	$(RM) -vrf $(CLEAN)
 
-# These files depend on the auto-generated header.
-# TODO: add here more files that depend on it!
-src/kan/version.c: $(VERSION_H)
+$(VERSION_C): force
+	$(SH) scripts/gen.version.sh $(VERSION) > $@
 
-$(VERSION_H): force
-	$(SH) scripts/gen_version.sh $(VERSION) > $@
-
-$(KERNEL): $(INITCALLS_O) $(KBIN_NOSYMS) $(KBIN_NOINIT) $(SYM1_O) $(LD_SCRIPT)
-	$(LD) $(LDFLAGS) -T $(LD_SCRIPT) -o $@ $(INITCALLS_O) $(KBIN_NOINIT) $(SYM1_O)
-
-$(SYM1_C): $(TEMP) $(KBIN_NOSYMS) force
-	$(SH) scripts/gen_symtab.sh $(KBIN_NOSYMS) > $@
-
-$(KBIN_NOSYMS): $(TEMP) $(INITCALLS_O) $(KBIN_NOINIT) $(SYM0_O) $(LD_SCRIPT)
+$(KERNEL): $(GEN) $(INITCALLS_O) $(KBIN_NOINIT) $(SYM0_O) $(LD_SCRIPT)
 	$(LD) $(LDFLAGS) -T $(LD_SCRIPT) -o $@ $(INITCALLS_O) $(KBIN_NOINIT) $(SYM0_O)
 
-$(INITCALLS_C): $(TEMP) $(KBIN_NOINIT) force
-	$(SH) scripts/gen_initcalls.sh $(KBIN_NOINIT) > $@
+$(INITCALLS_C): $(GEN) $(KBIN_NOINIT) force
+	$(SH) scripts/gen.initcalls.sh $(KBIN_NOINIT) > $@
 
-$(SYM0_C): $(TEMP)
-	$(SH) scripts/gen_symtab.sh > $@
-
-$(LD_SCRIPT): $(TEMP) $(LDS_SCRIPT)
+$(LD_SCRIPT): $(GEN) $(LDS_SCRIPT)
 	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $(LDS_SCRIPT) | $(GREP) -v "^#" > $@ || true
 
-$(KBIN_NOINIT): $(TEMP) $(OBJECTS)
+$(KBIN_NOINIT): $(GEN) $(OBJECTS)
 	$(LD) $(LDFLAGS) -r -o $@ $(OBJECTS)
 
-$(TEMP):
+$(GEN):
 	$(MKDIR) -p $@

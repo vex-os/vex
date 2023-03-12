@@ -1,9 +1,7 @@
 # SPDX-License-Identifier: BSD-2-Clause 
 # Copyright (c), 2022, KanOS Contributors
-C_TARGET := x86_64-none-elf
-G_TARGET := x86_64-elf
-L_TARGET := x86_64
-S_TARGET := x86
+CLANG_TARGET := x86_64-none-elf
+GCC_TARGET := x86_64-elf
 
 CFLAGS += -fno-pic
 CFLAGS += -mcmodel=kernel
@@ -18,8 +16,6 @@ CPPFLAGS += -D __amd64__
 LDFLAGS += --no-pie
 LDFLAGS += -z max-page-size=0x1000
 
-SOURCES += temp/x86_isrs.S
-DISTCLEAN += temp/x86_isrs.S
-
-temp/x86_isrs.S: $(TEMP)
-	$(SH) scripts/x86/gen_isrs.sh > $@
+SOURCES += $(GEN)/isr_stubs.S
+$(GEN)/isr_stubs.S: $(GEN)
+	$(SH) scripts/gen.isr_stubs.sh > $@

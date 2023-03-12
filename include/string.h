@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2022, KanOS Contributors */
-#ifndef _INCLUDE_STRING_H__
-#define _INCLUDE_STRING_H__
-#include <kan/compiler.h>
+/* Copyright (c), 2023, KanOS Contributors */
+#ifndef __INCLUDE_STRING_H__
+#define __INCLUDE_STRING_H__
 #include <stddef.h>
+#include <sys/cdefs.h>
 
 const void *memchr(const void *restrict s, int c, size_t n);
 int memcmp(const void *restrict s1, const void *restrict s2, size_t n);
@@ -29,4 +29,4 @@ size_t strlen(const char *restrict s);
 size_t strnlen(const char *restrict s, size_t n);
 size_t strspn(const char *restrict s1, const char *restrict s2);
 
-#endif /* _INCLUDE_STRING_H__ */
+#endif /* __INCLUDE_STRING_H__ */
