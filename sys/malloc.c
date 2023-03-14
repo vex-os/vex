@@ -74,6 +74,9 @@ static void init_slab(slab_t *restrict slab, size_t objsize)
     slab->objsize = objsize;
 
     if(!expand_slab(slab)) {
+        // If there is not enough memory to set up basic
+        // memory allocation structures, what's the point
+        // for the kernel to continue functioning?
         panic("insufficient memory");
     }
 }

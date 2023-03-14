@@ -24,6 +24,8 @@ void add_memory_block(uintptr_t address, size_t length)
     size_t blocksize;
     memblock_t *block;
 
+    kprintf("add_memory_block [%p..%p]", (void *)address, (void *)(address + length - 1));
+
     block = (memblock_t *)(address + hhdm_offset);
     block->bitmap.data = NULL;
     block->phys_start = address;

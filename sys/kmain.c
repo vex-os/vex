@@ -22,7 +22,7 @@ void __used __noreturn kmain(void)
     void *p3;
 
     // Print kernel version
-    kprintf("starting version %s (%s %s)", sys_version, sys_revision, sys_build);
+    kprintf("starting version %s (%s at %s)", sys_version, sys_revision, sys_build);
 
     // Initialize EVERYTHING
     for(i = 0; initcalls[i].func; initcalls[i++].func());
