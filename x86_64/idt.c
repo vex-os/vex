@@ -1,10 +1,11 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2023, KanOS Contributors */
 #include <stdint.h>
+#include <string.h>
 #include <sys/interrupt.h>
-#include <sys/system.h>
-#include <x86_64/inttab.h>
-#include <x86_64/segment.h>
+#include <sys/kprintf.h>
+#include <x86_64/gdt.h>
+#include <x86_64/idt.h>
 
 #define IDT_TRAP    (0x0F << 0)
 #define IDT_INTR    (0x0E << 0)
@@ -30,7 +31,7 @@ typedef struct idt_register_s {
 static idt_entry_t idt[X86_IDT_SIZE] = { 0 };
 static idt_register_t idtr = { 0 };
 
-// Generated /gen/isr_stubs.S
+// Generated $(TEMP_DIR)/isr_stubs.S
 extern const uint64_t isr_stubs[X86_IDT_SIZE];
 
 void __used isr_handler(cpu_ctx_t *restrict ctx, uint64_t vector)
@@ -38,7 +39,7 @@ void __used isr_handler(cpu_ctx_t *restrict ctx, uint64_t vector)
     trigger_interrupt((long)(vector % X86_IDT_SIZE), ctx);
 }
 
-static void init_inttab(void)
+static void init_idt(void)
 {
     size_t i;
     idt_entry_t *entry;
@@ -51,7 +52,7 @@ static void init_inttab(void)
         entry->offset_0 = (isr_stubs[i] & 0x000000000000FFFF);
         entry->offset_1 = (isr_stubs[i] & 0x00000000FFFF0000) >> 16;
         entry->offset_2 = (isr_stubs[i] & 0xFFFFFFFF00000000) >> 32;
-        entry->selector = SEGMENT_SELECTOR(SEGMENT_KERN_CODE_64, 0, 0);
+        entry->selector = GDT_SELECTOR(GDT_KERN_CODE_64, 0, 0);
 
         // Interrupt vectors 0x00 to 0x1F are X86 exceptions
         entry->flags |= ((i < 0x20) ? IDT_TRAP : IDT_INTR);
@@ -65,8 +66,8 @@ static void init_inttab(void)
 
     asm volatile("lidtq %0"::"m"(idtr));
 
-    kprintf("inttab: idtr.size=%zu", (size_t)idtr.size);
-    kprintf("inttab: idtr.offset=%p", (void *)idtr.offset);
+    kprintf("x86_64.idtr.size=%zu", (size_t)idtr.size);
+    kprintf("x86_64.idtr.offset=%p", (void *)idtr.offset);
 }
-core_initcall(inttab, init_inttab);
-initcall_after(inttab, segment);
+early_initcall(idt, init_idt);
+initcall_dependency(idt, gdt);

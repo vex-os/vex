@@ -10,7 +10,7 @@ size_t strtouz(const char *restrict s, const char **restrict endptr, int base)
     ctx.base = base;
     ctx.signchar = '+';
     
-    strtoxx_init(s, &ctx);
+    strtoi_init(s, &ctx);
     if(!ctx.buf) {
         if(endptr)
             *endptr = NULL;

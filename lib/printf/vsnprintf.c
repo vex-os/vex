@@ -18,9 +18,12 @@ static void func(int c, void *restrict arg)
 
 int vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list ap)
 {
+    int r;
     buffer_t buffer = { 0 };
     buffer.ptr = s;
     buffer.length = n;
     buffer.pos = 0;
-    return fcvprintf(&func, NULL, fmt, ap);
+    r = fcvprintf(&func, &buffer, fmt, ap);
+    buffer.ptr[buffer.length - 1] = 0;
+    return r;
 }

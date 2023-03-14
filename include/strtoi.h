@@ -14,7 +14,7 @@ typedef struct strtoi_s {
     int base;
 } strtoi_t;
 
-void strtoi_init(strtoi_t *restrict ctx, const char *restrict s);
+void strtoi_init(const char *restrict s, strtoi_t *restrict ctx);
 uintmax_t strtoi_run(strtoi_t *restrict ctx);
 
 #endif /* __INCLUDE_STRTOI_H__ */

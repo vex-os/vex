@@ -1,33 +1,42 @@
-# SPDX-License-Identifier: BSD-2-Clause 
-# Copyright (c), 2022, KanOS Contributors 
-TARGET ?= x86_64
+# SPDX-License-Identifier: BSD-2-Clause
+# Copyright (c), 2023, KanOS Contributors
+MACHINE ?= x86_64
 TOOLCHAIN ?= clang
-VERSION := 0.0.0-dev.4
+VERSION ?= 0.0.0-dev.5
 
 CP ?= cp
+LN ?= ln
+RM ?= rm
+
 GREP ?= grep
 MKDIR ?= mkdir
-SH ?= sh
-RM ?= rm
+TRUE ?= true
 
 SOURCES :=
 OBJECTS :=
-CLEAN :=
-DISTCLEAN :=
+CLEAN_0 :=
+CLEAN_1 :=
 ALL_DEPS :=
 
-# This should define these:
-#	C_TARGET (target argument for clang, e.g x86_64-none-elf)
-#	G_TARGET (target triplet for gcc, e.g. x86_64-elf)
-#	L_TARGET (full target name, e.g. x86_64)
-#	S_TARGET (a short target name, e.g. x86)
-include Makefile.$(TARGET)
+# Build directories
+MACH_INC := include/machine
+TEMP_DIR := temp
 
-# This should define those:
-#	CC (the c compiler)
-#	LD (the linker)
-include Makefile.$(TOOLCHAIN)
+# Machine makefile provides compiler options
+# that are common across toolchains and defines
+# the following variables:
+#	CLANG_TARGET - Clang target argument (eg. x86_64-none-elf)
+#	GCC_TARGET - GNU CC target triplet (eg. x86_64-elf-unknown)
+include build/machine.$(MACHINE).mk
 
+# Toolchain makefile provides compiler options
+# that are unique to the specific toolchain and
+# re-defines the following variables:
+#	CC - A C compiler (GNU CC compatible, can compile assembly)
+#	LD - An object file linker
+include build/toolchain.$(TOOLCHAIN).mk
+
+# Kernel CFLAGS
 CFLAGS += -ffreestanding
 CFLAGS += -Wall -Wextra -Werror
 CFLAGS += -Wno-unused-parameter
@@ -35,96 +44,100 @@ CFLAGS += -Wno-pointer-sign
 CFLAGS += -funsigned-char
 CFLAGS += -O2
 
-CPPFLAGS += -D __KERNEL__
+# Kernel CPPFLAGS
 CPPFLAGS += -D __kernel__
 CPPFLAGS += -I include
+CPPFLAGS += -I usr.include
 
+# Kernel LDFLAGS
 LDFLAGS += -static
 LDFLAGS += -nostdlib
 
-%.c.o: %.c
+%.c.o: %.c | build_dirs
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+%.S.o: %.S | build_dirs
+	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
+%.s.o: %.s | build_dirs
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-%.S.o: %.S
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
-
-%.s.o: %.s
-	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
-
-# The build system will look
-# for source files in these directories
 SEARCH :=
-SEARCH += src/lib/bitmap
-SEARCH += src/lib/ctype
-SEARCH += src/lib/printf
-SEARCH += src/lib/stdlib
-SEARCH += src/lib/string
-SEARCH += src/lib/strings
-SEARCH += src/lib/strtoi
-SEARCH += src/lib/wchar
-SEARCH += src/sys
-SEARCH += src/$(S_TARGET)
+SEARCH += $(MACHINE)
+SEARCH += lib/bitmap
+SEARCH += lib/ctype
+SEARCH += lib/printf
+SEARCH += lib/stdlib
+SEARCH += lib/string
+SEARCH += lib/strings
+SEARCH += lib/strtoi
+SEARCH += lib/wchar
+SEARCH += sys
 
+# Generated objects/sources
+VERSION_C := $(TEMP_DIR)/version.c
+INITCALLS_C := $(TEMP_DIR)/initcalls.c
+INITCALLS_O := $(TEMP_DIR)/initcalls.o
+KERNEL_BINARY := $(TEMP_DIR)/kernel.elf
+KERNEL_NOINIT := $(TEMP_DIR)/kernel_noinit.o
+LDSCRIPT := $(TEMP_DIR)/ldscript.ld
+
+# Gather sources
+SOURCES += $(VERSION_C)
 SOURCES += $(wildcard $(addsuffix /*.c,$(SEARCH)))
 SOURCES += $(wildcard $(addsuffix /*.S,$(SEARCH)))
 SOURCES += $(wildcard $(addsuffix /*.s,$(SEARCH)))
+
+# Gather objects
 OBJECTS += $(addsuffix .o,$(SOURCES))
 
-INITCALLS_C := $(GEN)/initcalls.c
-INITCALLS_O := $(GEN)/initcalls.c.o
-KBIN_NOINIT := $(GEN)/kan_noinit.o
-VERSION_C := $(GEN)/version.c
-KERNEL := kan.elf
-LD_SCRIPT := $(GEN)/ldscript.ld
-LDS_SCRIPT := scripts/$(S_TARGET)/ldscript.lds
-GEN := gen/
+# DISTCLEAN list
+CLEAN_1 += $(MACH_INC)
+CLEAN_1 += $(TEMP_DIR)
 
-SOURCES += $(VERSION_C)
-
-DISTCLEAN += $(GEN)
-
-CLEAN += $(OBJECTS)
-CLEAN += $(INITCALLS_C)
-CLEAN += $(INITCALLS_O)
-CLEAN += $(KBIN_NOINIT)
-CLEAN += $(KERNEL)
-CLEAN += $(LD_SCRIPT)
-
--include boot/$(L_TARGET)/Makefile.boot
--include boot/$(S_TARGET)/Makefile.boot
+# CLEAN list
+CLEAN_0 += $(OBJECTS)
+CLEAN_0 += $(INITCALLS_C)
+CLEAN_0 += $(INITCALLS_O)
+CLEAN_0 += $(KERNEL_BINARY)
+CLEAN_0 += $(KERNEL_NOINIT)
+CLEAN_0 += $(LDSCRIPT)
 
 PHONY_TARGETS :=
-PHONY_TARGETS += force all
+PHONY_TARGETS += all
 PHONY_TARGETS += kernel clean distclean
+PHONY_TARGETS += build_dirs force_run
 ALL_DEPS += kernel
 
-force:
+-include boot/$(MACHINE)/Makefile
 
 all: $(ALL_DEPS)
 
-kernel: $(KERNEL)
+kernel: $(KERNEL_BINARY)
 
 clean:
-	$(RM) -vrf $(CLEAN)
+	$(RM) -vrf $(CLEAN_0)
 
 distclean:
-	$(RM) -vrf $(DISTCLEAN)
-	$(RM) -vrf $(CLEAN)
+	$(RM) -vrf $(CLEAN_0)
+	$(RM) -vrf $(CLEAN_1)
 
-$(VERSION_C): force
-	$(SH) scripts/gen.version.sh $(VERSION) > $@
+build_dirs:
+	$(RM) -vrf $(MACH_INC)
+	$(LN) -sf $(abspath include/$(MACHINE)) $(abspath $(MACH_INC))
+	$(MKDIR) -p $(TEMP_DIR)
 
-$(KERNEL): $(GEN) $(INITCALLS_O) $(KBIN_NOINIT) $(SYM0_O) $(LD_SCRIPT)
-	$(LD) $(LDFLAGS) -T $(LD_SCRIPT) -o $@ $(INITCALLS_O) $(KBIN_NOINIT) $(SYM0_O)
+force_run:
 
-$(INITCALLS_C): $(GEN) $(KBIN_NOINIT) force
-	$(SH) scripts/gen.initcalls.sh $(KBIN_NOINIT) > $@
+$(VERSION_C): build_dirs
+	$(SHELL) build/gen.version.sh $(VERSION) $(MACHINE) > $@
 
-$(LD_SCRIPT): $(GEN) $(LDS_SCRIPT)
-	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $(LDS_SCRIPT) | $(GREP) -v "^#" > $@ || true
+$(INITCALLS_C): $(KERNEL_NOINIT) | build_dirs
+	$(SHELL) build/gen.initcalls.sh $^ > $@
 
-$(KBIN_NOINIT): $(GEN) $(OBJECTS)
-	$(LD) $(LDFLAGS) -r -o $@ $(OBJECTS)
+$(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) build_dirs
+	$(LD) $(LDFLAGS) -T $(LDSCRIPT) -o $@ $^
 
-$(GEN):
-	$(MKDIR) -p $@
+$(KERNEL_NOINIT): $(OBJECTS) | build_dirs
+	$(LD) $(LDFLAGS) -r -o $@ $^
+
+$(LDSCRIPT): build/ldscript.$(MACHINE).lds | build_dirs
+	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | $(GREP) -v "^#" > $@ || $(TRUE)

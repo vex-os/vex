@@ -1,15 +1,17 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2023, KanOS Contributors */
 #include <sys/boot.h>
+#include <sys/debug.h>
 #include <sys/initcall.h>
 #include <sys/interrupt.h>
+#include <sys/kprintf.h>
 #include <sys/malloc.h>
-#include <sys/system.h>
+#include <sys/version.h>
 
-static bool int42_handler(const cpu_ctx_t *restrict ctx, void *restrict arg)
+static int int42_handler(cpu_ctx_t *restrict ctx, void *restrict arg)
 {
     kprintf("interrupt 0x42 called");
-    return true;
+    return 1;
 }
 
 void __used __noreturn kmain(void)
@@ -19,16 +21,16 @@ void __used __noreturn kmain(void)
     void *p2;
     void *p3;
 
-    // Print kernel version, git revision and build datetime
-    kprintf("starting version %s (git %s, %s)", sys_version, sys_revision, sys_build);
+    // Print kernel version
+    kprintf("starting version %s (%s %s)", sys_version, sys_revision, sys_build);
 
     // Initialize EVERYTHING
     for(i = 0; initcalls[i].func; initcalls[i++].func());
 
     // Test interrupt handling
-    add_interrupt_handler(alloc_interrupt(0x42), &int42_handler, NULL);
-    add_interrupt_handler(alloc_interrupt(0x43), &int42_handler, NULL);
-    add_interrupt_handler(alloc_interrupt(0x44), &int42_handler, NULL);
+    add_interrupt_handler(allocate_interrupt(0x42), &int42_handler, NULL);
+    add_interrupt_handler(allocate_interrupt(0x43), &int42_handler, NULL);
+    add_interrupt_handler(allocate_interrupt(0x44), &int42_handler, NULL);
     asm volatile("int $0x42");
     asm volatile("int $0x43");
     asm volatile("int $0x44");

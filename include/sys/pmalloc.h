@@ -1,11 +1,17 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2023, KanOS Contributors */
-#ifndef __INCLUDE_SYS_PAGE_H__
-#define __INCLUDE_SYS_PAGE_H__
+#ifndef __INCLUDE_SYS_PMALLOC_H__
+#define __INCLUDE_SYS_PMALLOC_H__
 #include <machine/page.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/cdefs.h>
+
+void add_memory_block(uintptr_t address, size_t length);
+size_t get_total_memory(void);
+size_t get_used_memory(void);
+uintptr_t pmalloc(size_t npages);
+void *pmalloc_virt(size_t npages);
+void pmfree(uintptr_t address, size_t npages);
+void pmfree_virt(void *restrict ptr, size_t npages);
 
 static __always_inline inline uintptr_t page_align_address(uintptr_t address)
 {
@@ -27,4 +33,4 @@ static __always_inline inline size_t get_page_count(size_t n)
     return __align_ceil(n, PAGE_SIZE) / PAGE_SIZE;
 }
 
-#endif /* __INCLUDE_SYS_PAGE_H__ */
+#endif /* __INCLUDE_SYS_PMALLOC_H__ */

@@ -8,7 +8,7 @@
 #define MAX_BASE 36
 static const char digits[MAX_BASE] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
-void strtoi_init(strtoi_t *restrict ctx, const char *restrict s)
+void strtoi_init(const char *restrict s, strtoi_t *restrict ctx)
 {
     while(isspace(*s)) {
         s++;

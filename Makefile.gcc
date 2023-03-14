@@ -1,5 +1,0 @@
-# SPDX-License-Identifier: BSD-2-Clause 
-# Copyright (c), 2023, KanOS Contributors 
-CC := $(G_TARGET)-gcc
-LD := $(G_TARGET)-ld
-CPPFLAGS += -nostdlib

@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2023, KanOS Contributors */
 #include <kan/errno.h>
+#include <stddef.h>
 #include <stdbool.h>
+#include <string.h>
 #include <sys/interrupt.h>
-#include <sys/system.h>
 
 typedef struct interrupt_s {
     bool is_taken;
@@ -11,35 +12,35 @@ typedef struct interrupt_s {
     interrupt_handler_t handlers[MAX_INTERRUPT_HANDLERS];
 } interrupt_t;
 
-static interrupt_t interrupts[MAX_INTERRUPTS];
+static interrupt_t interrupts[MAX_INTERRUPTS] = { 0 };
 
-long alloc_interrupt(long desired_vector)
+long allocate_interrupt(long desired_vector)
 {
     long vector;
 
     if(desired_vector < 0 || desired_vector > MAX_INTERRUPTS) {
-        /* Caller has no desired vector! */
+        // Any non-valid vector value is considered
+        // a lack of preference in which vector to take
         desired_vector = 0;
     }
 
     for(vector = desired_vector; vector < MAX_INTERRUPTS; vector++) {
-        if(interrupts[vector].is_taken)
-            continue;
-        goto found;
+        if(!interrupts[vector].is_taken) {
+            memset(&interrupts[vector], 0, sizeof(interrupt_t));
+            interrupts[vector].is_taken = true;
+            return vector;
+        }
     }
 
     for(vector = 0; vector < desired_vector; vector++) {
-        if(interrupts[vector].is_taken)
-            continue;
-        goto found;
+        if(!interrupts[vector].is_taken) {
+            memset(&interrupts[vector], 0, sizeof(interrupt_t));
+            interrupts[vector].is_taken = true;
+            return vector;
+        }
     }
 
-    return INVALID_INTERRUPT;
-
-found:
-    memset(&interrupts[vector], 0, sizeof(interrupt_t));
-    interrupts[vector].is_taken = true;
-    return vector;
+    return INVALID_INTERRUPT_VECTOR;
 }
 
 int add_interrupt_handler(long vector, interrupt_handler_t handler, void *restrict arg)

@@ -6,7 +6,6 @@
 #include <stdint.h>
 #include <sys/cdefs.h>
 
-#define PMIO_SUPPORTED 1
 #define PMIO_MAX_OFFSET 0xFFFF
 int pmio_read8(uintptr_t offset, uint8_t *restrict value);
 int pmio_read16(uintptr_t offset, uint16_t *restrict value);

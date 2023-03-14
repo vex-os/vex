@@ -22,7 +22,7 @@ intmax_t strtoimax(const char *restrict s, const char **restrict endptr, int bas
 uintmax_t strtoumax(const char *restrict s, const char **restrict endptr, int base);
 size_t strtouz(const char *restrict s, const char **restrict endptr, int base);
 
-int mbtowc(wchar_t *restrict wcs, const char *restrict s, size_t n);
+size_t mbtowc(wchar_t *restrict wcs, const char *restrict s, size_t n);
 size_t mbstowcs(wchar_t *restrict wcs, const char *restrict s, size_t n);
 #define mblen(s, n) mbtowc(NULL, (s), (n))
 

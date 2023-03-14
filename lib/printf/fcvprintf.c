@@ -57,7 +57,7 @@ static size_t write_int(fcprintf_func_t func, void *restrict arg, uintmax_t valu
     else sign = 0x00;
 
     if(!(flags & F_LEFT) && (flags & F_ZERO_PAD)) {
-        // Normally numeric values are padded (ie moved)
+        // Normally numeric values are padded (ie. moved)
         // with a whitespace character but if we are not
         // left-justified, we can use leading zeros for that.
         pad = '0';
@@ -75,6 +75,11 @@ static size_t write_int(fcprintf_func_t func, void *restrict arg, uintmax_t valu
         value /= base;
     } while(value || p);
 
+    if(sign) {
+        // Add the sign character
+        stage[stager++] = sign;
+    }
+
     if(flags & F_HASH) {
         if(!(flags & F_ZERO_PAD)) {
             switch(base) {
@@ -88,8 +93,7 @@ static size_t write_int(fcprintf_func_t func, void *restrict arg, uintmax_t valu
                     break;
             }
         }
-
-        if(base == 8) {
+        else if(base == 8) {
             // Octals start with a zero so we can
             // safely assume we won't miss when adding
             // the numeric prefix right here.
@@ -97,17 +101,7 @@ static size_t write_int(fcprintf_func_t func, void *restrict arg, uintmax_t valu
         }
     }
 
-    if(sign) {
-        // Add the sign character
-        stage[stager++] = sign;
-    }
-
     if(!(flags & F_LEFT)) {
-        for(i = 0; i < w; i++) {
-            func(pad, arg);
-            counter++;
-        }
-
         // Add numeric prefix in cases of zero-padding
         // as the prefixes don't exist in the stage buffer
         if((flags & F_HASH) && (flags & F_ZERO_PAD)) {
@@ -124,6 +118,11 @@ static size_t write_int(fcprintf_func_t func, void *restrict arg, uintmax_t valu
                     break;
             }
         }
+
+        for(i = stager; i < w; i++) {
+            func(pad, arg);
+            counter++;
+        }
     }
 
     // Reverse the number into the callback
@@ -135,29 +134,38 @@ static size_t write_int(fcprintf_func_t func, void *restrict arg, uintmax_t valu
     // And now pad the number
     if(flags & F_LEFT) {
         for(i = 0; i < w; i++) {
-            func(pad, arg);
+            func(' ', arg);
             counter++;
         }
     }
+
+    return counter;
 }
 
 static size_t write_str(fcprintf_func_t func, void *restrict arg, const char *restrict s, unsigned short flags, unsigned int w, unsigned int p)
 {
     size_t i;
     size_t cap;
-    size_t counter;
+    size_t len;
+    size_t counter = 0;
 
-    if(!s) {
-        // A lot of big library implementations
-        // just seem to substitute null strings with that.
+    if(s == NULL) {
+        // A lot of big libraries seem to
+        // substitute null strings with this
         s = "(null)";
     }
 
-    cap = p ? p : SIZE_MAX;
-    counter = 0;
+    if(p) {
+        cap = p;
+        len = strnlen(s, p);
+    }
+    else {
+        cap = SIZE_MAX;
+        len = strlen(s);
+    }
 
     if(!(flags & F_LEFT)) {
-        for(i = 0; cap && i < w; i++) {
+        for(i = len; cap && i < w; i++) {
             func(' ', arg);
             counter++;
             cap--;
@@ -171,7 +179,7 @@ static size_t write_str(fcprintf_func_t func, void *restrict arg, const char *re
     }
 
     if(flags & F_LEFT) {
-        for(i = 0; cap && i < w; i++) {
+        for(i = len; cap && i < w; i++) {
             func(' ', arg);
             counter++;
             cap--;
@@ -199,7 +207,7 @@ static unsigned short get_flag(int c)
     }
 }
 
-static uintmax_t remove_sign(uintmax_t x, int length, int *flags)
+static uintmax_t remove_sign(uintmax_t x, int length, unsigned short *restrict flags)
 {
     #define sign_hack(type) if((type)x < 0) { *flags |= F_NEGATIVE; x = (uintmax_t)(-((type)x)); }
     switch(length) {
@@ -305,39 +313,40 @@ int fcvprintf(fcprintf_func_t func, void *restrict arg, const char *restrict fmt
             }
         }
 
+        value = 0;
         if(*fmt == 's' || *fmt == 'p') {
             // L_POINTER is a special case, it tells the next
             // switch statement that we don't want to call va_arg()
             // ahead of time, instead waiting for later code to do that.
             length = L_POINTER;
         }
-
-        value = 0;
-        switch(length) {
-            case L_CHAR:
-            case L_SHORT:
-            case L_INT:
-                value = va_arg(ap, unsigned int);
-                break;
-            case L_LONG:
-                value = va_arg(ap, unsigned long);
-                break;
-            case L_LLONG:
-                value = va_arg(ap, unsigned long long);
-                break;
-            case L_INTMAX_T:
-                value = va_arg(ap, uintmax_t);
-                break;
-            case L_SIZE_T:
-                value = va_arg(ap, size_t);
-                break;
-            case L_PTRDIFF_T:
-                // Yep, we are assigning a clearly SIGNED value
-                // to an UNSIGNED variable. Just because it's assumed
-                // that ptrdiff is never going to be used with, say,
-                // unsigned modifiers? C library is a clown software.
-                value = va_arg(ap, ptrdiff_t);
-                break;
+        else {
+            switch(length) {
+                case L_CHAR:
+                case L_SHORT:
+                case L_INT:
+                    value = va_arg(ap, unsigned int);
+                    break;
+                case L_LONG:
+                    value = va_arg(ap, unsigned long);
+                    break;
+                case L_LLONG:
+                    value = va_arg(ap, unsigned long long);
+                    break;
+                case L_INTMAX_T:
+                    value = va_arg(ap, uintmax_t);
+                    break;
+                case L_SIZE_T:
+                    value = va_arg(ap, size_t);
+                    break;
+                case L_PTRDIFF_T:
+                    // Yep, we are assigning a clearly SIGNED value
+                    // to an UNSIGNED variable. Just because it's assumed
+                    // that ptrdiff is never going to be used with, say,
+                    // unsigned modifiers? C library is a clown software.
+                    value = va_arg(ap, ptrdiff_t);
+                    break;
+            }
         }
 
         switch(*fmt) {
@@ -371,6 +380,7 @@ int fcvprintf(fcprintf_func_t func, void *restrict arg, const char *restrict fmt
                 counter += write_str(func, arg, va_arg(ap, const char *), flags, w, p);
                 break;
             case 'p':
+                flags |= F_HASH;
                 flags |= F_ZERO_PAD;
                 flags |= F_UPPERCASE;
                 counter += write_int(func, arg, va_arg(ap, uintptr_t), flags, sizeof(uintptr_t) * 2, p, 16);

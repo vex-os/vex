@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, KanOS Contributors */
 #include <kan/errno.h>
+#include <printf.h>
 #include <string.h>
 
 int strerror_r(int errnum, char *restrict s, size_t n)

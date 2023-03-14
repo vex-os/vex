@@ -1,5 +1,5 @@
 #!/bin/sh
-# [1]: object file to parse
+# argv[1]: object file to parse
 
 # NOTE: see <sys/initcall.h> at __initsection
 initcalls=$(readelf -p .discard.initcalls "${1}" | grep -P "^\s*\[" | cut -d "]" -f2 | tsort)

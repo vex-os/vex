@@ -3,10 +3,9 @@
 #include <stdbool.h>
 #include <string.h>
 #include <sys/boot.h>
+#include <sys/debug.h>
 #include <sys/malloc.h>
-#include <sys/page.h>
-#include <sys/pmm.h>
-#include <sys/system.h>
+#include <sys/pmalloc.h>
 
 typedef struct meta_s {
     size_t length;
@@ -48,7 +47,7 @@ static bool expand_slab(slab_t *restrict slab)
     // a good idea to replace this with a faster O(1)
     // allocation function that does the exact same thing
     // slab allocation does just for PAGE_SIZE-sized objects
-    slab->head = pmm_alloc_virt(1);
+    slab->head = pmalloc_virt(1);
 
     if(slab->head) {
         header = __align_ceil(sizeof(slab_t *), slab->objsize);
@@ -73,7 +72,10 @@ static void init_slab(slab_t *restrict slab, size_t objsize)
 {
     slab->head = NULL;
     slab->objsize = objsize;
-    kassertf(expand_slab(slab), "malloc: insufficient memory");
+
+    if(!expand_slab(slab)) {
+        panic("insufficient memory");
+    }
 }
 
 void *malloc(size_t n)
@@ -92,7 +94,7 @@ void *malloc(size_t n)
     }
 
     npages = get_page_count(n + 1);
-    if((head_ptr = pmm_alloc(npages)) != NULL) {
+    if((head_ptr = pmalloc_virt(npages)) != NULL) {
         meta = head_ptr;
         meta->length = n;
         meta->npages = npages;
@@ -134,16 +136,13 @@ void *realloc(void *restrict ptr, size_t n)
                 return new_ptr;
             }
 
-            if(meta->length < n) {
-                // We won't use n anymore so why
-                // not use it as a size value for
-                // copying data to the new buffer?
-                n = meta->length;
-            }
-
             meta = (meta_t *)((uintptr_t)aligned_ptr - PAGE_SIZE);
+
+            if(meta->length < n)
+                n = meta->length;
             memcpy(new_ptr, ptr, n);
-            pmm_free_virt(meta, meta->npages + 1);
+
+            pmfree_virt(meta, meta->npages + 1);
             return new_ptr;
         }
 
@@ -179,7 +178,7 @@ void free(void *restrict ptr)
         }
 
         meta = (meta_t *)((uintptr_t)aligned_ptr - PAGE_SIZE);
-        pmm_free_virt(meta, meta->npages + 1);
+        pmfree_virt(meta, meta->npages + 1);
         return;
     }
 }
@@ -187,8 +186,14 @@ void free(void *restrict ptr)
 static void init_malloc(void)
 {
     nslabs = 8;
-    slabs = pmm_alloc_virt(get_page_count(sizeof(slab_t) * nslabs));
-    kassertf(!slabs, "malloc: insufficient memory");
+    slabs = pmalloc_virt(get_page_count(sizeof(slab_t) * nslabs));
+
+    if(!slabs) {
+        // If there is not enough memory to set up basic
+        // memory allocation structures, what's the point
+        // for the kernel to continue functioning?
+        panic("insufficient memory");
+    }
 
     init_slab(&slabs[0], PAGE_SIZE / 512);
     init_slab(&slabs[1], PAGE_SIZE / 256);
@@ -199,5 +204,5 @@ static void init_malloc(void)
     init_slab(&slabs[6], PAGE_SIZE / 8);
     init_slab(&slabs[7], PAGE_SIZE / 4);
 }
-core_initcall(malloc, init_malloc);
-initcall_after(malloc, boot);
+early_initcall(malloc, init_malloc);
+initcall_dependency(malloc, boot);
