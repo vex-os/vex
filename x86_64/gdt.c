@@ -100,15 +100,12 @@ static void init_gdt(void)
     // Long mode really doesn't have far jumping
     // per se, so we would want to improvise and
     // use LRETQ which in these circumstances acts
-    // as a far jump (setting the new code segment)
+    // as a far jump to force set the new code segment
     asm volatile(__string_va(
         pushq %0;
         pushq $1f;
         lretq;
         1:;
     )::"i"(GDT_SELECTOR(GDT_KERN_CODE_64, 0, 0)));
-
-    kprintf("x86_64.gdtr.size=%zu", (size_t)gdtr.size);
-    kprintf("x86_64.gdtr.offset=%p", (void *)gdtr.offset);
 }
 early_initcall(gdt, init_gdt);

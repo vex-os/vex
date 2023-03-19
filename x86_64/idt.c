@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/interrupt.h>
-#include <sys/kprintf.h>
 #include <x86_64/gdt.h>
 #include <x86_64/idt.h>
 
@@ -65,9 +64,6 @@ static void init_idt(void)
     idtr.offset = (uintptr_t)(&idt[0]);
 
     asm volatile("lidtq %0"::"m"(idtr));
-
-    kprintf("x86_64.idtr.size=%zu", (size_t)idtr.size);
-    kprintf("x86_64.idtr.offset=%p", (void *)idtr.offset);
 }
 early_initcall(idt, init_idt);
 initcall_dependency(idt, gdt);

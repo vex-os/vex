@@ -20,4 +20,4 @@ ISR_STUBS := $(TEMP_DIR)/isr_stubs.S
 DISTCLEAN += $(ISR_STUBS)
 SOURCES += $(ISR_STUBS)
 $(ISR_STUBS): build_dirs
-	$(SHELL) build/gen.isr_stubs.sh > $@
+	$(SHELL) build/gen.isr_stubs.x86_64.sh > $@

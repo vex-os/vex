@@ -21,7 +21,7 @@ void __noreturn fvpanic(const char *restrict file, unsigned long line, const cha
     // that are still alive unblank
     console_unblank();
 
-    kprintf("kernel panic at %s:%lu", file, line);
+    kprintf("panic raised at %s:%lu", file, line);
     kvprintf(fmt, ap);
 
     // UNDONE: backtrace

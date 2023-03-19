@@ -11,7 +11,7 @@ static void bxcon_putchar(console_t *restrict console, int c)
 
 static console_t bxcon = {
     .driver_data = NULL,
-    .driver_name = "bxcon",
+    .driver_name = "bochs_debug_console",
     .putchar = &bxcon_putchar,
     .unblank = NULL,
     .next = NULL,

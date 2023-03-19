@@ -10,22 +10,15 @@
 
 static int int42_handler(cpu_ctx_t *restrict ctx, void *restrict arg)
 {
-    kprintf("interrupt 0x42 called");
+    kprintf("test_kernel_stuff: interrupt 0x42 called");
     return 1;
 }
 
-void __used __noreturn kmain(void)
+static void test_kernel_stuff(void)
 {
-    size_t i;
     void *p1;
     void *p2;
     void *p3;
-
-    // Print kernel version
-    kprintf("starting version %s (%s at %s)", sys_version, sys_revision, sys_build);
-
-    // Initialize EVERYTHING
-    for(i = 0; initcalls[i].func; initcalls[i++].func());
 
     // Test interrupt handling
     add_interrupt_handler(allocate_interrupt(0x42), &int42_handler, NULL);
@@ -47,6 +40,21 @@ void __used __noreturn kmain(void)
     p1 = malloc(8192);
     kprintf("kmalloc test 3: p1=%p", p1);
     free(p1);
+
+}
+
+void __used __noreturn kmain(void)
+{
+    size_t i;
+
+    // Print version string (strings really)
+    kprintf("starting version %s / %s / %s", sys_version, sys_revision, sys_build);
+
+    // Initialize most of subsystems
+    // FIXME: should this include SMP and scheduling?
+    for(i = 0; initcalls[i].func; initcalls[i++].func());
+
+    test_kernel_stuff();
 
     panic("nothing else to do!");
     UNREACHABLE();

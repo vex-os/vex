@@ -5,7 +5,6 @@
 #include <sys/boot.h>
 #include <sys/debug.h>
 #include <sys/pmalloc.h>
-#include <sys/kprintf.h>
 
 typedef struct memblock_s {
     struct memblock_s *next;
@@ -24,8 +23,6 @@ void add_memory_block(uintptr_t address, size_t length)
     size_t blocksize;
     memblock_t *block;
 
-    kprintf("add_memory_block [%p..%p]", (void *)address, (void *)(address + length - 1));
-
     block = (memblock_t *)(address + hhdm_offset);
     block->bitmap.data = NULL;
     block->phys_start = address;
@@ -35,8 +32,8 @@ void add_memory_block(uintptr_t address, size_t length)
 
     // For better performance, bitmap needs to be aligned
     // and we can't be sure that the header size is a multiple
-    // of uint64_t (I have zero understanding of C struct rules)
-    // so it's just better to have the header size aligned.
+    // of uint64_t (I have zero understanding of C struct rules
+    // so it's just better to have the header size aligned).
     blocksize = __align_ceil(sizeof(memblock_t), sizeof(uint64_t));
     block->bitmap.data = (void *)((uintptr_t)block + blocksize);
 
