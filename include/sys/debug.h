@@ -10,5 +10,6 @@ void fvpanic(const char *restrict file, unsigned long line, const char *restrict
 #define panic(fmt, ...) fpanic(__FILE__, __LINE__, (fmt), ##__VA_ARGS__)
 #define vpanic(fmt, ap) fvpanic(__FILE__, __LINE__, (fmt), (ap))
 #define kassert(x) ({if_unlikely(!(x)){panic("assertion failed - %s", #x); UNREACHABLE();}})
+#define kassertf(x, fmt, ...) ({if_unlikely(!(x)){panic((fmt), ##__VA_ARGS__); UNREACHABLE();}})
 
 #endif /* __INCLUDE_SYS_DEBUG_H__ */

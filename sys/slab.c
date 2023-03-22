@@ -39,7 +39,7 @@ static bool expand_slab(slab_t *restrict slab)
     kassert(slab->objsize % sizeof(void *) == 0);
 
     // Allocate a new page
-    slab->head = pmalloc();
+    slab->head = pmalloc_virt();
 
     if(slab->head) {
         header = __align_ceil(sizeof(slab_t *), slab->objsize);

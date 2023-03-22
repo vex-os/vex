@@ -5,11 +5,11 @@
 #include <sys/cdefs.h>
 
 typedef struct console_s {
-    struct console_s *con_next;
-    void (*con_putchar)(struct console_s *restrict console, int c);
-    void (*con_unblank)(struct console_s *restrict console);
-    const char *con_name;
-    void *con_data;
+    struct console_s *cn_next;
+    void (*cn_putchar)(struct console_s *restrict console, int c);
+    void (*cn_unblank)(struct console_s *restrict console);
+    char cn_name[64];
+    void *cn_data;
 } console_t;
 
 int register_console(console_t *restrict console);

@@ -8,11 +8,12 @@
 #include <sys/cdefs.h>
 #include <sys/initcall.h>
 
-void add_memblock(uintptr_t address, size_t n);
 size_t get_total_memory(void);
 size_t get_used_memory(void);
-void *pmalloc(void);
-void pmfree(void *restrict ptr);
+uintptr_t pmalloc(void);
+void *pmalloc_virt(void);
+void pmfree(uintptr_t address);
+void pmfree_virt(void *restrict ptr);
 
 initcall_extern(pmalloc);
 

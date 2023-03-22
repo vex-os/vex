@@ -38,9 +38,9 @@ static void test_kernel_stuff(void)
     kprintf("slab_alloc test 2: p1=%p p3=%p", p1, p3);
     slab_free(p2);
     slab_free(p3);
-    p1 = pmalloc();
-    kprintf("pmalloc test 3: p1=%p", p1);
-    pmfree(p1);
+    p1 = pmalloc_virt();
+    kprintf("pmalloc_virt test 3: p1=%p", p1);
+    pmfree_virt(p1);
 }
 
 void __used __noreturn kmain(void)
