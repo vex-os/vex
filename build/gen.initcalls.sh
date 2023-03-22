@@ -15,7 +15,7 @@ done
 
 printf "const initcall_t initcalls[] = {\n"
 for initcall in ${initcalls}; do
-    printf "{ .func = &__init_${initcall} },\n"
+    printf "{ .init_func = &__init_${initcall} },\n"
 done
-printf "{ .func = NULL }\n"
+printf "{ .init_func = NULL }\n"
 printf "};\n"

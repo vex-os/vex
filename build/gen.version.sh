@@ -4,7 +4,7 @@
 
 sys_build=$(LC_ALL=C date -u)
 sys_machine=${2}
-sys_revision=$(git rev-parse --short=16 HEAD || echo "0000000000000000")
+sys_revision=$(git rev-parse --short=8 HEAD || echo "00000000")
 sys_version=${1}
 
 printf "/* generated automatically */\n"

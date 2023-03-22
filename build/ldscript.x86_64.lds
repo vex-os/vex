@@ -19,11 +19,14 @@ SECTIONS
 {
     . = 0xFFFFFFFF80000000;
 
+    sys_text_start = .;
     .text ALIGN(CONSTANT(MAXPAGESIZE)) : {
         *(.text)
         *(.text.*)
     } :text
+    sys_text_end = .;
 
+    sys_rodata_start = .;
     .rodata ALIGN(CONSTANT(MAXPAGESIZE)) : {
         *(.rodata)
         __exports_begin = .;
@@ -31,15 +34,20 @@ SECTIONS
         __exports_end = .;
         *(.rodata.*)
     } :rodata
+    sys_rodata_end = .;
 
+    sys_data_start = .;
     .data ALIGN(CONSTANT(MAXPAGESIZE)) : {
         *(.data)
         *(.data.*)
     } :data
+    sys_data_end = .;
 
+    sys_bss_start = .;
     .bss ALIGN(CONSTANT(MAXPAGESIZE)) : {
         *(COMMON)
         *(.bss)
         *(.bss.*)
     } :data
+    sys_bss_end = .;
 }

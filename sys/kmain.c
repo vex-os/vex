@@ -5,7 +5,8 @@
 #include <sys/initcall.h>
 #include <sys/interrupt.h>
 #include <sys/kprintf.h>
-#include <sys/malloc.h>
+#include <sys/pmalloc.h>
+#include <sys/slab.h>
 #include <sys/version.h>
 
 static int int42_handler(cpu_ctx_t *restrict ctx, void *restrict arg)
@@ -29,33 +30,32 @@ static void test_kernel_stuff(void)
     asm volatile("int $0x44");
 
     // Test memory allocation
-    p1 = malloc(64);
-    p2 = malloc(64);
-    kprintf("kmalloc test 1: p1=%p p2=%p", p1, p2);
-    free(p1);
-    p3 = malloc(64);
-    kprintf("kmalloc test 2: p1=%p p3=%p", p1, p3);
-    free(p2);
-    free(p3);
-    p1 = malloc(8192);
-    kprintf("kmalloc test 3: p1=%p", p1);
-    free(p1);
-
+    p1 = slab_alloc(64);
+    p2 = slab_alloc(64);
+    kprintf("slab_alloc test 1: p1=%p p2=%p", p1, p2);
+    slab_free(p1);
+    p3 = slab_alloc(128);
+    kprintf("slab_alloc test 2: p1=%p p3=%p", p1, p3);
+    slab_free(p2);
+    slab_free(p3);
+    p1 = pmalloc();
+    kprintf("pmalloc test 3: p1=%p", p1);
+    pmfree(p1);
 }
 
 void __used __noreturn kmain(void)
 {
     size_t i;
 
-    // Print version string (strings really)
-    kprintf("starting version %s / %s / %s", sys_version, sys_revision, sys_build);
+    // Print kernel version
+    kprintf("sys: starting version %s", sys_version);
 
     // Initialize most of subsystems
     // FIXME: should this include SMP and scheduling?
-    for(i = 0; initcalls[i].func; initcalls[i++].func());
+    for(i = 0; initcalls[i].init_func; initcalls[i++].init_func());
 
     test_kernel_stuff();
 
-    panic("nothing else to do!");
+    panic("sys: nothing else to do!");
     UNREACHABLE();
 }

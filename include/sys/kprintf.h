@@ -5,11 +5,11 @@
 #include <sys/cdefs.h>
 
 typedef struct console_s {
-    void *driver_data;
-    char driver_name[64];
-    void (*putchar)(struct console_s *restrict console, int c);
-    void (*unblank)(struct console_s *restrict console);
-    struct console_s *next;
+    struct console_s *con_next;
+    void (*con_putchar)(struct console_s *restrict console, int c);
+    void (*con_unblank)(struct console_s *restrict console);
+    const char *con_name;
+    void *con_data;
 } console_t;
 
 int register_console(console_t *restrict console);

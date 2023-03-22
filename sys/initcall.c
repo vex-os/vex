@@ -8,19 +8,12 @@ static void init_early(void)
 }
 initcall_binding(early, init_early);
 
-static void init_kernel(void)
-{
-
-}
-initcall_binding(kernel, init_kernel);
-initcall_dependency(kernel, early);
-
 static void init_common(void)
 {
 
 }
 initcall_binding(common, init_common);
-initcall_dependency(common, kernel);
+initcall_dependency(common, early);
 
 static void init_device(void)
 {

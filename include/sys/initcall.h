@@ -14,18 +14,12 @@
     static const char __used __align(1) __section(".discard.initcalls") __unique(__depend)[] = (#dependency " " #init)
 
 initcall_extern(early);
-initcall_extern(kernel);
 initcall_extern(common);
 initcall_extern(device);
 
 #define early_initcall(init, function) \
     initcall_binding(init, function); \
     initcall_dependency(init, early); \
-    initcall_dependency(kernel, init)
-
-#define kernel_initcall(init, function) \
-    initcall_binding(init, function); \
-    initcall_dependency(init, kernel); \
     initcall_dependency(common, init)
 
 #define common_initcall(init, function) \
@@ -38,7 +32,7 @@ initcall_extern(device);
     initcall_dependency(init, device)
 
 typedef struct initcall_s {
-    void (*func)(void);
+    void (*init_func)(void);
 } initcall_t;
 
 // Defined in $(TEMP_DIR)/initcalls.c

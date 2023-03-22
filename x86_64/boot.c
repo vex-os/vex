@@ -50,11 +50,11 @@ static void init_boot(void)
     const struct limine_memmap_entry *entry;
 
     if(terminal_request.response) {
-        kstrncpy(boot_console.driver_name, "limine_terminal", sizeof(boot_console.driver_name));
-        boot_console.driver_data = NULL;
-        boot_console.putchar = &boot_console_putchar;
-        boot_console.unblank = NULL;
-        boot_console.next = NULL;
+        boot_console.con_next = NULL;
+        boot_console.con_putchar = &boot_console_putchar;
+        boot_console.con_unblank = NULL;
+        boot_console.con_name = "limine_terminal";
+        boot_console.con_data = NULL;
         register_console(&boot_console);
     }
 
@@ -69,7 +69,7 @@ static void init_boot(void)
     for(i = 0; i < memmap_request.response->entry_count; i++) {
         if(memmap_request.response->entries[i]->type == LIMINE_MEMMAP_USABLE) {
             entry = memmap_request.response->entries[i];
-            add_memory_block(entry->base, entry->length);
+            add_memblock(entry->base, entry->length);
         }
     }
 }

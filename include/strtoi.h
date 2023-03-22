@@ -6,12 +6,12 @@
 #include <sys/cdefs.h>
 
 typedef struct strtoi_s {
-    const char *buf;
-    uintmax_t inval;
-    uintmax_t limit;
-    int limdigit;
-    int signchar;
-    int base;
+    const char *s_buf;
+    uintmax_t s_inval;
+    uintmax_t s_limit;
+    int s_limdigit;
+    int s_signchar;
+    int s_base;
 } strtoi_t;
 
 void strtoi_init(const char *restrict s, strtoi_t *restrict ctx);

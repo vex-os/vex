@@ -14,36 +14,36 @@ void strtoi_init(const char *restrict s, strtoi_t *restrict ctx)
         s++;
     }
     
-    ctx->signchar = ((*s != '+' && *s != '-') ? '+' : *s++);
+    ctx->s_signchar = ((*s != '+' && *s != '-') ? '+' : *s++);
 
     if(*s == '0') {
         s++;
 
-        if((ctx->base == 0 || ctx->base == 2) && (*s == 'b' || *s == 'B')) {
-            ctx->base = 2;
-            if(!memchr(digits, tolower(*++s), ctx->base)) {
+        if((ctx->s_base == 0 || ctx->s_base == 2) && (*s == 'b' || *s == 'B')) {
+            ctx->s_base = 2;
+            if(!memchr(digits, tolower(*++s), ctx->s_base)) {
                 s -= 2;
             }
         }
-        else if((ctx->base == 0 || ctx->base == 16) && (*s == 'x' || *s == 'X')) {
-            ctx->base = 16;
-            if(!memchr(digits, tolower(*++s), ctx->base)) {
+        else if((ctx->s_base == 0 || ctx->s_base == 16) && (*s == 'x' || *s == 'X')) {
+            ctx->s_base = 16;
+            if(!memchr(digits, tolower(*++s), ctx->s_base)) {
                 s -= 2;
             }
         }
-        else if(ctx->base == 0) {
-            ctx->base = 0;
+        else if(ctx->s_base == 0) {
+            ctx->s_base = 0;
             s -= 1;
         }
         else {
             s -= 1;
         }
     }
-    else if(ctx->base == 0) {
-        ctx->base = 10;
+    else if(ctx->s_base == 0) {
+        ctx->s_base = 10;
     }
 
-    ctx->buf = ((ctx->base >= 2 && ctx->base <= MAX_BASE) ? s : NULL);
+    ctx->s_buf = ((ctx->s_base >= 2 && ctx->s_base <= MAX_BASE) ? s : NULL);
 }
 
 uintmax_t strtoi_run(strtoi_t *restrict ctx)
@@ -52,24 +52,24 @@ uintmax_t strtoi_run(strtoi_t *restrict ctx)
     uintmax_t r = 0;
     const char *x;
 
-    while((x = memchr(digits, tolower(*ctx->buf), ctx->base))) {
+    while((x = memchr(digits, tolower(*ctx->s_buf), ctx->s_base))) {
         digit = x - digits;
 
-        if(r < ctx->limit || (r == ctx->limit && digit < ctx->limdigit)) {
-            r *= ctx->base;
+        if(r < ctx->s_limit || (r == ctx->s_limit && digit < ctx->s_limdigit)) {
+            r *= ctx->s_base;
             r += digit;
-            ctx->buf++;
+            ctx->s_buf++;
         }
         else {
-            while(memchr(digits, tolower(*ctx->buf), ctx->base))
-                ctx->buf++;
-            ctx->signchar = '+';
-            return ctx->inval;
+            while(memchr(digits, tolower(*ctx->s_buf), ctx->s_base))
+                ctx->s_buf++;
+            ctx->s_signchar = '+';
+            return ctx->s_inval;
         }
     }
     
     if(digit == -1) {
-        ctx->buf = NULL;
+        ctx->s_buf = NULL;
         return 0;
     }
 

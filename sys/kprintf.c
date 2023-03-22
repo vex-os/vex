@@ -14,9 +14,9 @@ static void func(int c, void *restrict arg)
 {
     console_t *it;
 
-    for(it = consoles; it; it = it->next) {
-        if(it->putchar) {
-            it->putchar(it, c);
+    for(it = consoles; it; it = it->con_next) {
+        if(it->con_putchar) {
+            it->con_putchar(it, c);
         }
     }
 
@@ -31,37 +31,37 @@ int register_console(console_t *restrict console)
 
     // Ensure we don't have this console
     // or a console with the same name already
-    for(it = consoles; it; it = it->next) {
-        if(it != console && strcmp(it->driver_name, console->driver_name))
+    for(it = consoles; it; it = it->con_next) {
+        if(it != console && strcmp(it->con_name, console->con_name))
             continue;
         return EBUSY;
     }
 
     // Notify the rest of console drivers
     // about a new challenger approaching
-    kprintf("registering console %s", console->driver_name);
+    kprintf("kprintf: register_console %s", console->con_name);
 
     // Unblank the console
-    if(console->unblank) {
-        console->unblank(console);
+    if(console->con_unblank) {
+        console->con_unblank(console);
     }
 
     // Dump the contents of kprintf_history
-    if(console->putchar) {
+    if(console->con_putchar) {
         for(i = kprintf_ring_pos; i < KPRINTF_RING_SIZE; i++) {
             if(!kprintf_ring[i])
                 continue;
-            console->putchar(console, kprintf_ring[i]);
+            console->con_putchar(console, kprintf_ring[i]);
         }
 
         for(i = 0; i < kprintf_ring_pos; i++) {
             if(!kprintf_ring[i])
                 continue;
-            console->putchar(console, kprintf_ring[i]);
+            console->con_putchar(console, kprintf_ring[i]);
         }
     }
 
-    console->next = consoles;
+    console->con_next = consoles;
     consoles = console;
 
     return 0;
@@ -72,24 +72,20 @@ void unregister_console(console_t *restrict console)
     console_t *it;
     console_t *prev;
 
-    // Unblank the console
-    if(console->unblank) {
-        console->unblank(console);
-    }
-
     // If we are the last registered,
     // the task can be simplified drastically.
     if(consoles == console) {
-        consoles = console->next;
+        consoles = console->con_next;
+        kprintf("kprintf: unregister_console %s", console->con_name);
         return;
     }
 
     prev = NULL;
-    for(it = consoles; it; it = it->next) {
+    for(it = consoles; it; it = it->con_next) {
         if(it == console) {
             if(prev)
-                prev->next = it->next;
-            kprintf("unregistering console %s", console->driver_name);
+                prev->con_next = it->con_next;
+            kprintf("kprintf: unregister_console %s", console->con_name);
             return;
         }
 
@@ -100,9 +96,9 @@ void unregister_console(console_t *restrict console)
 void console_unblank(void)
 {
     console_t *it;
-    for(it = consoles; it; it = it->next) {
-        if(it->unblank) {
-            it->unblank(it);
+    for(it = consoles; it; it = it->con_next) {
+        if(it->con_unblank) {
+            it->con_unblank(it);
         }
     }
 }
@@ -111,9 +107,9 @@ int putchar(int c)
 {
     console_t *it;
 
-    for(it = consoles; it; it = it->next) {
-        if(it->putchar) {
-            it->putchar(it, c);
+    for(it = consoles; it; it = it->con_next) {
+        if(it->con_putchar) {
+            it->con_putchar(it, c);
         }
     }
 
