@@ -97,8 +97,6 @@ static void init_pmalloc(void)
                 pmm_head = head_ptr;
             }
         }
-
-        kprintf("pmalloc: type=%#04hX, address=%p, length=%zu", entry->type, (void *)entry->address, entry->length);
     }
 
     kprintf("pmalloc: total memory: %zu KiB (%zu KB)", total_memory / 1024, total_memory / 1000);
