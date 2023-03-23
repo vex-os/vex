@@ -9,13 +9,13 @@ static console_t bxcon = { 0 };
 
 static void bxcn_putchar(console_t *restrict console, int c)
 {
-    pmio_write8(0xE9, c);
+    x86_pmio_write8(0xE9, c);
 }
 
 static void init_bxcon(void)
 {
     uint8_t result;
-    if((pmio_read8(0xE9, &result) == 0) && (result == 0xE9)) {
+    if((x86_pmio_read8(0xE9, &result) == 0) && (result == 0xE9)) {
         bxcon.cn_next = NULL;
         bxcon.cn_putchar = &bxcn_putchar;
         bxcon.cn_unblank = NULL;

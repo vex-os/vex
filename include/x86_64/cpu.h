@@ -5,30 +5,30 @@
 #include <stdint.h>
 #include <sys/cdefs.h>
 
-typedef struct cpu_ctx_s {
+typedef struct x86_cpu_ctx_s {
     uint64_t r15, r14, r13, r12, r11, r10, r9, r8;
     uint64_t rdi, rsi, rbp, rbx, rdx, rcx, rax;
     uint64_t err, rip, cs, rflags, rsp, ss;
-} __packed cpu_ctx_t;
+} __packed x86_cpu_ctx_t;
 
-static __always_inline inline const uintptr_t *get_baseptr(void)
+static __always_inline inline const uintptr_t *x86_get_baseptr(void)
 {
     const uintptr_t *baseptr;
     asm volatile("movq %%rbp, %0":"=r"(baseptr)::"memory");
     return baseptr;
 }
 
-static __always_inline inline void disable_interrupts(void)
+static __always_inline inline void x86_disable_interrupts(void)
 {
     asm volatile("cli");
 }
 
-static __always_inline inline void enable_interrupts(void)
+static __always_inline inline void x86_enable_interrupts(void)
 {
     asm volatile("sti");
 }
 
-static __always_inline inline void idle(void)
+static __always_inline inline void x86_idle(void)
 {
     asm volatile("hlt");
 }

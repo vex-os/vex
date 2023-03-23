@@ -3,8 +3,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/interrupt.h>
-#include <x86_64/gdt.h>
-#include <x86_64/idt.h>
+#include <x86_64/inttab.h>
+#include <x86_64/segment.h>
 
 #define IDT_TRAP    (0x0F << 0)
 #define IDT_INTR    (0x0E << 0)
@@ -38,7 +38,7 @@ void __used isr_handler(cpu_ctx_t *restrict ctx, uint64_t vector)
     trigger_interrupt((long)(vector % X86_IDT_SIZE), ctx);
 }
 
-static void init_idt(void)
+static void init_inttab(void)
 {
     size_t i;
     idt_entry_t *entry;
@@ -51,7 +51,7 @@ static void init_idt(void)
         entry->i_offset_0 = (isr_stubs[i] & 0x000000000000FFFF);
         entry->i_offset_1 = (isr_stubs[i] & 0x00000000FFFF0000) >> 16;
         entry->i_offset_2 = (isr_stubs[i] & 0xFFFFFFFF00000000) >> 32;
-        entry->i_selector = GDT_SELECTOR(GDT_KERN_CODE_64, 0, 0);
+        entry->i_selector = SEGMENT_SELECTOR(SEGMENT_KERN_CODE_64, 0, 0);
 
         // Interrupt vectors 0x00 to 0x1F are X86 exceptions
         entry->i_flags |= ((i < 0x20) ? IDT_TRAP : IDT_INTR);
@@ -65,5 +65,5 @@ static void init_idt(void)
 
     asm volatile("lidtq %0"::"m"(idtr));
 }
-early_initcall(idt, init_idt);
-initcall_dependency(idt, gdt);
+early_initcall(inttab, init_inttab);
+initcall_dependency(inttab, inttab);

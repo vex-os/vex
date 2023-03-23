@@ -1,21 +1,26 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2023, KanOS Contributors */
-#ifndef __INCLUDE_SYS_PMALLOC_H__
-#define __INCLUDE_SYS_PMALLOC_H__
-#include <machine/page.h>
+#ifndef __INCLUDE_MACHINE_PAGE_H__
+#define __INCLUDE_MACHINE_PAGE_H__
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/cdefs.h>
-#include <sys/initcall.h>
 
-size_t get_total_memory(void);
-size_t get_used_memory(void);
-uintptr_t pmalloc(void);
-void *pmalloc_virt(void);
-void pmfree(uintptr_t address);
-void pmfree_virt(void *restrict ptr);
-
-initcall_extern(pmalloc);
+#if defined(__x86_64__)
+#include <x86_64/page.h>
+#define PAGE_SIZE X86_PAGE_SIZE
+#define VMEM_RDWR X86_PTE_RDWR
+#define VMEM_USER X86_PTE_USER
+#define VMEM_WTHR X86_PTE_WTHR
+#define VMEM_NOEX X86_PTE_NOEX
+#else
+#warning Unknown architecture
+#define PAGE_SIZE 0x1000
+#define VMEM_RDWR 0x00000000
+#define VMEM_USER 0x00000000
+#define VMEM_WTHR 0x00000000
+#define VMEM_NOEX 0x00000000
+#endif
 
 static __always_inline inline uintptr_t page_align_address(uintptr_t address)
 {
@@ -37,4 +42,4 @@ static __always_inline inline size_t get_page_count(size_t n)
     return __align_ceil(n, PAGE_SIZE) / PAGE_SIZE;
 }
 
-#endif/* __INCLUDE_SYS_PMALLOC_H__ */
+#endif/* __INCLUDE_MACHINE_PAGE_H__ */

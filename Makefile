@@ -19,7 +19,6 @@ CLEAN_1 :=
 ALL_DEPS :=
 
 # Build directories
-MACH_INC := include/machine
 TEMP_DIR := temp
 
 # Machine makefile provides compiler options
@@ -53,11 +52,11 @@ CPPFLAGS += -I usr.include
 LDFLAGS += -static
 LDFLAGS += -nostdlib
 
-%.c.o: %.c | build_dirs
+%.c.o: %.c | $(TEMP_DIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
-%.S.o: %.S | build_dirs
+%.S.o: %.S | $(TEMP_DIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
-%.s.o: %.s | build_dirs
+%.s.o: %.s | $(TEMP_DIR)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 SEARCH :=
@@ -90,7 +89,6 @@ SOURCES += $(wildcard $(addsuffix /*.s,$(SEARCH)))
 OBJECTS += $(addsuffix .o,$(SOURCES))
 
 # DISTCLEAN list
-CLEAN_1 += $(MACH_INC)
 CLEAN_1 += $(TEMP_DIR)
 
 # CLEAN list
@@ -104,7 +102,7 @@ CLEAN_0 += $(LDSCRIPT)
 PHONY_TARGETS :=
 PHONY_TARGETS += all
 PHONY_TARGETS += kernel clean distclean
-PHONY_TARGETS += build_dirs force_run
+PHONY_TARGETS += force_run
 ALL_DEPS += kernel
 
 -include boot/$(MACHINE)/Makefile
@@ -120,24 +118,22 @@ distclean:
 	$(RM) -vrf $(CLEAN_0)
 	$(RM) -vrf $(CLEAN_1)
 
-build_dirs:
-	$(RM) -vrf $(MACH_INC)
-	$(LN) -sf $(abspath include/$(MACHINE)) $(abspath $(MACH_INC))
+$(TEMP_DIR):
 	$(MKDIR) -p $(TEMP_DIR)
 
 force_run:
 
-$(VERSION_C): build_dirs
+$(VERSION_C): $(TEMP_DIR)
 	$(SHELL) build/gen.version.sh $(VERSION) $(MACHINE) > $@
 
-$(INITCALLS_C): $(KERNEL_NOINIT) | build_dirs
+$(INITCALLS_C): $(KERNEL_NOINIT) | $(TEMP_DIR)
 	$(SHELL) build/gen.initcalls.sh $^ > $@
 
-$(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) build_dirs
+$(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) $(TEMP_DIR)
 	$(LD) $(LDFLAGS) -T $(LDSCRIPT) -o $@ $^
 
-$(KERNEL_NOINIT): $(OBJECTS) | build_dirs
+$(KERNEL_NOINIT): $(OBJECTS) | $(TEMP_DIR)
 	$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(LDSCRIPT): build/ldscript.$(MACHINE).lds | build_dirs
+$(LDSCRIPT): build/ldscript.$(MACHINE).lds | $(TEMP_DIR)
 	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | $(GREP) -v "^#" > $@ || $(TRUE)
