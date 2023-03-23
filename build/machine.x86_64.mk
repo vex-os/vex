@@ -16,7 +16,7 @@ CPPFLAGS += -D __x86_64__
 LDFLAGS += --no-pie
 LDFLAGS += -z max-page-size=0x1000
 
-ISR_STUBS := $(TEMP_DIR)/isr_stubs.S
+ISR_STUBS := $(TEMP_DIR)/isr_stubs.x86_64.S
 SOURCES += $(ISR_STUBS)
 $(ISR_STUBS): $(TEMP_DIR)
-	$(SHELL) build/x86_64/gen.isr_stubs.sh > $@
+	$(SHELL) build/gen.isr_stubs.x86_64.sh > $@

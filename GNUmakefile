@@ -105,7 +105,7 @@ PHONY_TARGETS += kernel clean distclean
 PHONY_TARGETS += force_run
 ALL_DEPS += kernel
 
--include boot/$(MACHINE)/Makefile
+-include boot/$(MACHINE)/GNUmakefile
 
 all: $(ALL_DEPS)
 
