@@ -3,27 +3,27 @@
 #include <printf.h>
 
 typedef struct buffer_s {
-    char *ptr;
-    size_t length;
-    size_t pos;
+    char *buf_ptr;
+    size_t buf_length;
+    size_t buf_pos;
 } buffer_t;
 
 static void func(int c, void *restrict arg)
 {
     buffer_t *buffer = arg;
-    if(buffer->ptr && buffer->pos < buffer->length)
-        buffer->ptr[buffer->pos] = c;
-    buffer->pos++;
+    if(buffer->buf_ptr && buffer->buf_pos < buffer->buf_length)
+        buffer->buf_ptr[buffer->buf_pos] = c;
+    buffer->buf_pos++;
 }
 
 int vsnprintf(char *restrict s, size_t n, const char *restrict fmt, va_list ap)
 {
     int r;
     buffer_t buffer = { 0 };
-    buffer.ptr = s;
-    buffer.length = n;
-    buffer.pos = 0;
+    buffer.buf_ptr = s;
+    buffer.buf_length = n;
+    buffer.buf_pos = 0;
     r = fcvprintf(&func, &buffer, fmt, ap);
-    buffer.ptr[buffer.length - 1] = 0;
+    buffer.buf_ptr[buffer.buf_length - 1] = 0;
     return r;
 }

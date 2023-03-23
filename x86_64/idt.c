@@ -13,18 +13,18 @@
 #define IDT_PRESENT (0x01 << 7)
 
 typedef struct idt_entry_s {
-    uint16_t offset_0;
-    uint16_t selector;
-    uint8_t ist_off;
-    uint8_t flags;
-    uint16_t offset_1;
-    uint32_t offset_2;
-    uint32_t reserved;
+    uint16_t i_offset_0;
+    uint16_t i_selector;
+    uint8_t i_ist_off;
+    uint8_t i_flags;
+    uint16_t i_offset_1;
+    uint32_t i_offset_2;
+    uint32_t i_reserved;
 } __packed idt_entry_t;
 
 typedef struct idt_register_s {
-    uint16_t size;
-    uintptr_t offset;
+    uint16_t i_size;
+    uintptr_t i_offset;
 } __packed idt_register_t;
 
 static idt_entry_t idt[X86_IDT_SIZE] = { 0 };
@@ -48,20 +48,20 @@ static void init_idt(void)
 
         memset(entry, 0, sizeof(idt_entry_t));
 
-        entry->offset_0 = (isr_stubs[i] & 0x000000000000FFFF);
-        entry->offset_1 = (isr_stubs[i] & 0x00000000FFFF0000) >> 16;
-        entry->offset_2 = (isr_stubs[i] & 0xFFFFFFFF00000000) >> 32;
-        entry->selector = GDT_SELECTOR(GDT_KERN_CODE_64, 0, 0);
+        entry->i_offset_0 = (isr_stubs[i] & 0x000000000000FFFF);
+        entry->i_offset_1 = (isr_stubs[i] & 0x00000000FFFF0000) >> 16;
+        entry->i_offset_2 = (isr_stubs[i] & 0xFFFFFFFF00000000) >> 32;
+        entry->i_selector = GDT_SELECTOR(GDT_KERN_CODE_64, 0, 0);
 
         // Interrupt vectors 0x00 to 0x1F are X86 exceptions
-        entry->flags |= ((i < 0x20) ? IDT_TRAP : IDT_INTR);
+        entry->i_flags |= ((i < 0x20) ? IDT_TRAP : IDT_INTR);
 
-        entry->flags |= IDT_RING_0;
-        entry->flags |= IDT_PRESENT;
+        entry->i_flags |= IDT_RING_0;
+        entry->i_flags |= IDT_PRESENT;
     }
 
-    idtr.size = (uint16_t)(sizeof(idt) - 1);
-    idtr.offset = (uintptr_t)(&idt[0]);
+    idtr.i_size = (uint16_t)(sizeof(idt) - 1);
+    idtr.i_offset = (uintptr_t)(&idt[0]);
 
     asm volatile("lidtq %0"::"m"(idtr));
 }

@@ -8,8 +8,8 @@
 #include <sys/slab.h>
 
 typedef struct slab_s {
-    size_t objsize;
-    void **head;
+    size_t sl_objsize;
+    void **sl_head;
 } slab_t;
 
 #define NSLABS 8
@@ -19,7 +19,7 @@ static slab_t *find_slab(size_t n)
 {
     size_t i;
     for(i = 0; i < NSLABS; i++) {
-        if(slabs[i].objsize < n)
+        if(slabs[i].sl_objsize < n)
             return &slabs[i];
         continue;
     }
@@ -35,24 +35,24 @@ static bool expand_slab(slab_t *restrict slab)
     size_t obj_gap;
 
     // Paranoically ensure the slab is valid
-    kassert(slab->objsize / sizeof(void *) >= 1);
-    kassert(slab->objsize % sizeof(void *) == 0);
+    kassert(slab->sl_objsize / sizeof(void *) >= 1);
+    kassert(slab->sl_objsize % sizeof(void *) == 0);
 
     // Allocate a new page
-    slab->head = pmalloc_virt();
+    slab->sl_head = pmalloc_virt();
 
-    if(slab->head) {
-        header = __align_ceil(sizeof(slab_t *), slab->objsize);
+    if(slab->sl_head) {
+        header = __align_ceil(sizeof(slab_t *), slab->sl_objsize);
 
-        slab->head[0] = slab;
-        slab->head = (void **)((uintptr_t)slab->head + header);
+        slab->sl_head[0] = slab;
+        slab->sl_head = (void **)((uintptr_t)slab->sl_head + header);
 
-        obj_count = (PAGE_SIZE - header) / slab->objsize;
-        obj_gap = slab->objsize / sizeof(void *);
+        obj_count = (PAGE_SIZE - header) / slab->sl_objsize;
+        obj_gap = slab->sl_objsize / sizeof(void *);
 
         for(i = 1; i < obj_count; i++)
-            slab->head[obj_gap * (i - 1)] = &slab->head[obj_gap * i];
-        slab->head[obj_gap * (obj_count - 1)] = NULL;
+            slab->sl_head[obj_gap * (i - 1)] = &slab->sl_head[obj_gap * i];
+        slab->sl_head[obj_gap * (obj_count - 1)] = NULL;
 
         return true;
     }
@@ -62,8 +62,8 @@ static bool expand_slab(slab_t *restrict slab)
 
 static void setup_slab(slab_t *restrict slab, size_t objsize)
 {
-    slab->head = NULL;
-    slab->objsize = __align_ceil(objsize, sizeof(void *));
+    slab->sl_head = NULL;
+    slab->sl_objsize = __align_ceil(objsize, sizeof(void *));
 
     if(!expand_slab(slab)) {
         // If there is not enough memory to set up basic
@@ -79,10 +79,10 @@ void *slab_alloc(size_t n)
     void *head_ptr;
 
     if(slab) {
-        if(!slab->head && !expand_slab(slab))
+        if(!slab->sl_head && !expand_slab(slab))
             return NULL;
-        head_ptr = slab->head;
-        slab->head = slab->head[0];
+        head_ptr = slab->sl_head;
+        slab->sl_head = slab->sl_head[0];
         return head_ptr;
     }
 
@@ -110,11 +110,11 @@ void *slab_realloc(void *restrict ptr, size_t n)
         if(new_ptr) {
             aligned_ptr = page_align_pointer(ptr);
             slab = ((slab_t **)aligned_ptr)[0];
-            memcpy(new_ptr, ptr, slab->objsize);
+            memcpy(new_ptr, ptr, slab->sl_objsize);
 
             head_ptr = ptr;
-            head_ptr[0] = slab->head;
-            slab->head = head_ptr;
+            head_ptr[0] = slab->sl_head;
+            slab->sl_head = head_ptr;
 
             return new_ptr;
         }
@@ -134,8 +134,8 @@ void slab_free(void *restrict ptr)
         slab = ((slab_t **)aligned_ptr)[0];
 
         head_ptr = ptr;
-        head_ptr[0] = slab->head;
-        slab->head = head_ptr;
+        head_ptr[0] = slab->sl_head;
+        slab->sl_head = head_ptr;
 
         // FIXME: if this slab_free() call was the one
         // that made a certain page fully slab_free, we

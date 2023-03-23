@@ -19,18 +19,18 @@
 #define GDT_64BIT       (1 << 1)
 
 typedef struct gdt_entry_s {
-    uint16_t limit_0;
-    uint16_t base_0;
-    uint8_t base_1;
-    uint8_t flags_0;
-    uint8_t limit_1 : 4;
-    uint8_t flags_1 : 4;
-    uint8_t base_2;
+    uint16_t g_limit_0;
+    uint16_t g_base_0;
+    uint8_t g_base_1;
+    uint8_t g_flags_0;
+    uint8_t g_limit_1 : 4;
+    uint8_t g_flags_1 : 4;
+    uint8_t g_base_2;
 } __packed gdt_entry_t;
 
 typedef struct gdt_register_s {
-    uint16_t size;
-    uintptr_t offset;
+    uint16_t g_size;
+    uintptr_t g_offset;
 } __packed gdt_register_t;
 
 static gdt_entry_t gdt[16] = { 0 };
@@ -39,32 +39,32 @@ static gdt_register_t gdtr = { 0 };
 static void set_entry_16(uint8_t id, uint32_t base, uint16_t limit, uint8_t flags)
 {
     gdt_entry_t entry = { 0 };
-    entry.limit_0 = limit;
-    entry.base_0 = base & 0xFFFF;
-    entry.base_1 = (base >> 16) & 0xFF;
-    entry.base_2 = (base >> 24) & 0xFF;
-    entry.flags_0 = flags | GDT_PRESENT;
+    entry.g_limit_0 = limit;
+    entry.g_base_0 = base & 0xFFFF;
+    entry.g_base_1 = (base >> 16) & 0xFF;
+    entry.g_base_2 = (base >> 24) & 0xFF;
+    entry.g_flags_0 = flags | GDT_PRESENT;
     memcpy(gdt + id, &entry, sizeof(entry));
 }
 
 static void set_entry_32(uint8_t id, uint32_t base, uint32_t limit, uint8_t flags)
 {
     gdt_entry_t entry = { 0 };
-    entry.limit_0 = limit & 0xFFFF;
-    entry.limit_1 = (limit >> 16) & 0x0F;
-    entry.base_0 = base & 0xFFFF;
-    entry.base_1 = (base >> 16) & 0xFF;
-    entry.base_2 = (base >> 24) & 0xFF;
-    entry.flags_0 = flags | GDT_PRESENT;
-    entry.flags_1 = GDT_4KIB_UNITS | GDT_32BIT;
+    entry.g_limit_0 = limit & 0xFFFF;
+    entry.g_limit_1 = (limit >> 16) & 0x0F;
+    entry.g_base_0 = base & 0xFFFF;
+    entry.g_base_1 = (base >> 16) & 0xFF;
+    entry.g_base_2 = (base >> 24) & 0xFF;
+    entry.g_flags_0 = flags | GDT_PRESENT;
+    entry.g_flags_1 = GDT_4KIB_UNITS | GDT_32BIT;
     memcpy(gdt + id, &entry, sizeof(entry));
 }
 
 static void set_entry_64(uint8_t id, uint8_t flags)
 {
     gdt_entry_t entry = { 0 };
-    entry.flags_0 = flags | GDT_PRESENT;
-    entry.flags_1 = GDT_64BIT;
+    entry.g_flags_0 = flags | GDT_PRESENT;
+    entry.g_flags_1 = GDT_64BIT;
     memcpy(gdt + id, &entry, sizeof(entry));
 }
 
@@ -84,8 +84,8 @@ static void init_gdt(void)
     set_entry_64(GDT_USER_CODE_64, code_flags | GDT_RING_3);
     set_entry_64(GDT_USER_DATA_64, data_flags | GDT_RING_3);
 
-    gdtr.size = (uint16_t)(sizeof(gdt) - 1);
-    gdtr.offset = (uintptr_t)(&gdt[0]);
+    gdtr.g_size = (uint16_t)(sizeof(gdt) - 1);
+    gdtr.g_offset = (uintptr_t)(&gdt[0]);
 
     asm volatile("lgdtq %0"::"m"(gdtr));
 
