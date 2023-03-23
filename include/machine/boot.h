@@ -7,14 +7,14 @@
 #include <stdint.h>
 #include <sys/initcall.h>
 
-#define MEMMAP_USABLE       0x0000 // x86-64 BIOS 0xE820
-#define MEMMAP_RESERVED     0x0001 // x86-64 BIOS 0xE820
-#define MEMMAP_ACPI_DATA    0x0002 // x86-64 BIOS 0xE820
-#define MEMMAP_ACPI_NVS     0x0003 // x86-64 BIOS 0xE820
-#define MEMMAP_BAD_MEMORY   0x0004 // x86-64 BIOS 0xE820
-#define MEMMAP_BOOTLOADER   0x0005 // Limine protocol
-#define MEMMAP_KERNEL       0x0006 // Limine protocol
-#define MEMMAP_FRAMEBUFFER  0x0007 // Limine protocol
+#define MEMMAP_USABLE       0x0000  // x86_64 BIOS 0xE820
+#define MEMMAP_RESERVED     0x0001  // x86_64 BIOS 0xE820
+#define MEMMAP_ACPI_DATA    0x0002  // x86_64 BIOS 0xE820
+#define MEMMAP_ACPI_NVS     0x0003  // x86_64 BIOS 0xE820
+#define MEMMAP_BAD_MEMORY   0x0004  // x86_64 BIOS 0xE820
+#define MEMMAP_BOOTLOADER   0x0005  // Limine protocol
+#define MEMMAP_KERNEL       0x0006  // Limine protocol
+#define MEMMAP_FRAMEBUFFER  0x0007  // Limine protocol
 
 // UNDONE: iterate_framebuffers_t
 typedef void (*iterate_memmap_t)(uintptr_t address, size_t n, unsigned short type, void *restrict arg);
@@ -35,6 +35,6 @@ void invalidate_boot_structures(void);
 int iterate_memmap(iterate_memmap_t callback, void *restrict arg);
 int iterate_modules(iterate_modules_t callback, void *restrict arg);
 
-initcall_extern(machine_boot);
+initcall_extern(boot);
 
 #endif/* __INCLUDE_MACHINE_BOOT_H__ */

@@ -164,4 +164,4 @@ static void init_pmem(void)
     iterate_memmap(&pmem_iterate_memmap, NULL);
 }
 early_initcall(pmem, init_pmem);
-initcall_dependency(pmem, machine_boot);
+initcall_dependency(pmem, boot);

@@ -167,4 +167,4 @@ static void init_machine_boot(void)
     kernel_base_virt = kernel_address_request.response->virtual_base;
 
 }
-early_initcall(machine_boot, init_machine_boot);
+early_initcall(boot, init_machine_boot);

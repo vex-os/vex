@@ -9,10 +9,10 @@
 #if defined(__x86_64__)
 #include <x86_64/page.h>
 #define PAGE_SIZE X86_PAGE_SIZE
-#define VMEM_RDWR X86_PTE_RDWR
-#define VMEM_USER X86_PTE_USER
-#define VMEM_WTHR X86_PTE_WTHR
-#define VMEM_NOEX X86_PTE_NOEX
+#define VMEM_READ_WRITE X86_VMEM_READ_WRITE
+#define VMEM_ALLOW_USER X86_VMEM_ALLOW_USER
+#define VMEM_WRITE_THRU X86_VMEM_WRITE_THRU
+#define VMEM_NO_EXECUTE X86_VMEM_NO_EXECUTE
 #else
 #warning Unknown architecture
 #define PAGE_SIZE 0x1000
