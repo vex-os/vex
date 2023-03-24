@@ -107,5 +107,8 @@ static void init_segment(void)
         lretq;
         1:;
     )::"i"(SEGMENT_SELECTOR(SEGMENT_KERN_CODE_64, 0, 0)));
+
+    kprintf("segment: gdtr.size=%zu", (size_t)gdtr.g_size);
+    kprintf("segment: gdtr.offset=%p", (void *)gdtr.g_offset);
 }
 early_initcall(segment, init_segment);

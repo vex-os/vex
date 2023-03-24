@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/interrupt.h>
+#include <sys/kprintf.h>
 #include <x86_64/inttab.h>
 #include <x86_64/segment.h>
 
@@ -64,6 +65,9 @@ static void init_inttab(void)
     idtr.i_offset = (uintptr_t)(&idt[0]);
 
     asm volatile("lidtq %0"::"m"(idtr));
+
+    kprintf("inttab: idtr.size=%zu", (size_t)idtr.i_size);
+    kprintf("inttab: idtr.offset=%p", (void *)idtr.i_offset);
 }
 early_initcall(inttab, init_inttab);
 initcall_dependency(inttab, inttab);

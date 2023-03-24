@@ -75,6 +75,7 @@ static void init_slab(slab_t *restrict slab, size_t objsize)
         // memory allocation structures, what's the point
         // for the kernel to continue functioning?
         panic("malloc: insufficient memory");
+        UNREACHABLE();
     }
 }
 

@@ -9,17 +9,9 @@
 #if defined(__x86_64__)
 #include <x86_64/page.h>
 #define PAGE_SIZE X86_PAGE_SIZE
-#define VMEM_READ_WRITE X86_VMEM_READ_WRITE
-#define VMEM_ALLOW_USER X86_VMEM_ALLOW_USER
-#define VMEM_WRITE_THRU X86_VMEM_WRITE_THRU
-#define VMEM_NO_EXECUTE X86_VMEM_NO_EXECUTE
 #else
 #warning Unknown architecture
 #define PAGE_SIZE 0x1000
-#define VMEM_RDWR 0x00000000
-#define VMEM_USER 0x00000000
-#define VMEM_WTHR 0x00000000
-#define VMEM_NOEX 0x00000000
 #endif
 
 static __always_inline inline uintptr_t page_align_address(uintptr_t address)

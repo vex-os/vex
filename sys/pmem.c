@@ -41,7 +41,7 @@ int pmem_add_memblock(uintptr_t address, size_t n)
     blocksize = __align_ceil(sizeof(pmem_block_t), sizeof(uint64_t));
     block->pm_bitmap.bm_data = (uint64_t *)((uintptr_t)block + blocksize);
 
-    // Memory block must be able to fit header and the bitmap
+    // Memory block must be able to fit the header plus the bitmap
     kassert((npages * PAGE_SIZE) >= (blocksize + block->pm_bitmap.bm_size));
 
     // Last page known to be free comes right after the bitmap's page

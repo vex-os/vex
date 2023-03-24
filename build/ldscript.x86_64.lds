@@ -19,35 +19,35 @@ SECTIONS
 {
     . = 0xFFFFFFFF80000000;
 
-    sys_text_start = .;
     .text ALIGN(CONSTANT(MAXPAGESIZE)) : {
+        sys_text_start = .;
         *(.text)
         *(.text.*)
+        sys_text_end = .;
     } :text
-    sys_text_end = .;
 
-    sys_rodata_start = .;
     .rodata ALIGN(CONSTANT(MAXPAGESIZE)) : {
+        sys_rodata_start = .;
         *(.rodata)
         __exports_begin = .;
         *(.rodata.exports)
         __exports_end = .;
         *(.rodata.*)
+        sys_rodata_end = .;
     } :rodata
-    sys_rodata_end = .;
 
-    sys_data_start = .;
     .data ALIGN(CONSTANT(MAXPAGESIZE)) : {
+        sys_data_start = .;
         *(.data)
         *(.data.*)
+        sys_data_end = .;
     } :data
-    sys_data_end = .;
 
-    sys_bss_start = .;
     .bss ALIGN(CONSTANT(MAXPAGESIZE)) : {
+        sys_bss_start = .;
         *(COMMON)
         *(.bss)
         *(.bss.*)
+        sys_bss_end = .;
     } :data
-    sys_bss_end = .;
 }
