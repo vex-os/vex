@@ -15,7 +15,7 @@ void __noreturn fpanic(const char *restrict file, unsigned long line, const char
 
 void __noreturn fvpanic(const char *restrict file, unsigned long line, const char *restrict fmt, va_list ap)
 {
-    disable_interrupts();
+    cpu_disable_interrupts();
 
     // Make sure all the consoles
     // that are still alive unblank
@@ -28,8 +28,8 @@ void __noreturn fvpanic(const char *restrict file, unsigned long line, const cha
     // print_backtrace(NULL);
 
     for(;;) {
-        idle();
-        disable_interrupts();
+        cpu_idle();
+        cpu_disable_interrupts();
         continue;
     }
 

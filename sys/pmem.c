@@ -8,25 +8,25 @@
 #include <sys/debug.h>
 #include <sys/pmem.h>
 
-typedef struct pmem_block_s {
-    struct pmem_block_s *pm_next;
+typedef struct memblock_s {
+    struct memblock_s *pm_next;
     bitmap_t pm_bitmap;
     uintptr_t pm_start_phys;
     uintptr_t pm_end_phys;
     size_t pm_last_free_page;
-} pmem_block_t;
+} memblock_t;
 
-static pmem_block_t *pmem_blocks = NULL;
-static size_t pmem_total_memory = 0;
-static size_t pmem_used_memory = 0;
+static memblock_t *memblocks = NULL;
+static size_t total_memory = 0;
+static size_t used_memory = 0;
 
-int pmem_add_memblock(uintptr_t address, size_t n)
+int pmem_add_memblock(uintptr_t address, size_t length)
 {
-    size_t npages = get_page_count(n);
+    size_t npages = get_page_count(length);
     size_t blocksize;
-    pmem_block_t *block;
+    memblock_t *block;
 
-    block = (pmem_block_t *)(address + hhdm_offset);
+    block = (memblock_t *)(address + hhdm_offset);
     block->pm_bitmap.bm_data = NULL;
     block->pm_start_phys = address;
     block->pm_end_phys = address + (npages * PAGE_SIZE);
@@ -38,7 +38,7 @@ int pmem_add_memblock(uintptr_t address, size_t n)
     // like a good idea since bitmap_t manages bits in chunks
     // of that specific size, so we find the first place within
     // the memory block that allows for that bitmap placement.
-    blocksize = __align_ceil(sizeof(pmem_block_t), sizeof(uint64_t));
+    blocksize = __align_ceil(sizeof(memblock_t), sizeof(uint64_t));
     block->pm_bitmap.bm_data = (uint64_t *)((uintptr_t)block + blocksize);
 
     // Memory block must be able to fit the header plus the bitmap
@@ -54,23 +54,23 @@ int pmem_add_memblock(uintptr_t address, size_t n)
     bitmap_clear_range(&block->pm_bitmap, 0, block->pm_bitmap.bm_nbits - 1);
     bitmap_set_range(&block->pm_bitmap, block->pm_last_free_page, npages - 1);
 
-    pmem_total_memory += (npages * PAGE_SIZE);
-    pmem_used_memory += (blocksize + block->pm_bitmap.bm_size);
+    total_memory += (npages * PAGE_SIZE);
+    used_memory += (blocksize + block->pm_bitmap.bm_size);
 
-    block->pm_next = pmem_blocks;
-    pmem_blocks = block;
+    block->pm_next = memblocks;
+    memblocks = block;
 
     return 0;
 }
 
 size_t pmem_get_total_memory(void)
 {
-    return pmem_total_memory;
+    return total_memory;
 }
 
 size_t pmem_get_used_memory(void)
 {
-    return pmem_used_memory;
+    return used_memory;
 }
 
 static bool try_occupy_range(bitmap_t *restrict bitmap, size_t a, size_t b)
@@ -92,13 +92,13 @@ static bool try_occupy_range(bitmap_t *restrict bitmap, size_t a, size_t b)
 uintptr_t pmem_alloc(size_t npages)
 {
     size_t i;
-    pmem_block_t *block;
+    memblock_t *block;
 
-    for(block = pmem_blocks; block; block = block->pm_next) {
+    for(block = memblocks; block; block = block->pm_next) {
         for(i = block->pm_last_free_page; i < block->pm_bitmap.bm_nbits; i++) {
             if(try_occupy_range(&block->pm_bitmap, i, i + npages - 1)) {
                 block->pm_last_free_page = i + 1;
-                pmem_used_memory += npages * PAGE_SIZE;
+                used_memory += npages * PAGE_SIZE;
                 return block->pm_start_phys + i * PAGE_SIZE;
             }
         }
@@ -106,7 +106,7 @@ uintptr_t pmem_alloc(size_t npages)
         for(i = 0; i < block->pm_last_free_page; i++) {
             if(try_occupy_range(&block->pm_bitmap, i, i + npages - 1)) {
                 block->pm_last_free_page = i + 1;
-                pmem_used_memory += npages * PAGE_SIZE;
+                used_memory += npages * PAGE_SIZE;
                 return block->pm_start_phys + i * PAGE_SIZE;
             }
         }
@@ -126,17 +126,17 @@ void *pmem_alloc_virt(size_t npages)
 void pmem_free(uintptr_t address, size_t npages)
 {
     size_t page;
-    pmem_block_t *block;
+    memblock_t *block;
 
     if(address) {
         address = page_align_address(address);
 
-        for(block = pmem_blocks; block; block = block->pm_next) {
+        for(block = memblocks; block; block = block->pm_next) {
             if(address >= block->pm_start_phys && address < block->pm_end_phys) {
                 page = (address - block->pm_start_phys) / PAGE_SIZE;
                 bitmap_clear_range(&block->pm_bitmap, page, page + npages - 1);
                 block->pm_last_free_page = page;
-                pmem_used_memory -= npages * PAGE_SIZE;
+                used_memory -= npages * PAGE_SIZE;
                 return;
             }
         }

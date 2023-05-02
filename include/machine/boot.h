@@ -16,6 +16,9 @@
 #define MEMMAP_KERNEL       0x0006  // Limine protocol
 #define MEMMAP_FRAMEBUFFER  0x0007  // Limine protocol
 
+#define BOOTOPT_X86_PML5    0x0001  // X86.PML5 virtual memory
+#define BOOTOPT_RV64_SV5    0x0001  // RV64.SV5 virtual memory
+
 // UNDONE: iterate_framebuffers_t
 typedef void (*iterate_memmap_t)(uintptr_t address, size_t n, unsigned short type, void *restrict arg);
 typedef void (*iterate_modules_t)(const char *restrict path, const void *restrict s, size_t n, void *restrict arg);
@@ -23,9 +26,10 @@ typedef void (*iterate_modules_t)(const char *restrict path, const void *restric
 extern uintptr_t hhdm_offset;
 extern uintptr_t kernel_base_phys;
 extern uintptr_t kernel_base_virt;
+extern unsigned short bootopts;
 
-// When the kernel transitions to userspace,
-// the memory occupied by bootloader is reclaimed
+// When the system transitions to userspace stage,
+// the memory occupied by the bootloader is reclaimed
 // via iterate_memmap() and then this function is called,
 // invalidating any non-portable bootloader data, and by
 // consequence, making future iterate_xxx() calls invalid.

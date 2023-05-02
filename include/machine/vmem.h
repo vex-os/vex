@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2023, KanOS Contributors */
-#ifndef __INCLUDE_MACHINE_VMEM_H__
-#define __INCLUDE_MACHINE_VMEM_H__
+#ifndef __INCLUDE_MACHINE_VM_H__
+#define __INCLUDE_MACHINE_VM_H__
 #include <stdint.h>
 #include <sys/cdefs.h>
 #include <sys/initcall.h>
@@ -25,31 +25,15 @@ typedef struct address_space_s {
     void *vm_table;
 } address_space_t;
 
-// Defined by the linker script
-// FIXME: move this to a separate header
-extern const char sys_text_start[];
-extern const char sys_text_end[];
-extern const char sys_rodata_start[];
-extern const char sys_rodata_end[];
-extern const char sys_data_start[];
-extern const char sys_data_end[];
-extern const char sys_bss_start[];
-extern const char sys_bss_end[];
-
-// Kernel's own address space
-extern address_space_t *sys_vm;
+extern address_space_t *sys_space;
 
 address_space_t *vmem_alloc(void);
-address_space_t *vmem_fork(address_space_t *restrict vm);
-void vmem_free(address_space_t *restrict vm);
-void vmem_switch_to(address_space_t *restrict vm);
-int vmem_map_page(address_space_t *restrict vm, uintptr_t virt, uintptr_t phys, uint64_t flags);
-int vmem_map_range(address_space_t *restrict vm, uintptr_t start, uintptr_t end, uintptr_t phys, uint64_t flags);
-int vmem_reflag_page(address_space_t *restrict vm, uintptr_t virt, uint64_t flags);
-int vmem_unmap_page(address_space_t *restrict vm, uintptr_t virt);
-int vmem_unmap_range(address_space_t *restrict vm, uintptr_t start, uintptr_t end);
-uintptr_t vmem_resolve(address_space_t *restrict vm, uintptr_t virt);
+address_space_t *vmem_copy(address_space_t *restrict space);
+void vmem_free(address_space_t *restrict space);
+void vmem_switch_to(address_space_t *restrict space);
+int vmem_map(address_space_t *restrict space, uintptr_t virt, uintptr_t phys, uintmax_t flags);
+int vmem_unmap(address_space_t *restrict space, uintptr_t virt);
 
 initcall_extern(vmem);
 
-#endif/* __INCLUDE_MACHINE_VMEM_H__ */
+#endif/* __INCLUDE_MACHINE_VM_H__ */

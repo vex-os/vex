@@ -11,24 +11,24 @@ typedef struct x86_cpu_ctx_s {
     uint64_t err, rip, cs, rflags, rsp, ss;
 } __packed x86_cpu_ctx_t;
 
-static __always_inline inline const uintptr_t *x86_get_baseptr(void)
+static __always_inline inline const uintptr_t *x86_cpu_get_baseptr(void)
 {
     const uintptr_t *baseptr;
     asm volatile("movq %%rbp, %0":"=r"(baseptr)::"memory");
     return baseptr;
 }
 
-static __always_inline inline void x86_disable_interrupts(void)
+static __always_inline inline void x86_cpu_disable_interrupts(void)
 {
     asm volatile("cli");
 }
 
-static __always_inline inline void x86_enable_interrupts(void)
+static __always_inline inline void x86_cpu_enable_interrupts(void)
 {
     asm volatile("sti");
 }
 
-static __always_inline inline void x86_idle(void)
+static __always_inline inline void x86_cpu_idle(void)
 {
     asm volatile("hlt");
 }

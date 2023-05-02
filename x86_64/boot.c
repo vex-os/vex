@@ -8,6 +8,12 @@
 #include <sys/kprintf.h>
 #include <sys/pmem.h>
 
+static volatile struct limine_5_level_paging_request PML5_request = {
+    .id = LIMINE_5_LEVEL_PAGING_REQUEST,
+    .revision = 0,
+    .response = NULL,
+};
+
 // Required for hhdm_offset
 static volatile struct limine_hhdm_request hhdm_request = {
     .id = LIMINE_HHDM_REQUEST,
@@ -47,6 +53,7 @@ static volatile struct limine_terminal_request terminal_request = {
 uintptr_t hhdm_offset = 0;
 uintptr_t kernel_base_phys = 0;
 uintptr_t kernel_base_virt = 0;
+unsigned short bootopts = 0;
 
 // Bootloader console/limine_terminal
 static console_t boot_console = { 0 };
@@ -166,5 +173,9 @@ static void init_machine_boot(void)
     kernel_base_phys = kernel_address_request.response->physical_base;
     kernel_base_virt = kernel_address_request.response->virtual_base;
 
+    if(PML5_request.response) {
+        // 5-level paging is available
+        bootopts |= BOOTOPT_X86_PML5;
+    }
 }
 early_initcall(boot, init_machine_boot);

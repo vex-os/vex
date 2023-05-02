@@ -37,9 +37,9 @@ static void test_kernel_stuff(void)
     kprintf("malloc test 2: p1=%p p3=%p", p1, p3);
     free(p2);
     free(p3);
-    p1 = pmem_alloc_page_virt();
-    kprintf("pmem_alloc_page_virt test 3: p1=%p", p1);
-    pmem_free_page_virt(p1);
+    p1 = pmem_alloc_virt_page();
+    kprintf("pmem_alloc_virt_page test 3: p1=%p", p1);
+    pmem_free_virt_page(p1);
 }
 
 void __used __noreturn kmain(void)

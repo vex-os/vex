@@ -44,7 +44,7 @@ static bool try_expand_slab(slab_t *restrict slab)
     kassert(slab->sl_objsize % sizeof(void *) == 0);
 
     // Allocate a new page for the slab
-    slab->sl_head = pmem_alloc_page_virt();
+    slab->sl_head = pmem_alloc_virt_page();
 
     if(slab->sl_head) {
         hsize = __align_ceil(sizeof(slab_t *), slab->sl_objsize);
