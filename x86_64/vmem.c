@@ -173,7 +173,7 @@ static void vmem_iterate_memmap(uintptr_t address, size_t n, unsigned short type
     uintptr_t start;
     uintptr_t end;
 
-    kprintf("memmap: type=%04hX, address=%p, n=%zu", type, (void *)address, n);
+    kprintf("memmap: type=%04hX, address=[%p %p]", type, (void *)address, (void *)(address + n - 1));
 
     if(type != MEMMAP_RESERVED && type != MEMMAP_BAD_MEMORY) {
         start = page_align_address(address);
@@ -182,8 +182,8 @@ static void vmem_iterate_memmap(uintptr_t address, size_t n, unsigned short type
         if(end > GiB(4)) {
             for(addr = start; addr < end; addr += PAGE_SIZE) {
                 if(addr > GiB(4)) {
-                    kassert(vmem_map(sys_space, addr, addr, VM_WRITEABLE));
-                    kassert(vmem_map(sys_space, addr + hhdm_offset, addr, VM_WRITEABLE | VM_NOEXECUTE));
+                    kassert(vmem_map(sys_space, addr, addr, VM_WRITEABLE) == 0);
+                    kassert(vmem_map(sys_space, addr + hhdm_offset, addr, VM_WRITEABLE | VM_NOEXECUTE) == 0);
                 }
             }
         }
