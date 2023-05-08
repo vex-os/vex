@@ -1,6 +1,6 @@
 #!/bin/sh
 qargs=
-qargs="${qargs} -cdrom ${PWD}/temp/kernel.iso"
+qargs="${qargs} -cdrom ${PWD}/build/kernel.iso"
 qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -machine type=q35"
 qargs="${qargs} -vga std"

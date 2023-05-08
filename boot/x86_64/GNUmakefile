@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: BSD-2-Clause 
 # Copyright (c), 2022, KanOS Contributors
 BOOT_C99 ?= c99
-BOOT_DEPLOY ?= $(TEMP_DIR)/limine-deploy
+BOOT_DEPLOY ?= $(BUILD_DIR)/limine-deploy
 BOOT_XORRISO ?= xorriso
 
-BOOT_DIR := $(TEMP_DIR)/sysroot
-BOOT_IMAGE := $(TEMP_DIR)/kernel.iso
+BOOT_DIR := $(BUILD_DIR)/sysroot
+BOOT_IMAGE := $(BUILD_DIR)/kernel.iso
 
 BOOT_FILES :=
 BOOT_FILES += boot/x86_64/limine-cd-efi.bin
@@ -22,14 +22,14 @@ PHONY_TARGETS += boot_dirs
 PHONY_TARGETS += boot_image
 ALL_DEPS += boot_image
 
-boot_dirs: $(BOOT_FILES) | $(TEMP_DIR)
+boot_dirs: $(BOOT_FILES) | $(BUILD_DIR)
 	$(MKDIR) -p $(BOOT_DIR)
 	$(MKDIR) -p $(BOOT_DIR)/boot
 	$(CP) $^ $(BOOT_DIR)/boot
 
 boot_image: $(BOOT_IMAGE)
 
-$(BOOT_DEPLOY): boot/x86_64/limine-deploy.c | boot/x86_64/limine-hdd.h $(TEMP_DIR)
+$(BOOT_DEPLOY): boot/x86_64/limine-deploy.c | boot/x86_64/limine-hdd.h $(BUILD_DIR)
 	$(BOOT_C99) -Wall -Wextra -Werror -pedantic -o $@ boot/x86_64/limine-deploy.c
 
 $(BOOT_IMAGE): $(BOOT_DEPLOY) boot_dirs force_run

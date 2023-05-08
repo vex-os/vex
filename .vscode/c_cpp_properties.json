@@ -5,7 +5,10 @@
             "name": "KanOS Clang/AMD64",
             "intelliSenseMode": "clang-x64",
             "defines": [ "__x86_64__", "__kernel__" ],
-            "includePath": [ "${workspaceFolder}/include", "${workspaceFolder}/usr.include" ],
+            "includePath": [
+                "${workspaceFolder}",
+                "${workspaceFolder}/lib",
+                "${workspaceFolder}/usr.include" ],
             "compilerArgs": [ "-ffreestanding", "-nostdlibinc", "-nostdlib" ],
             "compilerPath": "/usr/bin/clang",
             "cStandard": "gnu99"

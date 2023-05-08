@@ -1,14 +1,14 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2023, KanOS Contributors */
-#ifndef __USR_INCLUDE_KAN_ERRNO_H__
-#define __USR_INCLUDE_KAN_ERRNO_H__
+/* Copyright (c) 2023, KanOS Contributors */
+#ifndef __USR_INCLUDE_SYS_ERRNO_H__
+#define __USR_INCLUDE_SYS_ERRNO_H__
 
-// ISO/IEC 9899:1999 definitions
+/* ISO/IEC 9899:1999 definitions */
 #define EDOM            1
 #define EILSEQ          2
 #define ERANGE          3
 
-// IEEE Std 1003.1-2017 definitions
+/* IEEE Std 1003.1-2017 definitions */
 #define E2BIG           101
 #define EACCES          102
 #define EADDRINUSE      103
@@ -86,4 +86,4 @@
 #define EWOULDBLOCK     175
 #define EXDEV           176
 
-#endif /* __USR_INCLUDE_KAN_ERRNO_H__ */
+#endif /* __USR_INCLUDE_SYS_ERRNO_H__ */

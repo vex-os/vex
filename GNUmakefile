@@ -18,22 +18,22 @@ CLEAN_0 :=
 CLEAN_1 :=
 ALL_DEPS :=
 
-# Build directories
-TEMP_DIR := temp
+BUILD_DIR := build
+MACH_DIR := machine
 
 # Machine makefile provides compiler options
 # that are common across toolchains and defines
 # the following variables:
 #	CLANG_TARGET - Clang target argument (eg. x86_64-none-elf)
 #	GCC_TARGET - GNU CC target triplet (eg. x86_64-elf-unknown)
-include build/machine.$(MACHINE).mk
+include machine.$(MACHINE).mk
 
 # Toolchain makefile provides compiler options
 # that are unique to the specific toolchain and
 # re-defines the following variables:
 #	CC - A C compiler (GNU CC compatible, can compile assembly)
 #	LD - An object file linker
-include build/toolchain.$(TOOLCHAIN).mk
+include toolchain.$(TOOLCHAIN).mk
 
 # Kernel CFLAGS
 CFLAGS += -ffreestanding
@@ -45,39 +45,33 @@ CFLAGS += -O2
 
 # Kernel CPPFLAGS
 CPPFLAGS += -D __kernel__
-CPPFLAGS += -I include
+CPPFLAGS += -I .
+CPPFLAGS += -I lib
 CPPFLAGS += -I usr.include
 
 # Kernel LDFLAGS
 LDFLAGS += -static
 LDFLAGS += -nostdlib
 
-%.c.o: %.c | $(TEMP_DIR)
+%.c.o: %.c | build_dirs
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
-%.S.o: %.S | $(TEMP_DIR)
+%.S.o: %.S | build_dirs
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
-%.s.o: %.s | $(TEMP_DIR)
+%.s.o: %.s | build_dirs
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 SEARCH :=
-SEARCH += $(MACHINE)
-SEARCH += lib/bitmap
-SEARCH += lib/ctype
-SEARCH += lib/printf
-SEARCH += lib/stdlib
-SEARCH += lib/string
-SEARCH += lib/strings
-SEARCH += lib/strtoi
-SEARCH += lib/wchar
+SEARCH += machine
+SEARCH += lib
 SEARCH += sys
 
 # Generated objects/sources
-VERSION_C := $(TEMP_DIR)/version.c
-INITCALLS_C := $(TEMP_DIR)/initcalls.c
-INITCALLS_O := $(TEMP_DIR)/initcalls.o
-KERNEL_BINARY := $(TEMP_DIR)/kernel.elf
-KERNEL_NOINIT := $(TEMP_DIR)/kernel_noinit.o
-LDSCRIPT := $(TEMP_DIR)/ldscript.ld
+VERSION_C := $(BUILD_DIR)/version.c
+INITCALLS_C := $(BUILD_DIR)/initcalls.c
+INITCALLS_O := $(BUILD_DIR)/initcalls.o
+KERNEL_BINARY := $(BUILD_DIR)/kernel.elf
+KERNEL_NOINIT := $(BUILD_DIR)/kernel_noinit.o
+LDSCRIPT := $(BUILD_DIR)/ldscript.ld
 
 # Gather sources
 SOURCES += $(VERSION_C)
@@ -89,7 +83,8 @@ SOURCES += $(wildcard $(addsuffix /*.s,$(SEARCH)))
 OBJECTS += $(addsuffix .o,$(SOURCES))
 
 # DISTCLEAN list
-CLEAN_1 += $(TEMP_DIR)
+CLEAN_1 += $(BUILD_DIR)
+CLEAN_1 += $(MACH_DIR)
 
 # CLEAN list
 CLEAN_0 += $(OBJECTS)
@@ -102,7 +97,7 @@ CLEAN_0 += $(LDSCRIPT)
 PHONY_TARGETS :=
 PHONY_TARGETS += all
 PHONY_TARGETS += kernel clean distclean
-PHONY_TARGETS += force_run
+PHONY_TARGETS += force_run build_dirs
 ALL_DEPS += kernel
 
 -include boot/$(MACHINE)/GNUmakefile
@@ -118,22 +113,27 @@ distclean:
 	$(RM) -vrf $(CLEAN_0)
 	$(RM) -vrf $(CLEAN_1)
 
-$(TEMP_DIR):
-	$(MKDIR) -p $(TEMP_DIR)
+$(BUILD_DIR):
+	$(MKDIR) -p $(BUILD_DIR)
+
+$(MACH_DIR):
+	$(LN) -sf $(MACHINE) $(MACH_DIR)
 
 force_run:
 
-$(VERSION_C): $(TEMP_DIR)
-	$(SHELL) build/gen.version.sh $(VERSION) $(MACHINE) > $@
+build_dirs: $(BUILD_DIR) $(MACH_DIR)
 
-$(INITCALLS_C): $(KERNEL_NOINIT) | $(TEMP_DIR)
-	$(SHELL) build/gen.initcalls.sh $^ > $@
+$(VERSION_C): $(BUILD_DIR)
+	$(SHELL) tools/gen.version.sh $(VERSION) $(MACHINE) > $@
 
-$(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) $(TEMP_DIR)
+$(INITCALLS_C): $(KERNEL_NOINIT) | $(BUILD_DIR)
+	$(SHELL) tools/gen.initcalls.sh $^ > $@
+
+$(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) $(BUILD_DIR)
 	$(LD) $(LDFLAGS) -T $(LDSCRIPT) -o $@ $^
 
-$(KERNEL_NOINIT): $(OBJECTS) | $(TEMP_DIR)
+$(KERNEL_NOINIT): $(OBJECTS) | $(BUILD_DIR)
 	$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(LDSCRIPT): build/ldscript.$(MACHINE).lds | $(TEMP_DIR)
+$(LDSCRIPT):ldscript.$(MACHINE).lds | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | $(GREP) -v "^#" > $@ || $(TRUE)

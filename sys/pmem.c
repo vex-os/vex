@@ -1,66 +1,102 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c), 2023, KanOS Contributors */
-#include <bitmap.h>
-#include <kan/errno.h>
-#include <machine/boot.h>
-#include <machine/page.h>
-#include <string.h>
-#include <sys/debug.h>
+/* Copyright (c) 2023, KanOS Contributors */
+#include <stdbool.h>
+#include <sys/page.h>
 #include <sys/pmem.h>
+#include <sys/systm.h>
 
 typedef struct memblock_s {
-    struct memblock_s *pm_next;
-    bitmap_t pm_bitmap;
-    uintptr_t pm_start_phys;
-    uintptr_t pm_end_phys;
-    size_t pm_last_free_page;
+    struct memblock_s *next;
+    unsigned short type;
+    uintptr_t start;
+    uintptr_t end;
+    size_t last_free;
+    size_t bitmap_bits;
+    size_t bitmap_size;
+    uint64_t *bitmap;
 } memblock_t;
 
 static memblock_t *memblocks = NULL;
 static size_t total_memory = 0;
 static size_t used_memory = 0;
 
-int pmem_add_memblock(uintptr_t address, size_t length)
+static void clear_range(memblock_t *restrict block, size_t a, size_t b)
 {
-    size_t npages = get_page_count(length);
+    size_t i;
+    size_t ax = __align_ceil(a, 64);
+    size_t bx = __align_floor(b, 64);
+    size_t axi = ax / 64;
+    size_t bxi = bx / 64;
+    for(i = a; i < ax; block->bitmap[axi - 1] &= ~(1 << (i++ % 64)));
+    if(bxi >= axi)
+        for(i = bx + 1; i <= b; block->bitmap[bxi] &= ~(1 << (i++ % 64)));
+    for(i = axi; i < bxi; block->bitmap[i++] = UINT64_C(0x0000000000000000));
+}
+
+static void set_range(memblock_t *restrict block, size_t a, size_t b)
+{
+    size_t i;
+    size_t ax = __align_ceil(a, 64);
+    size_t bx = __align_floor(b, 64);
+    size_t axi = ax / 64;
+    size_t bxi = bx / 64;
+    for(i = a; i < ax; block->bitmap[axi - 1] |= (1 << (i++ % 64)));
+    if(bxi >= axi)
+        for(i = bx + 1; i <= b; block->bitmap[bxi] |= (1 << (i++ % 64)));
+    for(i = axi; i < bxi; block->bitmap[i++] = UINT64_C(0xFFFFFFFFFFFFFFFF));
+}
+
+static bool try_occupy_range(memblock_t *restrict block, size_t a, size_t b)
+{
+    size_t i;
+    size_t j;
+    uint64_t mask;
+
+    for(i = a; i <= b; ++i) {
+        j = (i / 64);
+        mask = (1 << (i % 64));
+
+        if(block->bitmap[j] & mask) {
+            block->bitmap[j] &= ~mask;
+            continue;
+        }
+
+        if(i > a)
+            set_range(block, a, i - 1);
+        return false;
+    }
+
+    return true;
+}
+
+void pmem_add_memblock(uintptr_t address, size_t npages)
+{
     size_t blocksize;
     memblock_t *block;
 
-    block = (memblock_t *)(address + hhdm_offset);
-    block->pm_bitmap.bm_data = NULL;
-    block->pm_start_phys = address;
-    block->pm_end_phys = address + (npages * PAGE_SIZE);
+    block = (memblock_t *)(address + highmem_offset);
+    block->start = address;
+    block->end = address + npages * PAGE_SIZE;
+    block->bitmap_bits = __align_ceil(npages, 64);
+    block->bitmap_size = block->bitmap_bits / 8;
 
-    bitmap_init(&block->pm_bitmap, npages);
-
-    // For potentially better performance the bitmap must
-    // be aligned to a boundary of sorts and uint64_t seems
-    // like a good idea since bitmap_t manages bits in chunks
-    // of that specific size, so we find the first place within
-    // the memory block that allows for that bitmap placement.
     blocksize = __align_ceil(sizeof(memblock_t), sizeof(uint64_t));
-    block->pm_bitmap.bm_data = (uint64_t *)((uintptr_t)block + blocksize);
+    block->bitmap = (uint64_t *)(address + highmem_offset + blocksize);
+    block->last_free = get_page_count(blocksize + block->bitmap_size);
 
-    // Memory block must be able to fit the header plus the bitmap
-    kassert((npages * PAGE_SIZE) >= (blocksize + block->pm_bitmap.bm_size));
+    kassert((npages * PAGE_SIZE) >= (blocksize + block->bitmap_size));
 
-    // Last page known to be free comes right after the bitmap's page
-    block->pm_last_free_page = get_page_count(blocksize + block->pm_bitmap.bm_size);
+    /* Pages in a bitmap may not be present physically since the
+     * bitmap's floor of size is 64 (it uses 64-bit chunks), so
+     * when initializing, all the pages are guilty until proven innocent. */
+    clear_range(block, 0, block->bitmap_bits - 1);
+    set_range(block, block->last_free, npages - 1);
 
-    // bitmap_init() has possibly aligned npages value to be a multiple
-    // of 64 (since bitmap cannot hold less than 64 bits by design), so
-    // we first assume all pages are non-present or occupied and then mark
-    // actually present and free pages as free to use.
-    bitmap_clear_range(&block->pm_bitmap, 0, block->pm_bitmap.bm_nbits - 1);
-    bitmap_set_range(&block->pm_bitmap, block->pm_last_free_page, npages - 1);
+    total_memory += npages * PAGE_SIZE;
+    used_memory += blocksize + block->bitmap_size;
 
-    total_memory += (npages * PAGE_SIZE);
-    used_memory += (blocksize + block->pm_bitmap.bm_size);
-
-    block->pm_next = memblocks;
+    block->next = memblocks;
     memblocks = block;
-
-    return 0;
 }
 
 size_t pmem_get_total_memory(void)
@@ -73,41 +109,25 @@ size_t pmem_get_used_memory(void)
     return used_memory;
 }
 
-static bool try_occupy_range(bitmap_t *restrict bitmap, size_t a, size_t b)
-{
-    size_t i;
-    for(i = a; i <= b; i++) {
-        if(!bitmap_read(bitmap, i)) {
-            if(i > a)
-                bitmap_set_range(bitmap, a, i - 1);
-            return false;
-        }
-
-        bitmap_clear(bitmap, i);
-    }
-
-    return true;
-}
-
 uintptr_t pmem_alloc(size_t npages)
 {
     size_t i;
     memblock_t *block;
 
-    for(block = memblocks; block; block = block->pm_next) {
-        for(i = block->pm_last_free_page; i < block->pm_bitmap.bm_nbits; i++) {
-            if(try_occupy_range(&block->pm_bitmap, i, i + npages - 1)) {
-                block->pm_last_free_page = i + 1;
+    for(block = memblocks; block; block = block->next) {
+        for(i = block->last_free; i < block->bitmap_bits; i++) {
+            if(try_occupy_range(block, i, i + npages - 1)) {
+                block->last_free = i + 1;
                 used_memory += npages * PAGE_SIZE;
-                return block->pm_start_phys + i * PAGE_SIZE;
+                return block->start + i * PAGE_SIZE;
             }
         }
 
-        for(i = 0; i < block->pm_last_free_page; i++) {
-            if(try_occupy_range(&block->pm_bitmap, i, i + npages - 1)) {
-                block->pm_last_free_page = i + 1;
+        for(i = 0; i < block->last_free; i++) {
+            if(try_occupy_range(block, i, i + npages - 1)) {
+                block->last_free = i + 1;
                 used_memory += npages * PAGE_SIZE;
-                return block->pm_start_phys + i * PAGE_SIZE;
+                return block->start + i * PAGE_SIZE;
             }
         }
     }
@@ -115,11 +135,11 @@ uintptr_t pmem_alloc(size_t npages)
     return 0;
 }
 
-void *pmem_alloc_virt(size_t npages)
+void *pmem_alloc_highmem(size_t npages)
 {
     uintptr_t address = pmem_alloc(npages);
     if(address)
-        return (void *)(address + hhdm_offset);
+        return (void *)(address + highmem_offset);
     return NULL;
 }
 
@@ -131,11 +151,11 @@ void pmem_free(uintptr_t address, size_t npages)
     if(address) {
         address = page_align_address(address);
 
-        for(block = memblocks; block; block = block->pm_next) {
-            if(address >= block->pm_start_phys && address < block->pm_end_phys) {
-                page = (address - block->pm_start_phys) / PAGE_SIZE;
-                bitmap_clear_range(&block->pm_bitmap, page, page + npages - 1);
-                block->pm_last_free_page = page;
+        for(block = memblocks; block; block = block->next) {
+            if(address >= block->start && address < block->end) {
+                page = (address - block->start) / PAGE_SIZE;
+                clear_range(block, page, page + npages - 1);
+                block->last_free = page;
                 used_memory -= npages * PAGE_SIZE;
                 return;
             }
@@ -143,25 +163,9 @@ void pmem_free(uintptr_t address, size_t npages)
     }
 }
 
-void pmem_free_virt(void *restrict ptr, size_t npages)
+void pmem_free_highmem(void *restrict ptr, size_t npages)
 {
     if(ptr == NULL)
         return;
-    pmem_free(((uintptr_t)ptr - hhdm_offset), npages);
+    pmem_free(((uintptr_t)ptr - highmem_offset), npages);
 }
-
-// iterate_memmap callback
-static void pmem_iterate_memmap(uintptr_t address, size_t n, unsigned short type, void *restrict arg)
-{
-    if(type == MEMMAP_USABLE) {
-        // FIXME: reclaim memory in the same way
-        pmem_add_memblock(address, n);
-    }
-}
-
-static void init_pmem(void)
-{
-    iterate_memmap(&pmem_iterate_memmap, NULL);
-}
-early_initcall(pmem, init_pmem);
-initcall_dependency(pmem, boot);
