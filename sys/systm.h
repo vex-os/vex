@@ -3,14 +3,30 @@
 #ifndef __SYS_SYSTM_H__
 #define __SYS_SYSTM_H__
 #include <stdarg.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <sys/cdefs.h>
 
-#define BOOTFLAG_VMM_L3 0x0001
-#define BOOTFLAG_VMM_L4 0x0002
-#define BOOTFLAG_VMM_L5 0x0004
+#define BOOTFLAG_VMM_PML3 0x0001
+#define BOOTFLAG_VMM_PML4 0x0002
+#define BOOTFLAG_VMM_PML5 0x0004
 
-/* $(BUILD_DIR)/version.c */
+#define MEMMAP_USABLE       0x0000 /* x86_64 BIOS 0xE820 */
+#define MEMMAP_RESERVED     0x0001 /* x86_64 BIOS 0xE820 */
+#define MEMMAP_ACPI_DATA    0x0002 /* x86_64 BIOS 0xE820 */
+#define MEMMAP_ACPI_NVS     0x0003 /* x86_64 BIOS 0xE820 */
+#define MEMMAP_BAD_MEMORY   0x0004 /* x86_64 BIOS 0xE820 */
+#define MEMMAP_BOOTLOADER   0x0005 /* Limine protocol */
+#define MEMMAP_KERNEL       0x0006 /* Limine protocol */
+#define MEMMAP_FRAMEBUFFER  0x0007 /* Limine protocol */
+
+typedef struct memmap_s {
+    unsigned short type;
+    uintptr_t address;
+    size_t length;
+} memmap_t;
+
+/* $(TEMP_DIR)/version.c */
 extern const char build_date[];
 extern const char machine_string[];
 extern const char git_revision[];
@@ -25,6 +41,8 @@ extern const char data_end[];
 extern const char bss_start[];
 extern const char bss_end[];
 
+extern memmap_t *memmap;
+extern size_t memmap_size;
 extern uintptr_t highmem_offset;
 extern uintptr_t kernel_base_phys;
 extern uintptr_t kernel_base_virt;

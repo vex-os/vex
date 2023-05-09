@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <sys/systm.h>
+#include <sys/vmm.h>
 #include <x86_64/gdt.h>
 
 #define GDT_READWRITE   (1 << 1)
@@ -111,3 +112,4 @@ static void init_gdt(void)
     kprintf("gdt: gdtr.offset=%p", (void *)gdtr.offset);
 }
 early_initcall(gdt, init_gdt);
+initcall_dependency(gdt, vmm);

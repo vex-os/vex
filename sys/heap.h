@@ -12,6 +12,6 @@ void *calloc(size_t count, size_t n);
 void *realloc(void *restrict ptr, size_t n);
 void free(void *restrict ptr);
 
-initcall_extern(malloc);
+initcall_extern(heap);
 
 #endif /* __SYS_HEAP_H__ */

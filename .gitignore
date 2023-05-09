@@ -1,7 +1,9 @@
 .vscode/*
 !.vscode/c_cpp_properties.json
-build/*
 machine/*
+machine
+temp/*
+temp
 *.c.o
 *.S.o
 *.s.o

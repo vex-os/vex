@@ -4,6 +4,7 @@
 #include <string.h>
 #include <sys/interrupt.h>
 #include <sys/systm.h>
+#include <sys/vmm.h>
 #include <x86_64/gdt.h>
 #include <x86_64/idt.h>
 
@@ -31,7 +32,7 @@ typedef struct idt_register_s {
 static idt_entry_t idt[MAX_INTERRUPTS] = { 0 };
 static idt_register_t idtr = { 0 };
 
-/* $(BUILD_DIR)/x86_64.isr_stubs.S */
+/* $(TEMP_DIR)/x86_64.isr_stubs.S */
 extern const uint64_t isr_stubs[MAX_INTERRUPTS];
 
 void __used isr_handler(cpu_ctx_t *restrict ctx, uint64_t vector)
@@ -71,3 +72,4 @@ static void init_idt(void)
 }
 early_initcall(idt, init_idt);
 initcall_dependency(idt, gdt);
+initcall_dependency(idt, vmm);

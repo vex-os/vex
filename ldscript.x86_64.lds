@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c), 2022, KanOS Contributors */
 OUTPUT_FORMAT(elf64-x86-64)
-ENTRY(kstart_limine)
+ENTRY(kstart)
 
 #define FLAG_E (1 << 0)
 #define FLAG_W (1 << 1)
@@ -20,34 +20,34 @@ SECTIONS
     . = 0xFFFFFFFF80000000;
 
     .text ALIGN(CONSTANT(MAXPAGESIZE)) : {
-        sys_text_start = .;
+        text_start = .;
         *(.text)
         *(.text.*)
-        sys_text_end = .;
+        text_end = .;
     } :text
 
     .rodata ALIGN(CONSTANT(MAXPAGESIZE)) : {
-        sys_rodata_start = .;
+        rodata_start = .;
         *(.rodata)
         __exports_begin = .;
         *(.rodata.exports)
         __exports_end = .;
         *(.rodata.*)
-        sys_rodata_end = .;
+        rodata_end = .;
     } :rodata
 
     .data ALIGN(CONSTANT(MAXPAGESIZE)) : {
-        sys_data_start = .;
+        data_start = .;
         *(.data)
         *(.data.*)
-        sys_data_end = .;
+        data_end = .;
     } :data
 
     .bss ALIGN(CONSTANT(MAXPAGESIZE)) : {
-        sys_bss_start = .;
+        bss_start = .;
         *(COMMON)
         *(.bss)
         *(.bss.*)
-        sys_bss_end = .;
+        bss_end = .;
     } :data
 }

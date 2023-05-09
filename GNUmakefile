@@ -2,7 +2,7 @@
 # Copyright (c), 2023, KanOS Contributors
 MACHINE ?= x86_64
 TOOLCHAIN ?= clang
-VERSION ?= 0.0.0-dev.5
+VERSION ?= 0.0.0-dev.6
 
 CP ?= cp
 LN ?= ln
@@ -18,8 +18,8 @@ CLEAN_0 :=
 CLEAN_1 :=
 ALL_DEPS :=
 
-BUILD_DIR := build
 MACH_DIR := machine
+TEMP_DIR := temp
 
 # Machine makefile provides compiler options
 # that are common across toolchains and defines
@@ -66,12 +66,12 @@ SEARCH += lib
 SEARCH += sys
 
 # Generated objects/sources
-VERSION_C := $(BUILD_DIR)/version.c
-INITCALLS_C := $(BUILD_DIR)/initcalls.c
-INITCALLS_O := $(BUILD_DIR)/initcalls.o
-KERNEL_BINARY := $(BUILD_DIR)/kernel.elf
-KERNEL_NOINIT := $(BUILD_DIR)/kernel_noinit.o
-LDSCRIPT := $(BUILD_DIR)/ldscript.ld
+VERSION_C := $(TEMP_DIR)/version.c
+INITCALLS_C := $(TEMP_DIR)/initcalls.c
+INITCALLS_O := $(TEMP_DIR)/initcalls.o
+KERNEL_BINARY := $(TEMP_DIR)/kernel.elf
+KERNEL_NOINIT := $(TEMP_DIR)/kernel_noinit.o
+LDSCRIPT := $(TEMP_DIR)/ldscript.ld
 
 # Gather sources
 SOURCES += $(VERSION_C)
@@ -83,7 +83,7 @@ SOURCES += $(wildcard $(addsuffix /*.s,$(SEARCH)))
 OBJECTS += $(addsuffix .o,$(SOURCES))
 
 # DISTCLEAN list
-CLEAN_1 += $(BUILD_DIR)
+CLEAN_1 += $(TEMP_DIR)
 CLEAN_1 += $(MACH_DIR)
 
 # CLEAN list
@@ -100,7 +100,7 @@ PHONY_TARGETS += kernel clean distclean
 PHONY_TARGETS += force_run build_dirs
 ALL_DEPS += kernel
 
--include boot/$(MACHINE)/GNUmakefile
+-include boot.$(MACHINE).mk
 
 all: $(ALL_DEPS)
 
@@ -113,27 +113,27 @@ distclean:
 	$(RM) -vrf $(CLEAN_0)
 	$(RM) -vrf $(CLEAN_1)
 
-$(BUILD_DIR):
-	$(MKDIR) -p $(BUILD_DIR)
+$(TEMP_DIR):
+	$(MKDIR) -p $(TEMP_DIR)
 
 $(MACH_DIR):
 	$(LN) -sf $(MACHINE) $(MACH_DIR)
 
 force_run:
 
-build_dirs: $(BUILD_DIR) $(MACH_DIR)
+build_dirs: $(TEMP_DIR) $(MACH_DIR)
 
-$(VERSION_C): $(BUILD_DIR)
+$(VERSION_C): $(TEMP_DIR)
 	$(SHELL) tools/gen.version.sh $(VERSION) $(MACHINE) > $@
 
-$(INITCALLS_C): $(KERNEL_NOINIT) | $(BUILD_DIR)
+$(INITCALLS_C): $(KERNEL_NOINIT) | $(TEMP_DIR)
 	$(SHELL) tools/gen.initcalls.sh $^ > $@
 
-$(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) $(BUILD_DIR)
+$(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) $(TEMP_DIR)
 	$(LD) $(LDFLAGS) -T $(LDSCRIPT) -o $@ $^
 
-$(KERNEL_NOINIT): $(OBJECTS) | $(BUILD_DIR)
+$(KERNEL_NOINIT): $(OBJECTS) | $(TEMP_DIR)
 	$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(LDSCRIPT):ldscript.$(MACHINE).lds | $(BUILD_DIR)
+$(LDSCRIPT): ldscript.$(MACHINE).lds | $(TEMP_DIR)
 	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | $(GREP) -v "^#" > $@ || $(TRUE)

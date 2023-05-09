@@ -37,7 +37,7 @@ typedef struct initcall_s {
     void (*func)(void);
 } initcall_t;
 
-/* $(BUILD_DIR)/gen_initcalls.c */
+/* $(TEMP_DIR)/gen_initcalls.c */
 extern const initcall_t initcalls[];
 
 #endif /* __SYS_INITCALL_H__ */
