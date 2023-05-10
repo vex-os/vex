@@ -61,7 +61,7 @@ LDFLAGS += -nostdlib
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 SEARCH :=
-SEARCH += machine
+SEARCH += $(MACHINE)
 SEARCH += lib
 SEARCH += sys
 
@@ -126,14 +126,14 @@ build_dirs: $(TEMP_DIR) $(MACH_DIR)
 $(VERSION_C): $(TEMP_DIR)
 	$(SHELL) tools/gen.version.sh $(VERSION) $(MACHINE) > $@
 
-$(INITCALLS_C): $(KERNEL_NOINIT) | $(TEMP_DIR)
+$(INITCALLS_C): $(KERNEL_NOINIT) | build_dirs
 	$(SHELL) tools/gen.initcalls.sh $^ > $@
 
-$(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) $(TEMP_DIR)
+$(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) build_dirs
 	$(LD) $(LDFLAGS) -T $(LDSCRIPT) -o $@ $^
 
-$(KERNEL_NOINIT): $(OBJECTS) | $(TEMP_DIR)
+$(KERNEL_NOINIT): $(OBJECTS) | build_dirs
 	$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(LDSCRIPT): ldscript.$(MACHINE).lds | $(TEMP_DIR)
+$(LDSCRIPT): ldscript.$(MACHINE).lds | build_dirs
 	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | $(GREP) -v "^#" > $@ || $(TRUE)

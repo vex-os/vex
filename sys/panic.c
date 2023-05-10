@@ -19,7 +19,7 @@ void __noreturn fvpanic(const char *restrict file, unsigned long line, const cha
 
     console_unblank();
 
-    kprintf("panic [%s:%lu]", file, line);
+    kprintf("panic: at [%s:%lu]", file, line);
     kvprintf(fmt, ap);
 
     /* UNDONE: backtrace */
