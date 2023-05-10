@@ -2,24 +2,27 @@
 /* Copyright (c) 2023, KanOS Contributors */
 #ifndef __SYS_VMM_H__
 #define __SYS_VMM_H__
-#include <machine/paging.h>
 #include <stdint.h>
 #include <sys/cdefs.h>
 #include <sys/initcall.h>
 
-typedef struct vma_s {
-    pml_t *table;
-} vma_t;
+#define VMM_READ    0x0001
+#define VMM_WRITE   0x0002
+#define VMM_EXECUTE 0x0004
+#define VMM_USER    0x0008
 
-extern vma_t *kernel_vma;
+typedef struct pagemap_s {
+    void *table;
+} pagemap_t;
 
-vma_t *vmm_create(void);
-vma_t *vmm_fork(vma_t *restrict vma);
-void vmm_destroy(vma_t *restrict vma);
-void vmm_switch_to(vma_t *restrict vma);
-int vmm_map(vma_t *restrict vma, uintptr_t virt, uintptr_t phys, vmode_t mode);
-int vmm_mode(vma_t *restrict vma, uintptr_t virt, vmode_t mode);
-int vmm_unmap(vma_t *restrict vma, uintptr_t virt);
+extern pagemap_t *kernel_pagemap;
+
+pagemap_t *vmm_create(void);
+pagemap_t *vmm_fork(pagemap_t *restrict vm);
+void vmm_destroy(pagemap_t *restrict vm);
+void vmm_switch_to(pagemap_t *restrict vm);
+int vmm_map(pagemap_t *restrict vm, uintptr_t virt, uintptr_t phys, unsigned short mode);
+int vmm_unmap(pagemap_t *restrict vm, uintptr_t virt);
 
 initcall_extern(vmm);
 
