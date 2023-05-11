@@ -56,9 +56,4 @@ static __always_inline inline void write_cr3(uint64_t value)
     asm volatile("movq %0, %%cr3"::"r"(value):"memory");
 }
 
-static __always_inline inline void invalidate_tlb(uintptr_t virt)
-{
-    asm volatile("invlpg (%0)"::"r"(virt):"memory");
-}
-
 #endif /* __X86_64_CPU_H__ */

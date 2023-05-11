@@ -138,7 +138,6 @@ int vmm_map(pagemap_t *restrict vm, uintptr_t virt, uintptr_t phys, unsigned sho
     if((entry = pml_lookup_pte(vm->table, virt, true)) != NULL) {
         if(!(entry[0] & PTE_PRESENT)) {
             entry[0] = PTE_ADDR(phys) | PTE_PRESENT | get_pte_mode(mode);
-            invalidate_tlb(virt);
             return 0;
         }
 
@@ -158,7 +157,6 @@ int vmm_unmap(pagemap_t *restrict vm, uintptr_t virt)
     if((entry = pml_lookup_pte(vm->table, virt, false)) != NULL) {
         if((entry[0] & PTE_PRESENT)) {
             entry[0] = UINT64_C(0x0000000000000000);
-            invalidate_tlb(virt);
             return 0;
         }
     }
