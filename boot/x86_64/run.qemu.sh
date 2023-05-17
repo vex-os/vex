@@ -4,7 +4,7 @@ qargs="${qargs} -cdrom ${PWD}/temp/kernel.iso"
 qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -machine type=q35"
 qargs="${qargs} -vga std"
-qargs="${qargs} -m 128M"
+qargs="${qargs} -m 6G"
 #qargs="${qargs} -d cpu_reset -d int -no-reboot -no-shutdown"
 qemu-system-x86_64 ${qargs} ${@}
 printf "\n"

@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: BSD-2-Clause
-# Copyright (c), 2023, KanOS Contributors
-MACHINE ?= x86_64
+## SPDX-License-Identifier: BSD-2-Clause
+## Copyright (c) 2023, KanOS Contributors
+ARCH ?= x86_64
 TOOLCHAIN ?= clang
 VERSION ?= 0.0.0-dev.6
 
@@ -18,7 +18,6 @@ CLEAN_0 :=
 CLEAN_1 :=
 ALL_DEPS :=
 
-MACH_DIR := machine
 TEMP_DIR := temp
 
 # Machine makefile provides compiler options
@@ -26,14 +25,14 @@ TEMP_DIR := temp
 # the following variables:
 #	CLANG_TARGET - Clang target argument (eg. x86_64-none-elf)
 #	GCC_TARGET - GNU CC target triplet (eg. x86_64-elf-unknown)
-include machine.$(MACHINE).mk
+include arch/$(ARCH)/GNUmakefile.arch
 
 # Toolchain makefile provides compiler options
 # that are unique to the specific toolchain and
 # re-defines the following variables:
 #	CC - A C compiler (GNU CC compatible, can compile assembly)
 #	LD - An object file linker
-include toolchain.$(TOOLCHAIN).mk
+include GNUmakefile.$(TOOLCHAIN)
 
 # Kernel CFLAGS
 CFLAGS += -ffreestanding
@@ -45,8 +44,9 @@ CFLAGS += -O2
 
 # Kernel CPPFLAGS
 CPPFLAGS += -D __kernel__
-CPPFLAGS += -I .
-CPPFLAGS += -I lib
+CPPFLAGS += -I arch/$(ARCH)/include
+CPPFLAGS += -I arch/$(ARCH)/usr.include
+CPPFLAGS += -I include
 CPPFLAGS += -I usr.include
 
 # Kernel LDFLAGS
@@ -61,9 +61,9 @@ LDFLAGS += -nostdlib
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 SEARCH :=
-SEARCH += $(MACHINE)
-SEARCH += lib
-SEARCH += sys
+SEARCH += arch/$(ARCH)/kernel
+SEARCH += kernel
+SEARCH += libk
 
 # Generated objects/sources
 VERSION_C := $(TEMP_DIR)/version.c
@@ -84,7 +84,6 @@ OBJECTS += $(addsuffix .o,$(SOURCES))
 
 # DISTCLEAN list
 CLEAN_1 += $(TEMP_DIR)
-CLEAN_1 += $(MACH_DIR)
 
 # CLEAN list
 CLEAN_0 += $(OBJECTS)
@@ -100,7 +99,7 @@ PHONY_TARGETS += kernel clean distclean
 PHONY_TARGETS += force_run build_dirs
 ALL_DEPS += kernel
 
--include boot.$(MACHINE).mk
+-include boot/$(ARCH)/GNUmakefile.boot
 
 all: $(ALL_DEPS)
 
@@ -116,18 +115,15 @@ distclean:
 $(TEMP_DIR):
 	$(MKDIR) -p $(TEMP_DIR)
 
-$(MACH_DIR):
-	$(LN) -sf $(MACHINE) $(MACH_DIR)
-
 force_run:
 
-build_dirs: $(TEMP_DIR) $(MACH_DIR)
+build_dirs: $(TEMP_DIR)
 
 $(VERSION_C): $(TEMP_DIR)
-	$(SHELL) tools/gen.version.sh $(VERSION) $(MACHINE) > $@
+	$(SHELL) scripts/gen_version.sh $(VERSION) $(ARCH) > $@
 
 $(INITCALLS_C): $(KERNEL_NOINIT) | build_dirs
-	$(SHELL) tools/gen.initcalls.sh $^ > $@
+	$(SHELL) scripts/gen_initcalls.sh $^ > $@
 
 $(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) build_dirs
 	$(LD) $(LDFLAGS) -T $(LDSCRIPT) -o $@ $^
@@ -135,5 +131,6 @@ $(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) build_dirs
 $(KERNEL_NOINIT): $(OBJECTS) | build_dirs
 	$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(LDSCRIPT): ldscript.$(MACHINE).lds | build_dirs
+$(LDSCRIPT): arch/$(ARCH)/ldscript.lds | build_dirs
 	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | $(GREP) -v "^#" > $@ || $(TRUE)
+

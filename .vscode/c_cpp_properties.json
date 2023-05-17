@@ -6,9 +6,10 @@
             "intelliSenseMode": "clang-x64",
             "defines": [ "__x86_64__", "__kernel__" ],
             "includePath": [
-                "${workspaceFolder}",
-                "${workspaceFolder}/lib",
-                "${workspaceFolder}/usr.include" ],
+                "${workspaceFolder}/arch/x86_64/include",
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/usr.include"
+            ],
             "compilerArgs": [ "-ffreestanding", "-nostdlibinc", "-nostdlib" ],
             "compilerPath": "/usr/bin/clang",
             "cStandard": "gnu99"
