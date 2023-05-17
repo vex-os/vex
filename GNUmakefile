@@ -99,7 +99,7 @@ PHONY_TARGETS += kernel clean distclean
 PHONY_TARGETS += force_run build_dirs
 ALL_DEPS += kernel
 
--include boot/$(ARCH)/GNUmakefile.boot
+-include arch/$(ARCH)/GNUmakefile.boot
 
 all: $(ALL_DEPS)
 
