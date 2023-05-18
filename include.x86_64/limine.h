@@ -1,6 +1,6 @@
 /* BSD Zero Clause License */
 
-/* Copyright (C) 2022 mintsuki and contributors.
+/* Copyright (C) 2022-2023 mintsuki and contributors.
  *
  * Permission to use, copy, modify, and/or distribute this software for any
  * purpose with or without fee is hereby granted.
@@ -29,6 +29,19 @@ extern "C" {
 #  define LIMINE_PTR(TYPE) uint64_t
 #else
 #  define LIMINE_PTR(TYPE) TYPE
+#endif
+
+#ifdef __GNUC__
+#  define LIMINE_DEPRECATED __attribute__((__deprecated__))
+#  define LIMINE_DEPRECATED_IGNORE_START \
+    _Pragma("GCC diagnostic push") \
+    _Pragma("GCC diagnostic ignored \"-Wdeprecated-declarations\"")
+#  define LIMINE_DEPRECATED_IGNORE_END \
+    _Pragma("GCC diagnostic pop")
+#else
+#  define LIMINE_DEPRECATED
+#  define LIMINE_DEPRECATED_IGNORE_START
+#  define LIMINE_DEPRECATED_IGNORE_END
 #endif
 
 #define LIMINE_COMMON_MAGIC 0xc7b1dd30df4c8b88, 0x0a82e883a194f07b
@@ -143,7 +156,7 @@ struct limine_framebuffer {
     uint8_t unused[7];
     uint64_t edid_size;
     LIMINE_PTR(void *) edid;
-    /* Revision 1 */
+    /* Response revision 1 */
     uint64_t mode_count;
     LIMINE_PTR(struct limine_video_mode **) modes;
 };
@@ -178,30 +191,47 @@ struct limine_framebuffer_request {
 #define LIMINE_TERMINAL_CTX_RESTORE ((uint64_t)(-3))
 #define LIMINE_TERMINAL_FULL_REFRESH ((uint64_t)(-4))
 
-struct limine_terminal;
+/* Response revision 1 */
+#define LIMINE_TERMINAL_OOB_OUTPUT_GET ((uint64_t)(-10))
+#define LIMINE_TERMINAL_OOB_OUTPUT_SET ((uint64_t)(-11))
+
+#define LIMINE_TERMINAL_OOB_OUTPUT_OCRNL (1 << 0)
+#define LIMINE_TERMINAL_OOB_OUTPUT_OFDEL (1 << 1)
+#define LIMINE_TERMINAL_OOB_OUTPUT_OFILL (1 << 2)
+#define LIMINE_TERMINAL_OOB_OUTPUT_OLCUC (1 << 3)
+#define LIMINE_TERMINAL_OOB_OUTPUT_ONLCR (1 << 4)
+#define LIMINE_TERMINAL_OOB_OUTPUT_ONLRET (1 << 5)
+#define LIMINE_TERMINAL_OOB_OUTPUT_ONOCR (1 << 6)
+#define LIMINE_TERMINAL_OOB_OUTPUT_OPOST (1 << 7)
+
+LIMINE_DEPRECATED_IGNORE_START
+
+struct LIMINE_DEPRECATED limine_terminal;
 
 typedef void (*limine_terminal_write)(struct limine_terminal *, const char *, uint64_t);
 typedef void (*limine_terminal_callback)(struct limine_terminal *, uint64_t, uint64_t, uint64_t, uint64_t);
 
-struct limine_terminal {
+struct LIMINE_DEPRECATED limine_terminal {
     uint64_t columns;
     uint64_t rows;
     LIMINE_PTR(struct limine_framebuffer *) framebuffer;
 };
 
-struct limine_terminal_response {
+struct LIMINE_DEPRECATED limine_terminal_response {
     uint64_t revision;
     uint64_t terminal_count;
     LIMINE_PTR(struct limine_terminal **) terminals;
     LIMINE_PTR(limine_terminal_write) write;
 };
 
-struct limine_terminal_request {
+struct LIMINE_DEPRECATED limine_terminal_request {
     uint64_t id[4];
     uint64_t revision;
     LIMINE_PTR(struct limine_terminal_response *) response;
     LIMINE_PTR(limine_terminal_callback) callback;
 };
+
+LIMINE_DEPRECATED_IGNORE_END
 
 /* 5-level paging */
 
@@ -342,6 +372,14 @@ struct limine_kernel_file_request {
 
 #define LIMINE_MODULE_REQUEST { LIMINE_COMMON_MAGIC, 0x3e7e279702be32af, 0xca1c4f3bd1280cee }
 
+#define LIMINE_INTERNAL_MODULE_REQUIRED (1 << 0)
+
+struct limine_internal_module {
+    LIMINE_PTR(const char *) path;
+    LIMINE_PTR(const char *) cmdline;
+    uint64_t flags;
+};
+
 struct limine_module_response {
     uint64_t revision;
     uint64_t module_count;
@@ -352,6 +390,10 @@ struct limine_module_request {
     uint64_t id[4];
     uint64_t revision;
     LIMINE_PTR(struct limine_module_response *) response;
+
+    /* Request revision 1 */
+    uint64_t internal_module_count;
+    LIMINE_PTR(struct limine_internal_module **) internal_modules;
 };
 
 /* RSDP */

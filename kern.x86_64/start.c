@@ -33,35 +33,9 @@ volatile struct limine_memmap_request memmap_request = {
     .response = NULL,
 };
 
-volatile struct limine_terminal_request terminal_request = {
-    .id = LIMINE_TERMINAL_REQUEST,
-    .revision = 0,
-    .response = NULL,
-    .callback = NULL,
-};
-
 uintptr_t hhdm_offset = 0;
 uintptr_t kernel_base_phys = 0;
 uintptr_t kernel_base_virt = 0;
-
-static void liminecon_write(console_t *restrict cons, const void *restrict s, size_t n)
-{
-    size_t i;
-    struct limine_terminal *term;
-
-    for(i = 0; i < terminal_request.response->terminal_count; ++i) {
-        term = terminal_request.response->terminals[i];
-        terminal_request.response->write(term, s, n);
-    }
-}
-
-static console_t liminecon = {
-    .next = NULL,
-    .ident = "liminecon",
-    .flags = (CONSF_PRINTHIST),
-    .write = &liminecon_write,
-    .unblank = NULL,
-};
 
 #define ZONE_DMA_END MiB(16)
 #define ZONE_DMA32_END GiB(4)
@@ -108,18 +82,6 @@ void __used __noreturn kstart(void)
     size_t i;
 
     kprintf("kstart: starting version %s+%s", version, git_revision);
-
-    if(terminal_request.response) {
-        /* Until an fbcon-like driver takes over,
-         * Limine's built-in terminal subsystem is
-         * responsible for printing things to the framebuffer */
-        /* FIXME: we have to get rid of this as soon as possible,
-         * hopefully before VMM kicks in so we can throw direct-mapped
-         * pages (one-to-one physical map) into the void of oblivion.
-         * POSSIBLE FIX: bring Kan's fbcon back alongside wchar libc 
-         * POSSIBLE FIX: https://github.com/mintsuki/flanterm */
-        register_console(&liminecon);
-    }
 
     kassertf(hhdm_request.response, "kstart: hhdm not available");
     kassertf(memmap_request.response, "kstart: memmap not available");
