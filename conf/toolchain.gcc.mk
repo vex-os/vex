@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-2-Clause
 # Copyright (c), 2022, KanOS Contributors
-# FIXME: this shite may not even work
-CC := $(GCC_TARGET)-gcc
-LD := $(GCC_TARGET)-ld
+
+CC := $(GCC_PREFIX)-gcc
+LD := $(GCC_PREFIX)-ld
 CPPFLAGS += -nostdlib

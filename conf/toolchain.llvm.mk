@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: BSD-2-Clause
 # Copyright (c), 2022, KanOS Contributors
-CC := clang
+
+CC := clang --target=$(LLVM_TARGET)
 LD := ld.lld
-CFLAGS += --target=$(CLANG_TARGET)
 CPPFLAGS += -nostdlibinc

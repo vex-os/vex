@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
 #include <arch/cpu.h>
-#include <arch/init.h>
 #include <iecprefix.h>
 #include <kan/errno.h>
 #include <kan/malloc.h>
@@ -10,6 +9,7 @@
 #include <kan/vmm.h>
 #include <stdbool.h>
 #include <string.h>
+#include <x86_64/tags.h>
 
 #define PTE_PRESENT 0x0000000000000001
 #define PTE_WRITE   0x0000000000000002

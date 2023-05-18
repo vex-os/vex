@@ -2,7 +2,6 @@
 /* Copyright (c) 2023, KanOS Contributors */
 #ifndef __INCLUDE_KAN_INTERRUPT_H__
 #define __INCLUDE_KAN_INTERRUPT_H__
-#include <arch/context.h>
 #include <arch/cpu.h>
 #include <arch/limits.h>
 

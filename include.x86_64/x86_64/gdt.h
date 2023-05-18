@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#ifndef __ARCH_X86_64_INCLUDE_ARCH_GDT_H__
-#define __ARCH_X86_64_INCLUDE_ARCH_GDT_H__
+#ifndef __INCLUDE_X86_64_X86_64_GDT_H__
+#define __INCLUDE_X86_64_X86_64_GDT_H__
 #include <kan/initcall.h>
 
 #define GDT_NULL 0
@@ -17,4 +17,4 @@
 
 initcall_extern(gdt);
 
-#endif /* __ARCH_X86_64_INCLUDE_ARCH_GDT_H__ */
+#endif /* __INCLUDE_X86_64_X86_64_GDT_H__ */

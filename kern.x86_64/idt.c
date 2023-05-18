@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <arch/gdt.h>
-#include <arch/idt.h>
 #include <kan/interrupt.h>
 #include <kan/system.h>
 #include <kan/vmm.h>
 #include <string.h>
+#include <x86_64/gdt.h>
+#include <x86_64/idt.h>
 
 #define IDT_TRAP    (0x0F << 0)
 #define IDT_INTR    (0x0E << 0)

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#ifndef __ARCH_X86_64_INCLUDE_ARCH_PMIO_H__
-#define __ARCH_X86_64_INCLUDE_ARCH_PMIO_H__
+#ifndef __INCLUDE_X86_64_ARCH_PMIO_H__
+#define __INCLUDE_X86_64_ARCH_PMIO_H__
 #include <kan/cdefs.h>
 #include <stdint.h>
 
@@ -50,4 +50,4 @@ static __always_inline inline void pmio_wait(void)
     asm volatile("outb %0, $0x80"::"a"(UINT8_C(0)):"memory");
 }
 
-#endif /* __ARCH_X86_64_INCLUDE_ARCH_PMIO_H__ */
+#endif /* __INCLUDE_X86_64_ARCH_PMIO_H__ */

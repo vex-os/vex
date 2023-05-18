@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <arch/init.h>
 #include <iecprefix.h>
 #include <kan/console.h>
 #include <kan/initcall.h>
@@ -8,6 +7,7 @@
 #include <kan/system.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <x86_64/tags.h>
 
 volatile struct limine_5_level_paging_request five_level_paging_request = {
     .id = LIMINE_5_LEVEL_PAGING_REQUEST,
@@ -107,18 +107,23 @@ void __used __noreturn kstart(void)
 {
     size_t i;
 
-    kprintf("init: starting version %s+%s", version, git_revision);
+    kprintf("kstart: starting version %s+%s", version, git_revision);
 
     if(terminal_request.response) {
         /* Until an fbcon-like driver takes over,
          * Limine's built-in terminal subsystem is
          * responsible for printing things to the framebuffer */
+        /* FIXME: we have to get rid of this as soon as possible,
+         * hopefully before VMM kicks in so we can throw direct-mapped
+         * pages (one-to-one physical map) into the void of oblivion.
+         * POSSIBLE FIX: bring Kan's fbcon back alongside wchar libc 
+         * POSSIBLE FIX: https://github.com/mintsuki/flanterm */
         register_console(&liminecon);
     }
 
-    kassertf(hhdm_request.response, "init: hhdm not available");
-    kassertf(memmap_request.response, "init: memmap not available");
-    kassertf(kernel_address_request.response, "init: kernel address not available");
+    kassertf(hhdm_request.response, "kstart: hhdm not available");
+    kassertf(memmap_request.response, "kstart: memmap not available");
+    kassertf(kernel_address_request.response, "kstart: kernel address not available");
 
     hhdm_offset = hhdm_request.response->offset;
     kernel_base_phys = kernel_address_request.response->physical_base;
@@ -133,6 +138,6 @@ void __used __noreturn kstart(void)
     /* UNDONE: should SMP and sched use initcalls? */
     for(i = 0; initcalls[i]; initcalls[i++]());
 
-    panic("init: kstart has reached its end");
+    panic("kstart: nothing else to do!");
     UNREACHABLE();
 }

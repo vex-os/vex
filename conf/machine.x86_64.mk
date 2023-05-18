@@ -1,7 +1,8 @@
 ## SPDX-License-Identifier: BSD-2-Clause
 ## Copyright (c) 2023, KanOS Contributors
-CLANG_TARGET := x86_64-none-elf
-GCC_TARGET := x86_64-elf
+
+GCC_PREFIX := x86_64-elf
+LLVM_TARGET := x86_64-none-elf
 
 CFLAGS += -fno-pic
 CFLAGS += -mcmodel=kernel

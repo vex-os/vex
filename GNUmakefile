@@ -1,8 +1,9 @@
 ## SPDX-License-Identifier: BSD-2-Clause
 ## Copyright (c) 2023, KanOS Contributors
-ARCH ?= x86_64
-TOOLCHAIN ?= clang
-VERSION ?= 0.0.0-dev.6
+
+MACHINE ?= x86_64
+TOOLCHAIN ?= llvm
+VERSION ?= 0.0.0-dev.7
 
 CP ?= cp
 LN ?= ln
@@ -14,27 +15,24 @@ TRUE ?= true
 
 SOURCES :=
 OBJECTS :=
-CLEAN_0 :=
-CLEAN_1 :=
+CLEANS :=
+DISTCLEANS :=
 ALL_DEPS :=
 
 TEMP_DIR := temp
 
-# Machine makefile provides compiler options
-# that are common across toolchains and defines
-# the following variables:
-#	CLANG_TARGET - Clang target argument (eg. x86_64-none-elf)
-#	GCC_TARGET - GNU CC target triplet (eg. x86_64-elf-unknown)
-include arch/$(ARCH)/GNUmakefile.arch
+# Machine makefile provides compiler options that
+# are common across toolchains and defines the following:
+#	GCC_PREFIX	- GNU toolchain target prefix (eg. x86_64-elf-unknown)
+#	LLVM_TARGET	- LLVM toolchain target (eg. x86-64-none-elf)
+include conf/machine.$(MACHINE).mk
 
-# Toolchain makefile provides compiler options
-# that are unique to the specific toolchain and
-# re-defines the following variables:
-#	CC - A C compiler (GNU CC compatible, can compile assembly)
-#	LD - An object file linker
-include GNUmakefile.$(TOOLCHAIN)
+# Toolchain makefile provides compiler options that differ
+# from toolchain to toolchain and [re-]defines the following:
+#	CC	- An ISO C99 compiler with GNU C extensions support
+#	LD	- An object file linker
+include conf/toolchain.$(TOOLCHAIN).mk
 
-# Kernel CFLAGS
 CFLAGS += -ffreestanding
 CFLAGS += -Wall -Wextra -Werror
 CFLAGS += -Wno-unused-parameter
@@ -42,14 +40,12 @@ CFLAGS += -Wno-pointer-sign
 CFLAGS += -funsigned-char
 CFLAGS += -O2
 
-# Kernel CPPFLAGS
 CPPFLAGS += -D __kernel__
-CPPFLAGS += -I arch/$(ARCH)/include
-CPPFLAGS += -I arch/$(ARCH)/usr.include
 CPPFLAGS += -I include
+CPPFLAGS += -I include.$(MACHINE)
 CPPFLAGS += -I usr.include
+CPPFLAGS += -I usr.include.$(MACHINE)
 
-# Kernel LDFLAGS
 LDFLAGS += -static
 LDFLAGS += -nostdlib
 
@@ -61,11 +57,10 @@ LDFLAGS += -nostdlib
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 SEARCH :=
-SEARCH += arch/$(ARCH)/kernel
-SEARCH += kernel
-SEARCH += libk
+SEARCH += kern
+SEARCH += kern.$(MACHINE)
+SEARCH += libkern
 
-# Generated objects/sources
 VERSION_C := $(TEMP_DIR)/version.c
 INITCALLS_C := $(TEMP_DIR)/initcalls.c
 INITCALLS_O := $(TEMP_DIR)/initcalls.o
@@ -73,25 +68,19 @@ KERNEL_BINARY := $(TEMP_DIR)/kernel.elf
 KERNEL_NOINIT := $(TEMP_DIR)/kernel_noinit.o
 LDSCRIPT := $(TEMP_DIR)/ldscript.ld
 
-# Gather sources
 SOURCES += $(VERSION_C)
 SOURCES += $(wildcard $(addsuffix /*.c,$(SEARCH)))
 SOURCES += $(wildcard $(addsuffix /*.S,$(SEARCH)))
 SOURCES += $(wildcard $(addsuffix /*.s,$(SEARCH)))
-
-# Gather objects
 OBJECTS += $(addsuffix .o,$(SOURCES))
 
-# DISTCLEAN list
-CLEAN_1 += $(TEMP_DIR)
-
-# CLEAN list
-CLEAN_0 += $(OBJECTS)
-CLEAN_0 += $(INITCALLS_C)
-CLEAN_0 += $(INITCALLS_O)
-CLEAN_0 += $(KERNEL_BINARY)
-CLEAN_0 += $(KERNEL_NOINIT)
-CLEAN_0 += $(LDSCRIPT)
+CLEANS += $(OBJECTS)
+CLEANS += $(INITCALLS_C)
+CLEANS += $(INITCALLS_O)
+CLEANS += $(KERNEL_BINARY)
+CLEANS += $(KERNEL_NOINIT)
+CLEANS += $(LDSCRIPT)
+DISTCLEANS += $(TEMP_DIR)
 
 PHONY_TARGETS :=
 PHONY_TARGETS += all
@@ -99,18 +88,21 @@ PHONY_TARGETS += kernel clean distclean
 PHONY_TARGETS += force_run build_dirs
 ALL_DEPS += kernel
 
--include arch/$(ARCH)/GNUmakefile.boot
+# The kernel is designed to be a package
+# in the future system (hopefully), but to test
+# things out and boot the thing this boot crutch exists
+-include boot/$(MACHINE)/GNUmakefile
 
 all: $(ALL_DEPS)
 
 kernel: $(KERNEL_BINARY)
 
 clean:
-	$(RM) -vrf $(CLEAN_0)
+	$(RM) -vrf $(CLEANS)
 
 distclean:
-	$(RM) -vrf $(CLEAN_0)
-	$(RM) -vrf $(CLEAN_1)
+	$(RM) -vrf $(CLEANS)
+	$(RM) -vrf $(DISTCLEANS)
 
 $(TEMP_DIR):
 	$(MKDIR) -p $(TEMP_DIR)
@@ -120,7 +112,7 @@ force_run:
 build_dirs: $(TEMP_DIR)
 
 $(VERSION_C): $(TEMP_DIR)
-	$(SHELL) scripts/gen_version.sh $(VERSION) $(ARCH) > $@
+	$(SHELL) scripts/gen_version.sh $(VERSION) $(MACHINE) > $@
 
 $(INITCALLS_C): $(KERNEL_NOINIT) | build_dirs
 	$(SHELL) scripts/gen_initcalls.sh $^ > $@
@@ -131,6 +123,5 @@ $(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) build_dirs
 $(KERNEL_NOINIT): $(OBJECTS) | build_dirs
 	$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(LDSCRIPT): arch/$(ARCH)/ldscript.lds | build_dirs
+$(LDSCRIPT): conf/ldscript.$(MACHINE).lds | build_dirs
 	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | $(GREP) -v "^#" > $@ || $(TRUE)
-
