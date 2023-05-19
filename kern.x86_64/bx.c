@@ -12,9 +12,11 @@ static void bx_write(klog_sink_t *restrict sink, const void *restrict s, size_t 
 }
 
 static klog_sink_t bx_sink = {
+    .next = NULL,
     .write = &bx_write,
     .unblank = NULL,
-    .next = NULL,
+    .ident = "bx_sink",
+    .data = NULL,
 };
 
 static void init_bx(void)

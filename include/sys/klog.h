@@ -20,9 +20,11 @@
 #define KLOG_MESSAGE_SIZE 256
 
 typedef struct klog_sink_s {
+    struct klog_sink_s *next;
     void (*write)(struct klog_sink_s *restrict sink, const void *restrict s, size_t n);
     void (*unblank)(struct klog_sink_s *restrict sink);
-    struct klog_sink_s *next;
+    char ident[64];
+    void *data;
 } klog_sink_t;
 
 typedef char klog_message_t[KLOG_MESSAGE_SIZE];

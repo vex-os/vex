@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
+#include <iecprefix.h>
 #include <machine/boot.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <sys/iecprefix.h>
 #include <sys/init.h>
 #include <sys/klog.h>
 #include <sys/panic.h>

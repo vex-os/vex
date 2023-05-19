@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
+#include <iecprefix.h>
 #include <machine/boot.h>
 #include <machine/cpu.h>
 #include <stdbool.h>
 #include <string.h>
 #include <sys/errno.h>
-#include <sys/iecprefix.h>
 #include <sys/klog.h>
 #include <sys/link.h>
 #include <sys/panic.h>

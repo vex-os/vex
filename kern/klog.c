@@ -44,6 +44,8 @@ int register_klog_sink(klog_sink_t *restrict sink)
         return EBUSY;
     }
 
+    klog(LOG_INFO, "klog: registering %s", sink->ident);
+
     if(sink->unblank) {
         /* Typically you would expect a newly registered
          * klog_sink_t instance to start printing stuff right
@@ -74,6 +76,7 @@ int unregister_klog_sink(klog_sink_t *restrict sink)
 
     if(klog_sinks == sink) {
         klog_sinks = klog_sinks->next;
+        klog(LOG_INFO, "klog: unregistering %s", sink->ident);
         return 0;
     }
 
@@ -82,6 +85,7 @@ int unregister_klog_sink(klog_sink_t *restrict sink)
         if(it == sink) {
             if(prev)
                 prev->next = it->next;
+            klog(LOG_INFO, "klog: unregistering %s", sink->ident);
             return 0;
         }
     }
