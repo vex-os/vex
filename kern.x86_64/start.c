@@ -10,8 +10,16 @@
 #include <sys/pmm.h>
 #include <sys/version.h>
 
+#if LATER
 volatile struct limine_5_level_paging_request five_level_paging_request = {
     .id = LIMINE_5_LEVEL_PAGING_REQUEST,
+    .revision = 0,
+    .response = NULL,
+};
+#endif
+
+volatile struct limine_framebuffer_request framebuffer_request = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST,
     .revision = 0,
     .response = NULL,
 };
@@ -37,6 +45,7 @@ volatile struct limine_memmap_request memmap_request = {
 uintptr_t hhdm_offset = 0;
 uintptr_t kernel_base_phys = 0;
 uintptr_t kernel_base_virt = 0;
+fb_info_t framebuffers[MAX_FRAMEBUFFERS] = { 0 };
 
 #define ZONE_DMA_END MiB(16)
 #define ZONE_DMA32_END GiB(4)
@@ -91,6 +100,24 @@ void __used __noreturn kstart(void)
     hhdm_offset = hhdm_request.response->offset;
     kernel_base_phys = kernel_address_request.response->physical_base;
     kernel_base_virt = kernel_address_request.response->virtual_base;
+
+    if(framebuffer_request.response) {
+        for(i = 0; i < MAX_FRAMEBUFFERS && i < framebuffer_request.response->framebuffer_count; ++i) {
+            framebuffers[i].width = framebuffer_request.response->framebuffers[i]->width;
+            framebuffers[i].height = framebuffer_request.response->framebuffers[i]->height;
+            framebuffers[i].depth = framebuffer_request.response->framebuffers[i]->bpp;
+            framebuffers[i].pitch = framebuffer_request.response->framebuffers[i]->pitch;
+            framebuffers[i].mask.bits_r = ((1 << framebuffer_request.response->framebuffers[i]->red_mask_size) - 1);
+            framebuffers[i].mask.bits_g = ((1 << framebuffer_request.response->framebuffers[i]->green_mask_size) - 1);
+            framebuffers[i].mask.bits_b = ((1 << framebuffer_request.response->framebuffers[i]->blue_mask_size) - 1);
+            framebuffers[i].mask.shift_r = framebuffer_request.response->framebuffers[i]->red_mask_shift;
+            framebuffers[i].mask.shift_g = framebuffer_request.response->framebuffers[i]->green_mask_shift;
+            framebuffers[i].mask.shift_b = framebuffer_request.response->framebuffers[i]->blue_mask_shift;
+            framebuffers[i].offset = ((uint64_t)framebuffer_request.response->framebuffers[i]->address - hhdm_offset);
+            klog(LOG_INFO, "kstart: FB%zu %zux%zu/%zu", i, (size_t)framebuffers[i].width, (size_t)framebuffers[i].height, (size_t)framebuffers[i].depth);
+            klog(LOG_INFO, "kstart: FB%zu at %p", i, (void *)framebuffer_request.response->framebuffers[i]->address);
+        }
+    }
 
     for(i = 0; i < memmap_request.response->entry_count; ++i) {
         if(memmap_request.response->entries[i]->type != LIMINE_MEMMAP_USABLE)
