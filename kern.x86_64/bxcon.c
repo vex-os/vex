@@ -14,6 +14,7 @@ static void bxcon_write(console_t *restrict cons, const void *restrict s, size_t
 static console_t bxcon = {
     .next = NULL,
     .ident = "bxcon",
+    .driver_data = NULL,
     .flags = (CONSF_PRINTHIST),
     .write = &bxcon_write,
     .unblank = NULL,

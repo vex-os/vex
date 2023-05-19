@@ -11,14 +11,15 @@
 
 typedef struct console_s {
     char ident[64];
+    void *driver_data;
     unsigned short flags;
     struct console_s *next;
     void (*write)(struct console_s *restrict cons, const void *restrict s, size_t n);
     void (*unblank)(struct console_s *restrict cons);
 } console_t;
 
-int register_console(console_t *restrict console);
-int unregister_console(console_t *restrict console);
+int register_console(console_t *restrict cons);
+int unregister_console(console_t *restrict cons);
 void console_putchar(int c);
 void console_unblank(void);
 

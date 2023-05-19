@@ -25,13 +25,13 @@ TEMP_DIR := temp
 # are common across toolchains and defines the following:
 #	GCC_PREFIX	- GNU toolchain target prefix (eg. x86_64-elf-unknown)
 #	LLVM_TARGET	- LLVM toolchain target (eg. x86-64-none-elf)
-include conf/machine.$(MACHINE).mk
+include config/machine.$(MACHINE).mk
 
 # Toolchain makefile provides compiler options that differ
 # from toolchain to toolchain and [re-]defines the following:
 #	CC	- An ISO C99 compiler with GNU C extensions support
 #	LD	- An object file linker
-include conf/toolchain.$(TOOLCHAIN).mk
+include config/toolchain.$(TOOLCHAIN).mk
 
 CFLAGS += -ffreestanding
 CFLAGS += -Wall -Wextra -Werror
@@ -59,7 +59,12 @@ LDFLAGS += -nostdlib
 SEARCH :=
 SEARCH += kern
 SEARCH += kern.$(MACHINE)
-SEARCH += libkern
+SEARCH += libkern/ctype
+SEARCH += libkern/inttypes
+SEARCH += libkern/printf
+SEARCH += libkern/stdlib
+SEARCH += libkern/string
+SEARCH += libkern/strings
 
 VERSION_C := $(TEMP_DIR)/version.c
 INITCALLS_C := $(TEMP_DIR)/initcalls.c
@@ -91,7 +96,7 @@ ALL_DEPS += kernel
 # The kernel is designed to be a package
 # in the future system (hopefully), but to test
 # things out and boot the thing this boot crutch exists
--include boot/$(MACHINE)/GNUmakefile
+-include boot.$(MACHINE)/GNUmakefile
 
 all: $(ALL_DEPS)
 
@@ -123,5 +128,5 @@ $(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) build_dirs
 $(KERNEL_NOINIT): $(OBJECTS) | build_dirs
 	$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(LDSCRIPT): conf/ldscript.$(MACHINE).lds | build_dirs
+$(LDSCRIPT): config/ldscript.$(MACHINE).lds | build_dirs
 	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | $(GREP) -v "^#" > $@ || $(TRUE)

@@ -13,10 +13,10 @@ BOOT_DIR := $(TEMP_DIR)/sysroot
 BOOT_IMAGE := $(TEMP_DIR)/kernel.iso
 
 BOOT_FILES :=
-BOOT_FILES += boot/x86_64/limine-cd-efi.bin
-BOOT_FILES += boot/x86_64/limine-cd.bin
-BOOT_FILES += boot/x86_64/limine.cfg
-BOOT_FILES += boot/x86_64/limine.sys
+BOOT_FILES += boot.x86_64/limine-cd-efi.bin
+BOOT_FILES += boot.x86_64/limine-cd.bin
+BOOT_FILES += boot.x86_64/limine.cfg
+BOOT_FILES += boot.x86_64/limine.sys
 BOOT_FILES += $(KERNEL_BINARY)
 
 CLEAN_0 += $(BOOT_IMAGE)
@@ -34,8 +34,8 @@ sysroot: $(BOOT_FILES) | $(TEMP_DIR)
 
 bootable: $(BOOT_IMAGE)
 
-$(BOOT_DEPLOY): boot/x86_64/limine-deploy.c | boot/x86_64/limine-hdd.h $(TEMP_DIR)
-	$(BOOT_C99) -Wall -Wextra -Werror -pedantic -o $@ boot/x86_64/limine-deploy.c
+$(BOOT_DEPLOY): boot.x86_64/limine-deploy.c | boot.x86_64/limine-hdd.h $(TEMP_DIR)
+	$(BOOT_C99) -Wall -Wextra -Werror -pedantic -o $@ boot.x86_64/limine-deploy.c
 
 $(BOOT_IMAGE): $(BOOT_DEPLOY) sysroot force_run
 	$(BOOT_XORRISO) -as mkisofs -b boot/limine-cd.bin -no-emul-boot \
