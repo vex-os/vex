@@ -184,7 +184,7 @@ int vmm_unmap(pagemap_t *restrict pagemap, uintptr_t virt)
 /* FIXME: per-fucking-formance goddammit!
  * It just seems to be better if we directly do
  * what vmm_map does because it repeats things internally*/
-static int vmm_map_range(pagemap_t *restrict vma, uintptr_t vstart, uintptr_t vend, uintptr_t phys, unsigned short mode)
+static int vmm_map_range(pagemap_t *restrict pagemap, uintptr_t vstart, uintptr_t vend, uintptr_t phys, unsigned short mode)
 {
     int r;
     uintptr_t virt;
@@ -196,7 +196,7 @@ static int vmm_map_range(pagemap_t *restrict vma, uintptr_t vstart, uintptr_t ve
 
     virt = vstart;
     while(virt < vend) {
-        if((r = vmm_map(vma, virt, phys, mode)) != 0)
+        if((r = vmm_map(pagemap, virt, phys, mode)) != 0)
             return r;
         virt += PAGE_SIZE;
         phys += PAGE_SIZE;
