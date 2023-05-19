@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#ifndef __USR_INCLUDE_KAN_CDEFS_H__
-#define __USR_INCLUDE_KAN_CDEFS_H__
+#ifndef __USR_INCLUDE_SYS_CDEFS_H__
+#define __USR_INCLUDE_SYS_CDEFS_H__
 
 #if !defined(__GNUC__)
 #define __attribute__(...)
@@ -46,4 +46,4 @@
 #define __unused __attribute__((unused))
 #endif
 
-#endif /* __USR_INCLUDE_KAN_CDEFS_H__ */
+#endif /* __USR_INCLUDE_SYS_CDEFS_H__ */

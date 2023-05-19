@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <kan/interrupt.h>
-#include <kan/system.h>
-#include <kan/vmm.h>
+#include <machine/cpu.h>
+#include <machine/gdt.h>
+#include <machine/idt.h>
+#include <machine/limits.h>
 #include <string.h>
-#include <x86_64/gdt.h>
-#include <x86_64/idt.h>
+#include <sys/klog.h>
+#include <sys/vmm.h>
 
 #define IDT_TRAP    (0x0F << 0)
 #define IDT_INTR    (0x0E << 0)
@@ -36,7 +37,7 @@ extern const uint64_t isr_stubs[MAX_INTERRUPTS];
 
 void __used isr_handler(cpu_ctx_t *restrict ctx, uint64_t vector)
 {
-    trigger_interrupt((long)(vector % MAX_INTERRUPTS), ctx);
+    klog(LOG_ERROR, "idt: isr_handler(%p, %02jX)", (void *)ctx, (uintmax_t)vector);
 }
 
 static void init_idt(void)
@@ -66,8 +67,8 @@ static void init_idt(void)
 
     asm volatile("lidtq %0"::"m"(idtr));
 
-    kprintf("idt: idtr.size=%zu", (size_t)idtr.size);
-    kprintf("idt: idtr.offset=%p", (void *)idtr.offset);
+    klog(LOG_INFO, "idt: idtr.size=%zu", (size_t)idtr.size);
+    klog(LOG_INFO, "idt: idtr.offset=%p", (void *)idtr.offset);
 }
 early_initcall(idt, init_idt);
 initcall_depend(idt, gdt);

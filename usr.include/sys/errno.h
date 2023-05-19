@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#ifndef __USR_INCLUDE_KAN_ERRNO_H__
-#define __USR_INCLUDE_KAN_ERRNO_H__
+#ifndef __USR_INCLUDE_SYS_ERRNO_H__
+#define __USR_INCLUDE_SYS_ERRNO_H__
 
 /* ISO/IEC 9899:1999 definitions */
 #define EDOM            1
@@ -86,4 +86,4 @@
 #define EWOULDBLOCK     175
 #define EXDEV           176
 
-#endif /* __USR_INCLUDE_KAN_ERRNO_H__ */
+#endif /* __USR_INCLUDE_SYS_ERRNO_H__ */

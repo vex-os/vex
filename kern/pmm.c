@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <kan/errno.h>
-#include <kan/pmem.h>
-#include <kan/system.h>
+#include <machine/boot.h>
 #include <stdbool.h>
+#include <sys/errno.h>
+#include <sys/panic.h>
+#include <sys/pmm.h>
 
 typedef struct memblock_s {
     struct memblock_s *next;
@@ -68,7 +69,7 @@ static bool try_occupy_range(memblock_t *restrict block, size_t a, size_t b)
     return true;
 }
 
-int add_memblock(uintptr_t address, size_t npages, unsigned int zone_bits)
+int pmm_add_memblock(uintptr_t address, size_t npages, unsigned long zone_bits)
 {
     size_t blocksize;
     size_t bitmap_size;
@@ -102,23 +103,23 @@ int add_memblock(uintptr_t address, size_t npages, unsigned int zone_bits)
     return 0;
 }
 
-size_t get_total_memory(void)
+size_t pmm_get_total_memory(void)
 {
     return total_memory;
 }
 
-size_t get_used_memory(void)
+size_t pmm_get_used_memory(void)
 {
     return used_memory;
 }
 
-uintptr_t pmalloc(size_t npages, unsigned short zone)
+uintptr_t pmm_alloc(size_t npages, unsigned short zone)
 {
     size_t i;
     memblock_t *block;
 
     for(block = memblocks; block; block = block->next) {
-        if(block->zone_bits & ZONE_BIT(zone)) {
+        if(block->zone_bits & PMM_ZONE_BIT(zone)) {
             for(i = block->free_page; i < block->page_count; i++) {
                 if(try_occupy_range(block, i, i + npages - 1)) {
                     block->free_page = i + 1;
@@ -140,7 +141,7 @@ uintptr_t pmalloc(size_t npages, unsigned short zone)
     return 0;
 }
 
-void pmfree(uintptr_t address, size_t npages)
+void pmm_free(uintptr_t address, size_t npages)
 {
     size_t page;
     memblock_t *block;
@@ -160,17 +161,17 @@ void pmfree(uintptr_t address, size_t npages)
     }
 }
 
-void *pmalloc_hhdm(size_t npages, unsigned short zone)
+void *pmm_alloc_hhdm(size_t npages, unsigned short zone)
 {
-    uintptr_t address = pmalloc(npages, zone);
+    uintptr_t address = pmm_alloc(npages, zone);
     if(address)
         return (void *)(address + hhdm_offset);
     return NULL;
 }
 
-void pmfree_hhdm(void *restrict ptr, size_t npages)
+void pmm_free_hhdm(void *restrict ptr, size_t npages)
 {
     if(ptr == NULL)
         return;
-    pmfree(((uintptr_t)ptr - hhdm_offset), npages);
+    pmm_free(((uintptr_t)ptr - hhdm_offset), npages);
 }

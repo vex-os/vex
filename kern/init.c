@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <kan/initcall.h>
+#include <sys/init.h>
 
 static void init_early(void)
 {

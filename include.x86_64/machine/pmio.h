@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_X86_64_ARCH_PMIO_H__
-#define __INCLUDE_X86_64_ARCH_PMIO_H__
-#include <kan/cdefs.h>
+#ifndef __INCLUDE_X86_64_MACHINE_PMIO_H__
+#define __INCLUDE_X86_64_MACHINE_PMIO_H__
 #include <stdint.h>
+#include <sys/cdefs.h>
 
 static __always_inline inline uint8_t pmio_read8(uintptr_t offset)
 {
@@ -50,4 +50,4 @@ static __always_inline inline void pmio_wait(void)
     asm volatile("outb %0, $0x80"::"a"(UINT8_C(0)):"memory");
 }
 
-#endif /* __INCLUDE_X86_64_ARCH_PMIO_H__ */
+#endif /* __INCLUDE_X86_64_MACHINE_PMIO_H__ */

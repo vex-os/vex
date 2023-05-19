@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_X86_64_ARCH_CPU_H__
-#define __INCLUDE_X86_64_ARCH_CPU_H__
-#include <kan/cdefs.h>
+#ifndef __INCLUDE_X86_64_MACHINE_CPU_H__
+#define __INCLUDE_X86_64_MACHINE_CPU_H__
 #include <stdint.h>
+#include <sys/cdefs.h>
 
 typedef struct cpu_ctx_s {
     uint64_t r15;
@@ -56,4 +56,4 @@ static __always_inline inline void cpu_write_cr3(uint64_t value)
     asm volatile("movq %0, %%cr3"::"r"(value):"memory");
 }
 
-#endif /* __INCLUDE_X86_64_ARCH_CPU_H__ */
+#endif /* __INCLUDE_X86_64_MACHINE_CPU_H__ */

@@ -1,13 +1,14 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <iecprefix.h>
-#include <kan/console.h>
-#include <kan/initcall.h>
-#include <kan/pmem.h>
-#include <kan/system.h>
+#include <machine/boot.h>
 #include <stdbool.h>
 #include <stddef.h>
-#include <x86_64/tags.h>
+#include <sys/iecprefix.h>
+#include <sys/init.h>
+#include <sys/klog.h>
+#include <sys/panic.h>
+#include <sys/pmm.h>
+#include <sys/version.h>
 
 volatile struct limine_5_level_paging_request five_level_paging_request = {
     .id = LIMINE_5_LEVEL_PAGING_REQUEST,
@@ -51,12 +52,12 @@ static void parse_memmap(const struct limine_memmap_entry *restrict entry)
     if(dummy.base < ZONE_DMA_END) {
         if(dummy.base + dummy.length > ZONE_DMA_END) {
             split_length = ZONE_DMA_END - dummy.base;
-            add_memblock(dummy.base, get_page_count(split_length), ZONE_BIT(ZONE_NORMAL) | ZONE_BIT(ZONE_DMA) | ZONE_BIT(ZONE_DMA32));
+            pmm_add_memblock(dummy.base, get_page_count(split_length), PMM_ZONE_NORMAL_BIT | PMM_ZONE_DMA_BIT | PMM_ZONE_DMA32_BIT);
             dummy.base += split_length;
             dummy.length -= split_length;
         }
         else {
-            add_memblock(dummy.base, get_page_count(dummy.length), ZONE_BIT(ZONE_NORMAL) | ZONE_BIT(ZONE_DMA) | ZONE_BIT(ZONE_DMA32));
+            pmm_add_memblock(dummy.base, get_page_count(dummy.length), PMM_ZONE_NORMAL_BIT | PMM_ZONE_DMA_BIT | PMM_ZONE_DMA32_BIT);
             return;
         }
     }
@@ -64,24 +65,24 @@ static void parse_memmap(const struct limine_memmap_entry *restrict entry)
     if(dummy.base < ZONE_DMA32_END) {
         if(dummy.base + dummy.length > ZONE_DMA32_END) {
             split_length = ZONE_DMA32_END - dummy.base;
-            add_memblock(dummy.base, get_page_count(split_length), ZONE_BIT(ZONE_NORMAL) | ZONE_BIT(ZONE_DMA32));
+            pmm_add_memblock(dummy.base, get_page_count(split_length), PMM_ZONE_NORMAL_BIT | PMM_ZONE_DMA32_BIT);
             dummy.base += split_length;
             dummy.length -= split_length;
         }
         else {
-            add_memblock(dummy.base, get_page_count(dummy.length), ZONE_BIT(ZONE_NORMAL) | ZONE_BIT(ZONE_DMA32));
+            pmm_add_memblock(dummy.base, get_page_count(dummy.length), PMM_ZONE_NORMAL_BIT | PMM_ZONE_DMA32_BIT);
             return;
         }
     }
 
-    add_memblock(dummy.base, get_page_count(dummy.length), ZONE_BIT(ZONE_NORMAL));
+    pmm_add_memblock(dummy.base, get_page_count(dummy.length), PMM_ZONE_NORMAL_BIT);
 }
 
 void __used __noreturn kstart(void)
 {
     size_t i;
 
-    kprintf("kstart: starting version %s+%s", version, git_revision);
+    klog(LOG_INFO, "kstart: starting version %s+%s", version, git_revision);
 
     kassertf(hhdm_request.response, "kstart: hhdm not available");
     kassertf(memmap_request.response, "kstart: memmap not available");

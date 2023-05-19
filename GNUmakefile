@@ -44,7 +44,6 @@ CPPFLAGS += -D __kernel__
 CPPFLAGS += -I include
 CPPFLAGS += -I include.$(MACHINE)
 CPPFLAGS += -I usr.include
-CPPFLAGS += -I usr.include.$(MACHINE)
 
 LDFLAGS += -static
 LDFLAGS += -nostdlib

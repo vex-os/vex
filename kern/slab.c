@@ -1,30 +1,26 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <kan/malloc.h>
-#include <kan/pmem.h>
-#include <kan/system.h>
 #include <stdbool.h>
 #include <string.h>
-
-typedef struct meta_s {
-    size_t length;
-    size_t npages;
-} meta_t;
+#include <sys/slab.h>
+#include <sys/panic.h>
+#include <sys/pmm.h>
 
 typedef struct slab_s {
     size_t blocksize;
     void **head;
 } slab_t;
 
+static size_t numslab = 0;
 static slab_t *slabs = NULL;
 
 static slab_t *find_matching_slab(size_t n)
 {
-    slab_t *slab;
+    size_t i;
 
-    for(slab = slabs; slab; ++slab) {
-        if(slab->blocksize <= n)
-            return slab;
+    for(i = 0; i < numslab; ++i) {
+        if(slabs[i].blocksize <= n)
+            return &slabs[i];
         continue;
     }
 
@@ -41,7 +37,7 @@ static bool try_expand_slab(slab_t *restrict slab)
     kassert(slab->blocksize / sizeof(void *) >= 1);
     kassert(slab->blocksize % sizeof(void *) == 0);
 
-    if((slab->head = pmalloc_hhdm(1, ZONE_NORMAL)) != NULL) {
+    if((slab->head = pmm_alloc_hhdm(1, PMM_ZONE_NORMAL)) != NULL) {
         hsize = __align_ceil(sizeof(slab_t *), slab->blocksize);
 
         slab->head[0] = slab;
@@ -62,23 +58,21 @@ static bool try_expand_slab(slab_t *restrict slab)
     return false;
 }
 
-static void init_slab(slab_t *restrict slab, size_t blocksize)
+static void setup_slab(slab_t *restrict slab, size_t blocksize)
 {
     slab->blocksize = __align_ceil(blocksize, sizeof(void *));
     slab->head = NULL;
 
     if(!try_expand_slab(slab)) {
-        panic("malloc: insufficient memory");
+        panic("slab: insufficient memory");
         UNREACHABLE();
     }
 }
 
-void *malloc(size_t n)
+void *slab_alloc(size_t n)
 {
-    meta_t *meta;
     slab_t *slab;
     void *head_ptr;
-    size_t npages;
 
     if((slab = find_matching_slab(n)) != NULL) {
         if(!slab->head && !try_expand_slab(slab))
@@ -88,35 +82,26 @@ void *malloc(size_t n)
         return head_ptr;
     }
 
-    npages = get_page_count(n + 1);
-    if((head_ptr = pmalloc_hhdm(npages, ZONE_NORMAL)) != NULL) {
-        meta = head_ptr;
-        meta->length = n;
-        meta->npages = npages;
-        return (void *)((uintptr_t)npages + PAGE_SIZE);
-    }
-
     return NULL;
 }
 
-void *calloc(size_t count, size_t n)
+void *slab_calloc(size_t count, size_t n)
 {
-    void *ptr = malloc(count * n);
+    void *ptr = slab_alloc(count * n);
     if(!ptr)
         return NULL;
     return memset(ptr, 0, count * n);
 }
 
-void *realloc(void *restrict ptr, size_t n)
+void *slab_realloc(void *restrict ptr, size_t n)
 {
-    meta_t *meta;
     slab_t *slab;
     void **head_ptr;
     void *aligned_ptr;
     void *new_ptr;
 
     if(ptr) {
-        if((new_ptr = malloc(n)) != NULL) {
+        if((new_ptr = slab_alloc(n)) != NULL) {
             aligned_ptr = page_align_pointer(ptr);
 
             if(ptr != aligned_ptr) {
@@ -130,28 +115,18 @@ void *realloc(void *restrict ptr, size_t n)
 
                 return new_ptr;
             }
-
-            meta = (meta_t *)((uintptr_t)aligned_ptr - PAGE_SIZE);
-
-            if(meta->length < n)
-                n = meta->length;
-            memcpy(new_ptr, ptr, n);
-
-            pmfree_hhdm(meta, meta->npages + 1);
-            return new_ptr;
         }
 
-        free(ptr);
+        slab_free(ptr);
 
         return NULL;
     }
 
-    return malloc(n);
+    return slab_alloc(n);
 }
 
-void free(void *restrict ptr)
+void slab_free(void *restrict ptr)
 {
-    meta_t *meta;
     slab_t *slab;
     void **head_ptr;
     void *aligned_ptr;
@@ -165,40 +140,31 @@ void free(void *restrict ptr)
             head_ptr = ptr;
             head_ptr[0] = slab->head;
             slab->head = head_ptr;
-
-            /* FIXME: if this free() call was the one
-             * that made a certain page fully free, we
-             * may want to give the page back to the PMM. */
-            return;
         }
-
-        meta = (meta_t *)((uintptr_t)aligned_ptr - PAGE_SIZE);
-        pmfree_hhdm(meta, meta->npages + 1);
-        return;
     }
 }
 
-static void init_malloc(void)
+static void init_slab(void)
 {
-    size_t numslab = 8;
-    size_t numpage = get_page_count(sizeof(slab_t) * (numslab + 1));
+    size_t numpage;
 
-    if((slabs = pmalloc_hhdm(numpage, ZONE_NORMAL)) == NULL) {
-        panic("malloc: insufficient memory");
+    numslab = 8;
+    numpage = get_page_count(sizeof(slab_t) * numslab);
+
+    if((slabs = pmm_alloc_hhdm(numpage, PMM_ZONE_NORMAL)) == NULL) {
+        panic("slab: insufficient memory");
         UNREACHABLE();
     }
 
-    memset(slabs, 0, sizeof(slab_t) * (numslab + 1));
+    memset(slabs, 0, numpage * PAGE_SIZE);
 
-    /* FIXME: use actual blocksize values
-     * instead of blindly using PAGE_SIZE fractions */
-    init_slab(&slabs[0], PAGE_SIZE / 512);
-    init_slab(&slabs[1], PAGE_SIZE / 256);
-    init_slab(&slabs[2], PAGE_SIZE / 128);
-    init_slab(&slabs[3], PAGE_SIZE / 64);
-    init_slab(&slabs[4], PAGE_SIZE / 32);
-    init_slab(&slabs[5], PAGE_SIZE / 16);
-    init_slab(&slabs[6], PAGE_SIZE / 8);
-    init_slab(&slabs[7], PAGE_SIZE / 4);
+    setup_slab(&slabs[0], PAGE_SIZE / 512);
+    setup_slab(&slabs[1], PAGE_SIZE / 256);
+    setup_slab(&slabs[2], PAGE_SIZE / 128);
+    setup_slab(&slabs[3], PAGE_SIZE / 64);
+    setup_slab(&slabs[4], PAGE_SIZE / 32);
+    setup_slab(&slabs[5], PAGE_SIZE / 16);
+    setup_slab(&slabs[6], PAGE_SIZE / 8);
+    setup_slab(&slabs[7], PAGE_SIZE / 4);
 }
-core_initcall(malloc, init_malloc);
+early_initcall(slab, init_slab);

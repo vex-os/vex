@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <arch/cpu.h>
-#include <kan/console.h>
-#include <kan/system.h>
+#include <machine/cpu.h>
+#include <sys/klog.h>
+#include <sys/panic.h>
 
 void __noreturn fpanic(const char *restrict file, long line, const char *restrict fmt, ...)
 {
@@ -15,12 +15,18 @@ void __noreturn fpanic(const char *restrict file, long line, const char *restric
 
 void __noreturn fvpanic(const char *restrict file, long line, const char *restrict fmt, va_list ap)
 {
+    klog_sink_t *it;
+
     cpu_disable_interrupts();
 
-    console_unblank();
+    for(it = klog_sinks; it; it = it->next) {
+        if(!it->unblank)
+            continue;
+        it->unblank(it);
+    }
 
-    kprintf("panic: at [%s:%ld]", file, line);
-    kvprintf(fmt, ap);
+    klog(LOG_EMERG, "panic at [%s:%ld]", file, line);
+    kvlog(LOG_EMERG, fmt, ap);
 
     /* UNDONE: backtrace */
     /* print_backtrace(NULL); */

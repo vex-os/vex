@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <kan/system.h>
-#include <kan/vmm.h>
+#include <machine/gdt.h>
 #include <string.h>
-#include <x86_64/gdt.h>
+#include <sys/klog.h>
+#include <sys/vmm.h>
 
 #define GDT_READWRITE   (1 << 1)
 #define GDT_CONFORMING  (1 << 2)
@@ -106,8 +106,8 @@ static void init_gdt(void)
         1:;
     )::"i"(GDT_SELECTOR(GDT_KERN_CODE_64, 0, 0)));
 
-    kprintf("gdt: gdtr.size=%zu", (size_t)gdtr.size);
-    kprintf("gdt: gdtr.offset=%p", (void *)gdtr.offset);
+    klog(LOG_INFO, "gdt: gdtr.size=%zu", (size_t)gdtr.size);
+    klog(LOG_INFO, "gdt: gdtr.offset=%p", (void *)gdtr.offset);
 }
 early_initcall(gdt, init_gdt);
 initcall_depend(gdt, vmm);

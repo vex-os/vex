@@ -10,7 +10,7 @@ version=${1}
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"
 
-printf "#include <kan/system.h>\n"
+printf "#include <sys/version.h>\n"
 printf "const char build_date[] = \"${build_date}\";\n"
 printf "const char machine_string[] = \"${machine_string}\";\n"
 printf "const char git_revision[] = \"${git_revision}\";\n"

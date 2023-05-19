@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_KAN_INITCALL_H__
-#define __INCLUDE_KAN_INITCALL_H__
-#include <kan/cdefs.h>
+#ifndef __INCLUDE_SYS_INIT_H__
+#define __INCLUDE_SYS_INIT_H__
+#include <sys/cdefs.h>
 
 #define initcall(init, func) \
     extern void __init_##init(void) __alias(func)
@@ -36,4 +36,4 @@ initcall_extern(late);
 typedef void (*initcall_t)(void);
 extern const initcall_t initcalls[];
 
-#endif /* __INCLUDE_KAN_INITCALL_H__ */
+#endif /* __INCLUDE_SYS_INIT_H__ */
