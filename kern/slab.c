@@ -167,4 +167,4 @@ static void init_slab(void)
     setup_slab(&slabs[6], PAGE_SIZE / 8);
     setup_slab(&slabs[7], PAGE_SIZE / 4);
 }
-early_initcall(slab, init_slab);
+core_initcall(slab, init_slab);

@@ -119,13 +119,13 @@ void kvlog(unsigned short severity, const char *restrict fmt, va_list ap)
             it->write(it, "\r\n", 2);
         }
 
-        memcpy(klog_history[klog_history_pos++], buf.message, KLOG_MESSAGE_SIZE);
+        memcpy(klog_history[klog_history_pos], buf.message, KLOG_MESSAGE_SIZE);
 
-        if(klog_history_pos >= KLOG_HISTORY_SIZE) {
+        if(++klog_history_pos >= KLOG_HISTORY_SIZE) {
             for(i = 1; i < KLOG_HISTORY_SIZE; ++i)
                 memcpy(klog_history[i - 1], klog_history[i], KLOG_MESSAGE_SIZE);
             memset(klog_history[KLOG_HISTORY_SIZE - 1], 0, KLOG_MESSAGE_SIZE);
-            klog_history_pos = (KLOG_HISTORY_SIZE - 1);
+            klog_history_pos = KLOG_HISTORY_SIZE - 1;
         }
     }
 }

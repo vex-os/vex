@@ -109,5 +109,5 @@ static void init_gdt(void)
     klog(LOG_INFO, "gdt: gdtr.size=%zu", (size_t)gdtr.size);
     klog(LOG_INFO, "gdt: gdtr.offset=%p", (void *)gdtr.offset);
 }
-early_initcall(gdt, init_gdt);
+core_initcall(gdt, init_gdt);
 initcall_depend(gdt, vmm);

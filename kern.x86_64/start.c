@@ -2,8 +2,10 @@
 /* Copyright (c) 2023, KanOS Contributors */
 #include <iecprefix.h>
 #include <machine/boot.h>
+#include <printf.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <string.h>
 #include <sys/init.h>
 #include <sys/klog.h>
 #include <sys/panic.h>
@@ -100,22 +102,24 @@ void __used __noreturn kstart(void)
     hhdm_offset = hhdm_request.response->offset;
     kernel_base_phys = kernel_address_request.response->physical_base;
     kernel_base_virt = kernel_address_request.response->virtual_base;
+    memset(framebuffers, 0, sizeof(framebuffers));
 
     if(framebuffer_request.response) {
         for(i = 0; i < MAX_FRAMEBUFFERS && i < framebuffer_request.response->framebuffer_count; ++i) {
-            framebuffers[i].width = framebuffer_request.response->framebuffers[i]->width;
-            framebuffers[i].height = framebuffer_request.response->framebuffers[i]->height;
-            framebuffers[i].depth = framebuffer_request.response->framebuffers[i]->bpp;
-            framebuffers[i].pitch = framebuffer_request.response->framebuffers[i]->pitch;
-            framebuffers[i].mask.bits_r = ((1 << framebuffer_request.response->framebuffers[i]->red_mask_size) - 1);
-            framebuffers[i].mask.bits_g = ((1 << framebuffer_request.response->framebuffers[i]->green_mask_size) - 1);
-            framebuffers[i].mask.bits_b = ((1 << framebuffer_request.response->framebuffers[i]->blue_mask_size) - 1);
-            framebuffers[i].mask.shift_r = framebuffer_request.response->framebuffers[i]->red_mask_shift;
-            framebuffers[i].mask.shift_g = framebuffer_request.response->framebuffers[i]->green_mask_shift;
-            framebuffers[i].mask.shift_b = framebuffer_request.response->framebuffers[i]->blue_mask_shift;
-            framebuffers[i].offset = ((uint64_t)framebuffer_request.response->framebuffers[i]->address - hhdm_offset);
-            klog(LOG_INFO, "kstart: FB%zu %zux%zu/%zu", i, (size_t)framebuffers[i].width, (size_t)framebuffers[i].height, (size_t)framebuffers[i].depth);
-            klog(LOG_INFO, "kstart: FB%zu at %p", i, (void *)framebuffer_request.response->framebuffers[i]->address);
+            snprintf(framebuffers[i].ident, sizeof(framebuffers[i].ident), "Limine FB%zu", i);
+            framebuffers[i].base_offset = ((uint64_t)framebuffer_request.response->framebuffers[i]->address - hhdm_offset);
+            framebuffers[i].mmio_offset = UINT64_C(0x0000000000000000);
+            framebuffers[i].mmio_length = UINT64_C(0x0000000000000000);
+            framebuffers[i].vid_width = framebuffer_request.response->framebuffers[i]->width;
+            framebuffers[i].vid_height = framebuffer_request.response->framebuffers[i]->height;
+            framebuffers[i].vid_scanline = framebuffer_request.response->framebuffers[i]->pitch;
+            framebuffers[i].vid_depth = framebuffer_request.response->framebuffers[i]->bpp;
+            framebuffers[i].vid_red.bits = ((1 << framebuffer_request.response->framebuffers[i]->red_mask_size) - 1);
+            framebuffers[i].vid_green.bits = ((1 << framebuffer_request.response->framebuffers[i]->green_mask_size) - 1);
+            framebuffers[i].vid_blue.bits = ((1 << framebuffer_request.response->framebuffers[i]->blue_mask_size) - 1);
+            framebuffers[i].vid_red.offset = framebuffer_request.response->framebuffers[i]->red_mask_shift;
+            framebuffers[i].vid_green.offset = framebuffer_request.response->framebuffers[i]->green_mask_shift;
+            framebuffers[i].vid_blue.offset = framebuffer_request.response->framebuffers[i]->blue_mask_shift;
         }
     }
 

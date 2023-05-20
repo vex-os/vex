@@ -25,4 +25,4 @@ static void init_bxcon(void)
         return;
     register_klog_sink(&bxcon);
 }
-early_initcall(bxcon, init_bxcon);
+core_initcall(bxcon, init_bxcon);

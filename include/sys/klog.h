@@ -6,15 +6,17 @@
 #include <stddef.h>
 #include <sys/cdefs.h>
 
-#define LOG_EMERG   0x0000
-#define LOG_ALERT   0x0001
-#define LOG_CRIT    0x0002
-#define LOG_ERROR   0x0003
-#define LOG_WARNING 0x0004
-#define LOG_NOTICE  0x0005
-#define LOG_INFO    0x0006
-#define LOG_DEBUG   0x0007
-#define LOG_MAX     0xFFFF
+enum {
+    LOG_EMERG   = 0x0000,
+    LOG_ALERT   = 0x0001,
+    LOG_CRIT    = 0x0002,
+    LOG_ERROR   = 0x0003,
+    LOG_WARNING = 0x0004,
+    LOG_NOTICE  = 0x0005,
+    LOG_INFO    = 0x0006,
+    LOG_DEBUG   = 0x0007,
+    LOG_MAX     = 0xFFFF,
+};
 
 #define KLOG_HISTORY_SIZE 64
 #define KLOG_MESSAGE_SIZE 256

@@ -7,9 +7,11 @@
 #include <stdint.h>
 #include <sys/cdefs.h>
 
-#define PMM_ZONE_NORMAL 0x0001
-#define PMM_ZONE_DMA    0x0002
-#define PMM_ZONE_DMA32  0x0003
+enum {
+    PMM_ZONE_NORMAL = 0x0001,
+    PMM_ZONE_DMA    = 0x0002,
+    PMM_ZONE_DMA32  = 0x0003,
+};
 
 #define PMM_ZONE_BIT(zone) ((unsigned long)(1 << (zone)))
 #define PMM_ZONE_NORMAL_BIT PMM_ZONE_BIT(PMM_ZONE_NORMAL)

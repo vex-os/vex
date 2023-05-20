@@ -4,7 +4,7 @@
 #define __INCLUDE_X86_64_MACHINE_BOOT_H__
 #include <machine/limits.h>
 #include <limine.h>
-#include <sys/fbdef.h>
+#include <sys/fb.h>
 
 #if LATER
 extern volatile struct limine_5_level_paging_request five_level_paging_request;

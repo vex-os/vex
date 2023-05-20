@@ -15,21 +15,15 @@
     static const void __unused __section(".discard") (*__unique(__test)) = (&__init_##init); \
     static const char __used __section(".discard.initcalls") __unique(__depend)[] = (#depn " " #init)
 
-initcall_extern(early);
 initcall_extern(core);
-initcall_extern(postcore);
-initcall_extern(arch);
 initcall_extern(subsys);
 initcall_extern(filesystem);
 initcall_extern(device);
 initcall_extern(late);
 
-#define early_initcall(init, func) initcall(init, func); initcall_depend(init, early); initcall_depend(core, init)
-#define core_initcall(init, func) initcall(init, func); initcall_depend(init, core); initcall_depend(postcore, init)
-#define postcore_initcall(init, func) initcall(init, func); initcall_depend(init, postcore); initcall_depend(arch, init)
-#define arch_initcall(init, func) initcall(init, func); initcall_depend(init, arch); initcall_depend(subsys, init)
+#define core_initcall(init, func) initcall(init, func); initcall_depend(init, core); initcall_depend(subsys, init)
 #define subsys_initcall(init, func) initcall(init, func); initcall_depend(init, subsys); initcall_depend(filesystem, init)
-#define filesys_initcall(init, func) initcall(init, func); initcall_depend(init, filesystem); initcall_depend(device, init)
+#define filesystem_initcall(init, func) initcall(init, func); initcall_depend(init, filesystem); initcall_depend(device, init)
 #define device_initcall(init, func) initcall(init, func); initcall_depend(init, device); initcall_depend(late, init)
 #define late_initcall(init, func) initcall(init, func); initcall_depend(init, late)
 

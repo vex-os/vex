@@ -277,5 +277,5 @@ static void init_vmm(void)
 
     klog(LOG_INFO, "vmm: sys_pagemap.table=%p", (void *)((uintptr_t)sys_pagemap->table - hhdm_offset));
 }
-early_initcall(vmm, init_vmm);
+core_initcall(vmm, init_vmm);
 initcall_depend(vmm, slab);

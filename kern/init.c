@@ -2,39 +2,18 @@
 /* Copyright (c) 2023, KanOS Contributors */
 #include <sys/init.h>
 
-static void init_early(void)
-{
-
-}
-initcall(early, init_early);
-
 static void init_core(void)
 {
 
 }
 initcall(core, init_core);
-initcall_depend(core, early);
-
-static void init_postcore(void)
-{
-
-}
-initcall(postcore, init_postcore);
-initcall_depend(postcore, core);
-
-static void init_arch(void)
-{
-
-}
-initcall(arch, init_arch);
-initcall_depend(arch, postcore);
 
 static void init_subsys(void)
 {
 
 }
 initcall(subsys, init_subsys);
-initcall_depend(subsys, postcore);
+initcall_depend(subsys, core);
 
 static void init_filesystem(void)
 {

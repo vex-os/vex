@@ -70,6 +70,6 @@ static void init_idt(void)
     klog(LOG_INFO, "idt: idtr.size=%zu", (size_t)idtr.size);
     klog(LOG_INFO, "idt: idtr.offset=%p", (void *)idtr.offset);
 }
-early_initcall(idt, init_idt);
+core_initcall(idt, init_idt);
 initcall_depend(idt, gdt);
 initcall_depend(idt, vmm);
