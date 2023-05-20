@@ -181,9 +181,6 @@ int vmm_unmap(pagemap_t *restrict pagemap, uintptr_t virt)
     return EINVAL;
 }
 
-/* FIXME: per-fucking-formance goddammit!
- * It just seems to be better if we directly do
- * what vmm_map does because it repeats things internally*/
 static int vmm_map_range(pagemap_t *restrict pagemap, uintptr_t vstart, uintptr_t vend, uintptr_t phys, unsigned short mode)
 {
     int r;
@@ -247,30 +244,15 @@ static void init_vmm(void)
     phys = vstart - kernel_base_virt + kernel_base_phys;
     kassert(!vmm_map_range(sys_pagemap, vstart, vend, phys, VPROT_READ | VPROT_WRITE));
 
-    kassert(!vmm_map_range(sys_pagemap, PAGE_SIZE, GiB(4), PAGE_SIZE, VPROT_READ | VPROT_WRITE | VPROT_EXEC));
-    kassert(!vmm_map_range(sys_pagemap, hhdm_offset + PAGE_SIZE, hhdm_offset + GiB(4), PAGE_SIZE, VPROT_READ | VPROT_WRITE));
-
-    /* FIXME: per-fucking-formance goddammit!
-     * The more memory machine has, the slower
-     * it boots up since now it just maps whatever
-     * valid memmap entry it can. The general FIXME idea
-     * is to vmm_map MEMMAP_USABLE pages only when they are
-     * actually used through pmm_alloc/pmm_alloc_highmem calls */
     for(i = 0; i < memmap_request.response->entry_count; ++i) {
         if(memmap_request.response->entries[i]->type == LIMINE_MEMMAP_RESERVED)
             continue;
         if(memmap_request.response->entries[i]->type == LIMINE_MEMMAP_BAD_MEMORY)
             continue;
-        vstart = page_align_address(memmap_request.response->entries[i]->base);
-        vend = __align_ceil(memmap_request.response->entries[i]->base + memmap_request.response->entries[i]->length, PAGE_SIZE);
-
-        if(vend > GiB(4)) {
-            if(vstart < GiB(4))
-                vstart = GiB(4);
-            phys = vstart;
-            kassert(!vmm_map_range(sys_pagemap, vstart, vend, phys, VPROT_READ | VPROT_WRITE | VPROT_EXEC));
-            kassert(!vmm_map_range(sys_pagemap, vstart + hhdm_offset, vend + hhdm_offset, phys, VPROT_READ | VPROT_WRITE));
-        }
+        vstart = page_align_address(memmap_request.response->entries[i]->base) + hhdm_offset;
+        vend = __align_ceil(vstart + memmap_request.response->entries[i]->length, PAGE_SIZE);
+        phys = page_align_address(memmap_request.response->entries[i]->base);
+        kassert(!vmm_map_range(sys_pagemap, vstart, vend, phys, VPROT_READ | VPROT_WRITE | VPROT_EXEC));
     }
 
     vmm_switch(sys_pagemap);
