@@ -56,6 +56,7 @@ LDFLAGS += -nostdlib
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
 SEARCH :=
+SEARCH += blob
 SEARCH += kern
 SEARCH += kern.$(MACHINE)
 SEARCH += libkern/ctype
