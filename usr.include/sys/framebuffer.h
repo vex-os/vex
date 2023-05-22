@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#ifndef __USR_INCLUDE_SYS_FB_H__
-#define __USR_INCLUDE_SYS_FB_H__
+#ifndef __USR_INCLUDE_SYS_FRAMEBUFFER_H__
+#define __USR_INCLUDE_SYS_FRAMEBUFFER_H__
 #include <stdint.h>
 
 typedef struct fb_vmask_s {
@@ -24,4 +24,4 @@ typedef struct fb_info_s {
     fb_vmask_t vid_alpha;
 } fb_info_t;
 
-#endif /* __USR_INCLUDE_SYS_FB_H__ */
+#endif /* __USR_INCLUDE_SYS_FRAMEBUFFER_H__ */

@@ -1,6 +1,10 @@
 ## SPDX-License-Identifier: BSD-2-Clause
 ## Copyright (c) 2023, KanOS Contributors
 
+export LC_ALL=C
+export LANGUAGE=C
+export LANG=C
+
 MACHINE ?= x86_64
 TOOLCHAIN ?= llvm
 VERSION ?= 0.0.0-dev.7

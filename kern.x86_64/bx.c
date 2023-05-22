@@ -4,25 +4,25 @@
 #include <sys/init.h>
 #include <sys/klog.h>
 
-static void bxcon_write(klog_sink_t *restrict sink, const void *restrict s, size_t n)
+static void bx_write(klog_sink_t *restrict sink, const void *restrict s, size_t n)
 {
     size_t i;
     const char *sp = s;
     for(i = 0; i < n; pmio_write8(0xE9, sp[i++]));
 }
 
-static klog_sink_t bxcon = {
+static klog_sink_t bx = {
     .next = NULL,
-    .write = &bxcon_write,
+    .write = &bx_write,
     .unblank = NULL,
-    .ident = "bxcon",
+    .ident = "bx",
     .data = NULL,
 };
 
-static void init_bxcon(void)
+static void init_bx(void)
 {
     if(pmio_read8(0xE9) != 0xE9)
         return;
-    register_klog_sink(&bxcon);
+    register_klog_sink(&bx);
 }
-core_initcall(bxcon, init_bxcon);
+core_initcall(bx, init_bx);
