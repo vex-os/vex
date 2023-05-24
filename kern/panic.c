@@ -25,7 +25,7 @@ void __noreturn fvpanic(const char *restrict file, long line, const char *restri
         it->unblank(it);
     }
 
-    kvlog(LOG_EMERG, "\n!~ KERNEL PANIC ~!\n", ap);
+    kvlog(LOG_EMERG, "\n!~ KERNEL PANIC ~!\n");
     klog(LOG_EMERG, "panic at [%s:%ld]", file, line);
     kvlog(LOG_EMERG, fmt, ap);
 
