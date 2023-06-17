@@ -2,8 +2,8 @@
 /* Copyright (c) 2023, KanOS Contributors */
 #ifndef __INCLUDE_STDLIB_H__
 #define __INCLUDE_STDLIB_H__
+#include <kan/cdefs.h>
 #include <stddef.h>
-#include <sys/cdefs.h>
 
 int abs(int x);
 long labs(long x);

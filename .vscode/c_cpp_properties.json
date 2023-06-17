@@ -2,14 +2,12 @@
     "version": 4,
     "configurations": [
         {
-            "name": "KanOS Clang/AMD64",
+            "name": "default",
             "intelliSenseMode": "clang-x64",
             "defines": [ "__x86_64__", "__kernel__" ],
             "includePath": [
                 "${workspaceFolder}/include",
-                "${workspaceFolder}/include.x86_64",
-                "${workspaceFolder}/usr.include",
-                "${workspaceFolder}/usr.include.x86_64"
+                "${workspaceFolder}/usr.include"
             ],
             "compilerArgs": [ "-ffreestanding", "-nostdlibinc", "-nostdlib" ],
             "compilerPath": "/usr/bin/clang",

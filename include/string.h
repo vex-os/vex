@@ -2,8 +2,8 @@
 /* Copyright (c) 2023, KanOS Contributors */
 #ifndef __INCLUDE_STRING_H__
 #define __INCLUDE_STRING_H__
+#include <kan/cdefs.h>
 #include <stddef.h>
-#include <sys/cdefs.h>
 
 const void *memchr(const void *restrict s, int c, size_t n);
 int memcmp(const void *restrict s1, const void *restrict s2, size_t n);

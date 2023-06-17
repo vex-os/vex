@@ -1,41 +1,34 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
+#include <kern/console.h>
+#include <kern/systm.h>
 #include <machine/cpu.h>
-#include <sys/klog.h>
-#include <sys/panic.h>
 
-void __noreturn fpanic(const char *restrict file, long line, const char *restrict fmt, ...)
+void fpanic(const char *restrict file, long line, const char *restrict fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
     fvpanic(file, line, fmt, ap);
-    UNREACHABLE();
+    unreachable();
     va_end(ap);
 }
 
-void __noreturn fvpanic(const char *restrict file, long line, const char *restrict fmt, va_list ap)
+void fvpanic(const char *restrict file, long line, const char *restrict fmt, va_list ap)
 {
-    klog_sink_t *it;
+    disable_interrupts();
+    console_unblank();
 
-    cpu_disable_interrupts();
+    kprintf("panic at [%s:%ld]", file, line);
+    kvprintf(fmt, ap);
 
-    for(it = klog_sinks; it; it = it->next) {
-        if(!it->unblank)
-            continue;
-        it->unblank(it);
-    }
-
-    klog(LOG_EMERG, "panic at [%s:%ld]", file, line);
-    kvlog(LOG_EMERG, fmt, ap);
-
-    /* UNDONE: backtrace */
-    /* print_backtrace(NULL); */
+    /* undone: backtrace */
+    /* backtrace(NULL); */
 
     for(;;) {
-        cpu_idle();
-        cpu_disable_interrupts();
+        halt_cpu();
+        disable_interrupts();
         continue;
     }
 
-    UNREACHABLE();
+    unreachable();
 }

@@ -2,6 +2,7 @@
 /* Copyright (c) 2023, KanOS Contributors */
 #ifndef __INCLUDE_CTYPE_H__
 #define __INCLUDE_CTYPE_H__
+#include <kan/cdefs.h>
 
 int isalnum(int c);
 int isalpha(int c);

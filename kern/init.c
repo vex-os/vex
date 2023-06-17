@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <sys/init.h>
+#include <kern/init.h>
 
 static void init_core(void)
 {
