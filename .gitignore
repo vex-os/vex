@@ -1,5 +1,7 @@
 .vscode/*
 !.vscode/c_cpp_properties.json
+include/machine/*
+include/machine
 build/*
 build
 *.c.o
