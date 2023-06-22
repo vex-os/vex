@@ -23,6 +23,7 @@ $(KERNEL_IMG): $(KERNEL) | $(BIOS_DEPLOY)
 	mkfs.fat -F16 --offset 2048 $@
 	mmd -i $@@@2048s ::/EFI
 	mmd -i $@@@2048s ::/EFI/BOOT
+	mcopy -i $@@@2048s boot/riscv64/BOOTRISCV64.EFI ::/EFI/BOOT/BOOTRISCV64.EFI
 	mcopy -i $@@@2048s boot/x86_64/BOOTX64.EFI ::/EFI/BOOT/BOOTX64.EFI
 	mcopy -i $@@@2048s boot/x86_64/limine-bios.sys ::/limine-bios.sys
 	mcopy -i $@@@2048s boot/limine.cfg ::/limine.cfg

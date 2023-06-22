@@ -1,11 +1,9 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c) 2023, KanOS Contributors */
 #ifndef __INCLUDE_X86_64_PML_H__
 #define __INCLUDE_X86_64_PML_H__
-#include <kan/cdefs.h>
-#include <kernel/vprot.h>
+#include <mm/vprot.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <sys/cdefs.h>
 
 #define X86_PML_ADDRESS 0x000FFFFFFFFFF000
 #define X86_PML_PRESENT 0x0000000000000001
@@ -35,23 +33,23 @@
 
 #define PML_INVALID 0x0000000000000000
 
-typedef uint64_t pml_t;
+typedef uint64_t vmm_pml_t;
 
-static __always_inline inline bool pml_valid(pml_t entry)
+static __always_inline inline bool pml_valid(vmm_pml_t entry)
 {
     if(entry & X86_PML_PRESENT)
         return true;
     return false;
 }
 
-static __always_inline inline uintptr_t pml_address(pml_t entry)
+static __always_inline inline uintptr_t pml_address(vmm_pml_t entry)
 {
     return (entry & X86_PML_ADDRESS);
 }
 
-static __always_inline inline pml_t pml_mkentry(uintptr_t address, unsigned short vprot)
+static __always_inline inline vmm_pml_t pml_mkentry(uintptr_t address, unsigned short vprot)
 {
-    pml_t entry = ((X86_PML_PRESENT | X86_PML_NOEXEC) | (address & X86_PML_ADDRESS));
+    vmm_pml_t entry = ((X86_PML_PRESENT | X86_PML_NOEXEC) | (address & X86_PML_ADDRESS));
     if(vprot & VPROT_WRITE)
         entry |= X86_PML_WRITE;
     if(vprot & VPROT_USER)

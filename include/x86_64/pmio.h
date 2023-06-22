@@ -2,8 +2,8 @@
 /* Copyright (c) 2023, KanOS Contributors */
 #ifndef __INCLUDE_X86_64_PMIO_H__
 #define __INCLUDE_X86_64_PMIO_H__
-#include <kan/cdefs.h>
 #include <stdint.h>
+#include <sys/cdefs.h>
 
 static __always_inline inline uint8_t pmio_read8(uintptr_t offset)
 {

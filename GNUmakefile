@@ -19,8 +19,8 @@ PHONY_TARGETS :=
 TEMP := build
 MINC := include/machine
 
-include GNUmakefile.$(MACHINE)
-include GNUmakefile.$(TOOLCHAIN)
+include config/machine.$(MACHINE).mk
+include config/toolchain.$(TOOLCHAIN).mk
 
 CFLAGS += -ffreestanding
 CFLAGS += -Wall -Wextra -Werror
@@ -32,7 +32,6 @@ CFLAGS += -O2
 CPPFLAGS += -D __kernel__
 CPPFLAGS += -D __KERNEL__
 CPPFLAGS += -I include
-CPPFLAGS += -I usr.include
 
 LDFLAGS += -static
 LDFLAGS += -nostdlib
@@ -51,8 +50,9 @@ LDSCRIPT := $(TEMP)/ldscript.ld
 KERNEL := kan.elf
 
 include boot/GNUmakefile
-include kernel/GNUmakefile
-include libkern/GNUmakefile
+include lib/GNUmakefile
+include mm/GNUmakefile
+include sys/GNUmakefile
 include $(MACHINE)/GNUmakefile
 
 OBJECTS += $(SOURCES:=.o)
@@ -98,5 +98,5 @@ $(KERNEL): $(INIT_O) $(NOINIT_O) | $(LDSCRIPT) $(TEMP) $(MINC)
 $(NOINIT_O): $(OBJECTS) | $(TEMP) $(MINC)
 	$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(LDSCRIPT): $(MACHINE)/ldscript.lds | $(TEMP) $(MINC)
+$(LDSCRIPT): config/link.$(MACHINE).lds | $(TEMP) $(MINC)
 	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | grep -v "^#" > $@ || true

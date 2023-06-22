@@ -5,7 +5,7 @@ initcalls=$(readelf -p .discard.initcalls "${1}" | grep -P "^\s*\[" | cut -d "]"
 
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"
-printf "#include <kernel/init.h>\n"
+printf "#include <sys/initcall.h>\n"
 printf "#include <stddef.h>\n"
 
 for initcall in ${initcalls}; do

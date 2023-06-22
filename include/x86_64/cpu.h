@@ -2,8 +2,8 @@
 /* Copyright (c) 2023, KanOS Contributors */
 #ifndef __INCLUDE_X86_64_CPU_H__
 #define __INCLUDE_X86_64_CPU_H__
-#include <kan/cdefs.h>
 #include <stdint.h>
+#include <sys/cdefs.h>
 
 struct cpu_context {
     uint64_t r15;
