@@ -2,7 +2,7 @@
 /* Copyright (c) 2023, KanOS Contributors */
 #ifndef __INCLUDE_X86_64_GDT_H__
 #define __INCLUDE_X86_64_GDT_H__
-#include <kern/init.h>
+#include <kernel/init.h>
 
 #define GDT_NULL 0
 #define GDT_KERN_CODE_16 1

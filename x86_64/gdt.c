@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <kern/systm.h>
-#include <kern/vmm.h>
+#include <kernel/systm.h>
+#include <kernel/vmm.h>
 #include <string.h>
 #include <x86_64/gdt.h>
 

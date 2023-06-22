@@ -2,7 +2,7 @@
 /* Copyright (c), 2021, Kirill GPRB */
 /* Copyright (c), 2023, KanOS Contributors */
 OUTPUT_FORMAT(elf64-x86-64)
-ENTRY(kmain)
+ENTRY(main)
 
 #define FLAG_E (1 << 0)
 #define FLAG_W (1 << 1)

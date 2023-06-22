@@ -7,3 +7,5 @@ build
 *.c.o
 *.S.o
 *.s.o
+*.elf
+*.img

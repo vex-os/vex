@@ -7,15 +7,7 @@ export LANG=C
 
 MACHINE ?= x86_64
 TOOLCHAIN ?= llvm
-RELEASE ?= 0.0.1-dev.8
-
-CP ?= cp
-LN ?= ln
-RM ?= rm
-
-GREP ?= grep
-MKDIR ?= mkdir
-TRUE ?= true
+RELEASE ?= 0.0.1-dev.9
 
 SOURCES :=
 OBJECTS :=
@@ -25,7 +17,7 @@ ALL_DEPS :=
 PHONY_TARGETS :=
 
 TEMP := build
-MACH := include/machine
+MINC := include/machine
 
 include GNUmakefile.$(MACHINE)
 include GNUmakefile.$(TOOLCHAIN)
@@ -45,31 +37,32 @@ CPPFLAGS += -I usr.include
 LDFLAGS += -static
 LDFLAGS += -nostdlib
 
-%.c.o: %.c | $(TEMP) $(MACH)
+%.c.o: %.c | $(TEMP) $(MINC)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
-%.S.o: %.S | $(TEMP) $(MACH)
+%.S.o: %.S | $(TEMP) $(MINC)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
-%.s.o: %.s | $(TEMP) $(MACH)
+%.s.o: %.s | $(TEMP) $(MINC)
 	$(CC) $(CFLAGS) $(CPPFLAGS) -c -o $@ $<
 
-include kern/GNUmakefile
+INIT_C := $(TEMP)/initcalls.c
+INIT_O := $(TEMP)/initcalls.o
+NOINIT_O := $(TEMP)/noinit.o
+LDSCRIPT := $(TEMP)/ldscript.ld
+KERNEL := kan.elf
+
+include boot/GNUmakefile
+include kernel/GNUmakefile
 include libkern/GNUmakefile
 include $(MACHINE)/GNUmakefile
 
-INITCALLS_C := $(TEMP)/initcalls.c
-INITCALLS_O := $(TEMP)/initcalls.o
-KERNEL_BINARY := $(TEMP)/kernel.elf
-KERNEL_NOINIT := $(TEMP)/kernel_noinit.o
-LDSCRIPT := $(TEMP)/ldscript.ld
-
 OBJECTS += $(SOURCES:=.o)
 
-DISTCLEAN += $(TEMP) $(MACH)
+DISTCLEAN += $(TEMP) $(MINC)
 CLEAN += $(OBJECTS)
-CLEAN += $(INITCALLS_C)
-CLEAN += $(INITCALLS_O)
-CLEAN += $(KERNEL_BINARY)
-CLEAN += $(KERNEL_NOINIT)
+CLEAN += $(INIT_C)
+CLEAN += $(INIT_O)
+CLEAN += $(KERNEL)
+CLEAN += $(NOINIT_O)
 CLEAN += $(LDSCRIPT)
 
 PHONY_TARGETS += all
@@ -77,35 +70,33 @@ PHONY_TARGETS += kernel clean distclean
 PHONY_TARGETS += force_run
 ALL_DEPS += kernel
 
--include boot/$(MACHINE)/GNUmakefile
-
 all: $(ALL_DEPS)
 
-kernel: $(KERNEL_BINARY)
+kernel: $(KERNEL)
 
 clean:
-	$(RM) -vrf $(CLEAN)
+	rm -vrf $(CLEAN)
 
 distclean:
-	$(RM) -vrf $(CLEAN)
-	$(RM) -vrf $(DISTCLEAN)
+	rm -vrf $(CLEAN)
+	rm -vrf $(DISTCLEAN)
 
 $(TEMP):
-	$(MKDIR) -p $(TEMP)
+	mkdir -p $(TEMP)
 
-$(MACH):
-	$(LN) -sf $(abspath include/$(MACHINE)) ./include/machine
+$(MINC):
+	ln -sf $(abspath include/$(MACHINE)) ./include/machine
 
 force_run:
 
-$(INITCALLS_C): $(KERNEL_NOINIT) | initcalls.sh $(TEMP) $(MACH)
+$(INIT_C): $(NOINIT_O) | initcalls.sh $(TEMP) $(MINC)
 	$(SHELL) initcalls.sh $^ > $@
 
-$(KERNEL_BINARY): $(INITCALLS_O) $(KERNEL_NOINIT) | $(LDSCRIPT) $(TEMP) $(MACH)
+$(KERNEL): $(INIT_O) $(NOINIT_O) | $(LDSCRIPT) $(TEMP) $(MINC)
 	$(LD) $(LDFLAGS) -T $(LDSCRIPT) -o $@ $^
 
-$(KERNEL_NOINIT): $(OBJECTS) | $(TEMP) $(MACH)
+$(NOINIT_O): $(OBJECTS) | $(TEMP) $(MINC)
 	$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(LDSCRIPT): $(MACHINE)/ldscript.lds | $(TEMP) $(MACH)
-	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | $(GREP) -v "^#" > $@ || $(TRUE)
+$(LDSCRIPT): $(MACHINE)/ldscript.lds | $(TEMP) $(MINC)
+	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | grep -v "^#" > $@ || true

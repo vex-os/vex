@@ -1,12 +1,13 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <kern/systm.h>
-#include <kern/vmm.h>
+#include <kernel/systm.h>
+#include <kernel/vmm.h>
 #include <string.h>
-#include <x86_64/const.h>
 #include <x86_64/cpu.h>
 #include <x86_64/gdt.h>
 #include <x86_64/idt.h>
+
+#define IDT_SIZE 256
 
 #define IDT_TRAP    (0x0F << 0)
 #define IDT_INTR    (0x0E << 0)
@@ -29,11 +30,11 @@ typedef struct idt_register_s {
     uintptr_t offset;
 } __packed idt_register_t;
 
-static idt_entry_t idt[MAX_INTERRUPTS] = { 0 };
+static idt_entry_t idt[IDT_SIZE] = { 0 };
 static idt_register_t idtr = { 0 };
 
 /* $(TEMP_DIR)/x86_64.isr_stubs.S */
-extern const uint64_t isr_stubs[MAX_INTERRUPTS];
+extern const uint64_t isr_stubs[IDT_SIZE];
 
 void __used isr_handler(struct cpu_context *restrict ctx, uint64_t vector)
 {
@@ -45,7 +46,7 @@ static void init_idt(void)
     size_t i;
     idt_entry_t *entry;
 
-    for(i = 0; i < MAX_INTERRUPTS; i++) {
+    for(i = 0; i < IDT_SIZE; i++) {
         entry = &idt[i];
 
         memset(entry, 0, sizeof(idt_entry_t));

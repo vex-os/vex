@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <kern/console.h>
-#include <kern/init.h>
+#include <kernel/console.h>
+#include <kernel/init.h>
+#include <kernel/vmm.h>
 #include <x86_64/pmio.h>
 
 static void bxcon_putchar(struct console *restrict con, int c)
@@ -24,4 +25,4 @@ static void init_bxcon(void)
     register_console(&bxcon);
 }
 core_initcall(bxcon, init_bxcon);
-
+initcall_depend(vmm, bxcon); /* crutch, remove asap */

@@ -8,37 +8,37 @@
 static __always_inline inline uint8_t pmio_read8(uintptr_t offset)
 {
     uint8_t value;
-    asm volatile("inb %1, %0":"=a"(value):"Nd"(offset & 0xFFFF):"memory");
+    asm volatile("inb %1, %0":"=a"(value):"Nd"((uint16_t)(offset & 0xFFFF)):"memory");
     return value;
 }
 
 static __always_inline inline uint16_t pmio_read16(uintptr_t offset)
 {
     uint16_t value;
-    asm volatile("inw %1, %0":"=a"(value):"Nd"(offset & 0xFFFF):"memory");
+    asm volatile("inw %1, %0":"=a"(value):"Nd"((uint16_t)(offset & 0xFFFF)):"memory");
     return value;
 }
 
 static __always_inline inline uint32_t pmio_read32(uintptr_t offset)
 {
     uint32_t value;
-    asm volatile("inl %1, %0":"=a"(value):"Nd"(offset & 0xFFFF):"memory");
+    asm volatile("inl %1, %0":"=a"(value):"Nd"((uint16_t)(offset & 0xFFFF)):"memory");
     return value;
 }
 
 static __always_inline inline void pmio_write8(uintptr_t offset, uint8_t value)
 {
-    asm volatile("outb %0, %1"::"a"(value), "Nd"(offset & 0xFFFF):"memory");
+    asm volatile("outb %0, %1"::"a"(value), "Nd"((uint16_t)(offset & 0xFFFF)):"memory");
 }
 
 static __always_inline inline void pmio_write16(uintptr_t offset, uint16_t value)
 {
-    asm volatile("outw %0, %1"::"a"(value), "Nd"(offset & 0xFFFF):"memory");
+    asm volatile("outw %0, %1"::"a"(value), "Nd"((uint16_t)(offset & 0xFFFF)):"memory");
 }
 
 static __always_inline inline void pmio_write32(uintptr_t offset, uint32_t value)
 {
-    asm volatile("outl %0, %1"::"a"(value), "Nd"(offset & 0xFFFF):"memory");
+    asm volatile("outl %0, %1"::"a"(value), "Nd"((uint16_t)(offset & 0xFFFF)):"memory");
 }
 
 static __always_inline inline void pmio_wait(void)

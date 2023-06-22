@@ -3,7 +3,7 @@
 #ifndef __INCLUDE_X86_64_PML_H__
 #define __INCLUDE_X86_64_PML_H__
 #include <kan/cdefs.h>
-#include <kern/vprot.h>
+#include <kernel/vprot.h>
 #include <stdbool.h>
 #include <stdint.h>
 
