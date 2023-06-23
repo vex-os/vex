@@ -2,8 +2,8 @@
 !.vscode/c_cpp_properties.json
 include/machine/*
 include/machine
-build/*
-build
+temp/*
+temp
 *.c.o
 *.S.o
 *.s.o

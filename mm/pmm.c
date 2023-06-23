@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <mm/align.h>
+#include <mm/page.h>
 #include <mm/pmm.h>
 #include <stdbool.h>
 #include <string.h>
@@ -24,6 +24,7 @@
  *      than 64 MiB of system memory installed.
  */
 
+/* UNDONE: command line parser */
 #define DMA_APPROX_END 0x3FFFFFF
 
 static void **page_list = NULL;
@@ -141,7 +142,7 @@ void pmm_free(uintptr_t address, size_t npages)
 
 void pmm_free_hhdm(void *restrict ptr, size_t npages)
 {
-    if(ptr == NULL)
+    if(!ptr)
         return;
     pmm_free(((uintptr_t)ptr - hhdm_offset), npages);
 }
@@ -150,18 +151,19 @@ static void init_pmm(void)
 {
     size_t i;
     size_t page;
-    size_t nb, npages;
+    size_t npages;
+    size_t bitmap_size;
+    uintptr_t bitmap_base;
     uintptr_t end_addr, off;
     void **head_ptr;
     struct limine_memmap_entry *entry;
 
     page_list = NULL;
-    dma_end = DMA_APPROX_END;
+    dma_end = 0;
     dma_bitmap = NULL;
     dma_numpages = 0;
     dma_lastpage = 0;
 
-    /* Determine the actual dma_end */
     for(i = 0; i < memmap_request.response->entry_count; ++i) {
         entry = memmap_request.response->entries[i];
 
@@ -175,26 +177,22 @@ static void init_pmm(void)
 
     npages = get_page_count(dma_end + 1);
     dma_numpages = __align_ceil(npages, 64);
-    nb = dma_numpages / 8;
+    bitmap_size = dma_numpages / 8;
+    npages = get_page_count(bitmap_size);
 
-    /* Bitmap's size in pages */
-    npages = get_page_count(nb);
-
-    /* Find a place for the bitmap */
     for(i = 0; i < memmap_request.response->entry_count; ++i) {
         entry = memmap_request.response->entries[i];
 
         if(entry->type == LIMINE_MEMMAP_USABLE && entry->length >= npages) {
-            dma_bitmap = (uint64_t *)(entry->base + hhdm_offset);
-            entry->base += npages * PAGE_SIZE;
-            entry->length -= npages * PAGE_SIZE;
+            bitmap_base = entry->base;
+            dma_bitmap = (uint64_t *)(bitmap_base + hhdm_offset);
+            break;
         }
     }
 
-    kassertf(dma_bitmap, "pmm: insufficient memory");
+    panic_if(!dma_bitmap, "pmm: out of memory");
     bitmap_mark_used(0, dma_numpages - 1);
 
-    /* Mark blocks within DMA space as free memory */
     for(i = 0; i < memmap_request.response->entry_count; ++i) {
         entry = memmap_request.response->entries[i];
 
@@ -206,7 +204,12 @@ static void init_pmm(void)
         }
     }
 
-    /* Initialize anything else as a linked list */
+    if(bitmap_base <= dma_end) {
+        page = bitmap_base / PAGE_SIZE;
+        npages = get_page_count(bitmap_size);
+        bitmap_mark_used(page, page + npages - 1);
+    }
+
     for(i = 0; i < memmap_request.response->entry_count; ++i) {
         entry = memmap_request.response->entries[i];
 
@@ -218,5 +221,8 @@ static void init_pmm(void)
             }
         }
     }
+
+    kprintf("pmm: dma_end=%p, dma_numpages=%zu", (void *)dma_end, dma_numpages);
+    kprintf("pmm: dma_bitmap=%p", dma_bitmap);
 }
 core_initcall(pmm, init_pmm);

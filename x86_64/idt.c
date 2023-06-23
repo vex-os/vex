@@ -3,6 +3,7 @@
 #include <mm/vmm.h>
 #include <stddef.h>
 #include <string.h>
+#include <sys/panic.h>
 #include <sys/printf.h>
 #include <x86_64/cpu.h>
 #include <x86_64/gdt.h>
@@ -39,7 +40,7 @@ extern const uint64_t isr_stubs[IDT_SIZE];
 
 void __used isr_handler(struct cpu_context *restrict ctx, uint64_t vector)
 {
-    kprintf("idt: isr_handler(%p, %02jX)", (void *)ctx, (uintmax_t)vector);
+    panic("idt: isr_handler(%p, %02jX)", (void *)ctx, (uintmax_t)vector);
 }
 
 static void init_idt(void)

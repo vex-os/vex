@@ -16,7 +16,7 @@ DISTCLEAN :=
 ALL_DEPS :=
 PHONY_TARGETS :=
 
-TEMP := build
+TEMP := temp
 MINC := include/machine
 
 include config/machine.$(MACHINE).mk

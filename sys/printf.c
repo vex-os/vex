@@ -35,7 +35,7 @@ int add_console(struct console *restrict con)
         return EBUSY;
     }
 
-    kprintf("printf: adding %s", con->con_identity);
+    kprintf("console: adding %s", con->con_identity);
 
     if(con->con_unblank) {
         /* Typically you'd expect a newly registered

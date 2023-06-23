@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <mm/align.h>
+#include <mm/page.h>
 #include <mm/pmm.h>
 #include <mm/slab.h>
 #include <stdbool.h>
@@ -64,7 +64,7 @@ static void setup_slab(struct slab *restrict sl, size_t blocksize)
 {
     sl->sl_blocksize = __align_ceil(blocksize, sizeof(void *));
     sl->sl_head = NULL;
-    kassertf(expand_slab(sl), "slab: insufficient memory");
+    panic_if(!expand_slab(sl), "slab: out of memory");
 }
 
 void *slab_alloc(size_t n)
@@ -149,10 +149,8 @@ static void init_slab(void)
     num_slab = 8;
     npages = get_page_count(sizeof(struct slab) * num_slab);
 
-    if((slabs = pmm_alloc_hhdm(npages)) == NULL) {
-        panic("slab: insufficient memory");
-        unreachable();
-    }
+    slabs = pmm_alloc_hhdm(npages);
+    panic_if(!slabs, "slab: out of memory");
 
     memset(slabs, 0, npages * PAGE_SIZE);
 

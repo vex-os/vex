@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
 #include <machine/cpu.h>
-#include <mm/align.h>
+#include <mm/page.h>
 #include <mm/pmm.h>
 #include <mm/slab.h>
 #include <mm/vmm.h>
@@ -40,21 +40,21 @@ static vmm_pml_t *pml_lookup(vmm_pml_t *restrict table, size_t offset, bool allo
 static vmm_pml_t *pml_full_lookup(vmm_pml_t *restrict table, uintptr_t virt, bool allocate)
 {
 #if PML_LEVEL5
-    if((table = pml_lookup(table, PML_INDEX(virt, PML_L5_MASK, PML_L5_SHIFT), true)) == NULL)
+    if(!(table = pml_lookup(table, PML_INDEX(virt, PML_L5_MASK, PML_L5_SHIFT), true)))
         return NULL;
 #endif
 
 #if PML_LEVEL4
-    if((table = pml_lookup(table, PML_INDEX(virt, PML_L4_MASK, PML_L4_SHIFT), true)) == NULL)
+    if(!(table = pml_lookup(table, PML_INDEX(virt, PML_L4_MASK, PML_L4_SHIFT), true)))
         return NULL;
 #endif
 
 #if PML_LEVEL3
-    if((table = pml_lookup(table, PML_INDEX(virt, PML_L3_MASK, PML_L3_SHIFT), true)) == NULL)
+    if(!(table = pml_lookup(table, PML_INDEX(virt, PML_L3_MASK, PML_L3_SHIFT), true)))
         return NULL;
 #endif
 
-    if((table = pml_lookup(table, PML_INDEX(virt, PML_L2_MASK, PML_L2_SHIFT), true)) == NULL)
+    if(!(table = pml_lookup(table, PML_INDEX(virt, PML_L2_MASK, PML_L2_SHIFT), true)))
         return NULL;
     return &table[PML_INDEX(virt, PML_L1_MASK, PML_L1_SHIFT)];
 }
@@ -66,7 +66,7 @@ static void pml_dealloc(vmm_pml_t *restrict table, size_t begin, size_t end, uns
 
     if(level != 0) {
         for(i = begin; i < end; ++i) {
-            if((next = pml_lookup(table, i, false)) == NULL)
+            if(!(next = pml_lookup(table, i, false)))
                 continue;
             pml_dealloc(next, 0, PML_COUNT, (level - 1));
         }
@@ -207,10 +207,10 @@ static void init_vmm(void)
     struct limine_memmap_entry *entry;
 
     sys_vm = slab_alloc(sizeof(struct pagemap));
-    kassertf(sys_vm, "vmm: insufficient memory");
+    panic_if(!sys_vm, "vmm: out of memory");
 
     sys_vm->vm_ptr = pmm_alloc(1);
-    kassertf(sys_vm->vm_ptr, "vmm: insufficient memory");
+    panic_if(!sys_vm->vm_ptr, "vmm: out of memory");
 
     sys_vm->vm_pml = (vmm_pml_t *)(sys_vm->vm_ptr + hhdm_offset);
     memset(sys_vm->vm_pml, 0, PAGE_SIZE);

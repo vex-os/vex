@@ -29,15 +29,21 @@ volatile struct limine_memmap_request memmap_request = {
     .response = NULL,
 };
 
+volatile struct limine_framebuffer_request framebuffer_request = {
+    .id = LIMINE_FRAMEBUFFER_REQUEST,
+    .revision = 0,
+    .response = NULL,
+};
+
 void __noreturn __used main(void)
 {
     size_t i;
 
     kprintf("%s %s %s", sysname, release, version);
 
-    kassert(hhdm_request.response != NULL);
-    kassert(memmap_request.response != NULL);
-    kassert(kernel_address_request.response != NULL);
+    panic_if(!hhdm_request.response, "main: hhdm_request has no response");
+    panic_if(!memmap_request.response, "main: memmap_request has no response");
+    panic_if(!kernel_address_request.response, "main: kernel_address_request has no response");
 
     hhdm_offset = hhdm_request.response->offset;
     kernel_base_phys = kernel_address_request.response->physical_base;
