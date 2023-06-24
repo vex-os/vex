@@ -4,6 +4,7 @@
 GCC_PREFIX := x86_64-elf
 LLVM_TARGET := x86_64-none-elf
 LIMINE_ARCH := x86-64
+EFI_ARCH := X64
 
 CFLAGS += -fno-pic
 CFLAGS += -mcmodel=kernel

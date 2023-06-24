@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <mm/page.h>
-#include <mm/pmm.h>
-#include <mm/slab.h>
 #include <stdbool.h>
 #include <string.h>
+#include <sys/page.h>
 #include <sys/panic.h>
+#include <sys/pmm.h>
 #include <sys/printf.h>
+#include <sys/slab.h>
 
 struct slab {
     size_t sl_blocksize;

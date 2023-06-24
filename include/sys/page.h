@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_MM_PAGE_H__
-#define __INCLUDE_MM_PAGE_H__
+#ifndef __INCLUDE_SYS_PAGE_H__
+#define __INCLUDE_SYS_PAGE_H__
 #include <machine/limits.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -27,4 +27,4 @@ static __always_inline inline size_t get_page_count(size_t n)
     return __align_ceil(n, PAGE_SIZE) / PAGE_SIZE;
 }
 
-#endif /* __INCLUDE_MM_PAGE_H__ */
+#endif /* __INCLUDE_SYS_PAGE_H__ */

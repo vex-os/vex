@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#include <mm/vmm.h>
 #include <stddef.h>
 #include <string.h>
 #include <sys/printf.h>
+#include <sys/vmm.h>
 #include <x86_64/gdt.h>
 
 #define GDT_READWRITE   (1 << 1)

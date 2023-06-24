@@ -47,11 +47,10 @@ INIT_C := $(TEMP)/initcalls.c
 INIT_O := $(TEMP)/initcalls.o
 NOINIT_O := $(TEMP)/noinit.o
 LDSCRIPT := $(TEMP)/ldscript.ld
-KERNEL := kan.elf
+KERNEL := kernel.elf
 
 include boot/GNUmakefile
 include lib/GNUmakefile
-include mm/GNUmakefile
 include sys/GNUmakefile
 include $(MACHINE)/GNUmakefile
 

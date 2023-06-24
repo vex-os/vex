@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_MM_VMM_H__
-#define __INCLUDE_MM_VMM_H__
+#ifndef __INCLUDE_SYS_VMM_H__
+#define __INCLUDE_SYS_VMM_H__
 #include <machine/pml.h>
-#include <mm/vprot.h>
 #include <sys/initcall.h>
+#include <sys/vprot.h>
 
 struct pagemap {
     vmm_pml_t *vm_pml;
@@ -23,4 +23,4 @@ int vmm_unmap(struct pagemap *restrict vm, uintptr_t virt);
 
 initcall_extern(vmm);
 
-#endif /* __INCLUDE_MM_VMM_H__ */
+#endif /* __INCLUDE_SYS_VMM_H__ */

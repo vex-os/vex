@@ -1,16 +1,16 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
 #include <machine/cpu.h>
-#include <mm/page.h>
-#include <mm/pmm.h>
-#include <mm/slab.h>
-#include <mm/vmm.h>
 #include <string.h>
 #include <sys/boot.h>
 #include <sys/errno.h>
 #include <sys/linker.h>
+#include <sys/page.h>
 #include <sys/panic.h>
+#include <sys/pmm.h>
 #include <sys/printf.h>
+#include <sys/slab.h>
+#include <sys/vmm.h>
 
 struct pagemap *sys_vm = NULL;
 

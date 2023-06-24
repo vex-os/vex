@@ -5,7 +5,10 @@ SOURCES += sys/fbcon.c
 SOURCES += sys/initcall.c
 SOURCES += sys/main.c
 SOURCES += sys/panic.c
+SOURCES += sys/pmm.c
 SOURCES += sys/printf.c
+SOURCES += sys/slab.c
+SOURCES += sys/vmm.c
 
 CLEAN += $(TEMP)/version.c
 SOURCES += $(TEMP)/version.c

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: BSD-2-Clause */
 /* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_MM_PMM_H__
-#define __INCLUDE_MM_PMM_H__
+#ifndef __INCLUDE_SYS_PMM_H__
+#define __INCLUDE_SYS_PMM_H__
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/initcall.h>
@@ -18,4 +18,4 @@ void pmm_free_hhdm(void *restrict ptr, size_t npages);
 
 initcall_extern(pmm);
 
-#endif /* __INCLUDE_MM_PMM_H__ */
+#endif /* __INCLUDE_SYS_PMM_H__ */

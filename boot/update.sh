@@ -9,7 +9,4 @@ download ${ovmf_url} boot/x86_64 RELEASEX64_OVMF.fd
 limine_url="https://raw.githubusercontent.com/limine-bootloader/limine/v5.x-branch-binary"
 download ${limine_url} boot/riscv64 BOOTRISCV64.EFI
 download ${limine_url} boot/x86_64 BOOTX64.EFI
-download ${limine_url} boot/x86_64 limine-bios.sys
-download ${limine_url} boot/x86_64 limine-bios-hdd.h
-download ${limine_url} boot/x86_64 limine.c
 download ${limine_url} include limine.h

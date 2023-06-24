@@ -2,7 +2,7 @@
 qargs=
 
 qargs="${qargs} -bios ${PWD}/boot/x86_64/RELEASEX64_OVMF.fd"
-qargs="${qargs} -drive format=raw,file=${PWD}/boot.img"
+qargs="${qargs} -drive format=raw,file=${PWD}/kernel.boot.img"
 qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -machine type=q35"
 qargs="${qargs} -vga std"
