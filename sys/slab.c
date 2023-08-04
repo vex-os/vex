@@ -2,6 +2,7 @@
 /* Copyright (c) 2023, KanOS Contributors */
 #include <stdbool.h>
 #include <string.h>
+#include <sys/assert.h>
 #include <sys/page.h>
 #include <sys/panic.h>
 #include <sys/pmm.h>
@@ -64,7 +65,11 @@ static void setup_slab(struct slab *restrict sl, size_t blocksize)
 {
     sl->sl_blocksize = __align_ceil(blocksize, sizeof(void *));
     sl->sl_head = NULL;
-    panic_if(!expand_slab(sl), "slab: out of memory");
+
+    if(!expand_slab(sl)) {
+        panic("slab: out of memory");
+        unreachable();
+    }
 }
 
 void *slab_alloc(size_t n)
@@ -149,19 +154,23 @@ static void init_slab(void)
     num_slab = 8;
     npages = get_page_count(sizeof(struct slab) * num_slab);
 
-    slabs = pmm_alloc_hhdm(npages);
-    panic_if(!slabs, "slab: out of memory");
+    if((slabs = pmm_alloc_hhdm(npages)) != NULL) {
+        memset(slabs, 0, npages * PAGE_SIZE);
 
-    memset(slabs, 0, npages * PAGE_SIZE);
+        setup_slab(&slabs[0], PAGE_SIZE / 512);
+        setup_slab(&slabs[1], PAGE_SIZE / 256);
+        setup_slab(&slabs[2], PAGE_SIZE / 128);
+        setup_slab(&slabs[3], PAGE_SIZE / 64);
+        setup_slab(&slabs[4], PAGE_SIZE / 32);
+        setup_slab(&slabs[5], PAGE_SIZE / 16);
+        setup_slab(&slabs[6], PAGE_SIZE / 8);
+        setup_slab(&slabs[7], PAGE_SIZE / 4);
 
-    setup_slab(&slabs[0], PAGE_SIZE / 512);
-    setup_slab(&slabs[1], PAGE_SIZE / 256);
-    setup_slab(&slabs[2], PAGE_SIZE / 128);
-    setup_slab(&slabs[3], PAGE_SIZE / 64);
-    setup_slab(&slabs[4], PAGE_SIZE / 32);
-    setup_slab(&slabs[5], PAGE_SIZE / 16);
-    setup_slab(&slabs[6], PAGE_SIZE / 8);
-    setup_slab(&slabs[7], PAGE_SIZE / 4);
+        return;
+    }
+
+    panic("slab: out of memory");
+    unreachable();
 }
 core_initcall(slab, init_slab);
 initcall_depend(slab, pmm);

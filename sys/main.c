@@ -41,9 +41,20 @@ void __noreturn __used main(void)
 
     kprintf("%s %s %s", sysname, release, version);
 
-    panic_if(!hhdm_request.response, "main: hhdm_request has no response");
-    panic_if(!memmap_request.response, "main: memmap_request has no response");
-    panic_if(!kernel_address_request.response, "main: kernel_address_request has no response");
+    if(!hhdm_request.response) {
+        panic("main: hhdm_request has no response");
+        unreachable();
+    }
+
+    if(!memmap_request.response) {
+        panic("main: memmap_request has no response");
+        unreachable();
+    }
+
+    if(!kernel_address_request.response) {
+        panic("main: kernel_address_request has no response");
+        unreachable();
+    }
 
     hhdm_offset = hhdm_request.response->offset;
     kernel_base_phys = kernel_address_request.response->physical_base;

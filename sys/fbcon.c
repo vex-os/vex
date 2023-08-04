@@ -524,22 +524,25 @@ static void init_fbcon(void)
                 scr_height = fb_height / FONT_HEIGHT;
                 scr_length = scr_width * scr_height;
 
-                scr_cells = pmm_alloc_hhdm(get_page_count(scr_length * sizeof(struct vcell)));
-                panic_if(!scr_cells, "fbcon: out of memory");
+                if((scr_cells = pmm_alloc_hhdm(get_page_count(scr_length * sizeof(struct vcell)))) != NULL) {
+                    cur_pxpos = 0;
+                    cur_pypos = 0;
+                    cur_xpos = 0;
+                    cur_ypos = 0;
 
-                cur_pxpos = 0;
-                cur_pypos = 0;
-                cur_xpos = 0;
-                cur_ypos = 0;
+                    clear();
 
-                clear();
+                    add_console(&fbcon);
 
-                add_console(&fbcon);
+                    kprintf("fbcon: font: size=%zu, %dx%d, [%zux%zu]", sizeof(font), FONT_WIDTH, FONT_HEIGHT, scr_width, scr_height);
+                    kprintf("fbcon: framebuffer: %zux%zux%zu", fb_width, fb_height, fb_depth);
 
-                kprintf("fbcon: font: size=%zu, %dx%d, [%zux%zu]", sizeof(font), FONT_WIDTH, FONT_HEIGHT, scr_width, scr_height);
-                kprintf("fbcon: framebuffer: %zux%zux%zu", fb_width, fb_height, fb_depth);
+                    return;
+                }
 
-                return;
+                /* FIXME: just bail out instead */
+                panic("fbcon: out of memory");
+                unreachable();
             }
         }
     }

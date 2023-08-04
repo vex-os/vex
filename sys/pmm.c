@@ -28,7 +28,7 @@
 #define DMA_APPROX_END 0x3FFFFFF
 
 static void **page_list = NULL;
-static uintptr_t dma_end = 0;
+static uintptr_t dma_end_addr = 0;
 static uint64_t *dma_bitmap = NULL;
 static size_t dma_numpages = 0;
 static size_t dma_lastpage = 0;
@@ -127,7 +127,7 @@ void pmm_free(uintptr_t address, size_t npages)
     void **head_ptr;
 
     if(address != 0) {
-        if(npages == 1 && address >= dma_end) {
+        if(npages == 1 && address >= dma_end_addr) {
             head_ptr = (void **)(address + hhdm_offset);
             head_ptr[0] = page_list;
             page_list = head_ptr;
@@ -158,24 +158,18 @@ static void init_pmm(void)
     void **head_ptr;
     struct limine_memmap_entry *entry;
 
-    page_list = NULL;
-    dma_end = 0;
-    dma_bitmap = NULL;
-    dma_numpages = 0;
-    dma_lastpage = 0;
-
     for(i = 0; i < memmap_request.response->entry_count; ++i) {
         entry = memmap_request.response->entries[i];
 
         if(entry->type == LIMINE_MEMMAP_USABLE && entry->base <= DMA_APPROX_END) {
             end_addr = entry->base + entry->length - 1;
-            if(dma_end < end_addr)
-                dma_end = end_addr;
+            if(dma_end_addr < end_addr)
+                dma_end_addr = end_addr;
             break;
         }
     }
 
-    npages = get_page_count(dma_end + 1);
+    npages = get_page_count(dma_end_addr + 1);
     dma_numpages = __align_ceil(npages, 64);
     bitmap_size = dma_numpages / 8;
     npages = get_page_count(bitmap_size);
@@ -190,39 +184,45 @@ static void init_pmm(void)
         }
     }
 
-    panic_if(!dma_bitmap, "pmm: out of memory");
-    bitmap_mark_used(0, dma_numpages - 1);
+    if(dma_bitmap != NULL) {
+        bitmap_mark_used(0, dma_numpages - 1);
 
-    for(i = 0; i < memmap_request.response->entry_count; ++i) {
-        entry = memmap_request.response->entries[i];
+        for(i = 0; i < memmap_request.response->entry_count; ++i) {
+            entry = memmap_request.response->entries[i];
 
-        if(entry->type == LIMINE_MEMMAP_USABLE && entry->base <= DMA_APPROX_END && entry->length != 0) {
-            npages = get_page_count(entry->length);
-            page = entry->base / PAGE_SIZE;
-            bitmap_mark_free(page, page + npages - 1);
-            break;
-        }
-    }
-
-    if(bitmap_base <= dma_end) {
-        page = bitmap_base / PAGE_SIZE;
-        npages = get_page_count(bitmap_size);
-        bitmap_mark_used(page, page + npages - 1);
-    }
-
-    for(i = 0; i < memmap_request.response->entry_count; ++i) {
-        entry = memmap_request.response->entries[i];
-
-        if(entry->type == LIMINE_MEMMAP_USABLE && entry->base > dma_end) {
-            for(off = 0; off < entry->length; off += PAGE_SIZE) {
-                head_ptr = (void **)(entry->base + off + hhdm_offset);
-                head_ptr[0] = page_list;
-                page_list = head_ptr;
+            if(entry->type == LIMINE_MEMMAP_USABLE && entry->base <= DMA_APPROX_END && entry->length != 0) {
+                npages = get_page_count(entry->length);
+                page = entry->base / PAGE_SIZE;
+                bitmap_mark_free(page, page + npages - 1);
+                break;
             }
         }
+
+        if(bitmap_base <= dma_end_addr) {
+            page = bitmap_base / PAGE_SIZE;
+            npages = get_page_count(bitmap_size);
+            bitmap_mark_used(page, page + npages - 1);
+        }
+
+        for(i = 0; i < memmap_request.response->entry_count; ++i) {
+            entry = memmap_request.response->entries[i];
+
+            if(entry->type == LIMINE_MEMMAP_USABLE && entry->base > dma_end_addr) {
+                for(off = 0; off < entry->length; off += PAGE_SIZE) {
+                    head_ptr = (void **)(entry->base + off + hhdm_offset);
+                    head_ptr[0] = page_list;
+                    page_list = head_ptr;
+                }
+            }
+        }
+
+        kprintf("pmm: dma_end_addr=%p, dma_numpages=%zu", (void *)dma_end_addr, dma_numpages);
+        kprintf("pmm: dma_bitmap=%p", dma_bitmap);
+
+        return;
     }
 
-    kprintf("pmm: dma_end=%p, dma_numpages=%zu", (void *)dma_end, dma_numpages);
-    kprintf("pmm: dma_bitmap=%p", dma_bitmap);
+    panic("pmm: out of memory");
+    unreachable();
 }
 core_initcall(pmm, init_pmm);

@@ -12,54 +12,59 @@
 #include <sys/slab.h>
 #include <sys/vmm.h>
 
+/* This assumes the target architecture uses
+ * x86-like PML format where a part of the virtual
+ * address is an index of a specific level page table.
+ * This should work without a fuss on both ARM64 and RISC-V. */
+#define PML_INDEX(virt, mask, shift) ((size_t)(((virt) & ((mask) << (shift))) >> (shift)))
+
+/* Kernel's address space */
 struct pagemap *sys_vm = NULL;
 
-static vmm_pml_t *pml_lookup(vmm_pml_t *restrict table, size_t offset, bool allocate)
+static vmm_pml_t *pml_get(vmm_pml_t *restrict table, size_t at, bool alloc)
 {
-    uintptr_t entry;
-    vmm_pml_t *entry_highmem;
+    uintptr_t address;
+    vmm_pml_t *entry;
 
-    if(!pml_valid(table[offset])) {
-        if(allocate) {
-            if((entry = pmm_alloc_page()) != 0) {
-                entry_highmem = (vmm_pml_t *)(entry + hhdm_offset);
-                table[offset] = pml_mkentry(entry, VPROT_READ | VPROT_WRITE | VPROT_EXEC | VPROT_USER);
-                memset(entry_highmem, 0, PAGE_SIZE);
-                return entry_highmem;
+    if(!pml_valid(table[at])) {
+        if(alloc) {
+            if((address = pmm_alloc_page()) != 0) {
+                table[at] = pml_mkentry(address, VPROT_READ | VPROT_WRITE | VPROT_EXEC | VPROT_USER);
+                entry = (vmm_pml_t *)(address + hhdm_offset);
+                memset(entry, 0, PAGE_SIZE);
+                return entry;
             }
         }
 
         return NULL;
     }
 
-    return (vmm_pml_t *)(pml_address(table[offset]) + hhdm_offset);
+    return (vmm_pml_t *)(pml_address(table[at]) + hhdm_offset);
 }
 
-#define PML_INDEX(virt, mask, shift) ((size_t)(((virt) & ((mask) << (shift))) >> (shift)))
-
-static vmm_pml_t *pml_full_lookup(vmm_pml_t *restrict table, uintptr_t virt, bool allocate)
+static vmm_pml_t *pml_lookup(vmm_pml_t *restrict table, uintptr_t virt, bool alloc)
 {
 #if PML_LEVEL5
-    if(!(table = pml_lookup(table, PML_INDEX(virt, PML_L5_MASK, PML_L5_SHIFT), true)))
+    if(!(table = pml_get(table, PML_INDEX(virt, PML_L5_MASK, PML_L5_SHIFT), alloc)))
         return NULL;
 #endif
 
 #if PML_LEVEL4
-    if(!(table = pml_lookup(table, PML_INDEX(virt, PML_L4_MASK, PML_L4_SHIFT), true)))
+    if(!(table = pml_get(table, PML_INDEX(virt, PML_L4_MASK, PML_L4_SHIFT), alloc)))
         return NULL;
 #endif
 
 #if PML_LEVEL3
-    if(!(table = pml_lookup(table, PML_INDEX(virt, PML_L3_MASK, PML_L3_SHIFT), true)))
+    if(!(table = pml_get(table, PML_INDEX(virt, PML_L3_MASK, PML_L3_SHIFT), alloc)))
         return NULL;
 #endif
 
-    if(!(table = pml_lookup(table, PML_INDEX(virt, PML_L2_MASK, PML_L2_SHIFT), true)))
+    if(!(table = pml_get(table, PML_INDEX(virt, PML_L2_MASK, PML_L2_SHIFT), alloc)))
         return NULL;
     return &table[PML_INDEX(virt, PML_L1_MASK, PML_L1_SHIFT)];
 }
 
-static void pml_dealloc(vmm_pml_t *restrict table, size_t begin, size_t end, unsigned int level)
+static void pml_collapse(vmm_pml_t *restrict table, size_t begin, size_t end, unsigned int level)
 {
     size_t i;
     vmm_pml_t *next;
@@ -68,7 +73,7 @@ static void pml_dealloc(vmm_pml_t *restrict table, size_t begin, size_t end, uns
         for(i = begin; i < end; ++i) {
             if(!(next = pml_lookup(table, i, false)))
                 continue;
-            pml_dealloc(next, 0, PML_COUNT, (level - 1));
+            pml_collapse(next, 0, PML_COUNT, (level - 1));
         }
 
         pmm_free_page_hhdm(table);
@@ -81,12 +86,13 @@ struct pagemap *vmm_create(void)
     struct pagemap *vm;
 
     if((vm = slab_alloc(sizeof(struct pagemap))) != NULL) {
-        if((vm->vm_ptr = pmm_alloc(1)) != 0) {
-            vm->vm_pml = (vmm_pml_t *)(vm->vm_ptr + hhdm_offset);
+        if((vm->vm_pml_phys = pmm_alloc_page()) != 0) {
+            vm->vm_pml = (vmm_pml_t *)(vm->vm_pml_phys + hhdm_offset);
             memset(vm->vm_pml, 0, PAGE_SIZE);
 
             for(i = PML_KERN; i < PML_COUNT; ++i) {
-                /* FIXME: trampoline to mititgate Meltdown? */
+                /* FIXME: we actually shouldn't let userspace
+                 * to see the kernel's address space like that! */
                 vm->vm_pml[i] = sys_vm->vm_pml[i];
             }
 
@@ -109,31 +115,28 @@ struct pagemap *vmm_fork(struct pagemap *restrict stem)
 void vmm_destroy(struct pagemap *restrict vm)
 {
 #if PML_LEVEL5
-    pml_dealloc(vm->vm_pml, 0, PML_KERN, 5);
+    pml_collapse(vm->vm_pml, 0, PML_KERN, 5);
 #elif PML_LEVEL4
-    pml_dealloc(vm->vm_pml, 0, PML_KERN, 4);
+    pml_collapse(vm->vm_pml, 0, PML_KERN, 4);
 #elif PML_LEVEL3
-    pml_dealloc(vm->vm_pml, 0, PML_KERN, 3);
+    pml_collapse(vm->vm_pml, 0, PML_KERN, 3);
 #else
-    pml_dealloc(vm->vm_pml, 0, PML_KERN, 2);
+    pml_collapse(vm->vm_pml, 0, PML_KERN, 2);
 #endif
 }
 
 void vmm_switch(struct pagemap *restrict vm)
 {
-    set_cpu_pagemap(vm->vm_ptr);
+    set_cpu_pagemap(vm->vm_pml_phys);
 }
 
 int vmm_map(struct pagemap *restrict vm, uintptr_t virt, uintptr_t phys, unsigned short vprot)
 {
     vmm_pml_t *entry;
 
-    virt = page_align_address(virt);
-    phys = page_align_address(phys);
-
-    if((entry = pml_full_lookup(vm->vm_pml, virt, true)) != NULL) {
+    if((entry = pml_lookup(vm->vm_pml, page_align_address(virt), true)) != NULL) {
         if(!pml_valid(entry[0])) {
-            entry[0] = pml_mkentry(phys, vprot);
+            entry[0] = pml_mkentry(page_align_address(phys), vprot);
             return 0;
         }
 
@@ -143,57 +146,79 @@ int vmm_map(struct pagemap *restrict vm, uintptr_t virt, uintptr_t phys, unsigne
     return ENOMEM;
 }
 
-int vmm_reflag(struct pagemap *restrict vm, uintptr_t virt, unsigned short vprot)
+int vmm_patch(struct pagemap *restrict vm, uintptr_t virt, unsigned short vprot)
 {
     vmm_pml_t *entry;
 
-    virt = page_align_address(virt);
-
-    if((entry = pml_full_lookup(vm->vm_pml, virt, true)) != NULL) {
+    if((entry = pml_lookup(vm->vm_pml, page_align_address(virt), false)) != NULL) {
         if(!pml_valid(entry[0])) {
             entry[0] = pml_mkentry(pml_address(entry[0]), vprot);
             return 0;
         }
-
-        return EINVAL;
     }
 
-    return ENOMEM;
+    return EINVAL;
 }
 
 int vmm_unmap(struct pagemap *restrict vm, uintptr_t virt)
 {
     vmm_pml_t *entry;
 
-    virt = page_align_address(virt);
-
-    if((entry = pml_full_lookup(vm->vm_pml, virt, true)) != NULL) {
+    if((entry = pml_lookup(vm->vm_pml, page_align_address(virt), false)) != NULL) {
         if(!pml_valid(entry[0])) {
             entry[0] = PML_INVALID;
             return 0;
         }
-
-        return EINVAL;
     }
 
-    return ENOMEM;
+    return EINVAL;
 }
 
-static int map_range(struct pagemap *restrict vm, uintptr_t vstart, uintptr_t vend, uintptr_t phys, unsigned short vprot)
+static int vmm_map_section(const void *restrict start, const void *restrict end, unsigned short vprot)
 {
     int r;
+    uintptr_t phys;
     uintptr_t virt;
+    uintptr_t virt_end;
 
-    vstart = page_align_address(vstart);
-    vend = __align_ceil(vend, PAGE_SIZE);
-    phys = page_align_address(phys);
+    virt = page_align_address((uintptr_t)start);
+    virt_end = __align_ceil((uintptr_t)end, PAGE_SIZE);
+    phys = virt - kernel_base_virt + kernel_base_phys;
 
-    virt = vstart;
-    while(virt < vend) {
-        if((r = vmm_map(vm, virt, phys, vprot)) != 0)
-            return r;
-        virt += PAGE_SIZE;
-        phys += PAGE_SIZE;
+    while(virt < virt_end) {
+        if((r = vmm_map(sys_vm, virt, phys, vprot)) == 0) {
+            phys += PAGE_SIZE;
+            virt += PAGE_SIZE;
+            continue;
+        }
+
+        return r;
+    }
+
+    return 0;
+}
+
+static int vmm_map_memmap(const struct limine_memmap_entry *restrict entry)
+{
+    int r;
+    uintptr_t phys;
+    uintptr_t virt;
+    uintptr_t virt_end;
+
+    phys = page_align_address(entry->base);
+    virt = page_align_address(entry->base) + hhdm_offset;
+    virt_end = __align_ceil(virt + entry->length, PAGE_SIZE);
+
+    while(virt < virt_end) {
+        r = vmm_map(sys_vm, virt, phys, VPROT_READ | VPROT_WRITE | VPROT_EXEC);
+
+        if(r == 0 || r == EINVAL) {
+            phys += PAGE_SIZE;
+            virt += PAGE_SIZE;
+            continue;
+        }
+
+        return r;
     }
 
     return 0;
@@ -201,61 +226,61 @@ static int map_range(struct pagemap *restrict vm, uintptr_t vstart, uintptr_t ve
 
 static void init_vmm(void)
 {
+    int r;
     size_t i;
-    uintptr_t phys;
-    uintptr_t vstart, vend;
-    struct limine_memmap_entry *entry;
 
-    sys_vm = slab_alloc(sizeof(struct pagemap));
-    panic_if(!sys_vm, "vmm: out of memory");
+    if((sys_vm = slab_alloc(sizeof(struct pagemap))) != NULL) {
+        if((sys_vm->vm_pml_phys = pmm_alloc_page()) != 0) {
+            sys_vm->vm_pml = (vmm_pml_t *)(sys_vm->vm_pml_phys + hhdm_offset);
+            memset(sys_vm->vm_pml, 0, PAGE_SIZE);
 
-    sys_vm->vm_ptr = pmm_alloc(1);
-    panic_if(!sys_vm->vm_ptr, "vmm: out of memory");
+            for(i = PML_KERN; i < PML_COUNT; ++i) {
+                if(!pml_get(sys_vm->vm_pml, i, true)) {
+                    panic("vmm: out of memory");
+                    unreachable();
+                }
+            }
 
-    sys_vm->vm_pml = (vmm_pml_t *)(sys_vm->vm_ptr + hhdm_offset);
-    memset(sys_vm->vm_pml, 0, PAGE_SIZE);
+            if((r = vmm_map_section(start_text, end_text, VPROT_READ | VPROT_EXEC)) != 0) {
+                panic("vmm: map_section[text]: %s", strerror(r));
+                unreachable();
+            }
 
-    for(i = PML_KERN; i < PML_COUNT; ++i) {
-        if(!pml_lookup(sys_vm->vm_pml, i, true)) {
-            panic("vmm: insufficient memory");
-            unreachable();
+            if((r = vmm_map_section(start_rodata, end_rodata, VPROT_READ)) != 0) {
+                panic("vmm: map_section[rodata]: %s", strerror(r));
+                unreachable();
+            }
+
+            if((r = vmm_map_section(start_data, end_data, VPROT_READ | VPROT_WRITE)) != 0) {
+                panic("vmm: map_section[data]: %s", strerror(r));
+                unreachable();
+            }
+
+            if((r = vmm_map_section(start_bss, end_bss, VPROT_READ | VPROT_WRITE)) != 0) {
+                panic("vmm: map_section[bss]: %s", strerror(r));
+                unreachable();
+            }
+
+            for(i = 0; i < memmap_request.response->entry_count; ++i) {
+                if(memmap_request.response->entries[i]->type != LIMINE_MEMMAP_BAD_MEMORY) {
+                    if((r = vmm_map_memmap(memmap_request.response->entries[i])) != 0) {
+                        panic("vmm: map_memmap[%zu]: %s", i, strerror(r));
+                        unreachable();
+                    }
+                }
+            }
         }
+
+        vmm_switch(sys_vm);
+
+        kprintf("vmm: sys_vm.vm_pml=%p", (void *)sys_vm->vm_pml);
+
+        return;
     }
 
-    vstart = page_align_address((uintptr_t)start_text);
-    vend = __align_ceil((uintptr_t)end_text, PAGE_SIZE);
-    phys = vstart - kernel_base_virt + kernel_base_phys;
-    kassert(!map_range(sys_vm, vstart, vend, phys, VPROT_READ | VPROT_EXEC));
-
-    vstart = page_align_address((uintptr_t)start_rodata);
-    vend = __align_ceil((uintptr_t)end_rodata, PAGE_SIZE);
-    phys = vstart - kernel_base_virt + kernel_base_phys;
-    kassert(!map_range(sys_vm, vstart, vend, phys, VPROT_READ));
-
-    vstart = page_align_address((uintptr_t)start_data);
-    vend = __align_ceil((uintptr_t)end_data, PAGE_SIZE);
-    phys = vstart - kernel_base_virt + kernel_base_phys;
-    kassert(!map_range(sys_vm, vstart, vend, phys, VPROT_READ | VPROT_WRITE));
-
-    vstart = page_align_address((uintptr_t)start_bss);
-    vend = __align_ceil((uintptr_t)end_bss, PAGE_SIZE);
-    phys = vstart - kernel_base_virt + kernel_base_phys;
-    kassert(!map_range(sys_vm, vstart, vend, phys, VPROT_READ | VPROT_WRITE));
-
-    for(i = 0; i < memmap_request.response->entry_count; ++i) {
-        entry = memmap_request.response->entries[i];
-
-        if(entry->type != LIMINE_MEMMAP_RESERVED && entry->type != LIMINE_MEMMAP_BAD_MEMORY) {
-            vstart = page_align_address(entry->base) + hhdm_offset;
-            vend = __align_ceil(vstart + entry->length, PAGE_SIZE);
-            phys = page_align_address(entry->base);
-            kassert(!map_range(sys_vm, vstart, vend, phys, VPROT_READ | VPROT_WRITE | VPROT_EXEC));
-        }
-    }
-
-    vmm_switch(sys_vm);
-
-    kprintf("vmm: sys_vm.vm_table=%p", (void *)sys_vm->vm_ptr);
+    panic("vmm: out of memory");
+    unreachable();
 }
 core_initcall(vmm, init_vmm);
 initcall_depend(vmm, slab);
+initcall_depend(vmm, pmm);
