@@ -1,13 +1,13 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_PFMT_H__
-#define __INCLUDE_PFMT_H__
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Copyright (c) 2023, VX/sys Contributors */
+#ifndef INCLUDE_PFMT_H
+#define INCLUDE_PFMT_H
 #include <stdarg.h>
 #include <stddef.h>
-#include <sys/cdefs.h>
+#include <vx/cdefs.h>
 
 typedef void (*pfmt_func_t)(int c, void *restrict arg);
 int pfmt(pfmt_func_t func, void *restrict arg, const char *restrict fmt, ...) __printflike(3, 4);
 int vpfmt(pfmt_func_t func, void *restrict arg, const char *restrict fmt, va_list ap);
 
-#endif /* __INCLUDE_PFMT_H__ */
+#endif /* INCLUDE_PFMT_H */

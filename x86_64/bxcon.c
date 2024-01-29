@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c) 2023, KanOS Contributors */
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Copyright (c) 2023, VX/sys Contributors */
 #include <stddef.h>
-#include <sys/initcall.h>
-#include <sys/printf.h>
-#include <sys/vmm.h>
+#include <kernel/initcall.h>
+#include <kernel/printf.h>
+#include <kernel/vmm.h>
 #include <x86_64/pmio.h>
 
 static void bxcon_putchar(struct console *restrict con, int c)

@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_X86_64_CPU_H__
-#define __INCLUDE_X86_64_CPU_H__
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Copyright (c) 2023, VX/sys Contributors */
+#ifndef INCLUDE_X86_64_CPU_H
+#define INCLUDE_X86_64_CPU_H
 #include <stdint.h>
-#include <sys/cdefs.h>
+#include <vx/cdefs.h>
 
 struct cpu_context {
     uint64_t r15;
@@ -49,4 +49,4 @@ static __always_inline inline void set_cpu_pagemap(uint64_t phys)
     asm volatile("movq %0, %%cr3"::"r"(phys):"memory");
 }
 
-#endif /* __INCLUDE_X86_64_CPU_H__ */
+#endif /* INCLUDE_X86_64_CPU_H */

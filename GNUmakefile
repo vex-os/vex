@@ -1,5 +1,5 @@
-## SPDX-License-Identifier: BSD-2-Clause
-## Copyright (c) 2023, KanOS Contributors
+## SPDX-License-Identifier: GPL-2.0-only
+## Copyright (c) 2023, VX/sys Contributors
 
 export LC_ALL=C
 export LANGUAGE=C
@@ -32,6 +32,7 @@ CFLAGS += -O2
 CPPFLAGS += -D __kernel__
 CPPFLAGS += -D __KERNEL__
 CPPFLAGS += -I include
+CPPFLAGS += -I usr.include
 
 LDFLAGS += -static
 LDFLAGS += -nostdlib
@@ -50,8 +51,8 @@ LDSCRIPT := $(TEMP)/ldscript.ld
 KERNEL := kernel.elf
 
 include boot/GNUmakefile
-include lib/GNUmakefile
-include sys/GNUmakefile
+include libk/GNUmakefile
+include kernel/GNUmakefile
 include $(MACHINE)/GNUmakefile
 
 OBJECTS += $(SOURCES:=.o)

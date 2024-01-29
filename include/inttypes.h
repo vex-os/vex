@@ -1,11 +1,11 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_INTTYPES_H__
-#define __INCLUDE_INTTYPES_H__
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Copyright (c) 2023, VX/sys Contributors */
+#ifndef INCLUDE_INTTYPES_H
+#define INCLUDE_INTTYPES_H
 #include <stdint.h>
-#include <sys/cdefs.h>
+#include <vx/cdefs.h>
 
 intmax_t strtoimax(const char *restrict nptr, const char **restrict endptr, int base);
 uintmax_t strtoumax(const char *restrict nptr, const char **restrict endptr, int base);
 
-#endif /* __INCLUDE_INTTYPES_H__ */
+#endif /* INCLUDE_INTTYPES_H */

@@ -1,5 +1,5 @@
-## SPDX-License-Identifier: BSD-2-Clause
-## Copyright (c) 2023, KanOS Contributors
+## SPDX-License-Identifier: GPL-2.0-only
+## Copyright (c) 2023, VX/sys Contributors
 
 SOURCES += x86_64/bxcon.c
 SOURCES += x86_64/gdt.c

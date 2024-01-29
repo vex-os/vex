@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_STDLIB_H__
-#define __INCLUDE_STDLIB_H__
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Copyright (c) 2023, VX/sys Contributors */
+#ifndef INCLUDE_STDLIB_H
+#define INCLUDE_STDLIB_H
 #include <stddef.h>
-#include <sys/cdefs.h>
+#include <vx/cdefs.h>
 
 int abs(int x);
 long labs(long x);
@@ -19,4 +19,4 @@ unsigned long strtoul(const char *restrict nptr, const char **restrict endptr, i
 unsigned long long strtoull(const char *restrict nptr, const char **restrict endptr, int base);
 size_t strtousize(const char *restrict nptr, const char **restrict endptr, int base);
 
-#endif /* __INCLUDE_STDLIB_H__ */
+#endif /* INCLUDE_STDLIB_H */

@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_CTYPE_H__
-#define __INCLUDE_CTYPE_H__
-#include <sys/cdefs.h>
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Copyright (c) 2023, VX/sys Contributors */
+#ifndef INCLUDE_CTYPE_H
+#define INCLUDE_CTYPE_H
+#include <vx/cdefs.h>
 
 int isalnum(int c);
 int isalpha(int c);
@@ -20,4 +20,4 @@ int isxdigit(int c);
 int tolower(int c);
 int toupper(int c);
 
-#endif /* __INCLUDE_CTYPE_H__ */
+#endif /* INCLUDE_CTYPE_H */

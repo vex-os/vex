@@ -1,6 +1,6 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+/* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c), 2021, Kirill GPRB */
-/* Copyright (c), 2023, KanOS Contributors */
+/* Copyright (c), 2023, VX/sys Contributors */
 OUTPUT_FORMAT(elf64-x86-64)
 ENTRY(main)
 

@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
-/* Copyright (c) 2023, KanOS Contributors */
-#ifndef __INCLUDE_X86_64_GDT_H__
-#define __INCLUDE_X86_64_GDT_H__
-#include <sys/initcall.h>
+/* SPDX-License-Identifier: GPL-2.0-only */
+/* Copyright (c) 2023, VX/sys Contributors */
+#ifndef INCLUDE_X86_64_GDT_H
+#define INCLUDE_X86_64_GDT_H
+#include <kernel/initcall.h>
 
 #define GDT_NULL 0
 #define GDT_KERN_CODE_16 1
@@ -17,4 +17,4 @@
 
 initcall_extern(gdt);
 
-#endif /* __INCLUDE_X86_64_GDT_H__ */
+#endif /* INCLUDE_X86_64_GDT_H */
