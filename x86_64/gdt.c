@@ -1,9 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2023, VX/sys Contributors */
+/* Copyright (c) 2024, VX/sys Contributors */
+#include <kern/printf.h>
+#include <kern/vmm.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
-#include <kernel/printf.h>
-#include <kernel/vmm.h>
 #include <x86_64/gdt.h>
 
 #define GDT_READWRITE   (1 << 1)
@@ -107,8 +108,8 @@ static void init_gdt(void)
         1:;
     )::"i"(GDT_SELECTOR(GDT_KERN_CODE_64, 0, 0)));
 
-    kprintf("gdt: gdtr.size=%zu", (size_t)gdtr.size);
-    kprintf("gdt: gdtr.offset=%p", (void *)gdtr.offset);
+    kprintf(KP_DEBUG, "gdt: gdtr.size=%zu", (size_t)gdtr.size);
+    kprintf(KP_DEBUG, "gdt: gdtr.offset=%p", (void *)gdtr.offset);
 }
 core_initcall(gdt, init_gdt);
 initcall_depend(gdt, vmm);

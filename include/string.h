@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2023, VX/sys Contributors */
+/* Copyright (c) 2024, VX/sys Contributors */
 #ifndef INCLUDE_STRING_H
 #define INCLUDE_STRING_H
 #include <stddef.h>
-#include <vx/cdefs.h>
+#include <sys/vx/cdefs.h>
 
 const void *memchr(const void *restrict s, int c, size_t n);
 int memcmp(const void *restrict s1, const void *restrict s2, size_t n);

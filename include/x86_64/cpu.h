@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2023, VX/sys Contributors */
+/* Copyright (c) 2024, VX/sys Contributors */
 #ifndef INCLUDE_X86_64_CPU_H
 #define INCLUDE_X86_64_CPU_H
 #include <stdint.h>
-#include <vx/cdefs.h>
+#include <sys/vx/cdefs.h>
 
 struct cpu_context {
     uint64_t r15;

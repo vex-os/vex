@@ -44,6 +44,11 @@ extern "C" {
 #  define LIMINE_DEPRECATED_IGNORE_END
 #endif
 
+#define LIMINE_BASE_REVISION(N) \
+    uint64_t limine_base_revision[3] = { 0xf9562b2d5c95a6c8, 0x6a7b384944536bdc, (N) };
+
+#define LIMINE_BASE_REVISION_SUPPORTED (limine_base_revision[2] == 0)
+
 #define LIMINE_COMMON_MAGIC 0xc7b1dd30df4c8b88, 0x0a82e883a194f07b
 
 struct limine_uuid {
@@ -330,7 +335,7 @@ struct limine_smp_info {
 
 struct limine_smp_response {
     uint64_t revision;
-    uint32_t flags;
+    uint64_t flags;
     uint64_t bsp_mpidr;
     uint64_t cpu_count;
     LIMINE_PTR(struct limine_smp_info **) cpus;
@@ -339,7 +344,7 @@ struct limine_smp_response {
 #elif defined (__riscv) && (__riscv_xlen == 64)
 
 struct limine_smp_info {
-    uint32_t processor_id;
+    uint64_t processor_id;
     uint64_t hartid;
     uint64_t reserved;
     LIMINE_PTR(limine_goto_address) goto_address;
@@ -348,7 +353,7 @@ struct limine_smp_info {
 
 struct limine_smp_response {
     uint64_t revision;
-    uint32_t flags;
+    uint64_t flags;
     uint64_t bsp_hartid;
     uint64_t cpu_count;
     LIMINE_PTR(struct limine_smp_info **) cpus;
@@ -500,6 +505,24 @@ struct limine_efi_system_table_request {
     uint64_t id[4];
     uint64_t revision;
     LIMINE_PTR(struct limine_efi_system_table_response *) response;
+};
+
+/* EFI memory map */
+
+#define LIMINE_EFI_MEMMAP_REQUEST { LIMINE_COMMON_MAGIC, 0x7df62a431d6872d5, 0xa4fcdfb3e57306c8 }
+
+struct limine_efi_memmap_response {
+    uint64_t revision;
+    LIMINE_PTR(void *) memmap;
+    uint64_t memmap_size;
+    uint64_t desc_size;
+    uint64_t desc_version;
+};
+
+struct limine_efi_memmap_request {
+    uint64_t id[4];
+    uint64_t revision;
+    LIMINE_PTR(struct limine_efi_memmap_response *) response;
 };
 
 /* Boot time */

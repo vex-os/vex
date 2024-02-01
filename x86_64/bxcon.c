@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2023, VX/sys Contributors */
+/* Copyright (c) 2024, VX/sys Contributors */
+#include <kern/console.h>
+#include <kern/initcall.h>
+#include <kern/vmm.h>
 #include <stddef.h>
-#include <kernel/initcall.h>
-#include <kernel/printf.h>
-#include <kernel/vmm.h>
 #include <x86_64/pmio.h>
 
 static void bxcon_putchar(struct console *restrict con, int c)
@@ -12,18 +12,19 @@ static void bxcon_putchar(struct console *restrict con, int c)
 }
 
 static struct console bxcon = {
-    .con_next = NULL,
-    .con_putchar = &bxcon_putchar,
-    .con_unblank = NULL,
-    .con_identity = "bxcon",
-    .con_custom = NULL,
+    .co_name = "bxcon",
+    .co_flags = CON_PRINTBUFFER,
+    .co_putchar = &bxcon_putchar,
+    .co_unblank = NULL,
+    .co_next = NULL,
+    .co_data = NULL,
 };
 
 static void init_bxcon(void)
 {
     if(pmio_read8(0xE9) != 0xE9)
         return;
-    add_console(&bxcon);
+    register_console(&bxcon);
 }
 core_initcall(bxcon, init_bxcon);
 initcall_depend(vmm, bxcon); /* crutch, remove asap */

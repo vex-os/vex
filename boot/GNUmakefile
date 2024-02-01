@@ -1,5 +1,5 @@
 ## SPDX-License-Identifier: GPL-2.0-only
-## Copyright (c) 2023, VX/sys Contributors
+## Copyright (c) 2024, VX/sys Contributors
 
 KERNEL_IMG := kernel.boot.img
 PHONY_TARGETS += bootable
@@ -13,7 +13,7 @@ bootable: $(KERNEL_IMG)
 $(KERNEL_IMG): $(KERNEL)
 	dd if=/dev/zero of=$@ bs=1048576 count=32
 	parted $@ mklabel gpt
-	parted $@ mkpart KAN fat32 2048s 100%
+	parted $@ mkpart ESP fat16 2048s 100%
 	parted $@ set 1 esp on
 	mkfs.fat -F16 --offset 2048 $@
 	mmd -i $@@@2048s ::/EFI

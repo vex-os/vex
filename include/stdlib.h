@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2023, VX/sys Contributors */
+/* Copyright (c) 2024, VX/sys Contributors */
 #ifndef INCLUDE_STDLIB_H
 #define INCLUDE_STDLIB_H
 #include <stddef.h>
-#include <vx/cdefs.h>
+#include <sys/vx/cdefs.h>
 
 int abs(int x);
 long labs(long x);

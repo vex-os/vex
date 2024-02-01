@@ -1,5 +1,5 @@
 ## SPDX-License-Identifier: GPL-2.0-only
-## Copyright (c) 2023, VX/sys Contributors
+## Copyright (c) 2024, VX/sys Contributors
 
 export LC_ALL=C
 export LANGUAGE=C
@@ -7,7 +7,7 @@ export LANG=C
 
 MACHINE ?= x86_64
 TOOLCHAIN ?= llvm
-RELEASE ?= 0.0.1-dev.9
+RELEASE ?= 0.0.1-dev.10
 
 SOURCES :=
 OBJECTS :=
@@ -32,7 +32,6 @@ CFLAGS += -O2
 CPPFLAGS += -D __kernel__
 CPPFLAGS += -D __KERNEL__
 CPPFLAGS += -I include
-CPPFLAGS += -I usr.include
 
 LDFLAGS += -static
 LDFLAGS += -nostdlib
@@ -51,8 +50,8 @@ LDSCRIPT := $(TEMP)/ldscript.ld
 KERNEL := kernel.elf
 
 include boot/GNUmakefile
+include kern/GNUmakefile
 include libk/GNUmakefile
-include kernel/GNUmakefile
 include $(MACHINE)/GNUmakefile
 
 OBJECTS += $(SOURCES:=.o)
@@ -89,8 +88,8 @@ $(MINC):
 
 force_run:
 
-$(INIT_C): $(NOINIT_O) | initcalls.sh $(TEMP) $(MINC)
-	$(SHELL) initcalls.sh $^ > $@
+$(INIT_C): $(NOINIT_O) | scripts/gen_initcalls.sh $(TEMP) $(MINC)
+	$(SHELL) scripts/gen_initcalls.sh $^ > $@
 
 $(KERNEL): $(INIT_O) $(NOINIT_O) | $(LDSCRIPT) $(TEMP) $(MINC)
 	$(LD) $(LDFLAGS) -T $(LDSCRIPT) -o $@ $^

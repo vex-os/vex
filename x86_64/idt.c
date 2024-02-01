@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2023, VX/sys Contributors */
+/* Copyright (c) 2024, VX/sys Contributors */
+#include <kern/panic.h>
+#include <kern/printf.h>
+#include <kern/vmm.h>
 #include <stddef.h>
 #include <string.h>
-#include <kernel/panic.h>
-#include <kernel/printf.h>
-#include <kernel/vmm.h>
 #include <x86_64/cpu.h>
 #include <x86_64/gdt.h>
 #include <x86_64/idt.h>
@@ -41,6 +41,7 @@ extern const uint64_t isr_stubs[IDT_SIZE];
 void __used isr_handler(struct cpu_context *restrict ctx, uint64_t vector)
 {
     panic("idt: isr_handler(%p, %02jX)", (void *)ctx, (uintmax_t)vector);
+    UNREACHABLE();
 }
 
 static void init_idt(void)
@@ -70,8 +71,8 @@ static void init_idt(void)
 
     asm volatile("lidtq %0"::"m"(idtr));
 
-    kprintf("idt: idtr.size=%zu", (size_t)idtr.size);
-    kprintf("idt: idtr.offset=%p", (void *)idtr.offset);
+    kprintf(KP_DEBUG, "idt: idtr.size=%zu", (size_t)idtr.size);
+    kprintf(KP_DEBUG, "idt: idtr.offset=%p", (void *)idtr.offset);
 }
 core_initcall(idt, init_idt);
 initcall_depend(idt, gdt);

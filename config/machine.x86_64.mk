@@ -1,5 +1,5 @@
 ## SPDX-License-Identifier: GPL-2.0-only
-## Copyright (c) 2023, VX/sys Contributors
+## Copyright (c) 2024, VX/sys Contributors
 
 GCC_PREFIX := x86_64-elf
 LLVM_TARGET := x86_64-none-elf

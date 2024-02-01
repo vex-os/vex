@@ -1,9 +1,9 @@
 #ifndef INCLUDE_X86_64_PML_H
 #define INCLUDE_X86_64_PML_H
+#include <kern/vprot.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <kernel/vprot.h>
-#include <vx/cdefs.h>
+#include <sys/vx/cdefs.h>
 
 #define X86_PML_ADDRESS 0x000FFFFFFFFFF000
 #define X86_PML_PRESENT 0x0000000000000001
@@ -35,14 +35,14 @@
 
 typedef uint64_t vmm_pml_t;
 
-static __always_inline inline bool pml_valid(vmm_pml_t entry)
+static __always_inline inline bool pml_is_valid(vmm_pml_t entry)
 {
     if(entry & X86_PML_PRESENT)
         return true;
     return false;
 }
 
-static __always_inline inline uintptr_t pml_address(vmm_pml_t entry)
+static __always_inline inline uintptr_t pml_get_address(vmm_pml_t entry)
 {
     return (entry & X86_PML_ADDRESS);
 }
