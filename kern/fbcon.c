@@ -431,11 +431,11 @@ static void clear(void)
     memset(scr_cells, 0, scr_length * sizeof(struct vcell));
 }
 
-static void fbcon_putchar(struct console *restrict con, int c)
+static void fbcon_putchar(int ch)
 {
     struct vcell *cell;
 
-    switch(c) {
+    switch(ch) {
         case CHR_BS:
         case CHR_DEL:
             if(cur_xpos > 0)
@@ -473,7 +473,7 @@ static void fbcon_putchar(struct console *restrict con, int c)
 
     cell = &scr_cells[cur_ypos * scr_width + cur_xpos];
     cell->vc_dirty = true;
-    cell->vc_value = c;
+    cell->vc_value = ch;
 
     if(++cur_xpos >= scr_width) {
         cur_xpos = 0;
@@ -481,6 +481,13 @@ static void fbcon_putchar(struct console *restrict con, int c)
     }
 
     redraw();
+}
+
+static void fbcon_write(struct console *restrict con, const void *restrict buf, size_t sz)
+{
+    size_t i;
+    const char *cbuf = buf;
+    for(i = 0; i < sz; fbcon_putchar(cbuf[i++]));
 }
 
 static void fbcon_unblank(struct console *restrict con)
@@ -496,12 +503,12 @@ static void fbcon_unblank(struct console *restrict con)
 }
 
 static struct console fbcon = {
-    .co_name = "fbcon",
-    .co_flags = CON_PRINTBUFFER,
-    .co_putchar = &fbcon_putchar,
-    .co_unblank = &fbcon_unblank,
-    .co_next = NULL,
-    .co_data = NULL,
+    .cs_next = NULL,
+    .cs_write = &fbcon_write,
+    .cs_unblank = &fbcon_unblank,
+    .cs_identity = "fbcon",
+    .cs_flag = CON_PRINTBUFFER,
+    .cs_private = NULL,
 };
 
 static void init_fbcon(void)

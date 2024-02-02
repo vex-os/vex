@@ -396,8 +396,6 @@ int vpfmt(pfmt_func_t func, void *restrict arg, const char *restrict fmt, va_lis
         fmt++;
     }
 
-    func(0, arg);
-
     if(counter > INT_MAX)
         return INT_MAX;
     return counter;

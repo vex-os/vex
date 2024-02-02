@@ -6,18 +6,20 @@
 #include <stddef.h>
 #include <x86_64/pmio.h>
 
-static void bxcon_putchar(struct console *restrict con, int c)
+static void bxcon_write(struct console *con, const void *restrict buf, size_t sz)
 {
-    pmio_write8(0xE9, c);
+    size_t i;
+    const char *cbuf = buf;
+    for(i = 0; i < sz; pmio_write8(0xE9, cbuf[i++]));
 }
 
 static struct console bxcon = {
-    .co_name = "bxcon",
-    .co_flags = CON_PRINTBUFFER,
-    .co_putchar = &bxcon_putchar,
-    .co_unblank = NULL,
-    .co_next = NULL,
-    .co_data = NULL,
+    .cs_next = NULL,
+    .cs_write = &bxcon_write,
+    .cs_unblank = NULL,
+    .cs_identity = "bxcon",
+    .cs_flag = CON_PRINTBUFFER,
+    .cs_private = NULL,
 };
 
 static void init_bxcon(void)
