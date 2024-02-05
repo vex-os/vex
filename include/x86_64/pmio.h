@@ -3,7 +3,7 @@
 #ifndef INCLUDE_X86_64_PMIO_H
 #define INCLUDE_X86_64_PMIO_H
 #include <stdint.h>
-#include <sys/vx/cdefs.h>
+#include <sys/cdefs.h>
 
 static __always_inline inline uint8_t pmio_read8(uintptr_t offset)
 {

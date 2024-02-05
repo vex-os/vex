@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2024, VX/sys Contributors */
-#include <kern/panic.h>
-#include <kern/printf.h>
-#include <kern/vmm.h>
 #include <stddef.h>
 #include <string.h>
+#include <sys/panic.h>
+#include <sys/printf.h>
+#include <sys/vmm.h>
 #include <x86_64/cpu.h>
 #include <x86_64/gdt.h>
 #include <x86_64/idt.h>

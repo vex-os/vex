@@ -2,7 +2,7 @@
 /* Copyright (c) 2024, VX/sys Contributors */
 #ifndef INCLUDE_CTYPE_H
 #define INCLUDE_CTYPE_H
-#include <sys/vx/cdefs.h>
+#include <sys/cdefs.h>
 
 #define CTYPE_CT (1 << 0)
 #define CTYPE_GR (1 << 1)

@@ -1,9 +1,9 @@
 #ifndef INCLUDE_X86_64_PML_H
 #define INCLUDE_X86_64_PML_H
-#include <kern/vprot.h>
 #include <stdbool.h>
 #include <stdint.h>
-#include <sys/vx/cdefs.h>
+#include <sys/cdefs.h>
+#include <sys/vprot.h>
 
 #define X86_PML_ADDRESS 0x000FFFFFFFFFF000
 #define X86_PML_PRESENT 0x0000000000000001

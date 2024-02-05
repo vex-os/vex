@@ -3,7 +3,7 @@
 #ifndef INCLUDE_X86_64_CPU_H
 #define INCLUDE_X86_64_CPU_H
 #include <stdint.h>
-#include <sys/vx/cdefs.h>
+#include <sys/cdefs.h>
 
 struct cpu_context {
     uint64_t r15;

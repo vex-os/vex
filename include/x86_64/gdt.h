@@ -2,7 +2,7 @@
 /* Copyright (c) 2024, VX/sys Contributors */
 #ifndef INCLUDE_X86_64_GDT_H
 #define INCLUDE_X86_64_GDT_H
-#include <kern/initcall.h>
+#include <sys/initcall.h>
 
 #define GDT_NULL 0
 #define GDT_KERN_CODE_16 1

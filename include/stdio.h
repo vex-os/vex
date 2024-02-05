@@ -4,7 +4,7 @@
 #define INCLUDE_STDIO_H
 #include <stdarg.h>
 #include <stddef.h>
-#include <sys/vx/cdefs.h>
+#include <sys/cdefs.h>
 
 int snprintf(char *restrict s, size_t n, const char *restrict fmt, ...) __printflike(3, 4);
 int sprintf(char *restrict s, const char *restrict fmt, ...) __printflike(2, 3);

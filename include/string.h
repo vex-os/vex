@@ -3,7 +3,7 @@
 #ifndef INCLUDE_STRING_H
 #define INCLUDE_STRING_H
 #include <stddef.h>
-#include <sys/vx/cdefs.h>
+#include <sys/cdefs.h>
 
 const void *memchr(const void *restrict s, int c, size_t n);
 int memcmp(const void *restrict s1, const void *restrict s2, size_t n);

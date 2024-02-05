@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2024, VX/sys Contributors */
-#include <kern/printf.h>
-#include <kern/vmm.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
+#include <sys/printf.h>
+#include <sys/vmm.h>
 #include <x86_64/gdt.h>
 
 #define GDT_READWRITE   (1 << 1)

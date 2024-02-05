@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /* Copyright (c) 2024, VX/sys Contributors */
-#include <kern/console.h>
-#include <kern/initcall.h>
-#include <kern/vmm.h>
 #include <stddef.h>
+#include <sys/console.h>
+#include <sys/initcall.h>
+#include <sys/vmm.h>
 #include <x86_64/pmio.h>
 
 static void bxcon_write(struct console *con, const void *restrict buf, size_t sz)

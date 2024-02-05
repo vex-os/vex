@@ -3,11 +3,11 @@
 #ifndef INCLUDE_STDLIB_H
 #define INCLUDE_STDLIB_H
 #include <stddef.h>
-#include <sys/vx/cdefs.h>
+#include <sys/cdefs.h>
 
-int abs(int x);
-long labs(long x);
-long long llabs(long long x);
+#define abs(x) __builtin_abs(x)
+#define labs(x) __builtin_labs(x)
+#define llabs(x) __builtin_llabs(x)
 
 int atoi(const char *restrict s);
 long atol(const char *restrict s);

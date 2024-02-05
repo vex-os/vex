@@ -50,8 +50,8 @@ LDSCRIPT := $(TEMP)/ldscript.ld
 KERNEL := kernel.elf
 
 include boot/GNUmakefile
-include kern/GNUmakefile
-include libk/GNUmakefile
+include kernel/GNUmakefile
+include lib/GNUmakefile
 include $(MACHINE)/GNUmakefile
 
 OBJECTS += $(SOURCES:=.o)

@@ -6,7 +6,7 @@
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"
 
-printf "#include <kern/version.h>\n"
+printf "#include <sys/version.h>\n"
 
 printf "const char sysname[] = \"${3:-VX/sys}\";\n"
 printf "const char release[] = \"${1}\";\n"

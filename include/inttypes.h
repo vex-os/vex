@@ -3,7 +3,7 @@
 #ifndef INCLUDE_INTTYPES_H
 #define INCLUDE_INTTYPES_H
 #include <stdint.h>
-#include <sys/vx/cdefs.h>
+#include <sys/cdefs.h>
 
 intmax_t strtoimax(const char *restrict nptr, const char **restrict endptr, int base);
 uintmax_t strtoumax(const char *restrict nptr, const char **restrict endptr, int base);

@@ -4,7 +4,7 @@
 #define INCLUDE_PFMT_H
 #include <stdarg.h>
 #include <stddef.h>
-#include <sys/vx/cdefs.h>
+#include <sys/cdefs.h>
 
 typedef void (*pfmt_func_t)(int ch, void *restrict arg);
 int pfmt(pfmt_func_t func, void *restrict arg, const char *restrict fmt, ...) __printflike(3, 4);

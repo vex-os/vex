@@ -3,7 +3,7 @@
 #ifndef INCLUDE_STRINGS_H
 #define INCLUDE_STRINGS_H
 #include <stddef.h>
-#include <sys/vx/cdefs.h>
+#include <sys/cdefs.h>
 
 char *kstrncat(char *restrict s1, const char *restrict s2, size_t n);
 char *kstrncpy(char *restrict s1, const char *restrict s2, size_t n);
