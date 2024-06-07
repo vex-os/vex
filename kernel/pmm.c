@@ -1,31 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#include <stdbool.h>
-#include <string.h>
 #include <sys/boot.h>
 #include <sys/page.h>
 #include <sys/panic.h>
 #include <sys/pmm.h>
 #include <sys/printf.h>
 
-/* PMM separates memory into two areas:
- *
- * 1.   The DMA memory is anything that ends at
- *      about DMA_APPROX_END (64 MiB). This memory
- *      is managed by a simple bitmap to allow for
- *      allocating contiguous memory for DMA operations.
- * 
- * 2.   General-purpose memory is anything that comes
- *      after about DMA_APPROX_END. This memory is
- *      managed by an even simpler linked list, allowing
- *      for efficient allocation of single-page blocks.
- *      If this memory area is exhausted, PMM falls back
- *      to using DMA pages; same happens when there's less
- *      than 64 MiB of system memory installed.
- */
-
-/* UNDONE: command line parser */
+#if !defined(DMA_APPROX_END)
 #define DMA_APPROX_END 0x3FFFFFF
+#endif
 
 static void **page_list = NULL;
 static uintptr_t dma_end_addr = 0;
@@ -36,8 +18,8 @@ static size_t dma_lastpage = 0;
 static void bitmap_mark_free(size_t a, size_t b)
 {
     size_t i;
-    size_t ax = __align_ceil(a, 64);
-    size_t bx = __align_floor(b, 64);
+    size_t ax = ALIGN_CEIL(a, 64);
+    size_t bx = ALIGN_FLOOR(b, 64);
     size_t axi = ax / 64;
     size_t bxi = bx / 64;
     for(i = a; i < ax; dma_bitmap[axi - 1] |= (UINT64_C(1) << (i++ % 64)));
@@ -49,8 +31,8 @@ static void bitmap_mark_free(size_t a, size_t b)
 static void bitmap_mark_used(size_t a, size_t b)
 {
     size_t i;
-    size_t ax = __align_ceil(a, 64);
-    size_t bx = __align_floor(b, 64);
+    size_t ax = ALIGN_CEIL(a, 64);
+    size_t bx = ALIGN_FLOOR(b, 64);
     size_t axi = ax / 64;
     size_t bxi = bx / 64;
     for(i = a; i < ax; dma_bitmap[axi - 1] &= ~(UINT64_C(1) << (i++ % 64)));
@@ -59,7 +41,7 @@ static void bitmap_mark_used(size_t a, size_t b)
     for(i = axi; i < bxi; dma_bitmap[i++] = UINT64_C(0x0000000000000000));
 }
 
-static bool bitmap_try_mark_used(size_t a, size_t b)
+static int bitmap_try_mark_used(size_t a, size_t b)
 {
     size_t i;
     size_t chunk;
@@ -76,10 +58,10 @@ static bool bitmap_try_mark_used(size_t a, size_t b)
 
         if(i > a)
             bitmap_mark_free(a, i - 1);
-        return false;
+        return 0;
     }
 
-    return true;
+    return 1;
 }
 
 uintptr_t pmm_alloc(size_t npages)
@@ -89,7 +71,7 @@ uintptr_t pmm_alloc(size_t npages)
     uintptr_t address;
 
     if(npages == 1 && page_list) {
-        address = ((uintptr_t)page_list - hhdm_offset);
+        address = ((uintptr_t)(page_list) - hhdm_offset);
         page_list = page_list[0];
         return address;
     }
@@ -144,7 +126,7 @@ void pmm_free_hhdm(void *restrict ptr, size_t npages)
 {
     if(!ptr)
         return;
-    pmm_free(((uintptr_t)ptr - hhdm_offset), npages);
+    pmm_free(((uintptr_t)(ptr) - hhdm_offset), npages);
 }
 
 static void init_pmm(void)
@@ -169,10 +151,10 @@ static void init_pmm(void)
         }
     }
 
-    npages = get_page_count(dma_end_addr + 1);
-    dma_numpages = __align_ceil(npages, 64);
+    npages = page_count(dma_end_addr + 1);
+    dma_numpages = ALIGN_CEIL(npages, 64);
     bitmap_size = dma_numpages / 8;
-    npages = get_page_count(bitmap_size);
+    npages = page_count(bitmap_size);
 
     for(i = 0; i < memmap_request.response->entry_count; ++i) {
         entry = memmap_request.response->entries[i];
@@ -191,7 +173,7 @@ static void init_pmm(void)
             entry = memmap_request.response->entries[i];
 
             if(entry->type == LIMINE_MEMMAP_USABLE && entry->base <= DMA_APPROX_END && entry->length != 0) {
-                npages = get_page_count(entry->length);
+                npages = page_count(entry->length);
                 page = entry->base / PAGE_SIZE;
                 bitmap_mark_free(page, page + npages - 1);
                 break;
@@ -200,7 +182,7 @@ static void init_pmm(void)
 
         if(bitmap_base <= dma_end_addr) {
             page = bitmap_base / PAGE_SIZE;
-            npages = get_page_count(bitmap_size);
+            npages = page_count(bitmap_size);
             bitmap_mark_used(page, page + npages - 1);
         }
 
@@ -216,7 +198,7 @@ static void init_pmm(void)
             }
         }
 
-        kprintf(KP_DEBUG, "pmm: dma_end_addr=%p, dma_numpages=%zu", (void *)dma_end_addr, dma_numpages);
+        kprintf(KP_DEBUG, "pmm: dma_end_addr=%p, dma_numpages=%zu", (void *)(dma_end_addr), dma_numpages);
         kprintf(KP_DEBUG, "pmm: dma_bitmap=%p", dma_bitmap);
 
         return;

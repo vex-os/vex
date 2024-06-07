@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#ifndef INCLUDE_SYS_PANIC_H
-#define INCLUDE_SYS_PANIC_H
+#ifndef _INCLUDE_SYS_PANIC_H
+#define _INCLUDE_SYS_PANIC_H
 #include <stdarg.h>
 #include <sys/cdefs.h>
 
@@ -10,4 +9,4 @@ void fvpanic(const char *restrict file, long line, const char *restrict fmt, va_
 #define panic(fmt, ...) fpanic(__FILE__, __LINE__, (fmt), ##__VA_ARGS__)
 #define vpanic(fmt, ap) fvpanic(__FILE__, __LINE__, (fmt), (ap))
 
-#endif /* INCLUDE_SYS_PANIC_H */
+#endif /* _INCLUDE_SYS_PANIC_H */

@@ -1,30 +1,29 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#ifndef INCLUDE_STRING_H
-#define INCLUDE_STRING_H
+#ifndef _INCLUDE_STRING_H
+#define _INCLUDE_STRING_H
 #include <stddef.h>
 #include <sys/cdefs.h>
 
-const void *memchr(const void *restrict s, int c, size_t n);
-int memcmp(const void *restrict s1, const void *restrict s2, size_t n);
-void *memcpy(void *restrict s1, const void *restrict s2, size_t n);
-void *memset(void *restrict s, int c, size_t n);
+const void *memchr(const void *restrict buf, int chr, size_t sz) __nodiscard;
+int memcmp(const void *restrict ba, const void *restrict bb, size_t sz) __nodiscard;
+void *memcpy(void *restrict dst, const void *restrict src, size_t sz);
+void *memset(void *restrict dst, int chr, size_t sz);
 
-char *strcat(char *restrict s1, const char *restrict s2);
-char *strcpy(char *restrict s1, const char *restrict s2);
-char *strerror(int errnum);
-char *strncat(char *restrict s1, const char *restrict s2, size_t n);
-char *strncpy(char *restrict s1, const char *restrict s2, size_t n);
-const char *strchr(const char *restrict s, int c);
-const char *strpbrk(const char *restrict s1, const char *restrict s2);
-const char *strrchr(const char *restrict s, int c);
-const char *strstr(const char *restrict s1, const char *restrict s2);
-int strcmp(const char *restrict s1, const char *restrict s2);
-int strerror_r(int errnum, char *restrict s, size_t n);
-int strncmp(const char *restrict s1, const char *restrict s2, size_t n);
-size_t strcspn(const char *restrict s1, const char *restrict s2);
-size_t strlen(const char *restrict s);
-size_t strnlen(const char *restrict s, size_t n);
-size_t strspn(const char *restrict s1, const char *restrict s2);
+char *strcat(char *restrict dst, const char *restrict src);
+char *strcpy(char *restrict dst, const char *restrict src);
+char *strerror(int errnum) __nodiscard;
+char *strncat(char *restrict dst, const char *restrict src, size_t sz);
+char *strncpy(char *restrict dst, const char *restrict src, size_t sz);
+const char *strchr(const char *restrict str, int chr) __nodiscard;
+const char *strpbrk(const char *restrict str, const char *restrict sym) __nodiscard;
+const char *strrchr(const char *restrict str, int chr) __nodiscard;
+const char *strstr(const char *restrict str, const char *restrict substr) __nodiscard;
+int strcmp(const char *restrict sa, const char *restrict sb) __nodiscard;
+int strerror_r(int errnum, char *restrict str, size_t sz);
+int strncmp(const char *restrict sa, const char *restrict sb, size_t sz) __nodiscard;
+size_t strcspn(const char *restrict str, const char *restrict sym) __nodiscard;
+size_t strlen(const char *restrict str) __nodiscard;
+size_t strnlen(const char *restrict str, size_t sz) __nodiscard;
+size_t strspn(const char *restrict str, const char *restrict sym) __nodiscard;
 
-#endif /* INCLUDE_STRING_H */
+#endif /* _INCLUDE_STRING_H */

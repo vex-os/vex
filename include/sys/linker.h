@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#ifndef INCLUDE_SYS_LINKER_H
-#define INCLUDE_SYS_LINKER_H
+#ifndef _INCLUDE_SYS_LINKER_H
+#define _INCLUDE_SYS_LINKER_H
 
 extern const char start_text[];
 extern const char start_rodata[];
@@ -13,4 +12,4 @@ extern const char end_rodata[];
 extern const char end_data[];
 extern const char end_bss[];
 
-#endif /* INCLUDE_SYS_LINKER_H */
+#endif /* _INCLUDE_SYS_LINKER_H */

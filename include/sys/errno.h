@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#ifndef INCLUDE_SYS_VX_ERRNO_H
-#define INCLUDE_SYS_VX_ERRNO_H
+#ifndef _INCLUDE_SYS_ERRNO_H
+#define _INCLUDE_SYS_ERRNO_H
 
 #define EDOM            101
 #define EILSEQ          102
@@ -84,4 +83,4 @@
 #define EWOULDBLOCK     275
 #define EXDEV           276
 
-#endif /* INCLUDE_SYS_VX_ERRNO_H */
+#endif /* _INCLUDE_SYS_ERRNO_H */

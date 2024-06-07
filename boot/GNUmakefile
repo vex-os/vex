@@ -1,5 +1,4 @@
 ## SPDX-License-Identifier: GPL-2.0-only
-## Copyright (c) 2024, VX/sys Contributors
 
 KERNEL_IMG := kernel.boot.img
 PHONY_TARGETS += bootable
@@ -18,6 +17,6 @@ $(KERNEL_IMG): $(KERNEL)
 	mkfs.fat -F16 --offset 2048 $@
 	mmd -i $@@@2048s ::/EFI
 	mmd -i $@@@2048s ::/EFI/BOOT
-	mcopy -i $@@@2048s boot/$(MACHINE)/BOOT$(EFI_ARCH).EFI ::/EFI/BOOT/BOOT$(EFI_ARCH).EFI
+	mcopy -i $@@@2048s boot/$(MACHINE)/BOOT$(UEFI_ARCH).EFI ::/EFI/BOOT/BOOT$(UEFI_ARCH).EFI
 	mcopy -i $@@@2048s boot/limine.cfg ::/limine.cfg
-	mcopy -i $@@@2048s $(KERNEL) ::/kernel.$(LIMINE_ARCH).elf
+	mcopy -i $@@@2048s $(KERNEL) ::/kernel.$(LIMINE_ARCH).elf\

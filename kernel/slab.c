@@ -1,6 +1,4 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#include <stdbool.h>
 #include <string.h>
 #include <sys/assert.h>
 #include <sys/page.h>
@@ -30,42 +28,42 @@ static struct slab *find_slab(size_t n)
     return NULL;
 }
 
-static bool expand_slab(struct slab *restrict sl)
+static int expand_slab(struct slab *restrict sl)
 {
     size_t i;
     size_t hsize;
     size_t obj_count;
     size_t obj_gap;
 
-#if VX_PEDANTIC /* UNDONE: VX_PARANOID_RANGE_CHECKING? */
+#if VEX_PEDANTIC /* UNDONE: VEX_PARANOID_RANGE_CHECKING? */
     kassert(sl->sl_blocksize / sizeof(void *) >= 1);
     kassert(sl->sl_blocksize % sizeof(void *) == 0);
 #endif
 
     if((sl->sl_head = pmm_alloc_page_hhdm()) != NULL) {
-        hsize = __align_ceil(sizeof(struct slab *), sl->sl_blocksize);
+        hsize = ALIGN_CEIL(sizeof(struct slab *), sl->sl_blocksize);
 
         sl->sl_head[0] = sl;
-        sl->sl_head = (void **)((uintptr_t)sl->sl_head + hsize);
+        sl->sl_head = (void **)((uintptr_t)(sl->sl_head) + hsize);
 
         /* Linked list will have obj_count new entries,
          * each of them pointing to the next one obj_gap bytes forward */
-        obj_count = __align_floor((PAGE_SIZE - hsize), sl->sl_blocksize) / sl->sl_blocksize;
+        obj_count = ALIGN_FLOOR((PAGE_SIZE - hsize), sl->sl_blocksize) / sl->sl_blocksize;
         obj_gap = sl->sl_blocksize / sizeof(void *);
 
         for(i = 1; i < obj_count; i++)
             sl->sl_head[obj_gap * (i - 1)] = &sl->sl_head[obj_gap * i];
         sl->sl_head[obj_gap * (obj_count - 1)] = NULL;
 
-        return true;
+        return 1;
     }
 
-    return false;
+    return 0;
 }
 
 static void setup_slab(struct slab *restrict sl, size_t blocksize)
 {
-    sl->sl_blocksize = __align_ceil(blocksize, sizeof(void *));
+    sl->sl_blocksize = ALIGN_CEIL(blocksize, sizeof(void *));
     sl->sl_head = NULL;
 
     if(!expand_slab(sl)) {
@@ -107,10 +105,10 @@ void *slab_realloc(void *restrict ptr, size_t n)
 
     if(ptr) {
         if((new_ptr = slab_alloc(n)) != NULL) {
-            aligned_ptr = page_align_pointer(ptr);
+            aligned_ptr = page_align_ptr(ptr);
 
             if(ptr != aligned_ptr) {
-                sl = ((struct slab **)aligned_ptr)[0];
+                sl = ((struct slab **)(aligned_ptr))[0];
 
                 memcpy(new_ptr, ptr, sl->sl_blocksize);
 
@@ -137,10 +135,10 @@ void slab_free(void *restrict ptr)
     void *aligned_ptr;
 
     if(ptr) {
-        aligned_ptr = page_align_pointer(ptr);
+        aligned_ptr = page_align_ptr(ptr);
 
         if(ptr != aligned_ptr) {
-            sl = ((struct slab **)aligned_ptr)[0];
+            sl = ((struct slab **)(aligned_ptr))[0];
 
             head_ptr = ptr;
             head_ptr[0] = sl->sl_head;
@@ -154,7 +152,7 @@ static void init_slab(void)
     size_t npages;
 
     num_slab = 8;
-    npages = get_page_count(sizeof(struct slab) * num_slab);
+    npages = page_count(sizeof(struct slab) * num_slab);
 
     if((slabs = pmm_alloc_hhdm(npages)) != NULL) {
         memset(slabs, 0, npages * PAGE_SIZE);
@@ -175,4 +173,4 @@ static void init_slab(void)
     UNREACHABLE();
 }
 core_initcall(slab, init_slab);
-initcall_depend(slab, pmm);
+initcall_dependency(slab, pmm);

@@ -1,30 +1,34 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#ifndef INCLUDE_SYS_PAGE_H
-#define INCLUDE_SYS_PAGE_H
+#ifndef _INCLUDE_SYS_PAGE_H
+#define _INCLUDE_SYS_PAGE_H
 #include <machine/limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/cdefs.h>
 
-static __always_inline inline uintptr_t page_align_address(uintptr_t address)
+static __always_inline __nodiscard inline uintptr_t page_align(uintptr_t address)
 {
-    return __align_floor(address, PAGE_SIZE);
+    return ALIGN_FLOOR(address, PAGE_SIZE);
 }
 
-static __always_inline inline void *page_align_pointer(void *restrict ptr)
+static __always_inline __nodiscard inline uintptr_t page_align_up(uintptr_t address)
 {
-    return (void *)(__align_floor((uintptr_t)ptr, PAGE_SIZE));
+    return ALIGN_CEIL(address, PAGE_SIZE);
 }
 
-static __always_inline inline const void *page_align_const_pointer(const void *restrict ptr)
+static __always_inline __nodiscard inline void *page_align_ptr(void *restrict ptr)
 {
-    return (const void *)(__align_floor((uintptr_t)ptr, PAGE_SIZE));
+    return (void *)(ALIGN_FLOOR((uintptr_t)(ptr), PAGE_SIZE));
 }
 
-static __always_inline inline size_t get_page_count(size_t n)
+static __always_inline __nodiscard inline const void *page_align_const_ptr(const void *restrict ptr)
 {
-    return __align_ceil(n, PAGE_SIZE) / PAGE_SIZE;
+    return (const void *)(ALIGN_FLOOR((uintptr_t)(ptr), PAGE_SIZE));
 }
 
-#endif /* INCLUDE_SYS_PAGE_H */
+static __always_inline __nodiscard inline size_t page_count(size_t sz)
+{
+    return ALIGN_CEIL(sz, PAGE_SIZE) / PAGE_SIZE;
+}
+
+#endif /* _INCLUDE_SYS_PAGE_H */

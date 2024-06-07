@@ -1,11 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
 #include <stddef.h>
 #include <string.h>
 #include <sys/panic.h>
 #include <sys/printf.h>
 #include <sys/vmm.h>
-#include <x86_64/cpu.h>
 #include <x86_64/gdt.h>
 #include <x86_64/idt.h>
 
@@ -38,9 +36,9 @@ static idt_register_t idtr = { 0 };
 /* $(TEMP_DIR)/x86_64.isr_stubs.S */
 extern const uint64_t isr_stubs[IDT_SIZE];
 
-void __used isr_handler(struct cpu_context *restrict ctx, uint64_t vector)
+void __used isr_handler(struct x86_frame *restrict frame, uint64_t vector)
 {
-    panic("idt: isr_handler(%p, %02jX)", (void *)ctx, (uintmax_t)vector);
+    panic("idt: isr_handler(%p, %02jX)", (void *)(frame), (uintmax_t)(vector));
     UNREACHABLE();
 }
 
@@ -71,9 +69,9 @@ static void init_idt(void)
 
     asm volatile("lidtq %0"::"m"(idtr));
 
-    kprintf(KP_DEBUG, "idt: idtr.size=%zu", (size_t)idtr.size);
-    kprintf(KP_DEBUG, "idt: idtr.offset=%p", (void *)idtr.offset);
+    kprintf(KP_DEBUG, "idt: idtr.size=%zu", (size_t)(idtr.size));
+    kprintf(KP_DEBUG, "idt: idtr.offset=%p", (void *)(idtr.offset));
 }
-core_initcall(idt, init_idt);
-initcall_depend(idt, gdt);
-initcall_depend(idt, vmm);
+core_initcall(x86_idt, init_idt);
+initcall_dependency(x86_idt, x86_gdt);
+initcall_dependency(x86_idt, vmm);

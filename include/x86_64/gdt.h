@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#ifndef INCLUDE_X86_64_GDT_H
-#define INCLUDE_X86_64_GDT_H
+#ifndef _INCLUDE_X86_64_GDT_H
+#define _INCLUDE_X86_64_GDT_H
 #include <sys/initcall.h>
 
 #define GDT_NULL 0
@@ -15,6 +14,6 @@
 #define GDT_USER_DATA_64 8
 #define GDT_SELECTOR(index, ldt, ring) (((ring) & 4) | (((ldt) & 1) << 2) | (index) << 3)
 
-initcall_extern(gdt);
+initcall_extern(x86_gdt);
 
-#endif /* INCLUDE_X86_64_GDT_H */
+#endif /* _INCLUDE_X86_64_GDT_H */

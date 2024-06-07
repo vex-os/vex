@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#ifndef INCLUDE_SYS_PMM_H
-#define INCLUDE_SYS_PMM_H
+#ifndef _INCLUDE_SYS_PMM_H
+#define _INCLUDE_SYS_PMM_H
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/initcall.h>
@@ -18,4 +17,4 @@ void pmm_free_hhdm(void *restrict ptr, size_t npages);
 
 initcall_extern(pmm);
 
-#endif /* INCLUDE_SYS_PMM_H */
+#endif /* _INCLUDE_SYS_PMM_H */

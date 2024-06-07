@@ -1,25 +1,29 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#ifndef INCLUDE_SYS_CONSOLE_H
-#define INCLUDE_SYS_CONSOLE_H
+#ifndef _INCLUDE_SYS_CONSOLE_H
+#define _INCLUDE_SYS_CONSOLE_H
 #include <stddef.h>
 #include <sys/cdefs.h>
 
-#define CON_PRINTBUFFER 0x0001
-#define CON_BLANKED     0x0002
+#define CS_PRINTBUFFER  0x0001
+#define CS_BLANKED      0x1000
+
+struct console;
+
+typedef void (*cons_write_t)(struct console *restrict cons, const void *restrict buf, size_t sz);
+typedef void (*cons_unblank_t)(struct console *restrict cons);
 
 struct console {
+    cons_write_t cs_write;
+    cons_unblank_t cs_unblank;
     struct console *cs_next;
-    void (*cs_write)(struct console *restrict con, const void *restrict buf, size_t sz);
-    void (*cs_unblank)(struct console *restrict con);
     char cs_identity[32];
-    unsigned int cs_flag;
+    unsigned cs_flags;
     void *cs_private;
 };
 
-int register_console(struct console *restrict con);
-int unregister_console(struct console *restrict con);
-void console_write(const void *restrict buf, size_t sz);
-void console_unblank(void);
+int register_console(struct console *restrict cons);
+int unregister_console(struct console *restrict cons);
+void console_write_all(const void *restrict buf, size_t sz);
+void console_unblank_all(void);
 
-#endif /* INCLUDE_SYS_CONSOLE_H */
+#endif /* _INCLUDE_SYS_CONSOLE_H */

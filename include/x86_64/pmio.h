@@ -1,7 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#ifndef INCLUDE_X86_64_PMIO_H
-#define INCLUDE_X86_64_PMIO_H
+#ifndef _INCLUDE_X86_64_PMIO_H
+#define _INCLUDE_X86_64_PMIO_H
 #include <stdint.h>
 #include <sys/cdefs.h>
 
@@ -49,4 +48,4 @@ static __always_inline inline void pmio_wait(void)
     asm volatile("outb %0, $0x80"::"a"(UINT8_C(0)):"memory");
 }
 
-#endif /* INCLUDE_X86_64_PMIO_H */
+#endif /* _INCLUDE_X86_64_PMIO_H */

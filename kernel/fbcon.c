@@ -1,6 +1,4 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#include <stdbool.h>
 #include <string.h>
 #include <sys/boot.h>
 #include <sys/console.h>
@@ -19,11 +17,11 @@
 #define CHR_WS  0x20
 #define CHR_DEL 0x7F
 
-#define FONT_WIDTH 8
-#define FONT_HEIGHT 16
-#define FONT_STRIDE 16 /* bytes per glyph */
-#define FONT_SCANLINE 1 /* bytes per line */
-#define FONT_MAX_CP 0xFF
+#define FONT_WIDTH      0x08
+#define FONT_HEIGHT     0x10
+#define FONT_STRIDE     0x10 /* bytes per glyph */
+#define FONT_SCANLINE   0x01 /* bytes per line */
+#define FONT_MAX_CP     0xFF
 
 static const unsigned char font[4096] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -285,8 +283,8 @@ static const unsigned char font[4096] = {
 };
 
 struct vcell {
-    bool vc_dirty;
-    char vc_value;
+    char v_value;
+    int v_dirty;
 };
 
 static size_t fb_width = 0;
@@ -307,7 +305,7 @@ static size_t cur_pypos = 0;
 static size_t cur_xpos = 0;
 static size_t cur_ypos = 0;
 
-static __always_inline inline void putpixel(size_t offset, bool white)
+static __always_inline inline void putpixel(size_t offset, int white)
 {
     switch(fb_depth) {
         case 8:
@@ -369,7 +367,7 @@ static void draw_cursor(size_t sx, size_t sy)
 
     for(gy = 0; gy < FONT_HEIGHT; ++gy) {
         for(gx = 0; gx < FONT_WIDTH; ++gx)
-            putpixel(pixel + gx, true);
+            putpixel(pixel + gx, 1);
         pixel += fb_width;
     }
 }
@@ -387,13 +385,13 @@ static void newline(void)
         for(i = 0; i < subscreen; ++i) {
             cell = &scr_cells[i];
             cell[0] = cell[scr_width];
-            cell[0].vc_dirty = true;
+            cell[0].v_dirty = 1;
         }
 
         cell = &scr_cells[subscreen];
         for(i = 0; i < scr_width; ++i) {
-            cell[i].vc_dirty = true;
-            cell[i].vc_value = CHR_WS;
+            cell[i].v_dirty = 1;
+            cell[i].v_value = CHR_WS;
         }
     }
 
@@ -408,15 +406,15 @@ static void redraw(void)
         for(j = 0; j < scr_height; ++j) {
             cell = &scr_cells[j * scr_width + i];
 
-            if(cell->vc_dirty) {
-                draw_cell(i, j, cell->vc_value);
-                cell->vc_dirty = false;
+            if(cell->v_dirty) {
+                draw_cell(i, j, cell->v_value);
+                cell->v_dirty = 0;
             }
         }
     }
 
     cell = &scr_cells[cur_pypos * scr_width + cur_pxpos];
-    draw_cell(cur_pxpos, cur_pypos, cell->vc_value);
+    draw_cell(cur_pxpos, cur_pypos, cell->v_value);
 
     draw_cursor(cur_xpos, cur_ypos);
 
@@ -427,7 +425,7 @@ static void redraw(void)
 static void clear(void)
 {
     size_t i;
-    for(i = 0; i < fb_length; putpixel(i++, false));
+    for(i = 0; i < fb_length; putpixel(i++, 0));
     memset(scr_cells, 0, scr_length * sizeof(struct vcell));
 }
 
@@ -472,8 +470,8 @@ static void fbcon_putchar(int ch)
     }
 
     cell = &scr_cells[cur_ypos * scr_width + cur_xpos];
-    cell->vc_dirty = true;
-    cell->vc_value = ch;
+    cell->v_dirty = 1;
+    cell->v_value = ch;
 
     if(++cur_xpos >= scr_width) {
         cur_xpos = 0;
@@ -507,7 +505,7 @@ static struct console fbcon = {
     .cs_write = &fbcon_write,
     .cs_unblank = &fbcon_unblank,
     .cs_identity = "fbcon",
-    .cs_flag = CON_PRINTBUFFER,
+    .cs_flags = CS_PRINTBUFFER,
     .cs_private = NULL,
 };
 
@@ -533,7 +531,7 @@ static void init_fbcon(void)
                 scr_height = fb_height / FONT_HEIGHT;
                 scr_length = scr_width * scr_height;
 
-                if((scr_cells = pmm_alloc_hhdm(get_page_count(scr_length * sizeof(struct vcell)))) != NULL) {
+                if((scr_cells = pmm_alloc_hhdm(page_count(scr_length * sizeof(struct vcell)))) != NULL) {
                     cur_pxpos = 0;
                     cur_pypos = 0;
                     cur_xpos = 0;

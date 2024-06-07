@@ -1,5 +1,6 @@
-#ifndef INCLUDE_SYS_VX_CDEFS_H
-#define INCLUDE_SYS_VX_CDEFS_H
+/* SPDX-License-Identifier: GPL-2.0-only */
+#ifndef _INCLUDE_SYS_CDEFS_H
+#define _INCLUDE_SYS_CDEFS_H
 
 #if !defined(__GNUC__)
 #define __attribute__(...)
@@ -7,42 +8,52 @@
 #define __inline
 #endif
 
+#if !defined(__has_builtin)
+#define __has_builtin(...) (0)
+#endif
+
 #if __STDC_VERSION__ < 199901L
 #define restrict __restrict
 #define inline __inline
 #endif
 
-#define UNREACHABLE() __builtin_unreachable()
+#if __has_builtin(__builtin_expect)
+#define PREDICT_FALSE(cond) __builtin_expect((cond), 0L)
+#define PREDICT_TRUE(cond)  __builtin_expect((cond), 1L)
+#else
+#define PREDICT_FALSE(cond) (cond)
+#define PREDICT_TRUE(cond)  (cond)
+#endif
 
-#define __predict_true(x) __builtin_expect((x), 1)
-#define __predict_false(x) __builtin_expect((x), 0)
+#if __has_builtin(__builtin_unreachable)
+#define UNREACHABLE() __builtin_unreachable()
+#else
+#define UNREACHABLE() do {} while(1)
+#endif
 
 #define __concat0(x, y) x##y
 #define __concat(x, y) __concat0(x, y)
 #define __unique(x) __concat(x, __COUNTER__)
 
-#define __string0(x) #x
-#define __string(x) __string0(x)
+#define __stringify0(x) #x
+#define __stringify(x) __stringify0(x)
 #define __string_va(...) #__VA_ARGS__
 
-#define __align_ceil(x, align) (((x) + (align) - 1) & ~((align) - 1))
-#define __align_floor(x, align) ((x) & ~((align) - 1))
+#define ALIGN_CEIL(x, align) (((x) + (align) - 1) & ~((align) - 1))
+#define ALIGN_FLOOR(x, align) ((x) & ~((align) - 1))
 
-#define __alias(x)          __attribute__((alias(#x)))
-#define __align(x)          __attribute__((aligned(x)))
+#define __alias(func)       __attribute__((alias(#func)))
+#define __align_as(type)    __attribute__((aligned(sizeof(type))))
 #define __always_inline     __attribute__((always_inline))
-#define __format(x, y, z)   __attribute__((format(x, y, z)))
 #define __nodiscard         __attribute__((warn_unused_result))
 #define __noreturn          __attribute__((noreturn))
 #define __packed            __attribute__((packed))
 #define __printflike(x, y)  __attribute__((format(printf, x, y)))
-#define __scanflike(x, y)   __attribute__((format(scanf, x, y)))
-#define __section(x)        __attribute__((section(x)))
+#define __section(name)     __attribute__((section(name)))
 #define __used              __attribute__((used))
-#define __weak              __attribute__((weak))
 
 #if !defined(__unused)
-#define __unused __attribute__((unused))
+#define __unused            __attribute__((unused))
 #endif
 
-#endif /* INCLUDE_SYS_VX_CDEFS_H */
+#endif /* _INCLUDE_SYS_CDEFS_H */

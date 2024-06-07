@@ -1,126 +1,124 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#ifndef INCLUDE_CTYPE_H
-#define INCLUDE_CTYPE_H
+#ifndef _INCLUDE_CTYPE_H
+#define _INCLUDE_CTYPE_H
 #include <sys/cdefs.h>
 
-#define CTYPE_CT (1 << 0)
-#define CTYPE_GR (1 << 1)
-#define CTYPE_SP (1 << 2)
-#define CTYPE_BL (1 << 3)
-#define CTYPE_UC (1 << 4)
-#define CTYPE_LC (1 << 5)
-#define CTYPE_DD (1 << 6)
-#define CTYPE_XD (1 << 7)
-#define CTYPE_PT (1 << 8)
+#define CT_CT (1 << 0)
+#define CT_GR (1 << 1)
+#define CT_SP (1 << 2)
+#define CT_BL (1 << 3)
+#define CT_UC (1 << 4)
+#define CT_LC (1 << 5)
+#define CT_DD (1 << 6)
+#define CT_XD (1 << 7)
+#define CT_PT (1 << 8)
+#define CT_WS (1 << 9)
 
-struct ctype_ent {
+struct codepoint {
     int lower;
     int upper;
     int flags;
 };
 
 #define CTYPE_SIZE 256
-extern const struct ctype_ent ctype[CTYPE_SIZE];
+extern const struct codepoint ctype[CTYPE_SIZE];
 
-static __always_inline inline int isalnum(int c)
+static __always_inline __nodiscard inline int isalnum(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_UC | CTYPE_LC | CTYPE_DD);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_UC | CT_LC | CT_DD);
 }
 
-static __always_inline inline int isalpha(int c)
+static __always_inline __nodiscard inline int isalpha(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_UC | CTYPE_LC);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_UC | CT_LC);
 }
 
-static __always_inline inline int isblank(int c)
+static __always_inline __nodiscard inline int isblank(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_BL);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_BL);
 }
 
-static __always_inline inline int iscntrl(int c)
+static __always_inline __nodiscard inline int iscntrl(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_CT);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_CT);
 }
 
-static __always_inline inline int isdigit(int c)
+static __always_inline __nodiscard inline int isdigit(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_DD);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_DD);
 }
 
-static __always_inline inline int isgraph(int c)
+static __always_inline __nodiscard inline int isgraph(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_GR);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_GR);
 }
 
-static __always_inline inline int islower(int c)
+static __always_inline __nodiscard inline int islower(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_LC);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_LC);
 }
 
-static __always_inline inline int isprint(int c)
+static __always_inline __nodiscard inline int isprint(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    if(c == ' ')
-        return 1;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_CT);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_CT | CT_WS);
 }
 
-static __always_inline inline int ispunct(int c)
+static __always_inline __nodiscard inline int ispunct(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_PT);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_PT);
 }
 
-static __always_inline inline int isspace(int c)
+static __always_inline __nodiscard inline int isspace(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_SP);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_SP);
 }
 
-static __always_inline inline int isupper(int c)
+static __always_inline __nodiscard inline int isupper(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_UC);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_UC);
 }
 
-static __always_inline inline int isxdigit(int c)
+static __always_inline __nodiscard inline int isxdigit(int chr)
 {
-    if(c < 0)
+    if(chr < 0x00)
         return 0;
-    return ctype[c % CTYPE_SIZE].flags & (CTYPE_XD);
+    return ctype[chr % CTYPE_SIZE].flags & (CT_XD);
 }
 
-static __always_inline inline int tolower(int c)
+static __always_inline __nodiscard inline int tolower(int chr)
 {
-    if(c < 0)
-        return c;
-    return ctype[c % CTYPE_SIZE].lower;
+    if(chr < 0x00)
+        return chr;
+    return ctype[chr % CTYPE_SIZE].lower;
 }
 
-static __always_inline inline int toupper(int c)
+static __always_inline __nodiscard inline int toupper(int chr)
 {
-    if(c < 0)
-        return c;
-    return ctype[c % CTYPE_SIZE].upper;
+    if(chr < 0x00)
+        return chr;
+    return ctype[chr % CTYPE_SIZE].upper;
 }
 
-#endif /* INCLUDE_CTYPE_H */
+#endif /* _INCLUDE_CTYPE_H */

@@ -1,5 +1,4 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -108,8 +107,8 @@ static void init_gdt(void)
         1:;
     )::"i"(GDT_SELECTOR(GDT_KERN_CODE_64, 0, 0)));
 
-    kprintf(KP_DEBUG, "gdt: gdtr.size=%zu", (size_t)gdtr.size);
-    kprintf(KP_DEBUG, "gdt: gdtr.offset=%p", (void *)gdtr.offset);
+    kprintf(KP_DEBUG, "gdt: gdtr.size=%zu", (size_t)(gdtr.size));
+    kprintf(KP_DEBUG, "gdt: gdtr.offset=%p", (void *)(gdtr.offset));
 }
-core_initcall(gdt, init_gdt);
-initcall_depend(gdt, vmm);
+core_initcall(x86_gdt, init_gdt);
+initcall_dependency(x86_gdt, vmm);

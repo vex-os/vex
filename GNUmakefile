@@ -1,13 +1,12 @@
 ## SPDX-License-Identifier: GPL-2.0-only
-## Copyright (c) 2024, VX/sys Contributors
 
 export LC_ALL=C
 export LANGUAGE=C
 export LANG=C
 
-MACHINE ?= x86_64
-TOOLCHAIN ?= llvm
-RELEASE ?= 0.0.1-dev.10
+MACHINE		?= x86_64
+TOOLCHAIN	?= llvm
+RELEASE		?= 0.0.1-dev.11
 
 SOURCES :=
 OBJECTS :=
@@ -19,8 +18,8 @@ PHONY_TARGETS :=
 TEMP := temp
 MINC := include/machine
 
-include config/machine.$(MACHINE).mk
-include config/toolchain.$(TOOLCHAIN).mk
+include machine.$(MACHINE).mk
+include toolchain.$(TOOLCHAIN).mk
 
 CFLAGS += -ffreestanding
 CFLAGS += -Wall -Wextra -Werror
@@ -46,12 +45,12 @@ LDFLAGS += -nostdlib
 INIT_C := $(TEMP)/initcalls.c
 INIT_O := $(TEMP)/initcalls.o
 NOINIT_O := $(TEMP)/noinit.o
-LDSCRIPT := $(TEMP)/ldscript.ld
+LDSCRIPT := $(TEMP)/kernel.ld
 KERNEL := kernel.elf
 
 include boot/GNUmakefile
 include kernel/GNUmakefile
-include lib/GNUmakefile
+include libkern/GNUmakefile
 include $(MACHINE)/GNUmakefile
 
 OBJECTS += $(SOURCES:=.o)
@@ -97,5 +96,5 @@ $(KERNEL): $(INIT_O) $(NOINIT_O) | $(LDSCRIPT) $(TEMP) $(MINC)
 $(NOINIT_O): $(OBJECTS) | $(TEMP) $(MINC)
 	$(LD) $(LDFLAGS) -r -o $@ $^
 
-$(LDSCRIPT): config/link.$(MACHINE).lds | $(TEMP) $(MINC)
+$(LDSCRIPT): kernel.$(MACHINE).lds | $(TEMP) $(MINC)
 	$(CC) $(CPPFLAGS) -E -xc -D __ASSEMBLER__ $^ | grep -v "^#" > $@ || true

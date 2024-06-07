@@ -1,33 +1,50 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
-/* Copyright (c) 2024, VX/sys Contributors */
-#ifndef INCLUDE_SYS_INITCALL_H
-#define INCLUDE_SYS_INITCALL_H
+#ifndef _INCLUDE_SYS_INITCALL_H
+#define _INCLUDE_SYS_INITCALL_H
 #include <sys/cdefs.h>
 
-#define initcall(init, func) \
-    extern void __init_##init(void) __alias(func)
+#define initcall(name, func) \
+    extern void __init_##name(void) __alias(func)
 
-#define initcall_extern(init) \
-    extern void __init_##init(void)
+#define initcall_extern(name) \
+    extern void __init_##name(void)
 
-#define initcall_depend(init, depn) \
-    static const void __unused __section(".discard") (*__unique(__test)) = (&__init_##depn); \
-    static const void __unused __section(".discard") (*__unique(__test)) = (&__init_##init); \
-    static const char __used __section(".discard.initcalls") __unique(__depend)[] = (#depn " " #init)
+#define initcall_dependency(name, depend) \
+    static void __unused __section(".discard") (*__unique(__test)) = (&__init_##name); \
+    static void __unused __section(".discard") (*__unique(__test)) = (&__init_##depend); \
+    static const char __used __section(".initcalls") __unique(__depend)[] = (#depend " " #name)    
 
 initcall_extern(core);
 initcall_extern(subsys);
-initcall_extern(filesystem);
 initcall_extern(device);
+initcall_extern(filesystem);
 initcall_extern(late);
 
-#define core_initcall(init, func) initcall(init, func); initcall_depend(init, core); initcall_depend(subsys, init)
-#define subsys_initcall(init, func) initcall(init, func); initcall_depend(init, subsys); initcall_depend(filesystem, init)
-#define filesystem_initcall(init, func) initcall(init, func); initcall_depend(init, filesystem); initcall_depend(device, init)
-#define device_initcall(init, func) initcall(init, func); initcall_depend(init, device); initcall_depend(late, init)
-#define late_initcall(init, func) initcall(init, func); initcall_depend(init, late)
+#define core_initcall(name, func)           \
+    initcall(name, func);                   \
+    initcall_dependency(name, core);        \
+    initcall_dependency(subsys, name)
+
+#define subsys_initcall(name, func)         \
+    initcall(name, func);                   \
+    initcall_dependency(name, subsys);      \
+    initcall_dependency(device, name)
+
+#define device_initcall(name, func)         \
+    initcall(name, func);                   \
+    initcall_dependency(name, device);      \
+    initcall_dependency(filesystem, name)
+
+#define filesystem_initcall(name, func)     \
+    initcall(name, func);                   \
+    initcall_dependency(name, filesystem);  \
+    initcall_dependency(late, name)
+
+#define late_initcall(name, func)           \
+    initcall(name, func);                   \
+    initcall_dependency(name, late)
 
 typedef void (*initcall_t)(void);
 extern const initcall_t initcalls[];
 
-#endif /* INCLUDE_SYS_INITCALL_H */
+#endif /* _INCLUDE_SYS_INITCALL_H */
