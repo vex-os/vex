@@ -1,7 +1,7 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
-#ifndef _INCLUDE_CTYPE_H
-#define _INCLUDE_CTYPE_H
-#include <sys/cdefs.h>
+// SPDX-License-Identifier: Zlib
+#ifndef INCLUDE_CTYPE_H
+#define INCLUDE_CTYPE_H
+#include <iserix/compiler.h>
 
 #define CT_CT (1 << 0)
 #define CT_GR (1 << 1)
@@ -23,102 +23,102 @@ struct codepoint {
 #define CTYPE_SIZE 256
 extern const struct codepoint ctype[CTYPE_SIZE];
 
-static __always_inline __nodiscard inline int isalnum(int chr)
+static ALWAYS_INLINE NODISCARD inline int isalnum(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_UC | CT_LC | CT_DD);
 }
 
-static __always_inline __nodiscard inline int isalpha(int chr)
+static ALWAYS_INLINE NODISCARD inline int isalpha(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_UC | CT_LC);
 }
 
-static __always_inline __nodiscard inline int isblank(int chr)
+static ALWAYS_INLINE NODISCARD inline int isblank(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_BL);
 }
 
-static __always_inline __nodiscard inline int iscntrl(int chr)
+static ALWAYS_INLINE NODISCARD inline int iscntrl(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_CT);
 }
 
-static __always_inline __nodiscard inline int isdigit(int chr)
+static ALWAYS_INLINE NODISCARD inline int isdigit(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_DD);
 }
 
-static __always_inline __nodiscard inline int isgraph(int chr)
+static ALWAYS_INLINE NODISCARD inline int isgraph(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_GR);
 }
 
-static __always_inline __nodiscard inline int islower(int chr)
+static ALWAYS_INLINE NODISCARD inline int islower(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_LC);
 }
 
-static __always_inline __nodiscard inline int isprint(int chr)
+static ALWAYS_INLINE NODISCARD inline int isprint(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_CT | CT_WS);
 }
 
-static __always_inline __nodiscard inline int ispunct(int chr)
+static ALWAYS_INLINE NODISCARD inline int ispunct(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_PT);
 }
 
-static __always_inline __nodiscard inline int isspace(int chr)
+static ALWAYS_INLINE NODISCARD inline int isspace(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_SP);
 }
 
-static __always_inline __nodiscard inline int isupper(int chr)
+static ALWAYS_INLINE NODISCARD inline int isupper(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_UC);
 }
 
-static __always_inline __nodiscard inline int isxdigit(int chr)
+static ALWAYS_INLINE NODISCARD inline int isxdigit(int chr)
 {
     if(chr < 0x00)
         return 0;
     return ctype[chr % CTYPE_SIZE].flags & (CT_XD);
 }
 
-static __always_inline __nodiscard inline int tolower(int chr)
+static ALWAYS_INLINE NODISCARD inline int tolower(int chr)
 {
     if(chr < 0x00)
         return chr;
     return ctype[chr % CTYPE_SIZE].lower;
 }
 
-static __always_inline __nodiscard inline int toupper(int chr)
+static ALWAYS_INLINE NODISCARD inline int toupper(int chr)
 {
     if(chr < 0x00)
         return chr;
     return ctype[chr % CTYPE_SIZE].upper;
 }
 
-#endif /* _INCLUDE_CTYPE_H */
+#endif /* INCLUDE_CTYPE_H */

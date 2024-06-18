@@ -1,11 +1,11 @@
-/* SPDX-License-Identifier: GPL-2.0-only */
-#ifndef _INCLUDE_STDLIB_H
-#define _INCLUDE_STDLIB_H
+// SPDX-License-Identifier: Zlib
+#ifndef INCLUDE_STDLIB_H
+#define INCLUDE_STDLIB_H
+#include <iserix/compiler.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <sys/cdefs.h>
 
-static __always_inline __nodiscard inline int abs(int value)
+static ALWAYS_INLINE NODISCARD inline int abs(int value)
 {
 #if __has_builtin(__builtin_abs)
     return __builtin_abs(value);
@@ -16,7 +16,7 @@ static __always_inline __nodiscard inline int abs(int value)
 #endif
 }
 
-static __always_inline __nodiscard inline long labs(long value)
+static ALWAYS_INLINE NODISCARD inline long labs(long value)
 {
 #if __has_builtin(__builtin_labs)
     return __builtin_labs(value);
@@ -27,7 +27,7 @@ static __always_inline __nodiscard inline long labs(long value)
 #endif
 }
 
-static __always_inline __nodiscard inline long long llabs(long long value)
+static ALWAYS_INLINE NODISCARD inline long long llabs(long long value)
 {
 #if __has_builtin(__builtin_llabs)
     return __builtin_llabs(value);
@@ -42,13 +42,13 @@ static __always_inline __nodiscard inline long long llabs(long long value)
 #define atol(nptr) strtol((nptr), NULL, 10)
 #define atoll(nptr) strtoll((nptr), NULL, 10)
 
-long strtol(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
-long long strtoll(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
-unsigned long strtoul(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
-unsigned long long strtoull(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
+long strtol(const char *restrict nptr, const char **restrict endptr, int base) NODISCARD;
+long long strtoll(const char *restrict nptr, const char **restrict endptr, int base) NODISCARD;
+unsigned long strtoul(const char *restrict nptr, const char **restrict endptr, int base) NODISCARD;
+unsigned long long strtoull(const char *restrict nptr, const char **restrict endptr, int base) NODISCARD;
 
-intmax_t strtoimax(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
-uintmax_t strtoumax(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
-size_t strtousize(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
+intmax_t strtoimax(const char *restrict nptr, const char **restrict endptr, int base) NODISCARD;
+uintmax_t strtoumax(const char *restrict nptr, const char **restrict endptr, int base) NODISCARD;
+size_t strtousize(const char *restrict nptr, const char **restrict endptr, int base) NODISCARD;
 
-#endif /* _INCLUDE_STDLIB_H */
+#endif /* INCLUDE_STDLIB_H */

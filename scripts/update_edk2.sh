@@ -11,5 +11,5 @@ cd $(dirname $(realpath $(dirname ${0})))
 download() { wget -q --show-progress -O "${PWD}/${2}/${3}" "${1}/${3}"; }
 
 ovmf_url="https://retrage.github.io/edk2-nightly/bin"
-download ${ovmf_url} boot/riscv64 RELEASERISCV64_VIRT.fd
-download ${ovmf_url} boot/x86_64 RELEASEX64_OVMF.fd
+download ${ovmf_url} arch/riscv64/boot RELEASERISCV64_VIRT.fd
+download ${ovmf_url} arch/x86_64/boot RELEASEX64_OVMF.fd

@@ -5,7 +5,10 @@
             "name": "Vex x86_64",
             "intelliSenseMode": "clang-x64",
             "defines": [ "__x86_64__", "__kernel__" ],
-            "includePath": [ "${workspaceFolder}/include" ],
+            "includePath": [
+                "${workspaceFolder}/arch/x86_64/include",
+                "${workspaceFolder}/include"
+            ],
             "compilerArgs": [
                 "-ffreestanding",
                 "-nostdlibinc", "-nostdlib",

@@ -1,15 +1,14 @@
-## SPDX-License-Identifier: GPL-2.0-only
+## SPDX-License-Identifier: Zlib
 
-KERNEL_IMG := kernel.boot.img
-PHONY_TARGETS += bootable
-PHONY_TARGETS += update-boot
-ALL_DEPS += bootable
+KBOOT := ${build_dir}/kernel.boot.img
+CLEAN0 += ${KBOOT}
 
-CLEAN += $(KERNEL_IMG)
+PHONYS += bootable
+ALLDEP += bootable
 
-bootable: $(KERNEL_IMG)
+bootable: ${KBOOT}
 
-$(KERNEL_IMG): $(KERNEL)
+${KBOOT}: ${KERNEL}
 	dd if=/dev/zero of=$@ bs=1048576 count=32
 	parted $@ mklabel gpt
 	parted $@ mkpart ESP fat16 2048s 100%
@@ -17,6 +16,6 @@ $(KERNEL_IMG): $(KERNEL)
 	mkfs.fat -F16 --offset 2048 $@
 	mmd -i $@@@2048s ::/EFI
 	mmd -i $@@@2048s ::/EFI/BOOT
-	mcopy -i $@@@2048s boot/$(MACHINE)/BOOT$(UEFI_ARCH).EFI ::/EFI/BOOT/BOOT$(UEFI_ARCH).EFI
+	mcopy -i $@@@2048s arch/${ARCH}/boot/BOOT${UEFI_ARCH}.EFI ::/EFI/BOOT/BOOT${UEFI_ARCH}.EFI
 	mcopy -i $@@@2048s boot/limine.cfg ::/limine.cfg
-	mcopy -i $@@@2048s $(KERNEL) ::/kernel.$(LIMINE_ARCH).elf\
+	mcopy -i $@@@2048s ${KERNEL} ::/kernel.${LIMINE_ARCH}.elf

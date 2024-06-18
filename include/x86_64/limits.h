@@ -1,6 +1,0 @@
-#ifndef _INCLUDE_X86_64_LIMITS_H
-#define _INCLUDE_X86_64_LIMITS_H
-
-#define PAGE_SIZE 0x1000
-
-#endif /* _INCLUDE_X86_64_LIMITS_H */
