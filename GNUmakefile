@@ -52,11 +52,10 @@ NOINITCALLS := ${build_dir}/noinitcalls.o
 LDSCRIPT := ${build_dir}/link.ld
 KERNEL := ${build_dir}/kernel.elf
 
+include arch/${ARCH}/kernel/GNUmakefile
 include boot/GNUmakefile
-include kern/GNUmakefile
+include kernel/GNUmakefile
 include libk/GNUmakefile
-
-include arch/${ARCH}/kern/GNUmakefile
 
 OBJECTS += ${SOURCES:=.o}
 
