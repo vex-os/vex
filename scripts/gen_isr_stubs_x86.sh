@@ -19,6 +19,8 @@ printf "\n"
 printf ".section .text\n"
 
 for i in ${vectors}; do
+    printf ".global __isr_${i}\n"
+    printf ".type __isr_${i}, @function\n"
     printf "__isr_${i}:\n"
 
     # Certain interrupt vectors on x86_64 push an error

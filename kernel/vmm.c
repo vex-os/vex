@@ -317,11 +317,6 @@ static void init_vmm(void)
         UNREACHABLE();
     }
 
-    if((r = vmm_map_section(bss_start, bss_end, VPROT_READ | VPROT_WRITE)) != 0) {
-        panic("vmm: map_section[bss]: %s", strerror(r));
-        UNREACHABLE();
-    }
-
     for(i = 0; i < memmap_request.response->entry_count; ++i) {
         if(memmap_request.response->entries[i]->type != LIMINE_MEMMAP_BAD_MEMORY) {
             if((r = vmm_map_memmap(memmap_request.response->entries[i])) != 0) {

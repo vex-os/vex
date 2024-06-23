@@ -11,7 +11,4 @@ extern const char rodata_end[];
 extern const char data_start[];
 extern const char data_end[];
 
-extern const char bss_start[];
-extern const char bss_end[];
-
 #endif /* INCLUDE_VEX_LINKER_H */

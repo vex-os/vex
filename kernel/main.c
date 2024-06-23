@@ -24,6 +24,9 @@ void NORETURN USED kmain(void)
     kernel_base_phys = kernel_address_request.response->physical_base;
     kernel_base_virt = kernel_address_request.response->virtual_base;
 
+    kprintf(KP_INFORM, "main: I'm loaded at physical %p", (void *)(kernel_base_phys));
+    kprintf(KP_INFORM, "main: I'm loaded at virtual %p", (void *)(kernel_base_virt));
+
     for(i = 0; initcalls[i]; initcalls[i++]());
 
     panic("main: nothing else to do");
