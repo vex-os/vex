@@ -1,12 +1,10 @@
 #!/bin/sh
 
-# Make sure the script is ran from the
-# source tree root (we use absolute paths)
 cd $(dirname $(realpath $(dirname ${0})))
 
 qargs=
-qargs="${qargs} -bios ${PWD}/arch/x86_64/boot/RELEASEX64_OVMF.fd"
-qargs="${qargs} -drive format=raw,file=${PWD}/build/kernel.boot.img"
+qargs="${qargs} -bios boot/RELEASEX64_OVMF.fd"
+qargs="${qargs} -drive format=raw,file=build/kernel.boot.img"
 qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -machine type=q35"
 qargs="${qargs} -vga std"

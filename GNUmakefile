@@ -4,7 +4,7 @@ export LC_ALL=C
 export LANGUAGE=C
 export LANG=C
 
-RELEASE ?= 0.0.1-dev.15
+RELEASE ?= 0.0.1-dev.16
 SYSNAME ?= Vex
 
 ARCH ?= x86_64
@@ -35,6 +35,7 @@ CPPFLAGS += -D __kernel__
 CPPFLAGS += -D __KERNEL__
 CPPFLAGS += -I include
 CPPFLAGS += -I arch/${ARCH}/include
+CPPFLAGS += -I contrib/limine
 
 LDFLAGS += -static
 LDFLAGS += -nostdlib
@@ -119,6 +120,6 @@ ${KBOOT}: ${KERNEL}
 	mkfs.fat -F16 --offset 2048 $@
 	mmd -i $@@@2048s ::/EFI
 	mmd -i $@@@2048s ::/EFI/BOOT
-	mcopy -i $@@@2048s arch/${ARCH}/boot/BOOT${UEFI_ARCH}.EFI ::/EFI/BOOT/BOOT${UEFI_ARCH}.EFI
-	mcopy -i $@@@2048s config/limine.cfg ::/limine.cfg
+	mcopy -i $@@@2048s boot/BOOT${UEFI_ARCH}.EFI ::/EFI/BOOT/BOOT${UEFI_ARCH}.EFI
+	mcopy -i $@@@2048s boot/limine.cfg ::/limine.cfg
 	mcopy -i $@@@2048s ${KERNEL} ::/kernel.${LIMINE_ARCH}.elf
