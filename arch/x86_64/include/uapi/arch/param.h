@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: Zlib */
-#ifndef ARCH_X86_64_INCLUDE_UAPI_ARCH_PARAM_H
-#define ARCH_X86_64_INCLUDE_UAPI_ARCH_PARAM_H
+#ifndef UAPI_ARCH_PARAM_H
+#define UAPI_ARCH_PARAM_H
 
 #define _k_PAGE_SHIFT 12
 #define _k_PAGE_SIZE 0x1000
 
-#endif /* ARCH_X86_64_INCLUDE_UAPI_ARCH_PARAM_H */
+#endif /* UAPI_ARCH_PARAM_H */

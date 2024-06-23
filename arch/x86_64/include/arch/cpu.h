@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
-#ifndef ARCH_X86_64_INCLUDE_ARCH_CPU_H
-#define ARCH_X86_64_INCLUDE_ARCH_CPU_H
-#include <iserix/compiler.h>
+#ifndef INCLUDE_ARCH_CPU_H
+#define INCLUDE_ARCH_CPU_H
+#include <vex/compiler.h>
 #include <stdint.h>
 
 static ALWAYS_INLINE inline void halt_cpu(void)
@@ -24,4 +24,4 @@ static ALWAYS_INLINE inline void set_cpu_pagemap(uint64_t phys)
     asm volatile("movq %0, %%cr3"::"r"(phys):"memory");
 }
 
-#endif /* ARCH_X86_64_INCLUDE_ARCH_CPU_H */
+#endif /* INCLUDE_ARCH_CPU_H */

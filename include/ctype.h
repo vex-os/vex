@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_CTYPE_H
 #define INCLUDE_CTYPE_H
-#include <iserix/compiler.h>
+#include <vex/compiler.h>
 
 #define CT_CT (1 << 0)
 #define CT_GR (1 << 1)

@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: Zlib */
-#ifndef ARCH_X86_64_INCLUDE_ARCH_PAGING_H
-#define ARCH_X86_64_INCLUDE_ARCH_PAGING_H
-#include <iserix/compiler.h>
-#include <iserix/vprot.h>
+#ifndef INCLUDE_ARCH_PML_H
+#define INCLUDE_ARCH_PML_H
+#include <vex/compiler.h>
+#include <vex/vprot.h>
 #include <stdint.h>
 
 #define X86_PML_ADDRESS 0x000FFFFFFFFFF000
@@ -64,4 +64,4 @@ static ALWAYS_INLINE NODISCARD inline pmentry_t make_pmentry(uintptr_t address, 
     return entry;
 }
 
-#endif /* ARCH_X86_64_INCLUDE_ARCH_PAGING_H */
+#endif /* INCLUDE_ARCH_PML_H */

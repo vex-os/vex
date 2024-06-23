@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Zlib */
-#include <iserix/console.h>
-#include <iserix/printf.h>
+#include <vex/console.h>
+#include <vex/printf.h>
 #include <format.h>
 #include <string.h>
 

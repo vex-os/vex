@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_STRINGS_H
 #define INCLUDE_STRINGS_H
-#include <iserix/compiler.h>
+#include <vex/compiler.h>
 #include <stddef.h>
 
 char *kstrncat(char *restrict dst, const char *restrict src, size_t sz);

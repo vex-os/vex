@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: Zlib */
-#include <iserix/console.h>
-#include <iserix/initcall.h>
-#include <iserix/limine.h>
-#include <iserix/page.h>
-#include <iserix/panic.h>
-#include <iserix/pmm.h>
-#include <iserix/printf.h>
+#include <vex/console.h>
+#include <vex/initcall.h>
+#include <vex/limine.h>
+#include <vex/page.h>
+#include <vex/panic.h>
+#include <vex/pmm.h>
+#include <vex/printf.h>
 #include <string.h>
 
 #define CHR_BS  0x08

@@ -1,7 +1,7 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_SPRINTF_H
 #define INCLUDE_SPRINTF_H
-#include <iserix/compiler.h>
+#include <vex/compiler.h>
 #include <stdarg.h>
 #include <stddef.h>
 

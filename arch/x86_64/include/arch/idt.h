@@ -1,6 +1,6 @@
-#ifndef ARCH_X86_64_INCLUDE_ARCH_IDT_H
-#define ARCH_X86_64_INCLUDE_ARCH_IDT_H
-#include <iserix/initcall.h>
+#ifndef INCLUDE_ARCH_IDT_H
+#define INCLUDE_ARCH_IDT_H
+#include <vex/initcall.h>
 #include <stdint.h>
 
 struct x86_frame {
@@ -29,4 +29,4 @@ struct x86_frame {
 
 INITCALL_EXTERN(x86_idt);
 
-#endif /* ARCH_X86_64_INCLUDE_ARCH_IDT_H */
+#endif /* INCLUDE_ARCH_IDT_H */

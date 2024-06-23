@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: Zlib */
-#include <iserix/compiler.h>
-#include <iserix/limine.h>
+#include <vex/compiler.h>
+#include <vex/limine.h>
 #include <stddef.h>
 
 uintptr_t hhdm_offset = 0x0000000000000000;

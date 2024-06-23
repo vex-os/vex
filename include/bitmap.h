@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_BITMAP_H
 #define INCLUDE_BITMAP_H
-#include <iserix/compiler.h>
+#include <vex/compiler.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>

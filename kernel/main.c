@@ -1,11 +1,11 @@
 /* SPDX-License-Identifier: Zlib */
-#include <iserix/assert.h>
-#include <iserix/initcall.h>
-#include <iserix/limine.h>
-#include <iserix/panic.h>
-#include <iserix/printf.h>
-#include <iserix/pmm.h>
-#include <iserix/utsname.h>
+#include <vex/assert.h>
+#include <vex/initcall.h>
+#include <vex/limine.h>
+#include <vex/panic.h>
+#include <vex/printf.h>
+#include <vex/pmm.h>
+#include <vex/utsname.h>
 
 #include <arch/pmio.h>
 

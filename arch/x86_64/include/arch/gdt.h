@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
-#ifndef ARCH_X86_64_INCLUDE_ARCH_TABLE_H
-#define ARCH_X86_64_INCLUDE_ARCH_TABLE_H
-#include <iserix/initcall.h>
+#ifndef INCLUDE_ARCH_GDT_H
+#define INCLUDE_ARCH_GDT_H
+#include <vex/initcall.h>
 
 #define GDT_NULL 0
 #define GDT_KERN_CODE_16 1
@@ -16,4 +16,4 @@
 
 INITCALL_EXTERN(x86_gdt);
 
-#endif /* ARCH_X86_64_INCLUDE_ARCH_TABLE_H */
+#endif /* INCLUDE_ARCH_GDT_H */

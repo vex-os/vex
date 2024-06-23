@@ -5,7 +5,7 @@ export LANGUAGE=C
 export LANG=C
 
 RELEASE ?= 0.0.1-dev.15
-SYSNAME ?= Iserix
+SYSNAME ?= Vex
 
 ARCH ?= x86_64
 TOOLCHAIN ?= llvm
@@ -51,9 +51,12 @@ INITCALLS_O := ${build_dir}/initcalls.o
 NOINITCALLS := ${build_dir}/noinitcalls.o
 LDSCRIPT := ${build_dir}/link.ld
 KERNEL := ${build_dir}/kernel.elf
+KBOOT := ${build_dir}/kernel.boot.img
 
-include arch/${ARCH}/kernel/GNUmakefile
-include boot/GNUmakefile
+include arch/${ARCH}/GNUmakefile
+include arch/${ARCH}/mach/GNUmakefile
+include drivers/GNUmakefile
+include filesys/GNUmakefile
 include kernel/GNUmakefile
 include libk/GNUmakefile
 
@@ -65,6 +68,7 @@ CLEAN0 += ${INITCALLS_O}
 CLEAN0 += ${NOINITCALLS}
 CLEAN0 += ${LDSCRIPT}
 CLEAN0 += ${KERNEL}
+CLEAN0 += ${KBOOT}
 
 CLEAN1 += ${build_dir}
 
@@ -72,8 +76,10 @@ PHONYS += all
 PHONYS += force_run
 PHONYS += clean distclean
 PHONYS += kernel
+PHONYS += bootable
 
 ALLDEP += kernel
+ALLDEP += bootable
 
 all: ${ALLDEP}
 
@@ -87,6 +93,8 @@ distclean:
 	rm -vrf ${CLEAN1}
 
 kernel: ${KERNEL}
+
+bootable: ${KBOOT}
 
 ${build_dir}:
 	mkdir -p ${build_dir}
@@ -102,3 +110,15 @@ ${NOINITCALLS}: ${OBJECTS} ${build_dir}
 
 ${LDSCRIPT}: config/link.${ARCH}.lds ${build_dir}
 	${CC} ${CPPFLAGS} -E -xc -D __ASSEMBLER__ config/link.${ARCH}.lds | grep -v "^#" > $@ || true
+
+${KBOOT}: ${KERNEL}
+	dd if=/dev/zero of=$@ bs=1048576 count=32
+	parted $@ mklabel gpt
+	parted $@ mkpart ESP fat16 2048s 100%
+	parted $@ set 1 esp on
+	mkfs.fat -F16 --offset 2048 $@
+	mmd -i $@@@2048s ::/EFI
+	mmd -i $@@@2048s ::/EFI/BOOT
+	mcopy -i $@@@2048s arch/${ARCH}/boot/BOOT${UEFI_ARCH}.EFI ::/EFI/BOOT/BOOT${UEFI_ARCH}.EFI
+	mcopy -i $@@@2048s config/limine.cfg ::/limine.cfg
+	mcopy -i $@@@2048s ${KERNEL} ::/kernel.${LIMINE_ARCH}.elf

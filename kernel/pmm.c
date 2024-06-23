@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: Zlib */
-#include <iserix/assert.h>
-#include <iserix/hhdm.h>
-#include <iserix/page.h>
-#include <iserix/panic.h>
-#include <iserix/pmm.h>
-#include <iserix/printf.h>
+#include <vex/assert.h>
+#include <vex/hhdm.h>
+#include <vex/page.h>
+#include <vex/panic.h>
+#include <vex/pmm.h>
+#include <vex/printf.h>
 #include <bitmap.h>
 #include <string.h>
 #include <strings.h>
@@ -142,6 +142,9 @@ static void init_pmm(void)
     dma_numpages = ALIGN_CEIL(npages, BITMAP_CHUNK_BITS);
     bitmap_size = bitmap_bytecount(dma_numpages);
     npages = page_count(bitmap_size);
+
+    dma_bitmap = NULL;
+    bitmap_phys = 0;
 
     /* Figure out where to put the bitmap */
     for(i = 0; i < memmap_request.response->entry_count; ++i) {

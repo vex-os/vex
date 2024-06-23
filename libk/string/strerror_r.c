@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Zlib */
-#include <iserix/errno.h>
+#include <vex/errno.h>
 #include <string.h>
 #include <strings.h>
 #include <sprintf.h>

@@ -5,7 +5,7 @@
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"
 
-printf "#include <iserix/utsname.h>\n"
+printf "#include <vex/utsname.h>\n"
 
 printf "const char sysname[] = \"${2}\";\n"
 printf "const char release[] = \"${1}\";\n"

@@ -1,16 +1,16 @@
 /* SPDX-License-Identifier: Zlib */
 #include <arch/cpu.h>
 #include <arch/pml.h>
-#include <iserix/errno.h>
-#include <iserix/hhdm.h>
-#include <iserix/limine.h>
-#include <iserix/linker.h>
-#include <iserix/page.h>
-#include <iserix/panic.h>
-#include <iserix/pmm.h>
-#include <iserix/printf.h>
-#include <iserix/slab.h>
-#include <iserix/vmm.h>
+#include <vex/errno.h>
+#include <vex/hhdm.h>
+#include <vex/limine.h>
+#include <vex/linker.h>
+#include <vex/page.h>
+#include <vex/panic.h>
+#include <vex/pmm.h>
+#include <vex/printf.h>
+#include <vex/slab.h>
+#include <vex/vmm.h>
 #include <string.h>
 
 static int pagemap_lvl3 = 0;

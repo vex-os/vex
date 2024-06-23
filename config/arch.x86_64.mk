@@ -1,6 +1,6 @@
 ## SPDX-License-Identifier: Zlib
 
-GNUC_TARGET := x86_64-elf
+GNU_TARGET_TRIPLET := x86_64-elf
 LLVM_TARGET := x86_64-none-elf
 LIMINE_ARCH := x86-64
 UEFI_ARCH := X64

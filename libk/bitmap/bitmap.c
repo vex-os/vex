@@ -1,6 +1,5 @@
 /* SPDX-License-Identifier: Zlib */
 #include <bitmap.h>
-#include <iserix/printf.h>
 
 static ALWAYS_INLINE NODISCARD inline bitmap_t make_bitmask(size_t bitmod)
 {

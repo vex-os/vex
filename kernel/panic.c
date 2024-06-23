@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: Zlib */
 #include <arch/cpu.h>
-#include <iserix/console.h>
-#include <iserix/panic.h>
-#include <iserix/printf.h>
+#include <vex/console.h>
+#include <vex/panic.h>
+#include <vex/printf.h>
 
 void NORETURN fpanic(const char *restrict file, long line, const char *restrict fmt, ...)
 {

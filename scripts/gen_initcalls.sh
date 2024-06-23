@@ -5,7 +5,7 @@ initcalls=$(readelf -p .initcalls "${1}" | grep -P "^\s*\[" | cut -d "]" -f2 | t
 
 printf "/* generated automatically */\n"
 printf "/* warning: changes will be lost */\n"
-printf "#include <iserix/initcall.h>\n"
+printf "#include <vex/initcall.h>\n"
 printf "#include <stddef.h>\n"
 
 for initcall in ${initcalls}; do

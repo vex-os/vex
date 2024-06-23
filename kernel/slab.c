@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: Zlib */
-#include <iserix/assert.h>
-#include <iserix/page.h>
-#include <iserix/panic.h>
-#include <iserix/pmm.h>
-#include <iserix/printf.h>
-#include <iserix/slab.h>
+#include <vex/assert.h>
+#include <vex/page.h>
+#include <vex/panic.h>
+#include <vex/pmm.h>
+#include <vex/printf.h>
+#include <vex/slab.h>
 #include <string.h>
 
 struct slab {

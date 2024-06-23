@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
-#ifndef ARCH_X86_64_INCLUDE_ARCH_PMIO_H
-#define ARCH_X86_64_INCLUDE_ARCH_PMIO_H
-#include <iserix/compiler.h>
+#ifndef INCLUDE_ARCH_PMIO_H
+#define INCLUDE_ARCH_PMIO_H
+#include <vex/compiler.h>
 #include <stdint.h>
 
 static ALWAYS_INLINE inline uint8_t pmio_read8(uintptr_t offset)
@@ -48,4 +48,4 @@ static ALWAYS_INLINE inline void pmio_wait(void)
     asm volatile("outb %0, $0x80"::"a"(UINT8_C(0)):"memory");
 }
 
-#endif /* ARCH_X86_64_INCLUDE_ARCH_PMIO_H */
+#endif /* INCLUDE_ARCH_PMIO_H */

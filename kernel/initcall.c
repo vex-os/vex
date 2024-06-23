@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: Zlib */
-#include <iserix/initcall.h>
+#include <vex/initcall.h>
 
 static void init_core(void)
 {

@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
-#include <iserix/console.h>
-#include <iserix/errno.h>
-#include <iserix/printf.h>
+#include <vex/console.h>
+#include <vex/errno.h>
+#include <vex/printf.h>
 #include <string.h>
 
 static struct console *cons = NULL;
