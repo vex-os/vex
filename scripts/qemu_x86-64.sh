@@ -1,9 +1,9 @@
 #!/bin/sh
 
-cd $(dirname $(dirname $(realpath $(dirname ${0}))))
+cd $(dirname $(realpath $(dirname ${0})))
 
 qargs=
-qargs="${qargs} -bios contrib/edk2/RELEASEX64_OVMF.fd"
+qargs="${qargs} -bios boot/x86_64/RELEASEX64_OVMF.fd"
 qargs="${qargs} -drive format=raw,file=build/kernel.boot.img"
 qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -machine type=q35"

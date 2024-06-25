@@ -106,6 +106,6 @@ ${KBOOT}: ${KERNEL}
 	mkfs.fat -F16 --offset 2048 $@
 	mmd -i $@@@2048s ::/EFI
 	mmd -i $@@@2048s ::/EFI/BOOT
-	mcopy -i $@@@2048s contrib/limine/BOOT${UEFI_ARCH}.EFI ::/EFI/BOOT/BOOT${UEFI_ARCH}.EFI
-	mcopy -i $@@@2048s config/boot.limine.cfg ::/limine.cfg
+	mcopy -i $@@@2048s boot/${ARCH}/BOOT${UEFI_ARCH}.EFI ::/EFI/BOOT/BOOT${UEFI_ARCH}.EFI
+	mcopy -i $@@@2048s boot/limine.cfg ::/limine.cfg
 	mcopy -i $@@@2048s ${KERNEL} ::/kernel.${LIMINE_ARCH}.elf
