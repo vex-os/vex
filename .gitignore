@@ -4,6 +4,7 @@ include/machine/*
 include/machine
 build/*
 build
+*.bin.font.o
 *.c.o
 *.S.o
 *.s.o

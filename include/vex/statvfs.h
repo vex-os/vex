@@ -1,11 +1,26 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_VEX_STATVFS_H
 #define INCLUDE_VEX_STATVFS_H
-#include <uapi/vex/statvfs.h>
+#include <vex/types.h>
 
-#define ST_RDONLY _k_ST_RDONLY
-#define ST_NOSUID _k_ST_NOSUID
+#define ST_RDONLY 0x00000001UL
+#define ST_NOSUID 0x00000002UL
 
-struct statvfs _k_statvfs_s;
+struct statvfs {
+    unsigned long f_bsize;
+    unsigned long f_frsize;
+
+    fsblkcnt_t f_blocks;
+    fsblkcnt_t f_bfree;
+    fsblkcnt_t f_bavail;
+
+    fsfilcnt_t f_files;
+    fsfilcnt_t f_ffree;
+    fsfilcnt_t f_favail;
+
+    unsigned long f_fsid;
+    unsigned long f_flag;
+    unsigned long f_namemax;
+};
 
 #endif /* INCLUDE_VEX_STATVFS_H */

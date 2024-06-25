@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: Zlib */
-#include <vex/errno.h>
+#include <sprintf.h>
 #include <string.h>
 #include <strings.h>
-#include <sprintf.h>
+#include <vex/errno.h>
 
 int strerror_r(int errnum, char *restrict str, size_t sz)
 {
