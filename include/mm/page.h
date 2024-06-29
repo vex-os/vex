@@ -2,7 +2,7 @@
 #ifndef INCLUDE_MM_PAGE_H
 #define INCLUDE_MM_PAGE_H
 #include <arch/limits.h>
-#include <core/compiler.h>
+#include <kern/compiler.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -18,12 +18,12 @@ static __always_inline __nodiscard inline uintptr_t page_align_up(uintptr_t addr
 
 static __always_inline __nodiscard inline void *page_align_ptr(void *restrict ptr)
 {
-    return (void *)(align_floor((uintptr_t)(ptr), PAGE_SIZE));
+    return (void *)(align_floor((uintptr_t)ptr, PAGE_SIZE));
 }
 
 static __always_inline __nodiscard inline const void *page_align_const_ptr(const void *restrict ptr)
 {
-    return (const void *)(align_floor((uintptr_t)(ptr), PAGE_SIZE));
+    return (const void *)(align_floor((uintptr_t)ptr, PAGE_SIZE));
 }
 
 static __always_inline __nodiscard inline size_t page_count(size_t sz)

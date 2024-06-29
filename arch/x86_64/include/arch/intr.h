@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_ARCH_INTR_H
 #define INCLUDE_ARCH_INTR_H
-#include <core/compiler.h>
+#include <kern/compiler.h>
 #include <stdint.h>
 
 struct interrupt_frame {

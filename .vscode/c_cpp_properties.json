@@ -7,8 +7,6 @@
             "defines": [ "__x86_64__", "__kernel__" ],
             "includePath": [
                 "${workspaceFolder}/arch/x86_64/include",
-                "${workspaceFolder}/contrib/limine/include",
-                "${workspaceFolder}/data/fonts/include",
                 "${workspaceFolder}/include"
             ],
             "compilerArgs": [

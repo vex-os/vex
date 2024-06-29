@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_ARCH_GDT_H
 #define INCLUDE_ARCH_GDT_H
-#include <core/compiler.h>
+#include <kern/compiler.h>
 #include <stdint.h>
 
 #define GDT_NULL_SEGMENT 0x00

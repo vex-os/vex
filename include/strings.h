@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_STRINGS_H
 #define INCLUDE_STRINGS_H
-#include <core/compiler.h>
+#include <kern/compiler.h>
 #include <stddef.h>
 
 char *kstrncat(char *restrict dst, const char *restrict src, size_t sz);

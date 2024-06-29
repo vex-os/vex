@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_MM_PMM_H
 #define INCLUDE_MM_PMM_H
-#include <core/compiler.h>
+#include <kern/compiler.h>
 #include <stddef.h>
 #include <stdint.h>
 

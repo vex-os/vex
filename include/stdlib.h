@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_STDLIB_H
 #define INCLUDE_STDLIB_H
-#include <core/compiler.h>
+#include <kern/compiler.h>
 #include <stddef.h>
 #include <stdint.h>
 

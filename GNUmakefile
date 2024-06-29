@@ -4,7 +4,7 @@ export LC_ALL=C
 export LANGUAGE=C
 export LANG=C
 
-RELEASE ?= 0.0.1-dev.17
+RELEASE ?= 0.0.1-dev.18
 SYSNAME ?= Vex
 
 ARCH ?= x86_64
@@ -52,9 +52,12 @@ LDSCRIPT := ${build_dir}/link.ld
 KERNEL := ${build_dir}/kernel.elf
 KBOOT := ${build_dir}/kernel.boot.img
 
-include arch/${ARCH}/src/GNUmakefile
+include arch/${ARCH}/kern/GNUmakefile
+include drivers/GNUmakefile
+include filesys/GNUmakefile
+include kern/GNUmakefile
 include libk/GNUmakefile
-include src/GNUmakefile
+include mm/GNUmakefile
 
 OBJECTS += ${SOURCES:=.o}
 

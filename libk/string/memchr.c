@@ -6,7 +6,7 @@ const void *memchr(const void *restrict buf, int chr, size_t sz)
     const unsigned char *sp = buf;
 
     while(sz--) {
-        if(*sp == (unsigned char)(chr))
+        if(*sp == chr)
             return sp;
         sp++;
     }

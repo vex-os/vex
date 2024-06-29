@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_BITMAP_H
 #define INCLUDE_BITMAP_H
-#include <core/compiler.h>
+#include <kern/compiler.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#define BITMAP_BIT(bit) (UINT32_C(1) << ((uint32_t)(bit)))
+#define BITMAP_BIT(bit) (UINT32_C(1) << ((uint32_t)bit))
 
 #define BITMAP_CHUNK_BITS 32
 #define BITMAP_MASK_CLEAR UINT32_C(0x00000000)

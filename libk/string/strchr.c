@@ -4,7 +4,7 @@
 const char *strchr(const char *restrict str, int chr)
 {
     do {
-        if(*str != (char)(chr))
+        if(*str != chr)
             continue;
         return str;
     } while(*str++);

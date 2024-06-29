@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_ARCH_PORTS_H
 #define INCLUDE_ARCH_PORTS_H
-#include <core/compiler.h>
+#include <kern/compiler.h>
 #include <stdint.h>
 
 static __always_inline inline uint8_t pmio_read8(uintptr_t offset)

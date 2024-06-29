@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_STRING_H
 #define INCLUDE_STRING_H
-#include <core/compiler.h>
+#include <kern/compiler.h>
 #include <stddef.h>
 
 const void *memchr(const void *restrict buf, int chr, size_t sz) __nodiscard;

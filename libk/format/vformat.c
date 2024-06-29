@@ -29,9 +29,9 @@
 static const char lc_digits[MAX_BASE + 1] = "0123456789abcdef";
 static const char uc_digits[MAX_BASE + 1] = "0123456789ABCDEF";
 
-static size_t write_int(format_func_t func, void *restrict arg, uintmax_t value, unsigned flags, unsigned w, unsigned p, unsigned base)
+static size_t write_int(format_func_t func, void *restrict arg, uintmax_t value, unsigned int flags, unsigned int w, unsigned int p, unsigned int base)
 {
-    unsigned i;
+    unsigned int i;
     size_t stager;
     size_t counter;
     int sign, pad;
@@ -142,7 +142,7 @@ static size_t write_int(format_func_t func, void *restrict arg, uintmax_t value,
 }
 
 static const char defined_behaviour[] = "(null)";
-static size_t write_str(format_func_t func, void *restrict arg, const char *restrict s, unsigned flags, unsigned w, unsigned p)
+static size_t write_str(format_func_t func, void *restrict arg, const char *restrict s, unsigned int flags, unsigned int w, unsigned int p)
 {
     size_t i;
     size_t cap;
@@ -190,7 +190,7 @@ static size_t write_str(format_func_t func, void *restrict arg, const char *rest
     return counter;
 }
 
-static unsigned get_flag(int ch)
+static unsigned int get_flag(int ch)
 {
     switch(ch) {
         case '0':
@@ -208,7 +208,7 @@ static unsigned get_flag(int ch)
     }
 }
 
-static uintmax_t remove_sign(uintmax_t x, int length, unsigned *restrict flags)
+static uintmax_t remove_sign(uintmax_t x, int length, unsigned int *restrict flags)
 {
     #define sign_hack(type) if((type)(x) < 0) { *flags |= F_NEGATIVE; x = (uintmax_t)(-((type)(x))); }
     switch(length) {
@@ -241,10 +241,10 @@ static uintmax_t remove_sign(uintmax_t x, int length, unsigned *restrict flags)
 int vformat(format_func_t func, void *restrict arg, const char *restrict fmt, va_list ap)
 {
     size_t counter = 0;
-    unsigned w, p;
-    unsigned flags;
-    unsigned fvalue;
-    unsigned length;
+    unsigned int w, p;
+    unsigned int flags;
+    unsigned int fvalue;
+    unsigned int length;
     const char *endptr;
     uintmax_t value;
 

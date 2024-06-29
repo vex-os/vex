@@ -2,12 +2,16 @@
 #ifndef INCLUDE_VEX_UTSNAME_H
 #define INCLUDE_VEX_UTSNAME_H
 
+#if !defined(UNAME_SZ)
+#define UNAME_SZ 128
+#endif
+
 struct utsname {
-    char sysname[128];
-    char nodename[128];
-    char release[128];
-    char version[128];
-    char machine[128];
+    char sysname[UNAME_SZ];
+    char nodename[UNAME_SZ];
+    char release[UNAME_SZ];
+    char version[UNAME_SZ];
+    char machine[UNAME_SZ];
 };
 
 #endif /* INCLUDE_VEX_UTSNAME_H */

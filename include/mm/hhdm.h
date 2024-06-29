@@ -1,8 +1,12 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_MM_HHDM_H
 #define INCLUDE_MM_HHDM_H
-#include <core/compiler.h>
-#include <core/limine.h>
+#include <kern/compiler.h>
+#include <stdint.h>
+
+extern uintptr_t hhdm_offset;
+
+void init_hhdm(void);
 
 static __always_inline __nodiscard inline void *phys_to_hhdm(uintptr_t address)
 {
@@ -11,7 +15,7 @@ static __always_inline __nodiscard inline void *phys_to_hhdm(uintptr_t address)
 
 static __always_inline __nodiscard inline uintptr_t hhdm_to_phys(const void *restrict ptr)
 {
-    return ((uintptr_t)(ptr) - hhdm_offset);
+    return ((uintptr_t)ptr - hhdm_offset);
 }
 
 #endif /* INCLUDE_MM_HHDM_H */

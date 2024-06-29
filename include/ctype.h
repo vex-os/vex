@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_CTYPE_H
 #define INCLUDE_CTYPE_H
-#include <core/compiler.h>
+#include <kern/compiler.h>
 
 #define CT_CT (1 << 0)
 #define CT_GR (1 << 1)

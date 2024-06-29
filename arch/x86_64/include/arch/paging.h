@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_ARCH_PAGING_H
 #define INCLUDE_ARCH_PAGING_H
-#include <core/compiler.h>
+#include <kern/compiler.h>
 #include <mm/vprot.h>
 #include <stdint.h>
 
@@ -49,7 +49,7 @@ static __always_inline __nodiscard inline uintptr_t pmentry_address(pmentry_t en
     return (uintptr_t)(entry & X86_PML_ADDRESS);
 }
 
-static __always_inline __nodiscard inline pmentry_t make_pmentry(uintptr_t address, unsigned vprot)
+static __always_inline __nodiscard inline pmentry_t make_pmentry(uintptr_t address, unsigned int vprot)
 {
     pmentry_t entry = PMENTRY_NULL;
 
