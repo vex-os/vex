@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #include <string.h>
 
 const char *strchr(const char *restrict str, int chr)

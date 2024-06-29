@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #ifndef INCLUDE_ARCH_INTR_H
 #define INCLUDE_ARCH_INTR_H
 #include <kern/compiler.h>
@@ -38,4 +38,4 @@ static __always_inline inline void enable_interrupts(void)
     asm volatile("sti");
 }
 
-#endif /* INCLUDE_ARCH_INTR_H */
+#endif // INCLUDE_ARCH_INTR_H

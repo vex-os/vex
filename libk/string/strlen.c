@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #include <string.h>
 
 size_t strlen(const char *restrict str)

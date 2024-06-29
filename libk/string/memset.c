@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #include <string.h>
 
 void *memset(void *restrict dst, int chr, size_t sz)

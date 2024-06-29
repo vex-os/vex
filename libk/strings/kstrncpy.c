@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #include <strings.h>
 
 char *kstrncpy(char *restrict dst, const char *restrict src, size_t sz)

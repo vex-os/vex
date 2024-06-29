@@ -1,4 +1,5 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
+#include <arch/8259.h>
 #include <arch/bxcon.h>
 #include <arch/gdt.h>
 #include <arch/idt.h>
@@ -12,4 +13,6 @@ void setup_arch(void)
     init_gdt();
     init_idt();
     init_intreq();
+
+    init_8259();
 }

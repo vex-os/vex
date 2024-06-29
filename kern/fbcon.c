@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #include <kern/console.h>
 #include <kern/fbcon.h>
 #include <kern/panic.h>
@@ -19,11 +19,11 @@
 
 #define FONT_WIDTH      0x08
 #define FONT_HEIGHT     0x10
-#define FONT_STRIDE     0x10 /* bytes per glyph */
-#define FONT_SCANLINE   0x01 /* bytes per line */
+#define FONT_STRIDE     0x10 // bytes per glyph
+#define FONT_SCANLINE   0x01 // bytes per line
 #define FONT_MAX_CP     0xFF
 
-/* FIXME: this is not a good place to house the framebuffer request */
+// FIXME: this is not a good place to house the framebuffer request
 static volatile struct limine_framebuffer_request __used framebuffer_request = {
     .id = LIMINE_FRAMEBUFFER_REQUEST,
     .revision = 0,
@@ -554,7 +554,7 @@ void init_fbcon(void)
                     return;
                 }
 
-                /* FIXME: just bail out instead */
+                // FIXME: just bail out instead
                 panic("fbcon: out of memory");
                 unreachable();
             }

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #ifndef INCLUDE_ARCH_LIMITS_H
 #define INCLUDE_ARCH_LIMITS_H
 
@@ -9,4 +9,4 @@
 #define PAGE_SHIFT 12
 #define PAGE_SIZE 0x1000
 
-#endif /* INCLUDE_ARCH_LIMITS_H */
+#endif // INCLUDE_ARCH_LIMITS_H

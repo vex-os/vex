@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #include <kern/console.h>
 #include <kern/printf.h>
 #include <string.h>
@@ -21,15 +21,15 @@ int register_console(struct console *restrict con)
     kprintf(KP_INFORM, "console: registering %s", con->cs_identity);
 
     if(con->cs_unblank) {
-        /* Unblank callback makes the driver to
-         * perform sort of a soft-init. With this in
-         * mind, the code assumes the driver has already
-         * hard-inited before calling register_console on itself. */
+        // Unblank callback makes the driver to
+        // perform sort of a soft-init. With this in
+        // mind, the code assumes the driver has already
+        // hard-inited before calling register_console on itself.
         con->cs_unblank(con);
     }
 
-    /* NOTE: register_console prioritizes CS_PRINTBUFFER
-     * and dumps kmsg buffer contents disregarding CS_BLANKED. */
+    // NOTE: register_console prioritizes CS_PRINTBUFFER
+    // and dumps kmsg buffer contents disregarding CS_BLANKED.
     if(con->cs_write && (con->cs_flags & CS_PRINTBUFFER)) {
         kptr = &kmsg[kmsg_writepos];
         ksz = strnlen(kptr, KMSG_SIZE - kmsg_writepos);

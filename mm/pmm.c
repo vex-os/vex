@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #include <bitmap.h>
 #include <kern/assert.h>
 #include <kern/panic.h>
@@ -80,9 +80,9 @@ uintptr_t pmm_alloc(void)
         return address;
     }
 
-    /* Fall back to the bitmap allocator in case the linked
-     * list allocator runs out or if there was not enough
-     * memory to initialize it in the first place */
+    // Fall back to the bitmap allocator in case the linked
+    // list allocator runs out or if there was not enough
+    // memory to initialize it in the first place
     return dma_alloc(1);
 }
 
@@ -126,7 +126,7 @@ void init_pmm(void)
     void **head_ptr;
     struct limine_memmap_entry *entry;
 
-    /* Determine the actual end of the DMA space */
+    // Determine the actual end of the DMA space
     for(i = 0; i < memmap.response->entry_count; ++i) {
         entry = memmap.response->entries[i];
 
@@ -147,7 +147,7 @@ void init_pmm(void)
     dma_bitmap = NULL;
     bitmap_phys = 0;
 
-    /* Figure out where to put the bitmap */
+    // Figure out where to put the bitmap
     for(i = 0; i < memmap.response->entry_count; ++i) {
         entry = memmap.response->entries[i];
 
@@ -163,12 +163,10 @@ void init_pmm(void)
         unreachable();
     }
 
-    /* FIXME: use memset/bzero instead for faster
-     * initiailzation? Filling out the linked list takes
-     * much more time in cases it even exists though */
+    // FIXME: use memset/bzero instead for faster initiailzation?
     bitmap_range_clear(dma_bitmap, 0, dma_numpages - 1);
 
-    /* Figure out what chunks of DMA space are usable */
+    // Figure out what chunks of DMA space are usable
     for(i = 0; i < memmap.response->entry_count; ++i) {
         entry = memmap.response->entries[i];
 
@@ -182,8 +180,8 @@ void init_pmm(void)
         }
     }
 
-    /* Account for cases when the bitmap resides
-     * in the very same memory region it tracks. */
+    // Account for cases when the bitmap resides
+    // in the very same memory region it tracks.
     if(bitmap_phys <= dma_end_addr) {
         page = bitmap_phys / PAGE_SIZE;
         npages = page_count(bitmap_size);
@@ -192,7 +190,7 @@ void init_pmm(void)
 
     list_numpages = 0;
 
-    /* Figure out what pages belong to the linked list */
+    // Figure out what pages belong to the linked list
     for(i = 0; i < memmap.response->entry_count; ++i) {
         entry = memmap.response->entries[i];
 

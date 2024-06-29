@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #ifndef INCLUDE_BITMAP_H
 #define INCLUDE_BITMAP_H
 #include <kern/compiler.h>
@@ -52,4 +52,4 @@ static __always_inline inline void bitmap_set(bitmap_t *restrict bitmap, size_t 
     bitmap[bdiv] &= ~BITMAP_BIT(BITMAP_CHUNK_BITS - bmod - 1);
 }
 
-#endif /* INCLUDE_BITMAP_H */
+#endif // INCLUDE_BITMAP_H

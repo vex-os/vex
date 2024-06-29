@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #include <arch/setup.h>
 #include <kern/assert.h>
 #include <kern/fbcon.h>

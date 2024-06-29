@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #ifndef INCLUDE_CTYPE_H
 #define INCLUDE_CTYPE_H
 #include <kern/compiler.h>
@@ -121,4 +121,4 @@ static __always_inline __nodiscard inline int toupper(int chr)
     return ctype[chr % CTYPE_SIZE].upper;
 }
 
-#endif /* INCLUDE_CTYPE_H */
+#endif // INCLUDE_CTYPE_H

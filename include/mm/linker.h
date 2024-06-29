@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #ifndef INCLUDE_MM_LINKER_H
 #define INCLUDE_MM_LINKER_H
 
@@ -11,4 +11,4 @@ extern const char rodata_end[];
 extern const char data_start[];
 extern const char data_end[];
 
-#endif /* INCLUDE_MM_LINKER_H */
+#endif // INCLUDE_MM_LINKER_H

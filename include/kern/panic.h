@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #ifndef INCLUDE_KERN_PANIC_H
 #define INCLUDE_KERN_PANIC_H
 #include <kern/compiler.h>
@@ -9,4 +9,4 @@ void fvpanic(const char *restrict file, long line, const char *restrict fmt, va_
 #define panic(fmt, ...) fpanic(__FILE__, __LINE__, (fmt), ##__VA_ARGS__)
 #define vpanic(fmt, ap) fvpanic(__FILE__, __LINE__, (fmt), (ap))
 
-#endif /* INCLUDE_KERN_PANIC_H */
+#endif // INCLUDE_KERN_PANIC_H

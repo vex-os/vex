@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #ifndef INCLUDE_STDLIB_H
 #define INCLUDE_STDLIB_H
 #include <kern/compiler.h>
@@ -51,4 +51,4 @@ intmax_t strtoimax(const char *restrict nptr, const char **restrict endptr, int 
 uintmax_t strtoumax(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
 size_t strtousize(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
 
-#endif /* INCLUDE_STDLIB_H */
+#endif // INCLUDE_STDLIB_H

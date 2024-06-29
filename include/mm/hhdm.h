@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #ifndef INCLUDE_MM_HHDM_H
 #define INCLUDE_MM_HHDM_H
 #include <kern/compiler.h>
@@ -18,4 +18,4 @@ static __always_inline __nodiscard inline uintptr_t hhdm_to_phys(const void *res
     return ((uintptr_t)ptr - hhdm_offset);
 }
 
-#endif /* INCLUDE_MM_HHDM_H */
+#endif // INCLUDE_MM_HHDM_H

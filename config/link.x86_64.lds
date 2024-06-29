@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 OUTPUT_FORMAT(elf64-x86-64)
 OUTPUT_ARCH(i386:x86-64)
 ENTRY(kmain)
@@ -31,7 +31,7 @@ SECTIONS
     
     text_end = .;
 
-    /* Align up to the next page */
+    // Align up to the next page
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     rodata_start = .;
@@ -43,7 +43,7 @@ SECTIONS
 
     rodata_end = .;
 
-    /* Align up to the next page */
+    // Align up to the next page
     . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     data_start = .;

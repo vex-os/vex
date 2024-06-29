@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+// SPDX-License-Identifier: Zlib
 #include <arch/bxcon.h>
 #include <arch/pmio.h>
 #include <kern/console.h>
