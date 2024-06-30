@@ -19,7 +19,12 @@ const void *madt_iterate(const void *restrict entry)
 void init_madt(void)
 {
     if((madt = acpi_lookup("APIC")) == NULL) {
-        panic("madt: table not present");
+        panic("acpi: MADT table is not present");
+        unreachable();
+    }
+
+    if(acpi_sdt_checksum(madt)) {
+        panic("acpi: MADT failed checksum validation");
         unreachable();
     }
 

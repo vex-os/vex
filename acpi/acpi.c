@@ -65,6 +65,8 @@ const void *acpi_lookup(const char *restrict signature)
 
 void init_acpi(void)
 {
+    uint8_t checksum;
+
     if(!request.response) {
         panic("acpi: limine_rsdp_request has no response");
         unreachable();
@@ -73,17 +75,21 @@ void init_acpi(void)
     rsdp = request.response->address;
     xsdp = request.response->address;
 
-    if(acpi_generic_checksum(rsdp, sizeof(struct acpi_rsdp))) {
-        panic("acpi: RSDP checksum validation fail");
+    if(rsdp->revision < 2)
+        checksum = acpi_generic_checksum(rsdp, sizeof(struct acpi_rsdp));
+    else checksum = acpi_generic_checksum(xsdp, xsdp->length);
+
+    if(checksum) {
+        panic("acpi: RSDP/XSDP failed checksum validation");
         unreachable();
     }
 
-    if(rsdp->revision == 0)
+    if(rsdp->revision < 2)
         sdt_root = phys_to_hhdm(rsdp->rsdt);
     else sdt_root = phys_to_hhdm(xsdp->xsdt);
 
     if(acpi_sdt_checksum(sdt_root)) {
-        panic("acpi: RSDT/XSDT checksum validation fail");
+        panic("acpi: RSDT/XSDT failed checksum validation");
         unreachable();
     }
 }
