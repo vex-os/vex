@@ -19,9 +19,10 @@ static volatile struct limine_rsdp_request __used request = {
 
 static __always_inline __nodiscard inline size_t get_sdt_count(void)
 {
+    size_t rsize = (sdt_root->length - sizeof(struct acpi_sdt_header));
     if(rsdp->revision == 0)
-        return (sdt_root->length - sizeof(struct acpi_sdt_header)) / sizeof(uint32_t);
-    return (sdt_root->length - sizeof(struct acpi_sdt_header)) / sizeof(uint64_t);
+        return rsize / sizeof(uint32_t);
+    return rsize / sizeof(uint64_t);
 }
 
 static __always_inline __nodiscard inline uintptr_t get_sdt_at(size_t index)

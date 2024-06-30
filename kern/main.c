@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Zlib
 #include <acpi/acpi.h>
+#include <acpi/madt.h>
 #include <arch/setup.h>
 #include <kern/assert.h>
 #include <kern/fbcon.h>
@@ -24,6 +25,7 @@ void __noreturn __used kmain(void)
     init_memmap();
 
     init_acpi();
+    init_madt();
 
     init_arch();
 
@@ -33,7 +35,13 @@ void __noreturn __used kmain(void)
 
     init_fbcon();
 
-    init_acpi();
+    // Test - iterate through MADT
+    const struct madt_header *madt_entry;
+    const void *madt_entry_itr = madt_entries;
+    do {
+        madt_entry = madt_entry_itr;
+        kprintf(KP_INFORM, "MADT[%p] %02zX", madt_entry_itr, (size_t)madt_entry->type);
+    } while((madt_entry_itr = madt_iterate(madt_entry_itr)) != NULL);
 
     panic("main: nothing else to do");
     unreachable();
