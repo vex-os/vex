@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Zlib
 #include <kern/panic.h>
-#include <kern/printf.h>
 #include <limine.h>
 #include <mm/hhdm.h>
 #include <mm/kbase.h>
@@ -266,7 +265,7 @@ void init_vmm(void)
     size_t i;
 
     if(!paging_mode.response) {
-        panic("vmm: paging_mode: bootloader response not present");
+        panic("vmm: paging_mode: limine_paging_mode_request has no response");
         unreachable();
     }
 
@@ -274,11 +273,19 @@ void init_vmm(void)
     pagemap_lvl4 = 0;
     pagemap_lvl5 = 0;
 
+    // Here's the interaction I had with one of Limine
+    // developers in the OSDev Discord server regarding
+    // going with such method of VMM testing the waters:
+    // 
     //   und: Limine protocol abuse :trollface:
     // xvanc: that was intentional
     // xvanc: i didn't think it needed to be documented
     //   und: was it really? protocol docs don't say that
     // xvanc: yeah we rely on it in limine itself
+    // 
+    // Henceforth I am no longer going to cringe at this piece
+    // of code because the bootloader appears to do the exact
+    // same thing, just in different style and at a different time.
     if(paging_mode.response->mode >= PAGING_MODE_LVL3)
         pagemap_lvl3 = 1;
     if(paging_mode.response->mode >= PAGING_MODE_LVL4)
@@ -318,18 +325,11 @@ void init_vmm(void)
     }
 
     for(i = 0; i < memmap.response->entry_count; ++i) {
-        if(memmap.response->entries[i]->type != LIMINE_MEMMAP_BAD_MEMORY) {
-            if((r = vmm_map_memmap(memmap.response->entries[i])) != 0) {
-                panic("vmm: map_memmap[%zu]: %s", i, strerror(r));
-                unreachable();
-            }
+        if((r = vmm_map_memmap(memmap.response->entries[i])) != 0) {
+            panic("vmm: map_memmap[%zu]: %s", i, strerror(r));
+            unreachable();
         }
     }
 
     vmm_switch(&sys_vm);
-
-    kprintf(KP_DEBUG, "vmm: sys_vm.vm_virt=%p", sys_vm.vm_virt);
-    kprintf(KP_DEBUG, "vmm: pagemap_lvl3=%s", pagemap_lvl3 ? "true" : "false");
-    kprintf(KP_DEBUG, "vmm: pagemap_lvl4=%s", pagemap_lvl4 ? "true" : "false");
-    kprintf(KP_DEBUG, "vmm: pagemap_lvl5=%s", pagemap_lvl5 ? "true" : "false");
 }

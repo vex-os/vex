@@ -204,8 +204,6 @@ void init_pmm(void)
         }
     }
 
-    kprintf(KP_DEBUG, "pmm: dma_end_addr=%p", (void *)dma_end_addr);
-    kprintf(KP_DEBUG, "pmm: dma_bitmap=%p bitmap_size=%zu", (void *)dma_bitmap, bitmap_size);
-    kprintf(KP_INFORM, "pmm: dma_bitmap: tracking %zu pages", dma_numpages);
-    kprintf(KP_INFORM, "pmm: page_list: tracking %zu pages", list_numpages);
+    kprintf(KP_INFORM, "pmm: bitmap is tracking %zu pages", dma_numpages);
+    kprintf(KP_INFORM, "pmm: linked list is tracking %zu pages", list_numpages);
 }

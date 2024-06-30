@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: Zlib
 #include <arch/gdt.h>
-#include <kern/printf.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -86,7 +85,4 @@ void init_gdt(void)
     gdtr.offset = (uintptr_t)(&gdt[0]);
 
     asm volatile("lgdtq %0"::"m"(gdtr));
-
-    kprintf(KP_DEBUG, "gdt: gdtr.size=%zu", (size_t)gdtr.size);
-    kprintf(KP_DEBUG, "gdt: gdtr.offset=%p", (void *)gdtr.offset);
 }

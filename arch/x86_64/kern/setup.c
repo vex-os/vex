@@ -6,10 +6,13 @@
 #include <arch/intreq.h>
 #include <arch/setup.h>
 
-void setup_arch(void)
+void init_arch_early(void)
 {
     init_bxcon();
+}
 
+void init_arch(void)
+{
     init_gdt();
     init_idt();
     init_intreq();

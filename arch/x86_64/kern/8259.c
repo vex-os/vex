@@ -16,13 +16,9 @@ void init_8259(void)
 
     disable_interrupts();
 
-    // Mask all the interrupt lines
     pmio_write8(PIC1_DATA, 0xFF);
     pmio_write8(PIC2_DATA, 0xFF);
 
-    //      und: Just mask and forget?
-    // streaksu: Mask all the PIC interrupts
-    // streaksu: EOI all 16 PIC vectors because it's a shit chip
     for(vector = 0x00; vector <= 0x10; ++vector) {
         if(vector >= 0x08)
             pmio_write8(PIC2_COMMAND, 0x20);

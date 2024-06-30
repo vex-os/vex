@@ -52,6 +52,7 @@ LDSCRIPT := ${build_dir}/link.ld
 KERNEL := ${build_dir}/kernel.elf
 KBOOT := ${build_dir}/kernel.boot.img
 
+include acpi/GNUmakefile
 include arch/${ARCH}/kern/GNUmakefile
 include drivers/GNUmakefile
 include filesys/GNUmakefile

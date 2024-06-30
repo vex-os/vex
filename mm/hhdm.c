@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Zlib
 #include <kern/panic.h>
-#include <kern/printf.h>
 #include <limine.h>
 #include <mm/hhdm.h>
+#include <stddef.h>
 
 uintptr_t hhdm_offset;
 
@@ -15,7 +15,7 @@ static volatile struct limine_hhdm_request __used request = {
 void init_hhdm(void)
 {
     if(!request.response) {
-        panic("hhdm: bootloader response not present");
+        panic("hhdm: limine_hhdm_request has no response");
         unreachable();
     }
 

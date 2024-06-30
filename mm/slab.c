@@ -155,7 +155,7 @@ void init_slab(void)
     slabs = dma_alloc_hhdm(npages);
 
     if(slabs == NULL) {
-        panic("slab: out of memory (%zu)", npages);
+        panic("slab: out of memory [pmm_alloc %zu pages]", npages);
         unreachable();
     }
 
@@ -163,10 +163,8 @@ void init_slab(void)
         slabs[i].sl_blocksize = calc_blocksize(i);
         slabs[i].sl_head = NULL;
 
-        kprintf(KP_DEBUG, "slab: slabs[%zu].sl_blocksize=%zu", i, slabs[i].sl_blocksize);
-
         if(!expand_slab(&slabs[i])) {
-            panic("slab: out of memory");
+            panic("slab: out of memory [slab %zu:%zu]", i, slabs[i].sl_blocksize);
             unreachable();
         }
     }

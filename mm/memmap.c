@@ -12,7 +12,7 @@ volatile struct limine_memmap_request __used memmap = {
 void init_memmap(void)
 {
     if(!memmap.response) {
-        panic("memmap: bootloader response not present");
+        panic("memmap: limine_memmap_request has no response");
         unreachable();
     }
 }

@@ -4,7 +4,6 @@
 #include <arch/intr.h>
 #include <kern/assert.h>
 #include <kern/panic.h>
-#include <kern/printf.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -70,7 +69,7 @@ extern void x86_isr_1F(void);
 void __used x86_isr_handler(struct interrupt_frame *restrict frame, uint64_t intvec)
 {
     disable_interrupts();
-    panic("idt: isr_handler");
+    panic("idt: isr_handler %02zX", (size_t)intvec);
     unreachable();
 }
 
@@ -164,7 +163,4 @@ void init_idt(void)
     idtr.offset = (uintptr_t)(&idt[0]);
 
     asm volatile("lidtq %0"::"m"(idtr));
-
-    kprintf(KP_DEBUG, "idt: idtr.size=%zu", (size_t)idtr.size);
-    kprintf(KP_DEBUG, "idt: idtr.offset=%p", (void *)idtr.offset);
 }
