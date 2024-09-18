@@ -11,7 +11,7 @@ qargs="${qargs} -vga std"
 qargs="${qargs} -m 512M"
 #qargs="${qargs} -d cpu_reset -d int -no-reboot -no-shutdown"
 
-if [ -f "/proc/sys/fs/binfmt_misc/WSLInterop" ]
+if test -f "/proc/sys/fs/binfmt_misc/WSLInterop"
 then
     # We are running under WSL2; we want to run
     # a host QEMU distribution and expect its
