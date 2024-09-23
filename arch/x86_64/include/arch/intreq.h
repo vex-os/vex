@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_ARCH_INTREQ_H
 #define INCLUDE_ARCH_INTREQ_H
 #include <arch/intr.h>
@@ -9,4 +9,4 @@ int unset_intreq_handler(unsigned int vector);
 
 void init_intreq(void);
 
-#endif // INCLUDE_ARCH_INTREQ_H
+#endif /* INCLUDE_ARCH_INTREQ_H */

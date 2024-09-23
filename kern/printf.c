@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #include <format.h>
 #include <kern/console.h>
 #include <kern/printf.h>
@@ -45,8 +45,8 @@ void kputs(unsigned int sv, const char *restrict str)
     }
 
     if(st.st_size) {
-        // FIXME: should this be inside the
-        // severity vs loglevel check above?
+        /* FIXME: should this be inside the
+         * severity vs loglevel check above? */
         console_write_all(st.st_data, st.st_size);
     }
 }
@@ -65,8 +65,8 @@ void kprintf(unsigned int sv, const char *restrict fmt, ...)
     }
 
     if(st.st_size) {
-        // FIXME: should this be inside the
-        // severity vs loglevel check above?
+        /* FIXME: should this be inside the
+         * severity vs loglevel check above? */
         console_write_all(st.st_data, st.st_size);
     }
 }
@@ -82,8 +82,8 @@ void kvprintf(unsigned int sv, const char *restrict fmt, va_list ap)
     }
 
     if(st.st_size) {
-        // FIXME: should this be inside the
-        // severity vs loglevel check above?
+        /* FIXME: should this be inside the
+         * severity vs loglevel check above? */
         console_write_all(st.st_data, st.st_size);
     }
 }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #include <kern/panic.h>
 #include <limine.h>
 #include <mm/hhdm.h>
@@ -28,10 +28,10 @@ struct pagemap sys_vm;
 
 static size_t pmentry_index(uintptr_t virt, uintptr_t mask, uintptr_t shift)
 {
-    // This assumes the target architecture uses
-    // x86-like pmentry_t format where a part of the virtual
-    // address is an index of a specific level page table.
-    // This should work without a fuss on both ARM64 and RISC-V.
+    /* This assumes the target architecture uses
+     * x86-like pmentry_t format where a part of the virtual
+     * address is an index of a specific level page table.
+     * This should work without a fuss on both ARM64 and RISC-V. */
     return (size_t)((virt & (mask << shift)) >> shift);
 }
 
@@ -115,8 +115,8 @@ struct pagemap *vmm_create(void)
             memset(vm->vm_virt, 0, PAGE_SIZE);
 
             for(i = PAGEMAP_KERN; i < PAGEMAP_SIZE; ++i) {
-                // FIXME: we actually shouldn't let userspace
-                // to see the kernel's address space like that!
+                /* FIXME: we actually shouldn't let userspace
+                 * to see the kernel's address space like that! */
                 vm->vm_virt[i] = sys_vm.vm_virt[i];
             }
 
@@ -273,19 +273,19 @@ void init_vmm(void)
     pagemap_lvl4 = 0;
     pagemap_lvl5 = 0;
 
-    // Here's the interaction I had with one of Limine
-    // developers in the OSDev Discord server regarding
-    // going with such method of VMM testing the waters:
-    // 
-    //   und: Limine protocol abuse :trollface:
-    // xvanc: that was intentional
-    // xvanc: i didn't think it needed to be documented
-    //   und: was it really? protocol docs don't say that
-    // xvanc: yeah we rely on it in limine itself
-    // 
-    // Henceforth I am no longer going to cringe at this piece
-    // of code because the bootloader appears to do the exact
-    // same thing, just in different style and at a different time.
+    /* Here's the interaction I had with one of Limine
+     * developers in the OSDev Discord server regarding
+     * going with such method of VMM testing the waters:
+     * 
+     *   und: Limine protocol abuse :trollface:
+     * xvanc: that was intentional
+     * xvanc: i didn't think it needed to be documented
+     *   und: was it really? protocol docs don't say that
+     * xvanc: yeah we rely on it in limine itself
+     * 
+     * Henceforth I am no longer going to cringe at this piece
+     * of code because the bootloader appears to do the exact
+     * same thing, just in different style and at a different time. */
     if(paging_mode.response->mode >= PAGING_MODE_LVL3)
         pagemap_lvl3 = 1;
     if(paging_mode.response->mode >= PAGING_MODE_LVL4)
@@ -301,7 +301,7 @@ void init_vmm(void)
     sys_vm.vm_virt = phys_to_hhdm(sys_vm.vm_phys);
     memset(sys_vm.vm_virt, 0, PAGE_SIZE);
 
-    // Allocate top-level sys_vm entries
+    /* Allocate top-level sys_vm entries */
     for(i = PAGEMAP_KERN; i < PAGEMAP_SIZE; ++i) {
         if(!get_pmentry(sys_vm.vm_virt, i, 1)) {
             panic("vmm: out of memory");

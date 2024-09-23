@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_MM_VMM_H
 #define INCLUDE_MM_VMM_H
 #include <arch/paging.h>
@@ -22,4 +22,4 @@ int vmm_unmap(struct pagemap *restrict vm, uintptr_t virt);
 
 void init_vmm(void);
 
-#endif // INCLUDE_MM_VMM_H
+#endif /* INCLUDE_MM_VMM_H */

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #include <acpi/madt.h>
 #include <kern/panic.h>
 
@@ -28,8 +28,8 @@ void init_madt(void)
         unreachable();
     }
 
-    // Using index of one points at
-    // space right after the very last
-    // field defined in the structure
+    /* Using index of one points at
+     * space right after the very last
+     * field defined in the structure */
     madt_entries = &madt[1];
 }

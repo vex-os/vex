@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_MM_PAGE_H
 #define INCLUDE_MM_PAGE_H
 #include <arch/limits.h>
@@ -31,4 +31,4 @@ static __always_inline __nodiscard inline size_t page_count(size_t sz)
     return align_ceil(sz, PAGE_SIZE) / PAGE_SIZE;
 }
 
-#endif // INCLUDE_MM_PAGE_H
+#endif /* INCLUDE_MM_PAGE_H */

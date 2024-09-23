@@ -2,8 +2,8 @@
 # argv[1]: sysname
 # argv[2]: release
 
-printf "// generated automatically\n"
-printf "// warning: changes will be lost\n"
+printf "/* GENERATED AUTOMATICALLY */\n"
+printf "/* WARNING: changes will be lost */\n"
 
 printf "#include <kern/version.h>\n"
 

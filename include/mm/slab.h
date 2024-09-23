@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_MM_SLAB_H
 #define INCLUDE_MM_SLAB_H
 #include <kern/compiler.h>
@@ -11,4 +11,4 @@ void slab_free(void *restrict ptr);
 
 void init_slab(void);
 
-#endif // INCLUDE_MM_SLAB_H
+#endif /* INCLUDE_MM_SLAB_H */

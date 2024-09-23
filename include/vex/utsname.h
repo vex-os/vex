@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_VEX_UTSNAME_H
 #define INCLUDE_VEX_UTSNAME_H
 
@@ -14,4 +14,4 @@ struct utsname {
     char machine[UNAME_SZ];
 };
 
-#endif // INCLUDE_VEX_UTSNAME_H
+#endif /* INCLUDE_VEX_UTSNAME_H */

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_VEX_ERRNO_H
 #define INCLUDE_VEX_ERRNO_H
 
@@ -83,4 +83,4 @@
 #define EWOULDBLOCK     275
 #define EXDEV           276
 
-#endif // INCLUDE_VEX_ERRNO_H
+#endif /* INCLUDE_VEX_ERRNO_H */

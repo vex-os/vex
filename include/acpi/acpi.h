@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_ACPI_ACPI_H
 #define INCLUDE_ACPI_ACPI_H
 #include <kern/compiler.h>
@@ -23,4 +23,4 @@ const void *acpi_lookup(const char *restrict signature);
 
 void init_acpi(void);
 
-#endif // INCLUDE_ACPI_ACPI_H
+#endif /* INCLUDE_ACPI_ACPI_H */

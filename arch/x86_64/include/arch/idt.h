@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_ARCH_IDT_H
 #define INCLUDE_ARCH_IDT_H
 #include <kern/compiler.h>
@@ -10,4 +10,4 @@ void unset_idt_entry(unsigned int vector);
 
 void init_idt(void);
 
-#endif // INCLUDE_ARCH_IDT_H
+#endif /* INCLUDE_ARCH_IDT_H */

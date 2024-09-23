@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_STRING_H
 #define INCLUDE_STRING_H
 #include <kern/compiler.h>
@@ -26,4 +26,4 @@ size_t strlen(const char *restrict str) __nodiscard;
 size_t strnlen(const char *restrict str, size_t sz) __nodiscard;
 size_t strspn(const char *restrict str, const char *restrict sym) __nodiscard;
 
-#endif // INCLUDE_STRING_H
+#endif /* INCLUDE_STRING_H */

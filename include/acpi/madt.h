@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_ACPI_MADT_H
 #define INCLUDE_ACPI_MADT_H
 #include <acpi/acpi.h>
@@ -77,10 +77,10 @@ struct madt_local_apic_override {
 extern const struct acpi_madt *madt;
 extern const void *madt_entries;
 
-// Helper function to minimize boilerplate
-// code when looping through MADT sub-tables.
+/* Helper function to minimize boilerplate
+ * code when looping through MADT sub-tables. */
 const void *madt_iterate(const void *restrict entry);
 
 void init_madt(void);
 
-#endif // INCLUDE_ACPI_MADT_H
+#endif /* INCLUDE_ACPI_MADT_H */

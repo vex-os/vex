@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_ARCH_GDT_H
 #define INCLUDE_ARCH_GDT_H
 #include <kern/compiler.h>
@@ -21,4 +21,4 @@ static __always_inline __nodiscard inline uint16_t gdt_selector(uint16_t index, 
     return ((ring & 4) | ((ldt & 1) << 2) | (index << 3));
 }
 
-#endif // INCLUDE_ARCH_GDT_H
+#endif /* INCLUDE_ARCH_GDT_H */

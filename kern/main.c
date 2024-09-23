@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #include <acpi/acpi.h>
 #include <acpi/madt.h>
 #include <arch/setup.h>
@@ -35,7 +35,7 @@ void __noreturn __used kmain(void)
 
     init_fbcon();
 
-    // Test - iterate through MADT
+    /* Test - iterate through MADT */
     const struct madt_header *madt_entry;
     const void *madt_entry_itr = madt_entries;
     do {

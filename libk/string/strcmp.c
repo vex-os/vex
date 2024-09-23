@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #include <string.h>
 
 int strcmp(const char *restrict sa, const char *restrict sb)

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_MM_VPROT_H
 #define INCLUDE_MM_VPROT_H
 
@@ -16,4 +16,4 @@
 #define VPROT_URWX  VPROT_USER | VPROT_READ | VPROT_WRITE | VPROT_EXEC
 #define VPROT_URX   VPROT_USER | VPROT_READ | VPROT_EXEC
 
-#endif // INCLUDE_MM_VPROT_H
+#endif /* INCLUDE_MM_VPROT_H */

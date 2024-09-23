@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #include <arch/gdt.h>
 #include <arch/idt.h>
 #include <arch/intr.h>

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_KERN_ASSERT_H
 #define INCLUDE_KERN_ASSERT_H
 #include <kern/panic.h>
@@ -27,4 +27,4 @@
         unreachable();                          \
     }})
 
-#endif // INCLUDE_KERN_ASSERT_H
+#endif /* INCLUDE_KERN_ASSERT_H */

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_KERN_COMPILER_H
 #define INCLUDE_KERN_COMPILER_H
 
@@ -59,4 +59,4 @@
 #define __section(name)     __attribute__((section(name)))
 #define __used              __attribute__((used))
 
-#endif // INCLUDE_KERN_COMPILER_H
+#endif /* INCLUDE_KERN_COMPILER_H */

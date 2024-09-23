@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_KERN_CONSOLE_H
 #define INCLUDE_KERN_CONSOLE_H
 #include <kern/compiler.h>
@@ -21,4 +21,4 @@ int unregister_console(struct console *restrict con);
 void console_write_all(const void *restrict buf, size_t sz);
 void console_unblank_all(void);
 
-#endif // INCLUDE_KERN_CONSOLE_H
+#endif /* INCLUDE_KERN_CONSOLE_H */

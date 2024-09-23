@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_KERN_PRINTF_H
 #define INCLUDE_KERN_PRINTF_H
 #include <kern/compiler.h>
@@ -28,4 +28,4 @@ void kvprintf(unsigned int sv, const char *restrict fmt, va_list ap) __printflik
 
 void init_printf(void);
 
-#endif // INCLUDE_KERN_PRINTF_H
+#endif /* INCLUDE_KERN_PRINTF_H */

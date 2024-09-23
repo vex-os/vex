@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_VEX_STATVFS_H
 #define INCLUDE_VEX_STATVFS_H
 #include <vex/types.h>
@@ -23,4 +23,4 @@ struct statvfs {
     unsigned long f_namemax;
 };
 
-#endif // INCLUDE_VEX_STATVFS_H
+#endif /* INCLUDE_VEX_STATVFS_H */

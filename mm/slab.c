@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #include <kern/assert.h>
 #include <kern/panic.h>
 #include <kern/printf.h>
@@ -24,14 +24,14 @@ static struct slab *find_slab(size_t sz)
 {
     size_t i;
 
-    // Try to find exact size match
+    /* Try to find exact size match */
     for(i = 0; slabs[i].sl_blocksize; ++i) {
         if(slabs[i].sl_blocksize == sz)
             return &slabs[i];
         continue;
     }
 
-    // Give up and find anything that fits
+    /* Give up and find anything that fits */
     for(i = 0; slabs[i].sl_blocksize; ++i) {
         if(slabs[i].sl_blocksize >= sz)
             return &slabs[i];
@@ -56,9 +56,9 @@ static int expand_slab(struct slab *restrict sl)
         sl->sl_head[0] = sl;
         sl->sl_head = (void **)((uintptr_t)sl->sl_head + header);
 
-        // Each page contains a chunk of the linked list
-        // prepended with a header that takes at least a single
-        // block of sl_blocksize bytes off the available space
+        /* Each page contains a chunk of the linked list
+         * prepended with a header that takes at least a single
+         * block of sl_blocksize bytes off the available space */
         count = align_floor((PAGE_SIZE - header), sl->sl_blocksize) / sl->sl_blocksize;
         gap = sl->sl_blocksize / sizeof(void *);
 

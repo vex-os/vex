@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #include <kern/panic.h>
 #include <limine.h>
 #include <mm/hhdm.h>

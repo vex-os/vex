@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: Zlib
+/* SPDX-License-Identifier: Zlib */
 #ifndef INCLUDE_MM_PMM_H
 #define INCLUDE_MM_PMM_H
 #include <kern/compiler.h>
@@ -21,4 +21,4 @@ void pmm_free_hhdm(void *restrict ptr);
 
 void init_pmm(void);
 
-#endif // INCLUDE_MM_PMM_H
+#endif /* INCLUDE_MM_PMM_H */
