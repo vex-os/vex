@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #ifndef INCLUDE_FORMAT_H
 #define INCLUDE_FORMAT_H
 #include <kern/compiler.h>

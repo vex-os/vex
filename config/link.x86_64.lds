@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 OUTPUT_FORMAT(elf64-x86-64)
 OUTPUT_ARCH(i386:x86-64)
 ENTRY(kmain)

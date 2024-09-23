@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #include <string.h>
 
 int memcmp(const void *restrict ba, const void *restrict bb, size_t sz)

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #include <acpi/acpi.h>
 #include <acpi/rsdp.h>
 #include <kern/panic.h>

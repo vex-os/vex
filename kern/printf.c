@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #include <format.h>
 #include <kern/console.h>
 #include <kern/printf.h>

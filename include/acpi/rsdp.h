@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #ifndef INCLUDE_ACPI_RSDP_H
 #define INCLUDE_ACPI_RSDP_H
 #include <kern/compiler.h>

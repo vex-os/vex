@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #ifndef INCLUDE_ARCH_PORTS_H
 #define INCLUDE_ARCH_PORTS_H
 #include <kern/compiler.h>

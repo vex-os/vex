@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #include <string.h>
 
 char *strcat(char *restrict dst, const char *restrict src)

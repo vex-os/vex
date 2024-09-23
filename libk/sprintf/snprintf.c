@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #include <sprintf.h>
 
 int snprintf(char *restrict str, size_t sz, const char *restrict fmt, ...)

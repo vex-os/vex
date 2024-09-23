@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #ifndef INCLUDE_ARCH_INTREQ_H
 #define INCLUDE_ARCH_INTREQ_H
 #include <arch/intr.h>

@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #include <kern/assert.h>
 #include <kern/panic.h>
 #include <kern/printf.h>

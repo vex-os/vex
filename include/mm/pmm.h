@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #ifndef INCLUDE_MM_PMM_H
 #define INCLUDE_MM_PMM_H
 #include <kern/compiler.h>

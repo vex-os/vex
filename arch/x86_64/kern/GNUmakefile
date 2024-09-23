@@ -1,4 +1,4 @@
-## SPDX-License-Identifier: Zlib
+## SPDX-License-Identifier: BSD-2-Clause
 
 SOURCES += arch/x86_64/kern/8259.c
 SOURCES += arch/x86_64/kern/bxcon.c

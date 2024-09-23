@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #include <arch/idt.h>
 #include <arch/intreq.h>
 #include <arch/limits.h>

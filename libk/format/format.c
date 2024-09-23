@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #include <format.h>
 
 int format(format_func_t func, void *restrict arg, const char *restrict fmt, ...)

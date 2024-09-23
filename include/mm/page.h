@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #ifndef INCLUDE_MM_PAGE_H
 #define INCLUDE_MM_PAGE_H
 #include <arch/limits.h>

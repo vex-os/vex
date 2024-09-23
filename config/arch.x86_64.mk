@@ -1,4 +1,4 @@
-## SPDX-License-Identifier: Zlib
+## SPDX-License-Identifier: BSD-2-Clause
 
 GNU_TARGET_TRIPLET := x86_64-elf
 LLVM_TARGET := x86_64-none-elf

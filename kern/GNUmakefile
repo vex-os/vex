@@ -1,4 +1,4 @@
-## SPDX-License-Identifier: Zlib
+## SPDX-License-Identifier: BSD-2-Clause
 
 SOURCES += kern/console.c
 SOURCES += kern/fbcon.c

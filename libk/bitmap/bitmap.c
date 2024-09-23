@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #include <bitmap.h>
 
 static __always_inline __nodiscard inline bitmap_t make_bitmask(size_t bitmod)

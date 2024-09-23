@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #include <string.h>
 
 const void *memchr(const void *restrict buf, int chr, size_t sz)

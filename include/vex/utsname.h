@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #ifndef INCLUDE_VEX_UTSNAME_H
 #define INCLUDE_VEX_UTSNAME_H
 

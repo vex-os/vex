@@ -1,4 +1,4 @@
-## SPDX-License-Identifier: Zlib
+## SPDX-License-Identifier: BSD-2-Clause
 
 export LC_ALL=C
 export LANGUAGE=C

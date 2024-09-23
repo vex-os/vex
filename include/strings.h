@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: Zlib */
+/* SPDX-License-Identifier: BSD-2-Clause */
 #ifndef INCLUDE_STRINGS_H
 #define INCLUDE_STRINGS_H
 #include <kern/compiler.h>

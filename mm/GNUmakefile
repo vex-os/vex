@@ -1,4 +1,4 @@
-## SPDX-License-Identifier: Zlib
+## SPDX-License-Identifier: BSD-2-Clause
 
 SOURCES += mm/hhdm.c
 SOURCES += mm/kbase.c
