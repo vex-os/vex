@@ -17,7 +17,6 @@ static volatile struct limine_paging_mode_request __used paging_mode = {
     .revision = 0,
     .response = NULL,
     .mode = LIMINE_PAGING_MODE_MAX,
-    .flags = 0,
 };
 
 static int pagemap_lvl3 = 0;
