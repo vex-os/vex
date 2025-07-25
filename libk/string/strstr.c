@@ -1,20 +1,20 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <string.h>
 
-const char *strstr(const char *restrict str, const char *restrict substr)
+const char* strstr(const char* restrict str, const char* restrict substr)
 {
-    const char *ap = str;
-    const char *bp;
+    const char* ap = str;
+    const char* bp;
 
     while(*str) {
         bp = substr;
 
-        while (*bp && (*ap == *bp)) {
+        while(*bp && (*ap == *bp)) {
             ++ap;
             ++bp;
         }
 
-        if (!*bp)
+        if(!*bp)
             return str;
         ap = ++str;
     }

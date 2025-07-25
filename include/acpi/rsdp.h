@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #ifndef INCLUDE_ACPI_RSDP_H
 #define INCLUDE_ACPI_RSDP_H
 #include <kern/compiler.h>
@@ -20,4 +20,4 @@ struct acpi_xsdp {
     uint8_t reserved[3];
 } __packed;
 
-#endif /* INCLUDE_ACPI_RSDP_H */
+#endif // INCLUDE_ACPI_RSDP_H

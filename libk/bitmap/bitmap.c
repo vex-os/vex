@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <bitmap.h>
 
 static __always_inline __nodiscard inline bitmap_t make_bitmask(size_t bitmod)
@@ -8,7 +8,7 @@ static __always_inline __nodiscard inline bitmap_t make_bitmask(size_t bitmod)
     return ((1 << (BITMAP_CHUNK_BITS - bitmod)) - 1);
 }
 
-int bitmap_range_isset(const bitmap_t *restrict bitmap, size_t bit_a, size_t bit_b)
+int bitmap_range_isset(const bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b)
 {
     size_t i;
     size_t idx_a = align_floor(bit_a, BITMAP_CHUNK_BITS) / BITMAP_CHUNK_BITS;
@@ -45,7 +45,7 @@ int bitmap_range_isset(const bitmap_t *restrict bitmap, size_t bit_a, size_t bit
     return 1;
 }
 
-int bitmap_range_isclear(const bitmap_t *restrict bitmap, size_t bit_a, size_t bit_b)
+int bitmap_range_isclear(const bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b)
 {
     size_t i;
     size_t idx_a = align_floor(bit_a, BITMAP_CHUNK_BITS) / BITMAP_CHUNK_BITS;
@@ -82,7 +82,7 @@ int bitmap_range_isclear(const bitmap_t *restrict bitmap, size_t bit_a, size_t b
     return 1;
 }
 
-void bitmap_range_clear(bitmap_t *restrict bitmap, size_t bit_a, size_t bit_b)
+void bitmap_range_clear(bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b)
 {
     size_t i;
     size_t idx_a = align_floor(bit_a, BITMAP_CHUNK_BITS) / BITMAP_CHUNK_BITS;
@@ -112,7 +112,7 @@ void bitmap_range_clear(bitmap_t *restrict bitmap, size_t bit_a, size_t bit_b)
     }
 }
 
-void bitmap_range_set(bitmap_t *restrict bitmap, size_t bit_a, size_t bit_b)
+void bitmap_range_set(bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b)
 {
     size_t i;
     size_t idx_a = align_floor(bit_a, BITMAP_CHUNK_BITS) / BITMAP_CHUNK_BITS;

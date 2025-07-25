@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <sprintf.h>
 #include <string.h>
 #include <strings.h>
 #include <vex/errno.h>
 
-int strerror_r(int errnum, char *restrict str, size_t sz)
+int strerror_r(int errnum, char* restrict str, size_t sz)
 {
     switch(errnum) {
         case EDOM:

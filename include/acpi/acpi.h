@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #ifndef INCLUDE_ACPI_ACPI_H
 #define INCLUDE_ACPI_ACPI_H
 #include <kern/compiler.h>
@@ -17,10 +17,10 @@ struct acpi_sdt_header {
     uint32_t creator_revision;
 } __packed;
 
-uint8_t acpi_generic_checksum(const void *restrict buf, size_t sz);
-uint8_t acpi_sdt_checksum(const void *restrict table);
-const void *acpi_lookup(const char *restrict signature);
+uint8_t acpi_generic_checksum(const void* restrict buf, size_t sz);
+uint8_t acpi_sdt_checksum(const void* restrict table);
+const void* acpi_lookup(const char* restrict signature);
 
 void init_acpi(void);
 
-#endif /* INCLUDE_ACPI_ACPI_H */
+#endif // INCLUDE_ACPI_ACPI_H

@@ -1,17 +1,17 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <ctype.h>
 #include <limits.h>
 #include <stdlib.h>
 #include <string.h>
 
-unsigned long strtoul(const char *restrict nptr, const char **restrict endptr, int base)
+unsigned long strtoul(const char* restrict nptr, const char** restrict endptr, int base)
 {
     int chr;
     int minus;
     int limdigit;
     unsigned long limit;
     unsigned long accum;
-    const char *cptr;
+    const char* cptr;
     const char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
     do {

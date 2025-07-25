@@ -1,14 +1,15 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <arch/bxcon.h>
 #include <arch/pmio.h>
 #include <kern/console.h>
 #include <stddef.h>
 
-static void bxcon_write(struct console *restrict con, const void *buf, size_t sz)
+static void bxcon_write(struct console* restrict con, const void* buf, size_t sz)
 {
     size_t i;
-    const char *psz = buf;
-    for(i = 0; i < sz; pmio_write8(0xE9, psz[i++]));
+    const char* psz = buf;
+    for(i = 0; i < sz; pmio_write8(0xE9, psz[i++]))
+        ;
 }
 
 static struct console bxcon = {

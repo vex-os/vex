@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <kern/panic.h>
 #include <limine.h>
 #include <mm/hhdm.h>
@@ -27,16 +27,16 @@ struct pagemap sys_vm;
 
 static size_t pmentry_index(uintptr_t virt, uintptr_t mask, uintptr_t shift)
 {
-    /* This assumes the target architecture uses
-     * x86-like pmentry_t format where a part of the virtual
-     * address is an index of a specific level page table.
-     * This should work without a fuss on both ARM64 and RISC-V. */
+    // This assumes the target architecture uses
+    // x86-like pmentry_t format where a part of the virtual
+    // address is an index of a specific level page table.
+    // This should work without a fuss on both ARM64 and RISC-V.
     return (size_t)((virt & (mask << shift)) >> shift);
 }
 
-static pmentry_t *get_pmentry(pmentry_t *restrict table, size_t index, int allocate)
+static pmentry_t* get_pmentry(pmentry_t* restrict table, size_t index, int allocate)
 {
-    pmentry_t *entry;
+    pmentry_t* entry;
     uintptr_t address;
 
     if(!pmentry_valid(table[index])) {
@@ -57,40 +57,44 @@ static pmentry_t *get_pmentry(pmentry_t *restrict table, size_t index, int alloc
     return phys_to_hhdm(pmentry_address(table[index]));
 }
 
-static pmentry_t *lookup_pmentry(pmentry_t *restrict table, uintptr_t virt, int allocate)
+static pmentry_t* lookup_pmentry(pmentry_t* restrict table, uintptr_t virt, int allocate)
 {
     size_t index;
 
     if(PREDICT_LVL5(pagemap_lvl5)) {
         index = pmentry_index(virt, PMENTRY_LVL5_MASK, PMENTRY_LVL5_SHIFT);
         table = get_pmentry(table, index, allocate);
-        if(!table) return NULL;
+        if(!table)
+            return NULL;
     }
 
     if(PREDICT_LVL4(pagemap_lvl4)) {
         index = pmentry_index(virt, PMENTRY_LVL4_MASK, PMENTRY_LVL4_SHIFT);
         table = get_pmentry(table, index, allocate);
-        if(!table) return NULL;
+        if(!table)
+            return NULL;
     }
 
     if(PREDICT_LVL3(pagemap_lvl3)) {
         index = pmentry_index(virt, PMENTRY_LVL3_MASK, PMENTRY_LVL3_SHIFT);
         table = get_pmentry(table, index, allocate);
-        if(!table) return NULL;
+        if(!table)
+            return NULL;
     }
 
     index = pmentry_index(virt, PMENTRY_LVL2_MASK, PMENTRY_LVL2_SHIFT);
     table = get_pmentry(table, index, allocate);
-    if(!table) return NULL;
+    if(!table)
+        return NULL;
 
     index = pmentry_index(virt, PMENTRY_LVL1_MASK, PMENTRY_LVL1_SHIFT);
     return &table[index];
 }
 
-static void pmentry_collapse(pmentry_t *restrict table, size_t begin, size_t end, unsigned int level)
+static void pmentry_collapse(pmentry_t* restrict table, size_t begin, size_t end, unsigned int level)
 {
     size_t i;
-    pmentry_t *next;
+    pmentry_t* next;
 
     if(level != 0) {
         for(i = begin; i < end; ++i) {
@@ -103,10 +107,10 @@ static void pmentry_collapse(pmentry_t *restrict table, size_t begin, size_t end
     }
 }
 
-struct pagemap *vmm_create(void)
+struct pagemap* vmm_create(void)
 {
     size_t i;
-    struct pagemap *vm;
+    struct pagemap* vm;
 
     if((vm = slab_alloc(sizeof(struct pagemap))) != NULL) {
         if((vm->vm_phys = pmm_alloc()) != 0) {
@@ -114,8 +118,8 @@ struct pagemap *vmm_create(void)
             memset(vm->vm_virt, 0, PAGE_SIZE);
 
             for(i = PAGEMAP_KERN; i < PAGEMAP_SIZE; ++i) {
-                /* FIXME: we actually shouldn't let userspace
-                 * to see the kernel's address space like that! */
+                // FIXME: we actually shouldn't let userspace
+                // to see the kernel's address space like that!
                 vm->vm_virt[i] = sys_vm.vm_virt[i];
             }
 
@@ -128,14 +132,14 @@ struct pagemap *vmm_create(void)
     return NULL;
 }
 
-struct pagemap *vmm_fork(struct pagemap *restrict stem)
+struct pagemap* vmm_fork(struct pagemap* restrict stem)
 {
     panic("vmm_fork is not implemented");
     unreachable();
     return NULL;
 }
 
-void vmm_destroy(struct pagemap *restrict vm)
+void vmm_destroy(struct pagemap* restrict vm)
 {
     if(PREDICT_LVL5(pagemap_lvl5)) {
         pmentry_collapse(vm->vm_virt, 0, PAGEMAP_KERN, 5);
@@ -159,14 +163,14 @@ cleanup:
     slab_free(vm);
 }
 
-void vmm_switch(struct pagemap *restrict vm)
+void vmm_switch(struct pagemap* restrict vm)
 {
     pagemap_switch(vm->vm_phys);
 }
 
-int vmm_map(struct pagemap *restrict vm, uintptr_t virt, uintptr_t phys, unsigned int vprot)
+int vmm_map(struct pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigned int vprot)
 {
-    pmentry_t *entry;
+    pmentry_t* entry;
 
     if((entry = lookup_pmentry(vm->vm_virt, page_align(virt), 1)) != NULL) {
         if(!pmentry_valid(entry[0])) {
@@ -180,9 +184,9 @@ int vmm_map(struct pagemap *restrict vm, uintptr_t virt, uintptr_t phys, unsigne
     return ENOMEM;
 }
 
-int vmm_patch(struct pagemap *restrict vm, uintptr_t virt, unsigned int vprot)
+int vmm_patch(struct pagemap* restrict vm, uintptr_t virt, unsigned int vprot)
 {
-    pmentry_t *entry;
+    pmentry_t* entry;
 
     if((entry = lookup_pmentry(vm->vm_virt, page_align(virt), 0)) != NULL) {
         if(!pmentry_valid(entry[0])) {
@@ -194,9 +198,9 @@ int vmm_patch(struct pagemap *restrict vm, uintptr_t virt, unsigned int vprot)
     return EINVAL;
 }
 
-int vmm_unmap(struct pagemap *restrict vm, uintptr_t virt)
+int vmm_unmap(struct pagemap* restrict vm, uintptr_t virt)
 {
-    pmentry_t *entry;
+    pmentry_t* entry;
 
     if((entry = lookup_pmentry(vm->vm_virt, page_align(virt), 0)) != NULL) {
         if(!pmentry_valid(entry[0])) {
@@ -208,7 +212,7 @@ int vmm_unmap(struct pagemap *restrict vm, uintptr_t virt)
     return EINVAL;
 }
 
-static int vmm_map_section(const void *restrict start, const void *restrict end, unsigned int vprot)
+static int vmm_map_section(const void* restrict start, const void* restrict end, unsigned int vprot)
 {
     int r;
     uintptr_t phys;
@@ -232,7 +236,7 @@ static int vmm_map_section(const void *restrict start, const void *restrict end,
     return 0;
 }
 
-static int vmm_map_memmap(const struct limine_memmap_entry *restrict entry)
+static int vmm_map_memmap(const struct limine_memmap_entry* restrict entry)
 {
     int r;
     uintptr_t phys;
@@ -272,19 +276,20 @@ void init_vmm(void)
     pagemap_lvl4 = 0;
     pagemap_lvl5 = 0;
 
-    /* Here's the interaction I had with one of Limine
-     * developers in the OSDev Discord server regarding
-     * going with such method of VMM testing the waters:
-     * 
-     *   und: Limine protocol abuse :trollface:
-     * xvanc: that was intentional
-     * xvanc: i didn't think it needed to be documented
-     *   und: was it really? protocol docs don't say that
-     * xvanc: yeah we rely on it in limine itself
-     * 
-     * Henceforth I am no longer going to cringe at this piece
-     * of code because the bootloader appears to do the exact
-     * same thing, just in different style and at a different time. */
+    // Here's the interaction I had with one of Limine
+    // developers in the OSDev Discord server regarding
+    // going with such method of VMM testing the waters:
+    //
+    //      und: Limine protocol abuse :trollface:
+    //      xvanc: that was intentional
+    //      xvanc: i didn't think it needed to be documented
+    //      und: was it really? protocol docs don't say that
+    //      xvanc: yeah we rely on it in limine itself
+    //
+    // Henceforth I am no longer going to cringe at
+    // this piece of code because the bootloader appears to
+    // do the exact same thing, just in different style and at a different time.
+
     if(paging_mode.response->mode >= PAGING_MODE_LVL3)
         pagemap_lvl3 = 1;
     if(paging_mode.response->mode >= PAGING_MODE_LVL4)
@@ -300,7 +305,7 @@ void init_vmm(void)
     sys_vm.vm_virt = phys_to_hhdm(sys_vm.vm_phys);
     memset(sys_vm.vm_virt, 0, PAGE_SIZE);
 
-    /* Allocate top-level sys_vm entries */
+    // Allocate top-level sys_vm entries
     for(i = PAGEMAP_KERN; i < PAGEMAP_SIZE; ++i) {
         if(!get_pmentry(sys_vm.vm_virt, i, 1)) {
             panic("vmm: out of memory");

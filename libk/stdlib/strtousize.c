@@ -1,17 +1,17 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <ctype.h>
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 
-size_t strtousize(const char *restrict nptr, const char **restrict endptr, int base)
+size_t strtousize(const char* restrict nptr, const char** restrict endptr, int base)
 {
     int chr;
     int minus;
     int limdigit;
     size_t limit;
     size_t accum;
-    const char *cptr;
+    const char* cptr;
     const char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
     do {

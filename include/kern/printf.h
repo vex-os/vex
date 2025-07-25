@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #ifndef INCLUDE_KERN_PRINTF_H
 #define INCLUDE_KERN_PRINTF_H
 #include <kern/compiler.h>
@@ -22,10 +22,10 @@ extern size_t kmsg_writepos;
 extern char kmsg[KMSG_SIZE];
 extern unsigned int loglevel;
 
-void kputs(unsigned int sv, const char *restrict str);
-void kprintf(unsigned int sv, const char *restrict fmt, ...) __printflike(2, 3);
-void kvprintf(unsigned int sv, const char *restrict fmt, va_list ap) __printflike(2, 0);
+void kputs(unsigned int sv, const char* restrict str);
+void kprintf(unsigned int sv, const char* restrict fmt, ...) __printflike(2, 3);
+void kvprintf(unsigned int sv, const char* restrict fmt, va_list ap) __printflike(2, 0);
 
 void init_printf(void);
 
-#endif /* INCLUDE_KERN_PRINTF_H */
+#endif // INCLUDE_KERN_PRINTF_H

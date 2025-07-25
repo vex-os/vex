@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #ifndef INCLUDE_IECPREFIX_H
 #define INCLUDE_IECPREFIX_H
 
@@ -11,4 +11,4 @@
 #define ZEBI 70
 #define YOBI 80
 
-#endif /* INCLUDE_IECPREFIX_H */
+#endif // INCLUDE_IECPREFIX_H

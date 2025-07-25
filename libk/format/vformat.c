@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <format.h>
 #include <limits.h>
 #include <stddef.h>
@@ -6,62 +6,65 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define F_ZERO_PAD  0x0001 /* 0         */
-#define F_LEFT      0x0002 /* -         */
-#define F_PLUS      0x0004 /* +         */
-#define F_SPACE     0x0008 /* space     */
-#define F_HASH      0x0010 /* #         */
-#define F_SIGNED    0x0020 /* special   */
-#define F_UPPERCASE 0x0040 /* special   */
-#define F_NEGATIVE  0x0080 /* special   */
+#define F_ZERO_PAD  0x0001 // 0
+#define F_LEFT      0x0002 // -
+#define F_PLUS      0x0004 // +
+#define F_SPACE     0x0008 // space
+#define F_HASH      0x0010 // #
+#define F_SIGNED    0x0020 // special
+#define F_UPPERCASE 0x0040 // special
+#define F_NEGATIVE  0x0080 // special
 
-#define L_CHAR      0x0000 /* hh        */
-#define L_SHORT     0x0001 /* h         */
-#define L_INT       0x0002 /* nothing   */
-#define L_LONG      0x0003 /* l         */
-#define L_LLONG     0x0004 /* ll        */
-#define L_INTMAX_T  0x0005 /* j         */
-#define L_SIZE_T    0x0006 /* z         */
-#define L_PTRDIFF_T 0x0007 /* t         */
-#define L_POINTER   0x0007 /* special   */
+#define L_CHAR      0x0000 // hh
+#define L_SHORT     0x0001 // h
+#define L_INT       0x0002 // nothing
+#define L_LONG      0x0003 // l
+#define L_LLONG     0x0004 // ll
+#define L_INTMAX_T  0x0005 // j
+#define L_SIZE_T    0x0006 // z
+#define L_PTRDIFF_T 0x0007 // t
+#define L_POINTER   0x0007 // special
 
 #define MAX_BASE 16
 static const char lc_digits[MAX_BASE + 1] = "0123456789abcdef";
 static const char uc_digits[MAX_BASE + 1] = "0123456789ABCDEF";
 
-static size_t write_int(format_func_t func, void *restrict arg, uintmax_t value, unsigned int flags, unsigned int w, unsigned int p, unsigned int base)
+static size_t write_int(
+    format_func_t func, void* restrict arg, uintmax_t value, unsigned int flags, unsigned int w, unsigned int p, unsigned int base)
 {
     unsigned int i;
     size_t stager;
     size_t counter;
     int sign, pad;
-    const char *digits;
+    const char* digits;
     char stage[128] = { 0 };
 
     if((flags & F_NEGATIVE) && (flags & F_SIGNED)) {
-        /* The number is both signed and considered
-         * to be less than zero, we have to print a sign. */
+        // The number is both signed and considered
+        // to be less than zero, we have to print a sign.
         sign = '-';
     }
     else if(flags & F_PLUS) {
-        /* The number is either signed and positive
-         * or unsigned; and we were requested to print a sign. */
+        // The number is either signed and positive
+        // or unsigned; and we were requested to print a sign.
         sign = '+';
     }
     else if(flags & F_SPACE) {
-        /* If a number is signed (and it is), we want a
-         * whitespace placed in the place a minus would be. */
+        // If a number is signed (and it is), we want a
+        // whitespace placed in the place a minus would be.
         sign = ' ';
     }
-    else sign = 0x00;
+    else
+        sign = 0x00;
 
     if(!(flags & F_LEFT) && (flags & F_ZERO_PAD)) {
-        /* Normally numeric values are padded (ie. moved)
-         * with a whitespace character but if we are not
-         * left-justified, we can use leading zeros for that. */
+        // Normally numeric values are padded (ie. moved)
+        // with a whitespace character but if we are not
+        // left-justified, we can use leading zeros for that.
         pad = '0';
     }
-    else pad = ' ';
+    else
+        pad = ' ';
 
     stager = 0;
     counter = 0;
@@ -75,7 +78,7 @@ static size_t write_int(format_func_t func, void *restrict arg, uintmax_t value,
     } while(value || p);
 
     if(sign) {
-        /* Add the sign character */
+        // Add the sign character
         stage[stager++] = sign;
     }
 
@@ -93,16 +96,16 @@ static size_t write_int(format_func_t func, void *restrict arg, uintmax_t value,
             }
         }
         else if(base == 8) {
-            /* Octals start with a zero so we can
-             * safely assume we won't miss when adding
-             * the numeric prefix right here. */
+            // Octals start with a zero so we can
+            // safely assume we won't miss when adding
+            // the numeric prefix right here. */
             stage[stager++] = '0';
         }
     }
 
     if(!(flags & F_LEFT)) {
-        /* Add numeric prefix in cases of zero-padding
-         * as the prefixes don't exist in the stage buffer */
+        // Add numeric prefix in cases of zero-padding
+        // as the prefixes don't exist in the stage buffer
         if((flags & F_HASH) && (flags & F_ZERO_PAD)) {
             switch(base) {
                 case 2:
@@ -124,13 +127,13 @@ static size_t write_int(format_func_t func, void *restrict arg, uintmax_t value,
         }
     }
 
-    /* Reverse the number into the callback */
+    // Reverse the number into the callback
     while(stager--) {
         func(stage[stager], arg);
         counter++;
     }
 
-    /* And now pad the number */
+    // And now pad the number
     if(flags & F_LEFT) {
         for(i = 0; i < w; i++) {
             func(' ', arg);
@@ -142,7 +145,7 @@ static size_t write_int(format_func_t func, void *restrict arg, uintmax_t value,
 }
 
 static const char defined_behaviour[] = "(null)";
-static size_t write_str(format_func_t func, void *restrict arg, const char *restrict s, unsigned int flags, unsigned int w, unsigned int p)
+static size_t write_str(format_func_t func, void* restrict arg, const char* restrict s, unsigned int flags, unsigned int w, unsigned int p)
 {
     size_t i;
     size_t cap;
@@ -150,9 +153,9 @@ static size_t write_str(format_func_t func, void *restrict arg, const char *rest
     size_t counter = 0;
 
     if(s == NULL) {
-        /* C standard does not define what happens when you try
-         * dereferencing a NULL char pointer. Because NO ONE at INCITS/C
-         * expects you to pass a NULL pointer to snprintf... Too bad! */
+        // C standard does not define what happens when you try
+        // dereferencing a NULL char pointer. Because NO ONE at INCITS/C
+        // expects you to pass a NULL pointer to snprintf... Too bad!
         s = defined_behaviour;
     }
 
@@ -208,9 +211,13 @@ static unsigned int get_flag(int ch)
     }
 }
 
-static uintmax_t remove_sign(uintmax_t x, int length, unsigned int *restrict flags)
+static uintmax_t remove_sign(uintmax_t x, int length, unsigned int* restrict flags)
 {
-    #define sign_hack(type) if((type)(x) < 0) { *flags |= F_NEGATIVE; x = (uintmax_t)(-((type)(x))); }
+#define sign_hack(type)                \
+    if((type)(x) < 0) {                \
+        *flags |= F_NEGATIVE;          \
+        x = (uintmax_t)(-((type)(x))); \
+    }
     switch(length) {
         case L_CHAR:
             sign_hack(signed char);
@@ -235,17 +242,17 @@ static uintmax_t remove_sign(uintmax_t x, int length, unsigned int *restrict fla
             break;
     }
     return x;
-    #undef sign_hack
+#undef sign_hack
 }
 
-int vformat(format_func_t func, void *restrict arg, const char *restrict fmt, va_list ap)
+int vformat(format_func_t func, void* restrict arg, const char* restrict fmt, va_list ap)
 {
     size_t counter = 0;
     unsigned int w, p;
     unsigned int flags;
     unsigned int fvalue;
     unsigned int length;
-    const char *endptr;
+    const char* endptr;
     uintmax_t value;
 
     while(*fmt) {
@@ -262,9 +269,9 @@ int vformat(format_func_t func, void *restrict arg, const char *restrict fmt, va
         }
 
         if((flags & F_ZERO_PAD) && (flags & F_LEFT)) {
-            /* Cannot add zeros after the value as they
-             * will not be leading zeros anymore and will
-             * have a meaning, multiplying the number by 10 */
+            // Cannot add zeros after the value as they
+            // will not be leading zeros anymore and will
+            // have a meaning, multiplying the number by 10
             flags &= ~F_ZERO_PAD;
         }
 
@@ -316,9 +323,9 @@ int vformat(format_func_t func, void *restrict arg, const char *restrict fmt, va
 
         value = 0;
         if(*fmt == 's' || *fmt == 'p') {
-            /* L_POINTER is a special case, it tells the next
-             * switch statement that we don't want to call va_arg()
-             * ahead of time, instead waiting for later code to do that. */
+            // L_POINTER is a special case, it tells the next
+            // switch statement that we don't want to call va_arg()
+            // ahead of time, instead waiting for later code to do that.
             length = L_POINTER;
         }
         else {
@@ -341,9 +348,9 @@ int vformat(format_func_t func, void *restrict arg, const char *restrict fmt, va
                     value = va_arg(ap, size_t);
                     break;
                 case L_PTRDIFF_T:
-                    /* That's right, we are assigning a signed ptrdiff_t to
-                     * an unsigned uintmax_t variable. Because no one would
-                     * ever try to fuck around with %ut and find out... Fuck! */
+                    // That's right, we are assigning a signed ptrdiff_t to
+                    // an unsigned uintmax_t variable. Because no one would
+                    // ever try to fuck around with %ut and find out... Yikes!
                     value = va_arg(ap, ptrdiff_t);
                     break;
             }
@@ -377,7 +384,7 @@ int vformat(format_func_t func, void *restrict arg, const char *restrict fmt, va
                 counter++;
                 break;
             case 's':
-                counter += write_str(func, arg, va_arg(ap, const char *), flags, w, p);
+                counter += write_str(func, arg, va_arg(ap, const char*), flags, w, p);
                 break;
             case 'p':
                 flags |= F_HASH;

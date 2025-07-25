@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <string.h>
 
-const void *memchr(const void *restrict buf, int chr, size_t sz)
+const void* memchr(const void* restrict buf, int chr, size_t sz)
 {
-    const unsigned char *sp = buf;
+    const unsigned char* sp = buf;
 
     while(sz--) {
         if(*sp == chr)

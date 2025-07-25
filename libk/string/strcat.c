@@ -1,11 +1,13 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <string.h>
 
-char *strcat(char *restrict dst, const char *restrict src)
+char* strcat(char* restrict dst, const char* restrict src)
 {
-    char *save = dst;
+    char* save = dst;
     if(*dst)
-        while(*++dst);
-    while((*dst++ = *src++));
+        while(*++dst)
+            ;
+    while((*dst++ = *src++))
+        ;
     return save;
 }

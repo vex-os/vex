@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <arch/idt.h>
 #include <arch/intreq.h>
 #include <arch/limits.h>
@@ -232,7 +232,7 @@ extern void x86_intreq_FF(void);
 
 static intreq_handler_t handlers[MAX_INTERRUPTS];
 
-void __used x86_intreq_handler(struct interrupt_frame *restrict frame, uint64_t intvec)
+void __used x86_intreq_handler(struct interrupt_frame* restrict frame, uint64_t intvec)
 {
     intreq_handler_t handler;
 

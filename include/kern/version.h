@@ -5,4 +5,4 @@ extern const char sysname[];
 extern const char release[];
 extern const char version[];
 
-#endif /* INCLUDE_KERN_VERSION_H */
+#endif // INCLUDE_KERN_VERSION_H

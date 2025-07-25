@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <acpi/acpi.h>
 #include <acpi/madt.h>
 #include <arch/setup.h>
@@ -35,9 +35,9 @@ void __noreturn __used kmain(void)
 
     init_fbcon();
 
-    /* Test - iterate through MADT */
-    const struct madt_header *madt_entry;
-    const void *madt_entry_itr = madt_entries;
+    // Test - iterate through MADT
+    const struct madt_header* madt_entry;
+    const void* madt_entry_itr = madt_entries;
     do {
         madt_entry = madt_entry_itr;
         kprintf(KP_INFORM, "MADT[%p] %02zX", madt_entry_itr, (size_t)madt_entry->type);

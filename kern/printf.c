@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <format.h>
 #include <kern/console.h>
 #include <kern/printf.h>
@@ -18,9 +18,9 @@ unsigned int loglevel = KP_DEBUG;
 size_t kmsg_writepos = 0;
 char kmsg[KMSG_SIZE] = { 0 };
 
-static void kmsg_format(int chr, void *restrict arg)
+static void kmsg_format(int chr, void* restrict arg)
 {
-    struct stagebuf *stage = arg;
+    struct stagebuf* stage = arg;
     stage->st_data[stage->st_size++] = chr;
 
     if(stage->st_size >= STAGEBUF_SIZE) {
@@ -33,25 +33,28 @@ static void kmsg_format(int chr, void *restrict arg)
     kmsg_writepos %= KMSG_SIZE;
 }
 
-void kputs(unsigned int sv, const char *restrict str)
+void kputs(unsigned int sv, const char* restrict str)
 {
     size_t i;
     struct stagebuf st = { 0 };
 
     if(sv <= loglevel) {
-        for(i = 0; str[i]; kmsg_format(str[i], &st));
+        for(i = 0; str[i]; kmsg_format(str[i], &st)) {
+            // empty
+        }
+
         kmsg_format(CR, &st);
         kmsg_format(LF, &st);
     }
 
     if(st.st_size) {
-        /* FIXME: should this be inside the
-         * severity vs loglevel check above? */
+        // FIXME: should this be inside the
+        // severity vs loglevel check above?
         console_write_all(st.st_data, st.st_size);
     }
 }
 
-void kprintf(unsigned int sv, const char *restrict fmt, ...)
+void kprintf(unsigned int sv, const char* restrict fmt, ...)
 {
     va_list ap;
     struct stagebuf st = { 0 };
@@ -65,13 +68,13 @@ void kprintf(unsigned int sv, const char *restrict fmt, ...)
     }
 
     if(st.st_size) {
-        /* FIXME: should this be inside the
-         * severity vs loglevel check above? */
+        // FIXME: should this be inside the
+        // severity vs loglevel check above?
         console_write_all(st.st_data, st.st_size);
     }
 }
 
-void kvprintf(unsigned int sv, const char *restrict fmt, va_list ap)
+void kvprintf(unsigned int sv, const char* restrict fmt, va_list ap)
 {
     struct stagebuf st = { 0 };
 
@@ -82,8 +85,8 @@ void kvprintf(unsigned int sv, const char *restrict fmt, va_list ap)
     }
 
     if(st.st_size) {
-        /* FIXME: should this be inside the
-         * severity vs loglevel check above? */
+        // FIXME: should this be inside the
+        // severity vs loglevel check above?
         console_write_all(st.st_data, st.st_size);
     }
 }

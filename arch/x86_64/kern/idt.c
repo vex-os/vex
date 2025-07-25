@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <arch/gdt.h>
 #include <arch/idt.h>
 #include <arch/intr.h>
@@ -66,16 +66,16 @@ extern void x86_isr_1D(void);
 extern void x86_isr_1E(void);
 extern void x86_isr_1F(void);
 
-void __used x86_isr_handler(struct interrupt_frame *restrict frame, uint64_t intvec)
+void __used x86_isr_handler(struct interrupt_frame* restrict frame, uint64_t intvec)
 {
     disable_interrupts();
     panic("idt: isr_handler %02zX", (size_t)intvec);
     unreachable();
 }
 
-void set_idt_entry(unsigned int vector, int trap, const void *restrict pfn)
+void set_idt_entry(unsigned int vector, int trap, const void* restrict pfn)
 {
-    struct idt_entry *entry;
+    struct idt_entry* entry;
 
     if(vector < IDT_SIZE) {
         entry = &idt[vector];
@@ -94,9 +94,9 @@ void set_idt_entry(unsigned int vector, int trap, const void *restrict pfn)
     }
 }
 
-void set_idt_entry_user(unsigned int vector, int trap, const void *restrict pfn)
+void set_idt_entry_user(unsigned int vector, int trap, const void* restrict pfn)
 {
-    struct idt_entry *entry;
+    struct idt_entry* entry;
 
     if(vector < IDT_SIZE) {
         entry = &idt[vector];
@@ -162,5 +162,5 @@ void init_idt(void)
     idtr.size = (uint16_t)(sizeof(idt) - 1);
     idtr.offset = (uintptr_t)(&idt[0]);
 
-    asm volatile("lidtq %0"::"m"(idtr));
+    asm volatile("lidtq %0" ::"m"(idtr));
 }

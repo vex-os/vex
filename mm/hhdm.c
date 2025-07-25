@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <kern/panic.h>
 #include <limine.h>
 #include <mm/hhdm.h>

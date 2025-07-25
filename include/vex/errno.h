@@ -1,10 +1,10 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #ifndef INCLUDE_VEX_ERRNO_H
 #define INCLUDE_VEX_ERRNO_H
 
-#define EDOM            101
-#define EILSEQ          102
-#define ERANGE          103
+#define EDOM   101
+#define EILSEQ 102
+#define ERANGE 103
 
 #define E2BIG           201
 #define EACCES          202
@@ -83,4 +83,4 @@
 #define EWOULDBLOCK     275
 #define EXDEV           276
 
-#endif /* INCLUDE_VEX_ERRNO_H */
+#endif // INCLUDE_VEX_ERRNO_H

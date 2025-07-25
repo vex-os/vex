@@ -1,7 +1,7 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <string.h>
 
-const char *strchr(const char *restrict str, int chr)
+const char* strchr(const char* restrict str, int chr)
 {
     do {
         if(*str != chr)

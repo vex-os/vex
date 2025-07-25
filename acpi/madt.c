@@ -1,15 +1,15 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <acpi/madt.h>
 #include <kern/panic.h>
 
-const struct acpi_madt *madt;
-const void *madt_entries;
+const struct acpi_madt* madt;
+const void* madt_entries;
 
-const void *madt_iterate(const void *restrict entry)
+const void* madt_iterate(const void* restrict entry)
 {
-    const struct madt_header *header = entry;
-    const uint8_t *endptr = &((const uint8_t *)madt)[madt->header.length];
-    const uint8_t *nextptr = &((const uint8_t *)entry)[header->length];
+    const struct madt_header* header = entry;
+    const uint8_t* endptr = &((const uint8_t*)madt)[madt->header.length];
+    const uint8_t* nextptr = &((const uint8_t*)entry)[header->length];
 
     if(nextptr >= endptr)
         return NULL;
@@ -28,8 +28,8 @@ void init_madt(void)
         unreachable();
     }
 
-    /* Using index of one points at
-     * space right after the very last
-     * field defined in the structure */
+    // Using index of one points at
+    // space right after the very last
+    // field defined in the structure
     madt_entries = &madt[1];
 }

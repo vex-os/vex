@@ -1,19 +1,19 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <arch/gdt.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
-#define GDT_READWRITE   (1 << 1)
-#define GDT_CONFORMING  (1 << 2)
-#define GDT_EXECUTABLE  (1 << 3)
-#define GDT_NONSYSTEM   (1 << 4)
-#define GDT_RING_0      (0 << 5)
-#define GDT_RING_3      (3 << 5)
-#define GDT_PRESENT     (1 << 7)
-#define GDT_4KIB_UNITS  (1 << 3)
-#define GDT_32BIT       (1 << 2)
-#define GDT_64BIT       (1 << 1)
+#define GDT_READWRITE  (1 << 1)
+#define GDT_CONFORMING (1 << 2)
+#define GDT_EXECUTABLE (1 << 3)
+#define GDT_NONSYSTEM  (1 << 4)
+#define GDT_RING_0     (0 << 5)
+#define GDT_RING_3     (3 << 5)
+#define GDT_PRESENT    (1 << 7)
+#define GDT_4KIB_UNITS (1 << 3)
+#define GDT_32BIT      (1 << 2)
+#define GDT_64BIT      (1 << 1)
 
 struct gdt_entry {
     uint16_t limit_0;
@@ -84,5 +84,5 @@ void init_gdt(void)
     gdtr.size = (uint16_t)(sizeof(gdt) - 1);
     gdtr.offset = (uintptr_t)(&gdt[0]);
 
-    asm volatile("lgdtq %0"::"m"(gdtr));
+    asm volatile("lgdtq %0" ::"m"(gdtr));
 }

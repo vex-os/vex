@@ -1,17 +1,17 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
-intmax_t strtoimax(const char *restrict nptr, const char **restrict endptr, int base)
+intmax_t strtoimax(const char* restrict nptr, const char** restrict endptr, int base)
 {
     int chr;
     int minus;
     int limdigit;
     intmax_t limit;
     intmax_t accum;
-    const char *cptr;
+    const char* cptr;
     const char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 
     do {

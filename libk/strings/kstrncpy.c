@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <strings.h>
 
-char *kstrncpy(char *restrict dst, const char *restrict src, size_t sz)
+char* kstrncpy(char* restrict dst, const char* restrict src, size_t sz)
 {
-    char *save = dst;
+    char* save = dst;
     while(*src && sz--)
         *dst++ = *src++;
     if(sz)

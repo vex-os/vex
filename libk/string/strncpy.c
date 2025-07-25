@@ -1,9 +1,9 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <string.h>
 
-char *strncpy(char *restrict dst, const char *restrict src, size_t sz)
+char* strncpy(char* restrict dst, const char* restrict src, size_t sz)
 {
-    char *save = dst;
+    char* save = dst;
     while(sz && (*dst++ = *src++))
         sz--;
     while(sz-- > 1)

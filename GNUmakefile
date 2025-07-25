@@ -42,7 +42,6 @@ LDFLAGS += -nostdlib
 
 %.c.o: %.c | ${build_dir}
 	${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
-#	${CC} ${CFLAGS} ${CPPFLAGS} -S -o ${build_dir}/$(notdir $<).S $<
 %.S.o: %.S | ${build_dir}
 	${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 %.s.o: %.s | ${build_dir}

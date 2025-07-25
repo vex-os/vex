@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #ifndef INCLUDE_STDLIB_H
 #define INCLUDE_STDLIB_H
 #include <kern/compiler.h>
@@ -38,17 +38,17 @@ static __always_inline __nodiscard inline long long llabs(long long value)
 #endif
 }
 
-#define atoi(nptr) strtol((nptr), NULL, 10)
-#define atol(nptr) strtol((nptr), NULL, 10)
+#define atoi(nptr)  strtol((nptr), NULL, 10)
+#define atol(nptr)  strtol((nptr), NULL, 10)
 #define atoll(nptr) strtoll((nptr), NULL, 10)
 
-long strtol(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
-long long strtoll(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
-unsigned long strtoul(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
-unsigned long long strtoull(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
+long strtol(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+long long strtoll(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+unsigned long strtoul(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+unsigned long long strtoull(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
 
-intmax_t strtoimax(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
-uintmax_t strtoumax(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
-size_t strtousize(const char *restrict nptr, const char **restrict endptr, int base) __nodiscard;
+intmax_t strtoimax(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+uintmax_t strtoumax(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+size_t strtousize(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
 
-#endif /* INCLUDE_STDLIB_H */
+#endif // INCLUDE_STDLIB_H

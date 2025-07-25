@@ -1,11 +1,11 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <string.h>
 #include <strings.h>
 
-char *kstrncat(char *restrict dst, const char *restrict src, size_t sz)
+char* kstrncat(char* restrict dst, const char* restrict src, size_t sz)
 {
     size_t nc;
-    char *save = dst;
+    char* save = dst;
     while(*dst && sz--)
         dst++;
     nc = strnlen(src, --sz);

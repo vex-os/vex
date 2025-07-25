@@ -1,7 +1,7 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <format.h>
 
-int format(format_func_t func, void *restrict arg, const char *restrict fmt, ...)
+int format(format_func_t func, void* restrict arg, const char* restrict fmt, ...)
 {
     int r;
     va_list ap;

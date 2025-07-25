@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #ifndef INCLUDE_ARCH_PAGING_H
 #define INCLUDE_ARCH_PAGING_H
 #include <kern/compiler.h>
@@ -33,8 +33,8 @@
 #define PAGING_MODE_LVL4 LIMINE_PAGING_MODE_X86_64_4LVL
 #define PAGING_MODE_LVL5 LIMINE_PAGING_MODE_X86_64_5LVL
 
-#define PREDICT_LVL3(cond) predict_true(cond) /* Enabled in Long Mode */
-#define PREDICT_LVL4(cond) predict_true(cond) /* Enabled in Long Mode */
+#define PREDICT_LVL3(cond) predict_true(cond) // Enabled in Long Mode
+#define PREDICT_LVL4(cond) predict_true(cond) // Enabled in Long Mode
 #define PREDICT_LVL5(cond) (cond)
 
 typedef uint64_t pmentry_t;
@@ -57,16 +57,19 @@ static __always_inline __nodiscard inline pmentry_t make_pmentry(uintptr_t addre
     entry |= X86_PML_PRESENT;
     entry |= X86_PML_NOEXEC;
 
-    if(vprot & VPROT_WRITE) entry |= X86_PML_WRITE;
-    if(vprot & VPROT_USER)  entry |= X86_PML_USER;
-    if(vprot & VPROT_EXEC)  entry &= ~X86_PML_NOEXEC;
+    if(vprot & VPROT_WRITE)
+        entry |= X86_PML_WRITE;
+    if(vprot & VPROT_USER)
+        entry |= X86_PML_USER;
+    if(vprot & VPROT_EXEC)
+        entry &= ~X86_PML_NOEXEC;
 
     return entry;
 }
 
 static __always_inline inline void pagemap_switch(uintptr_t address)
 {
-    asm volatile("movq %0, %%cr3"::"r"(address):"memory");
+    asm volatile("movq %0, %%cr3" ::"r"(address) : "memory");
 }
 
-#endif /* INCLUDE_ARCH_PAGING_H */
+#endif // INCLUDE_ARCH_PAGING_H

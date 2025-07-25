@@ -1,7 +1,7 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <string.h>
 
-const char *strpbrk(const char *restrict str, const char *restrict sym)
+const char* strpbrk(const char* restrict str, const char* restrict sym)
 {
     while(*str) {
         if(strchr(sym, *str))

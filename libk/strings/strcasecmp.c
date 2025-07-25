@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <ctype.h>
 #include <strings.h>
 
-int strcasecmp(const char *restrict sa, const char *restrict sb)
+int strcasecmp(const char* restrict sa, const char* restrict sb)
 {
     while(*sa && tolower(*sa) == tolower(*sb)) {
         sa++;

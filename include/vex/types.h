@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #ifndef INCLUDE_VEX_TYPES_H
 #define INCLUDE_VEX_TYPES_H
 
@@ -18,4 +18,4 @@ typedef unsigned long fsblkcnt_t;
 typedef unsigned long fsfilcnt_t;
 typedef unsigned long ino_t;
 
-#endif /* INCLUDE_VEX_TYPES_H */
+#endif // INCLUDE_VEX_TYPES_H

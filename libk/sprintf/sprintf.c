@@ -1,8 +1,8 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <sprintf.h>
 #include <stdint.h>
 
-int sprintf(char *restrict str, const char *restrict fmt, ...)
+int sprintf(char* restrict str, const char* restrict fmt, ...)
 {
     int r;
     va_list ap;

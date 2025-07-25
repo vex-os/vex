@@ -1,7 +1,7 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <sprintf.h>
 
-int snprintf(char *restrict str, size_t sz, const char *restrict fmt, ...)
+int snprintf(char* restrict str, size_t sz, const char* restrict fmt, ...)
 {
     int r;
     va_list ap;

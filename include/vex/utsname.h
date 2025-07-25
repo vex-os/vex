@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #ifndef INCLUDE_VEX_UTSNAME_H
 #define INCLUDE_VEX_UTSNAME_H
 
@@ -14,4 +14,4 @@ struct utsname {
     char machine[UNAME_SZ];
 };
 
-#endif /* INCLUDE_VEX_UTSNAME_H */
+#endif // INCLUDE_VEX_UTSNAME_H

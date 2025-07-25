@@ -1,4 +1,4 @@
-/* SPDX-License-Identifier: BSD-2-Clause */
+// SPDX-License-Identifier: BSD-2-Clause
 #include <bitmap.h>
 #include <kern/assert.h>
 #include <kern/panic.h>
@@ -10,9 +10,9 @@
 #include <string.h>
 #include <strings.h>
 
-static void **page_list = NULL;
+static void** page_list = NULL;
 static uintptr_t dma_end_addr = 0;
-static bitmap_t *dma_bitmap = NULL;
+static bitmap_t* dma_bitmap = NULL;
 static size_t dma_numpages = 0;
 static size_t dma_lastpage = 0;
 
@@ -42,7 +42,7 @@ uintptr_t dma_alloc(size_t npages)
     return 0;
 }
 
-void *dma_alloc_hhdm(size_t npages)
+void* dma_alloc_hhdm(size_t npages)
 {
     uintptr_t address;
     if((address = dma_alloc(npages)) != 0)
@@ -63,7 +63,7 @@ void dma_free(uintptr_t address, size_t npages)
     }
 }
 
-void dma_free_hhdm(void *restrict ptr, size_t npages)
+void dma_free_hhdm(void* restrict ptr, size_t npages)
 {
     if(ptr == NULL)
         return;
@@ -80,13 +80,13 @@ uintptr_t pmm_alloc(void)
         return address;
     }
 
-    /* Fall back to the bitmap allocator in case the linked
-     * list allocator runs out or if there was not enough
-     * memory to initialize it in the first place */
+    // Fall back to the bitmap allocator in case the linked
+    // list allocator runs out or if there was not enough
+    // memory to initialize it in the first place
     return dma_alloc(1);
 }
 
-void *pmm_alloc_hhdm(void)
+void* pmm_alloc_hhdm(void)
 {
     uintptr_t address;
     if((address = pmm_alloc()) != 0)
@@ -96,7 +96,7 @@ void *pmm_alloc_hhdm(void)
 
 void pmm_free(uintptr_t address)
 {
-    void **headptr;
+    void** headptr;
 
     if(address >= dma_end_addr) {
         headptr = phys_to_hhdm(address);
@@ -108,7 +108,7 @@ void pmm_free(uintptr_t address)
     dma_free(address, 1);
 }
 
-void pmm_free_hhdm(void *restrict ptr)
+void pmm_free_hhdm(void* restrict ptr)
 {
     if(ptr == NULL)
         return;
@@ -123,10 +123,10 @@ void init_pmm(void)
     size_t list_numpages;
     uintptr_t address;
     uintptr_t bitmap_phys;
-    void **head_ptr;
-    struct limine_memmap_entry *entry;
+    void** head_ptr;
+    struct limine_memmap_entry* entry;
 
-    /* Determine the actual end of the DMA space */
+    // Determine the actual end of the DMA space
     for(i = 0; i < memmap.response->entry_count; ++i) {
         entry = memmap.response->entries[i];
 
@@ -147,7 +147,7 @@ void init_pmm(void)
     dma_bitmap = NULL;
     bitmap_phys = 0;
 
-    /* Figure out where to put the bitmap */
+    // Figure out where to put the bitmap
     for(i = 0; i < memmap.response->entry_count; ++i) {
         entry = memmap.response->entries[i];
 
@@ -163,10 +163,10 @@ void init_pmm(void)
         unreachable();
     }
 
-    /* FIXME: use memset/bzero instead for faster initiailzation? */
+    // FIXME: use memset/bzero instead for faster initiailzation?
     bitmap_range_clear(dma_bitmap, 0, dma_numpages - 1);
 
-    /* Figure out what chunks of DMA space are usable */
+    // Figure out what chunks of DMA space are usable
     for(i = 0; i < memmap.response->entry_count; ++i) {
         entry = memmap.response->entries[i];
 
@@ -180,8 +180,8 @@ void init_pmm(void)
         }
     }
 
-    /* Account for cases when the bitmap resides
-     * in the very same memory region it tracks. */
+    // Account for cases when the bitmap resides
+    // in the very same memory region it tracks.
     if(bitmap_phys <= dma_end_addr) {
         page = bitmap_phys / PAGE_SIZE;
         npages = page_count(bitmap_size);
@@ -190,7 +190,7 @@ void init_pmm(void)
 
     list_numpages = 0;
 
-    /* Figure out what pages belong to the linked list */
+    // Figure out what pages belong to the linked list
     for(i = 0; i < memmap.response->entry_count; ++i) {
         entry = memmap.response->entries[i];
 
