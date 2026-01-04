@@ -2,19 +2,30 @@
     "version": 4,
     "configurations": [
         {
-            "name": "Vex/OS x86_64",
+            "name": "Vex x86_64",
             "intelliSenseMode": "clang-x64",
-            "defines": [ "__x86_64__", "__kernel__" ],
+            "defines": [
+                "__amd64__",
+                "__AMD64__",
+                "__KERNEL__",
+                "__kernel__",
+                "__x86_64__",
+                "__X86_64__",
+                "asm=__asm__"
+            ],
             "includePath": [
                 "${workspaceFolder}/arch/x86_64/include",
                 "${workspaceFolder}/include"
             ],
             "compilerArgs": [
                 "-ffreestanding",
-                "-nostdlibinc", "-nostdlib",
-                "-Wall", "-Wextra", "-pedantic"
+                "-nostdlibinc",
+                "-nostdlib",
+                "-Wall",
+                "-Wextra",
+                "-pedantic"
             ],
-            "compilerPath": "/usr/bin/clang",
+            "compilerPath": "clang",
             "cStandard": "gnu99"
         }
     ]

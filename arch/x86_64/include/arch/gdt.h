@@ -1,7 +1,8 @@
-// SPDX-License-Identifier: BSD-2-Clause
-#ifndef INCLUDE_ARCH_GDT_H
-#define INCLUDE_ARCH_GDT_H
-#include <kern/compiler.h>
+#ifndef _ARCH_GDT_H
+#define _ARCH_GDT_H 1
+
+#include <vex/compiler.h>
+
 #include <stdint.h>
 
 #define GDT_NULL_SEGMENT 0x00
@@ -14,11 +15,11 @@
 #define GDT_USER_CODE_64 0x07
 #define GDT_USER_DATA_64 0x08
 
-void init_gdt(void);
-
 static __always_inline __nodiscard inline uint16_t gdt_selector(uint16_t index, uint16_t ldt, uint16_t ring)
 {
     return ((ring & 4) | ((ldt & 1) << 2) | (index << 3));
 }
 
-#endif // INCLUDE_ARCH_GDT_H
+extern void init_gdt(void);
+
+#endif

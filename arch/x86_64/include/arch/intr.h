@@ -1,8 +1,12 @@
-// SPDX-License-Identifier: BSD-2-Clause
-#ifndef INCLUDE_ARCH_INTR_H
-#define INCLUDE_ARCH_INTR_H
-#include <kern/compiler.h>
+#ifndef _ARCH_INTR_H
+#define _ARCH_INTR_H 1
+
+#include <vex/compiler.h>
+
+#include <stddef.h>
 #include <stdint.h>
+
+#define MAX_INTERRUPT_VECTORS 256
 
 struct interrupt_frame {
     uint64_t rax;
@@ -38,4 +42,4 @@ static __always_inline inline void enable_interrupts(void)
     asm volatile("sti");
 }
 
-#endif // INCLUDE_ARCH_INTR_H
+#endif

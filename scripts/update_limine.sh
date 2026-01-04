@@ -6,13 +6,27 @@ export LC_ALL=C.UTF-8
 
 cd $(dirname $(realpath $(dirname ${0})))
 
-rm -fv boot/aarch64/BOOTAA64.EFI
-rm -fv boot/riscv64/BOOTRISCV64.EFI
-rm -fv boot/x86_64/BOOTX64.EFI
-rm -fv include/limine.h
+loader=
 
-url_base="https://raw.githubusercontent.com/limine-bootloader/limine/v7.x-binary"
-wget -q --show-progress -P boot/aarch64 "${url_base}/BOOTAA64.EFI"
-wget -q --show-progress -P boot/riscv64 "${url_base}/BOOTRISCV64.EFI"
-wget -q --show-progress -P boot/x86_64  "${url_base}/BOOTX64.EFI"
-wget -q --show-progress -P include      "${url_base}/limine.h"
+if command -v wget > /dev/null 2>&1; then
+    loader="wget -q --show-progress -O"
+elif command -v curl > /dev/null 2>&1; then
+    loader="curl -L -o"
+else
+    >&2 printf "neither 'wget' nor 'curl' is installed\n"
+    exit 1
+fi
+
+url_base="https://codeberg.org/Limine/Limine/raw/branch/v10.x-binary"
+
+rm -fv include/detail/limine.h
+rm -fv boot/uefi/BOOTAA64.EFI
+rm -fv boot/uefi/BOOTRISCV64.EFI
+rm -fv boot/uefi/BOOTX64.EFI
+
+${loader} include/detail/limine.h "${url_base}/limine.h"
+${loader} boot/uefi/BOOTAA64.EFI "${url_base}/BOOTAA64.EFI"
+${loader} boot/uefi/BOOTRISCV64.EFI "${url_base}/BOOTRISCV64.EFI"
+${loader} boot/uefi/BOOTX64.EFI "${url_base}/BOOTX64.EFI"
+
+exit 0

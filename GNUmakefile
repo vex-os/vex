@@ -4,111 +4,141 @@ export LC_ALL=C
 export LANGUAGE=C
 export LANG=C
 
-RELEASE ?= 0.0.1-dev.18
-SYSNAME ?= Vex
-
 ARCH ?= x86_64
-TOOLCHAIN ?= llvm
+ENVT ?= clang
+CONFIG ?= default
 
-SOURCES :=
-OBJECTS :=
+SYSNAME ?= Vex
+RELEASE ?= 0.0.1
+GIT_REV := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-CLEAN0 :=
-CLEAN1 :=
+PYTHON := $(shell command -v py 2> /dev/null || command -v python3 2> /dev/null || command -v python 2> /dev/null)
 
-ALLDEP :=
-PHONYS :=
+include arch/${ARCH}/env.${ENVT}.mk
+
+override CFLAGS += -fPIE
+override CFLAGS += -ffreestanding
+override CFLAGS += -Wall -Wextra -Werror
+override CFLAGS += -Wno-unused-parameter
+override CFLAGS += -Wno-pointer-sign
+override CFLAGS += -funsigned-char
+override CFLAGS += -mcmodel=kernel
+override CFLAGS += -O2
+
+override CPPFLAGS += -D __kernel__
+override CPPFLAGS += -D __KERNEL__
+override CPPFLAGS += -I arch/${ARCH}/include
+override CPPFLAGS += -I include
+
+override LDFLAGS += -nostdlib
 
 build_dir := build
+output_dir := output
 
-include config/arch.${ARCH}.mk
-include config/toolchain.${TOOLCHAIN}.mk
+${build_dir}/%.c.o: %.c | ${build_dir}
+	@printf "  CC\t%s\n" "$<"
+	@test -d $(dir $@) || mkdir -p $(dir $@)
+	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-CFLAGS += -fPIE
-CFLAGS += -ffreestanding
-CFLAGS += -Wall -Wextra -Werror
-CFLAGS += -Wno-unused-parameter
-CFLAGS += -Wno-pointer-sign
-CFLAGS += -funsigned-char
-CFLAGS += -O2
+${build_dir}/%.S.o: %.S | ${build_dir}
+	@printf "  AS\t%s\n" "$<"
+	@test -d $(dir $@) || mkdir -p $(dir $@)
+	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-CPPFLAGS += -D __kernel__
-CPPFLAGS += -D __KERNEL__
-CPPFLAGS += -I arch/${ARCH}/include
-CPPFLAGS += -I contrib/limine/include
-CPPFLAGS += -I include
+${build_dir}/%.s.o: %.s | ${build_dir}
+	@printf "  AS\t%s\n" "$<"
+	@test -d $(dir $@) || mkdir -p $(dir $@)
+	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-LDFLAGS += -nostdlib
+${build_dir}/%.ld: %.lds | ${build_dir}
+	@printf "  CPP\t%s\n" "$<"
+	@test -d $(dir $@) || mkdir -p $(dir $@)
+	@${CC} ${CPPFLAGS} -E -P -xc -D __ASSEMBLER__ $< > $@
 
-%.c.o: %.c | ${build_dir}
-	${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
-%.S.o: %.S | ${build_dir}
-	${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
-%.s.o: %.s | ${build_dir}
-	${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
+sources :=
+sources-0 :=
+sources-1 :=
 
-LDSCRIPT := ${build_dir}/link.ld
-KERNEL := ${build_dir}/kernel.elf
-KBOOT := ${build_dir}/kernel.boot.img
+objects :=
+objects-0 :=
+objects-1 :=
 
-include acpi/GNUmakefile
-include arch/${ARCH}/kern/GNUmakefile
-include drivers/GNUmakefile
+clean_s :=
+clean_d :=
+
+ALLDEPS :=
+PHONIES :=
+
+ROOT_DIR := ${build_dir}/rootfs
+
+LDSCRIPT := ${build_dir}/arch/${ARCH}/vexsys.ld
+KERNEL := ${output_dir}/vexsys.elf
+
+GENCONFIG := ${build_dir}/generated.config.mk
+
+-include ${GENCONFIG}
+
+include arch/${ARCH}/device/GNUmakefile
+include arch/${ARCH}/kernel/GNUmakefile
+
+include boot/GNUmakefile
+
+include device/GNUmakefile
 include filesys/GNUmakefile
-include kern/GNUmakefile
+include kernel/GNUmakefile
 include libk/GNUmakefile
-include mm/GNUmakefile
 
-OBJECTS += ${SOURCES:=.o}
+sources += ${sources-1}
+objects += ${objects-1}
 
-CLEAN0 += ${OBJECTS}
-CLEAN0 += ${LDSCRIPT}
-CLEAN0 += ${KERNEL}
-CLEAN0 += ${KBOOT}
+objects += ${sources:=.o}
+objects := $(patsubst %,${build_dir}/%,$(objects))
 
-CLEAN1 += ${build_dir}
+clean_s += ${objects}
+clean_s += ${LDSCRIPT}
+clean_s += ${KERNEL}
+clean_s += ${KBOOT}
 
-PHONYS += all
-PHONYS += force_run
-PHONYS += clean distclean
-PHONYS += kernel
-PHONYS += bootable
+clean_d += ${ROOT_DIR}
+clean_d += ${output_dir}
+clean_d += ${build_dir}
 
-ALLDEP += kernel
-ALLDEP += bootable
+PHONIES += all
+PHONIES += config
+PHONIES += force
+PHONIES += clean distclean
+PHONIES += kernel
 
-all: ${ALLDEP}
+ALLDEPS += kernel
 
-force_run:
+all: ${ALLDEPS}
+	@true
+
+config: ${GENCONFIG}
+	@true
+
+force:
 
 clean:
-	rm -vrf ${CLEAN0}
+	@rm -vrf ${clean_s}
 
 distclean:
-	rm -vrf ${CLEAN0}
-	rm -vrf ${CLEAN1}
+	@rm -vrf ${clean_s}
+	@rm -vrf ${clean_d}
 
 kernel: ${KERNEL}
+	@true
 
-bootable: ${KBOOT}
+${GENCONFIG}: config/${CONFIG}.conf | scripts/generate_config.py ${build_dir}
+	@printf "  CONF\t%s\n" "$@"
+	@${PYTHON} scripts/generate_config.py $< $@ ${ARCH}
+
+${KERNEL}: ${LDSCRIPT} ${objects} ${output_dir}
+	@printf "  LD\t%s\n" "$@"
+	@${LD} ${LDFLAGS} -T ${LDSCRIPT} -o $@ ${objects}
 
 ${build_dir}:
-	mkdir -p ${build_dir}
+	@mkdir -p $@
 
-${KERNEL}: ${OBJECTS} ${LDSCRIPT} ${build_dir}
-	${LD} ${LDFLAGS} -T ${LDSCRIPT} -pie -o $@ ${OBJECTS}
-
-${LDSCRIPT}: config/link.${ARCH}.lds ${build_dir}
-	${CC} ${CPPFLAGS} -E -xc -D __ASSEMBLER__ config/link.${ARCH}.lds | grep -v "^#" > $@ || true
-
-${KBOOT}: ${KERNEL}
-	dd if=/dev/zero of=$@ bs=1048576 count=32
-	parted $@ mklabel gpt
-	parted $@ mkpart ESP fat16 2048s 100%
-	parted $@ set 1 esp on
-	mkfs.fat -F16 --offset 2048 $@
-	mmd -i $@@@2048s ::/EFI
-	mmd -i $@@@2048s ::/EFI/BOOT
-	mcopy -i $@@@2048s boot/${ARCH}/BOOT${UEFI_ARCH}.EFI ::/EFI/BOOT/BOOT${UEFI_ARCH}.EFI
-	mcopy -i $@@@2048s boot/limine.cfg ::/limine.cfg
-	mcopy -i $@@@2048s ${KERNEL} ::/kernel.${LIMINE_ARCH}.elf
+${output_dir}:
+	@mkdir -p $@

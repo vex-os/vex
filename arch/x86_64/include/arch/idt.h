@@ -1,13 +1,16 @@
-// SPDX-License-Identifier: BSD-2-Clause
-#ifndef INCLUDE_ARCH_IDT_H
-#define INCLUDE_ARCH_IDT_H
-#include <kern/compiler.h>
+#ifndef _ARCH_IDT_H
+#define _ARCH_IDT_H 1
+
+#include <vex/compiler.h>
+
 #include <stdint.h>
 
-void set_idt_entry(unsigned int vector, int trap, const void* restrict pfn);
-void set_idt_entry_user(unsigned int vector, int trap, const void* restrict pfn);
-void unset_idt_entry(unsigned int vector);
+#define IDT_SIZE 256
 
-void init_idt(void);
+extern void set_idt_entry_kern(unsigned int vector, int is_trap, const void* restrict pfn);
+extern void set_idt_entry_user(unsigned int vector, int is_trap, const void* restrict pfn);
+extern void unset_idt_entry(unsigned int vector);
 
-#endif // INCLUDE_ARCH_IDT_H
+extern void init_idt(void);
+
+#endif

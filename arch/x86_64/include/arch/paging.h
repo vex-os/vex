@@ -1,15 +1,18 @@
-// SPDX-License-Identifier: BSD-2-Clause
-#ifndef INCLUDE_ARCH_PAGING_H
-#define INCLUDE_ARCH_PAGING_H
-#include <kern/compiler.h>
-#include <mm/vprot.h>
+#ifndef _ARCH_PAGING_H
+#define _ARCH_PAGING_H 1
+
+#include <vex/compiler.h>
+#include <vex/vprot.h>
+
+#include <stdbool.h>
 #include <stdint.h>
 
-#define X86_PML_ADDRESS 0x000FFFFFFFFFF000
-#define X86_PML_PRESENT 0x0000000000000001
-#define X86_PML_WRITE   0x0000000000000002
-#define X86_PML_USER    0x0000000000000004
-#define X86_PML_NOEXEC  0x8000000000000000
+#define X86_CR3_ADDRESS UINT64_C(0x000FFFFFFFFFF000)
+#define X86_PML_ADDRESS UINT64_C(0x000FFFFFFFFFF000)
+#define X86_PML_PRESENT UINT64_C(0x0000000000000001)
+#define X86_PML_WRITE   UINT64_C(0x0000000000000002)
+#define X86_PML_USER    UINT64_C(0x0000000000000004)
+#define X86_PML_NOEXEC  UINT64_C(0x8000000000000000)
 
 #define PMENTRY_LVL1_MASK UINT64_C(0x1FF)
 #define PMENTRY_LVL2_MASK UINT64_C(0x1FF)
@@ -28,14 +31,6 @@
 #define PAGEMAP_SIZE 0x200
 #define PAGEMAP_KERN 0x100
 #define PAGEMAP_USER 0x000
-
-#define PAGING_MODE_LVL3 LIMINE_PAGING_MODE_X86_64_4LVL
-#define PAGING_MODE_LVL4 LIMINE_PAGING_MODE_X86_64_4LVL
-#define PAGING_MODE_LVL5 LIMINE_PAGING_MODE_X86_64_5LVL
-
-#define PREDICT_LVL3(cond) predict_true(cond) // Enabled in Long Mode
-#define PREDICT_LVL4(cond) predict_true(cond) // Enabled in Long Mode
-#define PREDICT_LVL5(cond) (cond)
 
 typedef uint64_t pmentry_t;
 
@@ -70,6 +65,14 @@ static __always_inline __nodiscard inline pmentry_t make_pmentry(uintptr_t addre
 static __always_inline inline void pagemap_switch(uintptr_t address)
 {
     asm volatile("movq %0, %%cr3" ::"r"(address) : "memory");
+    asm volatile("invlpg (%%rip)" ::: "memory");
 }
 
-#endif // INCLUDE_ARCH_PAGING_H
+static __always_inline __nodiscard inline uintptr_t pagemap_import(void)
+{
+    uint64_t cr3_value;
+    asm volatile("mov %%cr3, %0" : "=r"(cr3_value));
+    return cr3_value & X86_CR3_ADDRESS;
+}
+
+#endif
