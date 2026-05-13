@@ -1,0 +1,87 @@
+#ifndef A11C9C4E_746F_4B83_A57A_B26963B0D836
+#define A11C9C4E_746F_4B83_A57A_B26963B0D836
+
+#include <vex/errno.h>
+
+#define EDOM   __k_EDOM
+#define EILSEQ __k_EILSEQ
+#define ERANGE __k_ERANGE
+
+#define E2BIG           __k_E2BIG
+#define EACCES          __k_EACCES
+#define EADDRINUSE      __k_EADDRINUSE
+#define EADDRNOTAVAIL   __k_EADDRNOTAVAIL
+#define EAFNOSUPPORT    __k_EAFNOSUPPORT
+#define EAGAIN          __k_EAGAIN
+#define EALREADY        __k_EALREADY
+#define EBADF           __k_EBADF
+#define EBADMSG         __k_EBADMSG
+#define EBUSY           __k_EBUSY
+#define ECANCELED       __k_ECANCELED
+#define ECHILD          __k_ECHILD
+#define ECONNABORTED    __k_ECONNABORTED
+#define ECONNREFUSED    __k_ECONNREFUSED
+#define ECONNRESET      __k_ECONNRESET
+#define EDEADLK         __k_EDEADLK
+#define EDESTADDRREQ    __k_EDESTADDRREQ
+#define EDQUOT          __k_EDQUOT
+#define EEXIST          __k_EEXIST
+#define EFAULT          __k_EFAULT
+#define EFBIG           __k_EFBIG
+#define EHOSTUNREACH    __k_EHOSTUNREACH
+#define EIDRM           __k_EIDRM
+#define EINPROGRESS     __k_EINPROGRESS
+#define EINTR           __k_EINTR
+#define EINVAL          __k_EINVAL
+#define EIO             __k_EIO
+#define EISCONN         __k_EISCONN
+#define EISDIR          __k_EISDIR
+#define ELOOP           __k_ELOOP
+#define EMFILE          __k_EMFILE
+#define EMLINK          __k_EMLINK
+#define EMSGSIZE        __k_EMSGSIZE
+#define EMULTIHOP       __k_EMULTIHOP
+#define ENAMETOOLONG    __k_ENAMETOOLONG
+#define ENETDOWN        __k_ENETDOWN
+#define ENETRESET       __k_ENETRESET
+#define ENETUNREACH     __k_ENETUNREACH
+#define ENFILE          __k_ENFILE
+#define ENOBUFS         __k_ENOBUFS
+#define ENODATA         __k_ENODATA
+#define ENODEV          __k_ENODEV
+#define ENOENT          __k_ENOENT
+#define ENOEXEC         __k_ENOEXEC
+#define ENOLCK          __k_ENOLCK
+#define ENOLINK         __k_ENOLINK
+#define ENOMEM          __k_ENOMEM
+#define ENOMSG          __k_ENOMSG
+#define ENOPROTOOPT     __k_ENOPROTOOPT
+#define ENOSPC          __k_ENOSPC
+#define ENOSR           __k_ENOSR
+#define ENOSTR          __k_ENOSTR
+#define ENOSYS          __k_ENOSYS
+#define ENOTCONN        __k_ENOTCONN
+#define ENOTDIR         __k_ENOTDIR
+#define ENOTEMPTY       __k_ENOTEMPTY
+#define ENOTSOCK        __k_ENOTSOCK
+#define ENOTSUP         __k_ENOTSUP
+#define ENOTTY          __k_ENOTTY
+#define ENXIO           __k_ENXIO
+#define EOPNOTSUPP      __k_EOPNOTSUPP
+#define EOVERFLOW       __k_EOVERFLOW
+#define EPERM           __k_EPERM
+#define EPIPE           __k_EPIPE
+#define EPROTO          __k_EPROTO
+#define EPROTONOSUPPORT __k_EPROTONOSUPPORT
+#define EPROTOTYPE      __k_EPROTOTYPE
+#define EROFS           __k_EROFS
+#define ESPIPE          __k_ESPIPE
+#define ESRCH           __k_ESRCH
+#define ESTALE          __k_ESTALE
+#define ETIME           __k_ETIME
+#define ETIMEDOUT       __k_ETIMEDOUT
+#define ETXTBSY         __k_ETXTBSY
+#define EWOULDBLOCK     __k_EWOULDBLOCK
+#define EXDEV           __k_EXDEV
+
+#endif /* A11C9C4E_746F_4B83_A57A_B26963B0D836 */

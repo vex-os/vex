@@ -1,0 +1,14 @@
+core/kprintf.c
+core/panic.c
+core/version.c
+
+dev/console.c
+
+lib/bitmap.c
+lib/ctype.c
+lib/format.c
+lib/hrsize.c
+lib/sprintf.c
+lib/stdlib.c
+lib/string.c
+lib/strings.c
