@@ -1,0 +1,5 @@
+arch/x86_64/core/x86_gdt.c
+arch/x86_64/core/x86_idt.c
+arch/x86_64/core/x86_idts.S
+
+arch/x86_64/dev/x86_picstub.c
