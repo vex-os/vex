@@ -2,7 +2,7 @@ export LC_ALL=C
 export LANGUAGE=C
 export LANG=C
 
-CONFIG ?= DEFAULT
+CONFIG ?= default
 CONFIG_MK := .configuration.mk
 
 -include ${CONFIG_MK}
@@ -45,26 +45,26 @@ override LDFLAGS += -nostdlib
 BUILD_DIR ?= build
 OUTPUT_DIR ?= output
 
-.configuration.mk: conf/${CONFIG}.conf | Configure.py
+.configuration.mk: conf/config.${CONFIG}.conf Configure.py
 	@printf "  CONF\t%s\n" "conf/${CONFIG}.conf"
 	@${PYTHON} Configure.py ${CONFIG}
 
-${BUILD_DIR}/%.c.o: %.c | ${BUILD_DIR}
+${BUILD_DIR}/%.c.o: %.c ${CONFIG_MK} | ${BUILD_DIR}
 	@printf "  CC\t%s\n" "$<"
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-${BUILD_DIR}/%.S.o: %.S | ${BUILD_DIR}
+${BUILD_DIR}/%.S.o: %.S ${CONFIG_MK} | ${BUILD_DIR}
 	@printf "  AS\t%s\n" "$<"
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-${BUILD_DIR}/%.s.o: %.s | ${BUILD_DIR}
+${BUILD_DIR}/%.s.o: %.s ${CONFIG_MK} | ${BUILD_DIR}
 	@printf "  AS\t%s\n" "$<"
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-${BUILD_DIR}/%.ld: %.lds | ${BUILD_DIR}
+${BUILD_DIR}/%.ld: %.lds ${CONFIG_MK} | ${BUILD_DIR}
 	@printf "  CPP\t%s\n" "$<"
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CPPFLAGS} -E -P -xc -D __ASSEMBLER__ $< > $@

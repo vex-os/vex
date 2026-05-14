@@ -69,9 +69,8 @@ def parse_config(path, _seen=None):
             if kword == "include":
                 if not args:
                     raise_error(path, lineno, f"missing arguments for {kword} keyword")
-                include_path = os.path.join(os.path.dirname(path), args[0])
-                if not include_path.endswith(".conf"):
-                    include_path += ".conf"
+                include_name = args[0]
+                include_path = os.path.join(CONF_DIR, f"config.{include_name}.conf")
                 parse_config(include_path, _seen)
             elif kword == "arch" or kword == "machine":
                 if not args:
@@ -169,16 +168,13 @@ def generate_makefile(path):
             f.write(f"SOURCES += {source}\n")
 
 def main():
-    config_path = sys.argv[1] if len(sys.argv) > 1 else "DEFAULT"
-    config_path = os.path.join(CONF_DIR, config_path)
-    if not config_path.endswith(".conf"):
-        config_path += ".conf"
+    config_name = sys.argv[1] if len(sys.argv) > 1 else "default"
+    config_path = os.path.join(CONF_DIR, f"config.{config_name}.conf")
 
     parse_config(config_path)
 
     parse_filelist(os.path.join(CONF_DIR, "files.generic.lst"))
     parse_filelist(os.path.join(CONF_DIR, f"files.{cur_arch}.lst"))
-    parse_filelist(os.path.join(CONF_DIR, f"files.{cur_envt}.lst"))
 
     config_path = os.path.join(ROOT_DIR, ".configuration.mk")
 
