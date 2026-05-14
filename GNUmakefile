@@ -6,7 +6,7 @@ include .configuration.mk
 
 GIT_REV := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-ARCH ?= x86_64
+ARCH ?= amd64
 ENVT ?= clang
 
 SYSNAME ?= Vex

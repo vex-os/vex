@@ -1,5 +1,5 @@
+#include <core/amd64.gdt.h>
 #include <core/kprintf.h>
-#include <core/x86_gdt.h>
 #include <lib/string.h>
 
 #define GDT_READWRITE  (1 << 1)
@@ -63,7 +63,7 @@ static void set_entry_64(uint8_t id, uint8_t flags)
     memcpy(gdt + id, &entry, sizeof(entry));
 }
 
-void x86_init_gdt(void)
+void amd64_init_gdt(void)
 {
     uint8_t code_flags = GDT_READWRITE | GDT_NONSYSTEM | GDT_EXECUTABLE;
     uint8_t data_flags = GDT_READWRITE | GDT_NONSYSTEM;

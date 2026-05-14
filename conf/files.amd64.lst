@@ -1,5 +1,7 @@
-arch/x86_64/core/x86_gdt.c
-arch/x86_64/core/x86_idt.c
-arch/x86_64/core/x86_idts.S
+arch/amd64/core/amd64.gdt.c
+arch/amd64/core/amd64.idt.c
+arch/amd64/core/amd64.picstub.c
 
-arch/x86_64/dev/x86_picstub.c
+arch/amd64/dev/bxdebug.c                optional bxdebug
+
+arch/amd64/init/arch.setup.c

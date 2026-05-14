@@ -1,5 +1,5 @@
-#ifndef B9B6C109_D39A_40E0_B52E_B374A8730AC2
-#define B9B6C109_D39A_40E0_B52E_B374A8730AC2
+#ifndef B2DB992B_AE8D_4321_9537_2CA2CF4F59F5
+#define B2DB992B_AE8D_4321_9537_2CA2CF4F59F5
 
 #include <core/cdefs.h>
 
@@ -49,4 +49,4 @@ static __always_inline inline void arch_pmwait(void)
     asm volatile("outb %0, $0x80" ::"a"(UINT8_C(0)) : "memory");
 }
 
-#endif /* B9B6C109_D39A_40E0_B52E_B374A8730AC2 */
+#endif /* B2DB992B_AE8D_4321_9537_2CA2CF4F59F5 */

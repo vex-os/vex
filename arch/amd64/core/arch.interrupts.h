@@ -1,5 +1,5 @@
-#ifndef C1107E57_2AC9_4B7E_8B6C_67E3F9AC096F
-#define C1107E57_2AC9_4B7E_8B6C_67E3F9AC096F
+#ifndef FD177992_9E0F_4161_81C4_364624A1E1F6
+#define FD177992_9E0F_4161_81C4_364624A1E1F6
 
 #include <core/cdefs.h>
 
@@ -40,4 +40,4 @@ static __always_inline inline void arch_enable_interrupts(void)
     asm volatile("sti");
 }
 
-#endif /* C1107E57_2AC9_4B7E_8B6C_67E3F9AC096F */
+#endif /* FD177992_9E0F_4161_81C4_364624A1E1F6 */

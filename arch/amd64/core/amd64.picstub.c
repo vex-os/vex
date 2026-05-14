@@ -1,13 +1,13 @@
-#include <core/arch_intr.h>
-#include <core/arch_pmio.h>
-#include <dev/x86_picstub.h>
+#include <core/amd64.picstub.h>
+#include <core/arch.interrupts.h>
+#include <core/arch.pmio.h>
 
 #define PIC1_COMMAND 0x0020
 #define PIC1_DATA    0x0021
 #define PIC2_COMMAND 0x00A0
 #define PIC2_DATA    0x00A1
 
-void x86_init_picstub(void)
+void amd64_init_picstub(void)
 {
     unsigned int vector;
 

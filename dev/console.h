@@ -6,9 +6,9 @@
 #include <stddef.h>
 
 enum {
-    CONSOLEFLAG_EMPTY = 0x0000,  ///< No flags
-    CONSOLEFLAG_RECALL = 0x0001, ///< Recall current kprintf buffer upon console driver init
-    CONSOLEFLAG_BLANK = 0x1000,  ///< Blanked, the underlying resource is used by a different device driver
+    CONSF_NONE = 0x0000,    ///< No special flags
+    CONSF_RECALL = 0x0001,  ///< Recall the last kprintf history on unblanking
+    CONSF_BLANKED = 0x1000, ///< The driver is blanked and won't receive write calls
 };
 
 struct console_driver;
@@ -21,13 +21,13 @@ struct console_driver_ops {
 struct console_driver {
     struct console_driver* next;
     struct console_driver_ops* ops;
-    unsigned int flags;
+    unsigned int consflags;
     char identity[64];
     void* privdata;
 };
 
-extern int console_register(struct console_driver* restrict driver);
-extern int console_unregister(struct console_driver* restrict driver);
+extern int register_console_driver(struct console_driver* restrict driver);
+extern int unregister_console_driver(struct console_driver* restrict driver);
 extern void console_write(const void* restrict data, size_t size);
 extern void console_unblank_all(void);
 

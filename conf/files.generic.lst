@@ -4,6 +4,9 @@ core/version.c
 
 dev/console.c
 
+init/initfunc.c
+init/kmain.c
+
 lib/bitmap.c
 lib/ctype.c
 lib/format.c
