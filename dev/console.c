@@ -6,7 +6,7 @@
 
 static struct console_driver* console_head = NULL;
 
-int console_register(struct console_driver* restrict driver)
+int register_console_driver(struct console_driver* restrict driver)
 {
     struct console_driver* it;
 
@@ -28,7 +28,7 @@ int console_register(struct console_driver* restrict driver)
         driver->ops->unblank(driver);
     }
 
-    if(driver->ops->write && (driver->flags & CONSOLEFLAG_RECALL)) {
+    if(driver->ops->write && (driver->consflags & CONSF_RECALL)) {
         const char* kptr;
         size_t ksz;
 
@@ -47,7 +47,7 @@ int console_register(struct console_driver* restrict driver)
     return 0;
 }
 
-int console_unregister(struct console_driver* restrict driver)
+int unregister_console_driver(struct console_driver* restrict driver)
 {
     struct console_driver* it;
     struct console_driver* prev = NULL;
@@ -82,7 +82,7 @@ void console_write(const void* restrict data, size_t size)
     for(it = console_head; it; it = it->next) {
         if(it->ops->write == NULL)
             continue;
-        if(it->flags & CONSOLEFLAG_BLANK)
+        if(it->consflags & CONSF_BLANKED)
             continue;
         it->ops->write(it, data, size);
     }
@@ -95,6 +95,6 @@ void console_unblank_all(void)
     for(it = console_head; it; it = it->next) {
         if(it->ops->unblank)
             it->ops->unblank(it);
-        it->flags &= ~CONSOLEFLAG_BLANK;
+        it->consflags &= ~CONSF_BLANKED;
     }
 }

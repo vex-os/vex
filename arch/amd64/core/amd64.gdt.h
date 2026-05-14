@@ -1,5 +1,5 @@
-#ifndef F9BD53CB_709F_4825_B6ED_6610E0367CC2
-#define F9BD53CB_709F_4825_B6ED_6610E0367CC2
+#ifndef FAFBFAA8_6AED_442B_BE3D_AB2AC0D2C60F
+#define FAFBFAA8_6AED_442B_BE3D_AB2AC0D2C60F
 
 #include <core/cdefs.h>
 
@@ -15,11 +15,11 @@
 #define X86_GDT_USER_CODE_64 0x07
 #define X86_GDT_USER_DATA_64 0x08
 
-static __always_inline __nodiscard inline uint16_t x86_gdt_selector(uint16_t index, uint16_t ldt, uint16_t ring)
+static __always_inline __nodiscard inline uint16_t amd64_gdt_selector(uint16_t index, uint16_t ldt, uint16_t ring)
 {
     return ((ring & 4) | ((ldt & 1) << 2) | (index << 3));
 }
 
-extern void x86_init_gdt(void);
+extern void amd64_init_gdt(void);
 
-#endif /* F9BD53CB_709F_4825_B6ED_6610E0367CC2 */
+#endif /* FAFBFAA8_6AED_442B_BE3D_AB2AC0D2C60F */

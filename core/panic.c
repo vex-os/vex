@@ -1,5 +1,5 @@
 #include <core/arch_halt.h>
-#include <core/arch_intr.h>
+#include <core/arch_interrupts.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <dev/console.h>
