@@ -15,7 +15,7 @@ ENVT ?= clang
 SYSNAME ?= Vex
 RELEASE ?= 0.0.2
 
-PYTHON := $(shell command -v python3 2> /dev/null || command -v py 2> /dev/null || command -v python 2> /dev/null)
+PYTHON := $(shell command -v python3 2> /dev/null || command -v python 2> /dev/null || command -v py 2> /dev/null)
 
 include conf/envt.${ARCH}.${ENVT}.mk
 
@@ -35,10 +35,10 @@ override CPPFLAGS += -I arch/${ARCH}
 override CPPFLAGS += -I pub
 override CPPFLAGS += -I .
 
-override CPPFLAGS += -DUTSNAME_SYSNAME='"${SYSNAME}"'
-override CPPFLAGS += -DUTSNAME_RELEASE='"${RELEASE}"'
-override CPPFLAGS += -DUTSNAME_VERSION='"${GIT_REV} ${ENVT}"'
-override CPPFLAGS += -DUTSNAME_MACHINE='"${ARCH}"'
+override CPPFLAGS += -D UTSNAME_SYSNAME='"${SYSNAME}"'
+override CPPFLAGS += -D UTSNAME_RELEASE='"${RELEASE}"'
+override CPPFLAGS += -D UTSNAME_VERSION='"${GIT_REV} ${ENVT}"'
+override CPPFLAGS += -D UTSNAME_MACHINE='"${ARCH}"'
 
 override LDFLAGS += -nostdlib
 
