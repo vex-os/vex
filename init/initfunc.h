@@ -4,16 +4,16 @@
 #include <core/cdefs.h>
 
 struct initfunc_metadata {
-    int (*function_ptr)(void);
+    int (*function)(void);
     unsigned int level;
     char identity[64];
 };
 
-#define __initfunc(function, level)                                                                                \
-    static const __used __section(".initfunc." #level) struct initfunc_metadata __initfunc_metadata_##function = { \
-        .function_ptr = function,                                                                                  \
-        .level = level,                                                                                            \
-        .identity = #function,                                                                                     \
+#define __initfunc(function_ptr, level_no)                                                                            \
+    static const __used __section(".initfunc." #level_no) struct initfunc_metadata __initfunc_metadata_##function = { \
+        .function = function_ptr,                                                                                     \
+        .level = level_no,                                                                                            \
+        .identity = #function_ptr,                                                                                    \
     }
 
 #define initfunc_dev_arch(function) __initfunc(function, 0)

@@ -7,8 +7,8 @@ void __noreturn kmain(void)
     // TODO: implement things
 
     for(;;) {
-        arch_disable_interrupts();
-        arch_halt_cpu();
+        disable_interrupts();
+        halt_cpu();
     }
 
     unreachable();

@@ -67,6 +67,22 @@
         iretq
 .endm
 
+.macro spur_stub stubname vector
+    .global \stubname
+    .type \stubname, @function
+    \stubname:
+        pushq $0x0000000000000000
+        push_interrupt_frame
+
+        movq %rsp, %rdi
+        movq $\vector, %rsi
+        call amd64_spur_handler
+
+        pop_interrupt_frame
+        addq $0x08, %rsp
+        iretq
+.endm
+
 .macro ireq_stub stubname vector
     .global \stubname
     .type \stubname, @function
@@ -116,22 +132,23 @@ isr_stub    amd64_isr_1D, 0x1D
 isr_stub    amd64_isr_1E, 0x1E
 isr_stub    amd64_isr_1F, 0x1F
 
-ireq_stub amd64_ireq_20, 0x20
-ireq_stub amd64_ireq_21, 0x21
-ireq_stub amd64_ireq_22, 0x22
-ireq_stub amd64_ireq_23, 0x23
-ireq_stub amd64_ireq_24, 0x24
-ireq_stub amd64_ireq_25, 0x25
-ireq_stub amd64_ireq_26, 0x26
-ireq_stub amd64_ireq_27, 0x27
-ireq_stub amd64_ireq_28, 0x28
-ireq_stub amd64_ireq_29, 0x29
-ireq_stub amd64_ireq_2A, 0x2A
-ireq_stub amd64_ireq_2B, 0x2B
-ireq_stub amd64_ireq_2C, 0x2C
-ireq_stub amd64_ireq_2D, 0x2D
-ireq_stub amd64_ireq_2E, 0x2E
-ireq_stub amd64_ireq_2F, 0x2F
+spur_stub amd64_spur_20, 0x20
+spur_stub amd64_spur_21, 0x21
+spur_stub amd64_spur_22, 0x22
+spur_stub amd64_spur_23, 0x23
+spur_stub amd64_spur_24, 0x24
+spur_stub amd64_spur_25, 0x25
+spur_stub amd64_spur_26, 0x26
+spur_stub amd64_spur_27, 0x27
+spur_stub amd64_spur_28, 0x28
+spur_stub amd64_spur_29, 0x29
+spur_stub amd64_spur_2A, 0x2A
+spur_stub amd64_spur_2B, 0x2B
+spur_stub amd64_spur_2C, 0x2C
+spur_stub amd64_spur_2D, 0x2D
+spur_stub amd64_spur_2E, 0x2E
+spur_stub amd64_spur_2F, 0x2F
+
 ireq_stub amd64_ireq_30, 0x30
 ireq_stub amd64_ireq_31, 0x31
 ireq_stub amd64_ireq_32, 0x32

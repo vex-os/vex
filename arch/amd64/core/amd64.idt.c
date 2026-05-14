@@ -63,9 +63,9 @@ extern void amd64_isr_1D(void);
 extern void amd64_isr_1E(void);
 extern void amd64_isr_1F(void);
 
-void __used amd64_isr_handler(struct arch_interrupt_frame* restrict frame, uint64_t intvec)
+void __used amd64_isr_handler(struct interrupt_frame* restrict frame, uint64_t intvec)
 {
-    arch_disable_interrupts();
+    disable_interrupts();
     panic("idt: isr_handler %02zX", (size_t)intvec);
     unreachable();
 }

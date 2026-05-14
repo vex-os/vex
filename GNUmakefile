@@ -2,7 +2,10 @@ export LC_ALL=C
 export LANGUAGE=C
 export LANG=C
 
-include .configuration.mk
+CONFIG ?= DEFAULT
+CONFIG_MK := .configuration.mk
+
+-include ${CONFIG_MK}
 
 GIT_REV := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
@@ -12,9 +15,9 @@ ENVT ?= clang
 SYSNAME ?= Vex
 RELEASE ?= 0.0.2
 
-PYTHON := $(shell command -v py 2> /dev/null || command -v python3 2> /dev/null || command -v python 2> /dev/null)
+PYTHON := $(shell command -v python3 2> /dev/null || command -v py 2> /dev/null || command -v python 2> /dev/null)
 
-include conf/envt.${ARCH}${ENVT}.mk
+include conf/envt.${ARCH}.${ENVT}.mk
 
 override CFLAGS += -fPIE
 override CFLAGS += -ffreestanding
@@ -32,15 +35,19 @@ override CPPFLAGS += -I arch/${ARCH}
 override CPPFLAGS += -I pub
 override CPPFLAGS += -I .
 
-override CPPFLAGS += -D UTSNAME_SYSNAME=\"${SYSNAME}\"
-override CPPFLAGS += -D UTSNAME_RELEASE=\"${RELEASE}\"
-override CPPFLAGS += -D UTSNAME_VERSION=\"${GIT_REV} ${ENVT}\"
-override CPPFLAGS += -D UTSNAME_MACHINE=\"${ARCH}\"
+override CPPFLAGS += -DUTSNAME_SYSNAME='"${SYSNAME}"'
+override CPPFLAGS += -DUTSNAME_RELEASE='"${RELEASE}"'
+override CPPFLAGS += -DUTSNAME_VERSION='"${GIT_REV} ${ENVT}"'
+override CPPFLAGS += -DUTSNAME_MACHINE='"${ARCH}"'
 
 override LDFLAGS += -nostdlib
 
 BUILD_DIR ?= build
 OUTPUT_DIR ?= output
+
+.configuration.mk: conf/${CONFIG}.conf | Configure.py
+	@printf "  CONF\t%s\n" "conf/${CONFIG}.conf"
+	@${PYTHON} Configure.py ${CONFIG}
 
 ${BUILD_DIR}/%.c.o: %.c | ${BUILD_DIR}
 	@printf "  CC\t%s\n" "$<"
@@ -70,7 +77,7 @@ LDSCRIPT := ${BUILD_DIR}/conf/link.${ARCH}.ld
 KERNEL := ${OUTPUT_DIR}/vexsys.elf
 
 OBJECTS := ${SOURCES}
-OBJECTS := $(patsubst %,${BUILD_DIR}/%,$(OBJECTS))
+OBJECTS := $(patsubst %,${BUILD_DIR}/%.o,$(OBJECTS))
 
 CLEAN_S += ${OBJECTS}
 CLEAN_S += ${LDSCRIPT}
@@ -80,6 +87,7 @@ CLEAN_S += ${KBOOT}
 CLEAN_D += ${ROOT_DIR}
 CLEAN_D += ${OUTPUT_DIR}
 CLEAN_D += ${BUILD_DIR}
+CLEAN_D += ${CONFIG_MK}
 
 PHONIES += all
 PHONIES += config
