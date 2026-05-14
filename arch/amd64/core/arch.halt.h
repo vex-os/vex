@@ -3,7 +3,7 @@
 
 #include <core/cdefs.h>
 
-static __always_inline inline void arch_halt_cpu(void)
+static __always_inline inline void halt_cpu(void)
 {
     asm volatile("hlt");
 }

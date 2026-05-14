@@ -10,9 +10,9 @@ void do_initfuncs(const struct initfunc_metadata* start, const struct initfunc_m
     int result;
 
     for(i = 0; &start[i] < end; ++i) {
-        kprintf(KP_DEBUG, "initfunc: calling %s <%p> lvl=%u", start[i].identity, start[i].function_ptr, start[i].level);
+        kprintf(KP_DEBUG, "initfunc: calling %s <%p> lvl=%u", start[i].identity, start[i].function, start[i].level);
 
-        result = start[i].function_ptr();
+        result = start[i].function();
 
         if(result) {
             if(result == ENODEV) {

@@ -1,5 +1,5 @@
-#include <core/arch_halt.h>
-#include <core/arch_interrupts.h>
+#include <core/arch.halt.h>
+#include <core/arch.interrupts.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <dev/console.h>
@@ -14,7 +14,7 @@ void __noreturn fpanic(const char* restrict file, unsigned long line, const char
 
 void __noreturn fvpanic(const char* restrict file, unsigned long line, const char* restrict fmt, va_list ap)
 {
-    arch_disable_interrupts();
+    disable_interrupts();
 
     console_unblank_all();
 
@@ -22,8 +22,8 @@ void __noreturn fvpanic(const char* restrict file, unsigned long line, const cha
     kvprintf(KP_EMERG, fmt, ap);
 
     for(;;) {
-        arch_disable_interrupts();
-        arch_halt_cpu();
+        disable_interrupts();
+        halt_cpu();
         continue;
     }
 
