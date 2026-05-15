@@ -76,13 +76,16 @@ ROOT_DIR := ${BUILD_DIR}/rootfs
 LDSCRIPT := ${BUILD_DIR}/conf/link.${ARCH}.ld
 KERNEL := ${OUTPUT_DIR}/vexsys.elf
 
+BOOTIMG := ${OUTPUT_DIR}/vexsys.boot.img
+BOOTIMG_SIZE_MIB := 64
+
 OBJECTS := ${SOURCES}
 OBJECTS := $(patsubst %,${BUILD_DIR}/%.o,$(OBJECTS))
 
 CLEAN_S += ${OBJECTS}
 CLEAN_S += ${LDSCRIPT}
 CLEAN_S += ${KERNEL}
-CLEAN_S += ${KBOOT}
+CLEAN_S += ${BOOTIMG}
 
 CLEAN_D += ${ROOT_DIR}
 CLEAN_D += ${OUTPUT_DIR}
@@ -90,19 +93,14 @@ CLEAN_D += ${BUILD_DIR}
 CLEAN_D += ${CONFIG_MK}
 
 PHONIES += all
-PHONIES += config
 PHONIES += force
 PHONIES += clean distclean
 PHONIES += kernel
+PHONIES += bootimg
 
 ALLDEPS += kernel
 
-include GNUmakefile.boot
-
 all: ${ALLDEPS}
-	@true
-
-config: ${GENCONFIG}
 	@true
 
 force:
@@ -117,9 +115,27 @@ distclean:
 kernel: ${KERNEL}
 	@true
 
+bootimg: ${BOOTIMG}
+	@true
+
 ${KERNEL}: ${LDSCRIPT} ${OBJECTS} ${OUTPUT_DIR}
 	@printf "  LD\t%s\n" "$@"
 	@${LD} ${LDFLAGS} -T ${LDSCRIPT} -o $@ ${OBJECTS}
+
+${BOOTIMG}: ${KERNEL} boot/uefi/BOOT${EFI_ARCH}.EFI boot/limine.conf
+	@printf "  IMAG\t%s\n" "$@"
+	@dd if=/dev/zero of=$@ bs=1M count=${BOOTIMG_SIZE_MIB}
+	@parted $@ mklabel gpt
+	@parted $@ mkpart ESP fat16 2048s 50%
+	@parted $@ mkpart BIOS fat16 50% 100%
+	@parted $@ set 1 esp on
+	@parted $@ set 2 bios_grub on
+	@mkfs.fat -F16 --offset 2048 $@
+	@mmd -i $@@@2048s ::/EFI
+	@mmd -i $@@@2048s ::/EFI/BOOT
+	@mcopy -i $@@@2048s boot/uefi/BOOT${EFI_ARCH}.EFI ::/EFI/BOOT/BOOT${EFI_ARCH}.EFI
+	@mcopy -i $@@@2048s boot/limine.conf ::/limine.conf
+	@mcopy -i $@@@2048s ${KERNEL} ::/vexsys.elf
 
 ${BUILD_DIR}:
 	@mkdir -p $@
