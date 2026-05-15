@@ -1,7 +1,7 @@
 #include <core/amd64.idt.h>
-#include <core/amd64.lapic.h>
 #include <core/arch.interrupts.h>
 #include <core/ireq.h>
+#include <init/initfn.h>
 
 extern void amd64_ireq_30(void);
 extern void amd64_ireq_31(void);
@@ -219,7 +219,7 @@ void __used amd64_ireq_handler(struct interrupt_frame* restrict frame, uint64_t 
     // TODO: send LAPIC EOI
 }
 
-void amd64_init_lapic(void)
+static int init_amd64_ireq(void)
 {
     amd64_set_idt_entry_kern(0x30, 0, &amd64_ireq_30);
     amd64_set_idt_entry_kern(0x31, 0, &amd64_ireq_31);
@@ -429,4 +429,8 @@ void amd64_init_lapic(void)
     amd64_set_idt_entry_kern(0xFD, 0, &amd64_ireq_FD);
     amd64_set_idt_entry_kern(0xFE, 0, &amd64_ireq_FE);
     amd64_set_idt_entry_kern(0xFF, 0, &amd64_ireq_FF);
+
+    return 0;
 }
+
+DEFINE_INITFN(init_amd64_ireq, INITFN_CAT_ARCH, INITFN_ORDER_MIDDLE);

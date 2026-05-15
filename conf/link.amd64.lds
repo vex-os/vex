@@ -35,6 +35,12 @@ SECTIONS
         *(.rodata.*)
     } :rodata
 
+    .initfn : {
+        initfns_start = .;
+        *(SORT(.initfn.*))
+        initfns_end = .;
+    } :rodata
+
     rodata_end = .;
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));

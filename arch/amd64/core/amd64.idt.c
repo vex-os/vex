@@ -4,6 +4,7 @@
 #include <core/assert.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
+#include <init/initfn.h>
 #include <lib/string.h>
 
 #define IDT_TRAP    (0x0F << 0)
@@ -119,7 +120,7 @@ void amd64_unset_idt_entry(unsigned int vector)
     memset(&idt[vector], 0, sizeof(struct idt_entry));
 }
 
-void amd64_init_idt(void)
+static int init_amd64_idt(void)
 {
     memset(idt, 0, sizeof(idt));
 
@@ -162,4 +163,8 @@ void amd64_init_idt(void)
     asm volatile("lidtq %0" ::"m"(idtr));
 
     kprintf(KP_INFORM, "idt: idtr.size=%zu idtr.offset=%p", (size_t)(idtr.size), (const void*)(idtr.offset));
+
+    return 0;
 }
+
+DEFINE_INITFN(init_amd64_idt, INITFN_CAT_ARCH, INITFN_ORDER_EARLY);

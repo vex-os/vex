@@ -1,5 +1,6 @@
 #include <core/amd64.gdt.h>
 #include <core/kprintf.h>
+#include <init/initfn.h>
 #include <lib/string.h>
 
 #define GDT_READWRITE  (1 << 1)
@@ -63,7 +64,7 @@ static void set_entry_64(uint8_t id, uint8_t flags)
     memcpy(gdt + id, &entry, sizeof(entry));
 }
 
-void amd64_init_gdt(void)
+static int init_amd64_gdt(void)
 {
     uint8_t code_flags = GDT_READWRITE | GDT_NONSYSTEM | GDT_EXECUTABLE;
     uint8_t data_flags = GDT_READWRITE | GDT_NONSYSTEM;
@@ -85,4 +86,8 @@ void amd64_init_gdt(void)
     asm volatile("lgdtq %0" ::"m"(gdtr));
 
     kprintf(KP_INFORM, "gdt: gdtr.size=%zu gdtr.offset=%p", (size_t)(gdtr.size), (const void*)(gdtr.offset));
+
+    return 0;
 }
+
+DEFINE_INITFN(init_amd64_gdt, INITFN_CAT_ARCH, INITFN_ORDER_FIRST);
