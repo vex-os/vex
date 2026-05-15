@@ -1,4 +1,4 @@
-#include <core/arch.ireq.h>
+#include <arch/ireq.h>
 #include <core/errno.h>
 #include <core/ireq.h>
 #include <core/kprintf.h>
