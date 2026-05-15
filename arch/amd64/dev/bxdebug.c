@@ -1,7 +1,7 @@
 #include <core/amd64.pmio.h>
 #include <core/errno.h>
 #include <dev/console.h>
-#include <init/initfunc.h>
+#include <init/initfn.h>
 
 #define BXDEBUG_PORT 0xE9
 #define BXDEBUG_RESP 0xE9
@@ -39,4 +39,4 @@ static int init_bxdebug(void)
     return ENODEV;
 }
 
-initfunc_dev_arch(init_bxdebug);
+DEFINE_INITFN(init_bxdebug, INITFN_CAT_EARLY, INITFN_ORDER_FIRST);

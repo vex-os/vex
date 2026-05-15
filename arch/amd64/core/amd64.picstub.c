@@ -1,8 +1,8 @@
 #include <core/amd64.idt.h>
-#include <core/amd64.picstub.h>
 #include <core/amd64.pmio.h>
 #include <core/arch.interrupts.h>
 #include <core/kprintf.h>
+#include <init/initfn.h>
 
 #define PIC1_COMMAND 0x0020
 #define PIC1_DATA    0x0021
@@ -31,7 +31,7 @@ void __used amd64_spur_handler(struct interrupt_frame* restrict frame, uint64_t 
     kprintf(KP_WARNING, "picstub: spurious interrupt 0x%02zX", (size_t)intvec);
 }
 
-void amd64_init_picstub(void)
+static int init_amd64_picstub(void)
 {
     unsigned int vector;
 
@@ -87,4 +87,8 @@ void amd64_init_picstub(void)
     amd64_set_idt_entry_kern(0x2D, 0, &amd64_spur_2D);
     amd64_set_idt_entry_kern(0x2E, 0, &amd64_spur_2E);
     amd64_set_idt_entry_kern(0x2F, 0, &amd64_spur_2F);
+
+    return 0;
 }
+
+DEFINE_INITFN(init_amd64_picstub, INITFN_CAT_ARCH, INITFN_ORDER_MIDDLE);

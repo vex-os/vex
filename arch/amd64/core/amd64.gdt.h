@@ -20,6 +20,4 @@ static __always_inline __nodiscard inline uint16_t amd64_gdt_selector(uint16_t i
     return ((ring & 4) | ((ldt & 1) << 2) | (index << 3));
 }
 
-extern void amd64_init_gdt(void);
-
 #endif /* FAFBFAA8_6AED_442B_BE3D_AB2AC0D2C60F */

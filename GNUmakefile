@@ -97,6 +97,8 @@ PHONIES += kernel
 
 ALLDEPS += kernel
 
+include GNUmakefile.boot
+
 all: ${ALLDEPS}
 	@true
 
