@@ -1,7 +1,7 @@
-arch/amd64/core/amd64.gdt.c
-arch/amd64/core/amd64.idt.c
-arch/amd64/core/amd64.idts.S
-arch/amd64/core/amd64.ireq.c
-arch/amd64/core/amd64.picstub.c
+arch/amd64/amd64/gdt.c
+arch/amd64/amd64/idt.c
+arch/amd64/amd64/idts.S
+arch/amd64/amd64/ireq.c
+arch/amd64/amd64/picstub.c
 
 arch/amd64/dev/bxdebug.c optional bxdebug

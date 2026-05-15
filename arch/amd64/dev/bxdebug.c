@@ -1,4 +1,4 @@
-#include <core/amd64.pmio.h>
+#include <amd64/pmio.h>
 #include <core/errno.h>
 #include <dev/console.h>
 #include <init/initfn.h>
@@ -12,7 +12,7 @@ static void bxdebug_write(struct console_driver* restrict driver, const void* re
     const char* psz = data;
 
     for(i = 0; i < size; ++i) {
-        amd64_pmwrite8(BXDEBUG_PORT, psz[i]);
+        pmwrite8(BXDEBUG_PORT, psz[i]);
     }
 }
 
@@ -32,7 +32,7 @@ static struct console_driver bxdebug_driver = {
 
 static int init_bxdebug(void)
 {
-    if(BXDEBUG_RESP == amd64_pmread8(BXDEBUG_PORT)) {
+    if(BXDEBUG_RESP == pmread8(BXDEBUG_PORT)) {
         return register_console_driver(&bxdebug_driver);
     }
 
