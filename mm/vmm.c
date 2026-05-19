@@ -29,247 +29,169 @@
 #error Unknown architecture
 #endif
 
-static volatile __used __section(".limine_requests") struct limine_paging_mode_request paging_mode_request = {
+static volatile __used __section(".limine_requests") struct limine_paging_mode_request paging_mode = {
     .id = LIMINE_PAGING_MODE_REQUEST_ID,
     .revision = 2,
-    .min_mode = PAGING_LEVEL_3,
-    .max_mode = PAGING_LEVEL_5,
+    .mode = PAGING_LEVEL_5,
 };
+
+static bool pagemap_lvl3 = false;
+static bool pagemap_lvl4 = false;
+static bool pagemap_lvl5 = false;
 
 struct pagemap sys_pagemap;
 
-static __nodiscard pmentry_t* alloc_table(void)
+static size_t pmentry_index(uintptr_t virt, uintptr_t mask, uintptr_t shift)
 {
-    pmentry_t* result = pslab_alloc_virt();
-
-    if(result) {
-        memset(result, 0, PAGE_SIZE);
-    }
-
-    return result;
+    // This assumes the target architecture uses
+    // x86-like pmentry_t format where a part of the virtual
+    // address is an index of a specific level page table.
+    // This should work without a fuss on both ARM64 and RISC-V.
+    return (size_t)((virt & (mask << shift)) >> shift);
 }
 
-static pmentry_t* lookup_entry(pmentry_t* restrict table, uintptr_t virt, int levels, int stop, bool allocate)
+static pmentry_t* get_pmentry(pmentry_t* restrict table, size_t index, bool allocate)
 {
-    int level;
-    size_t index;
-    pmentry_t entry;
-    pmentry_t* child;
+    pmentry_t* entry;
+    uintptr_t address;
 
-    for(level = levels; level > stop; level -= 1) {
-        index = pmentry_index(virt, level);
-        entry = table[index];
+    if(!pmentry_valid(table[index])) {
+        if(allocate) {
+            address = pslab_alloc();
 
-        if(pmentry_is_valid(entry)) {
-            if(pmentry_is_leaf(entry))
-                return &table[index];
-            table = phys_to_virt(pmentry_address(entry));
-        }
-        else if(allocate) {
-            child = alloc_table();
+            if(address) {
+                table[index] = make_pmentry(address, VPROT_URWX);
+                entry = phys_to_virt(address);
 
-            if(child == NULL) {
-                return NULL;
+                memset(entry, 0, PAGE_SIZE);
+
+                return entry;
             }
-
-            table[index] = make_pmentry(virt_to_phys(child), VPROT_URWX);
-            table = child;
         }
-        else {
+
+        return NULL;
+    }
+
+    return phys_to_virt(pmentry_address(table[index]));
+}
+
+static pmentry_t* lookup_pmentry(pmentry_t* restrict table, uintptr_t virt, bool allocate)
+{
+    size_t index;
+
+    if(pagemap_lvl5) {
+        index = pmentry_index(virt, PMENTRY_LVL5_MASK, PMENTRY_LVL5_SHIFT);
+        table = get_pmentry(table, index, allocate);
+
+        if(table == NULL) {
             return NULL;
         }
     }
 
-    return &table[pmentry_index(virt, stop)];
-}
+    if(pagemap_lvl4) {
+        index = pmentry_index(virt, PMENTRY_LVL4_MASK, PMENTRY_LVL4_SHIFT);
+        table = get_pmentry(table, index, allocate);
 
-static void free_subtables(pmentry_t* restrict table, int level)
-{
-    size_t i;
-    pmentry_t entry;
-    pmentry_t* child;
-
-    if(level > 1) {
-        for(i = 0; i < PAGEMAP_KERN; ++i) {
-            entry = table[i];
-
-            if(pmentry_is_valid(entry) && !pmentry_is_leaf(entry)) {
-                child = phys_to_virt(pmentry_address(entry));
-                free_subtables(child, level - 1);
-                pslab_free_virt(child);
-            }
-        }
-    }
-}
-
-static int clone_subtables(pmentry_t* restrict dest, const pmentry_t* restrict src, int level)
-{
-    size_t i;
-    pmentry_t entry;
-    pmentry_t* child_src;
-    pmentry_t* child_dest;
-    int retval;
-
-    for(i = 0; i < PAGEMAP_KERN; ++i) {
-        entry = src[i];
-
-        if(!pmentry_is_valid(entry)) {
-            continue;
-        }
-
-        if(level <= 1 || pmentry_is_leaf(entry)) {
-            dest[i] = entry;
-        }
-        else {
-            child_src = phys_to_virt(pmentry_address(entry));
-            child_dest = alloc_table();
-
-            if(child_dest == NULL) {
-                return ENOMEM;
-            }
-
-            dest[i] = make_pmentry(virt_to_phys(child_dest), VPROT_URWX);
-            retval = clone_subtables(child_dest, child_src, level - 1);
-
-            if(retval) {
-                return retval;
-            }
+        if(table == NULL) {
+            return NULL;
         }
     }
 
-    return 0;
+    if(pagemap_lvl3) {
+        index = pmentry_index(virt, PMENTRY_LVL3_MASK, PMENTRY_LVL3_SHIFT);
+        table = get_pmentry(table, index, allocate);
+
+        if(table == NULL) {
+            return NULL;
+        }
+    }
+
+    index = pmentry_index(virt, PMENTRY_LVL2_MASK, PMENTRY_LVL2_SHIFT);
+    table = get_pmentry(table, index, allocate);
+
+    if(table == NULL) {
+        return NULL;
+    }
+
+    index = pmentry_index(virt, PMENTRY_LVL1_MASK, PMENTRY_LVL1_SHIFT);
+    return &table[index];
 }
 
-static void cow_subtables(pmentry_t* restrict vma, pmentry_t* restrict vmb, int level)
+static void pmentry_collapse(pmentry_t* restrict table, size_t begin, size_t end, unsigned int level)
 {
     size_t i;
-    pmentry_t entry;
-    pmentry_t readonly;
-    pmentry_t* c_vma;
-    pmentry_t* c_vmb;
-    unsigned int vprot;
+    pmentry_t* next;
 
-    for(i = 0; i < PAGEMAP_KERN; ++i) {
-        entry = vma[i];
+    if(level) {
+        for(i = begin; i < end; ++i) {
+            next = lookup_pmentry(table, i, false);
 
-        if(!pmentry_is_valid(entry)) {
-            continue;
-        }
-
-        if(level <= 1 || pmentry_is_leaf(entry)) {
-            vprot = VPROT_READ | VPROT_USER;
-
-            if(pmentry_is_leaf(entry)) {
-                switch(level) {
-                    case 2:
-                        vprot |= VPROT_BIG1;
-                        break;
-
-                    case 3:
-                        vprot |= VPROT_BIG2;
-                        break;
-                }
+            if(next) {
+                pmentry_collapse(next, 0U, PAGEMAP_SIZE, level - 1U);
             }
+        }
 
-            readonly = make_pmentry(pmentry_address(entry), vprot);
-            vma[i] = readonly;
-            vmb[i] = readonly;
-        }
-        else {
-            c_vma = phys_to_virt(pmentry_address(vma[i]));
-            c_vmb = phys_to_virt(pmentry_address(vmb[i]));
-            cow_subtables(c_vma, c_vmb, level - 1);
-        }
+        pslab_free_virt(table);
     }
 }
 
 struct pagemap* vmm_create(void)
 {
     size_t i;
-    pmentry_t* root;
-    struct pagemap* vm;
+    struct pagemap* vm = slab_alloc(sizeof(struct pagemap));
 
-    root = alloc_table();
+    if(vm) {
+        vm->virt = pslab_alloc_virt();
+        vm->phys = virt_to_phys(vm->virt);
 
-    if(root == NULL) {
-        return NULL;
+        if(vm->virt) {
+            memset(vm->virt, 0, PAGE_SIZE);
+
+            for(i = PAGEMAP_KERN; i < PAGEMAP_SIZE; ++i) {
+                // PATCHME: implement a trampoline so the userspace
+                // cannot see the kernel memory mappings directly
+                vm->virt[i] = sys_pagemap.virt[i];
+            }
+
+            return vm;
+        }
     }
 
-    vm = slab_alloc(sizeof(struct pagemap));
-
-    if(vm == NULL) {
-        pslab_free_virt(root);
-        return NULL;
-    }
-
-    // Share pre-allocated kernel higher-half entries
-    for(i = PAGEMAP_KERN; i < PAGEMAP_SIZE; ++i) {
-        root[i] = sys_pagemap.virt[i];
-    }
-
-    vm->virt = root;
-    vm->phys = virt_to_phys(root);
-    vm->levels = sys_pagemap.levels;
-
-    return vm;
+    return NULL;
 }
 
-struct pagemap* vmm_fork(const struct pagemap* restrict stem)
+struct pagemap* vmm_fork(const struct pagemap* restrict parent)
 {
-    struct pagemap* vm = vmm_clone(stem);
-
-    if(vm == NULL) {
-        return NULL;
-    }
-
-    cow_subtables(stem->virt, vm->virt, vm->levels);
-
-    return vm;
+    panic("vmm_fork is not implemented");
+    unreachable();
 }
 
 struct pagemap* vmm_clone(const struct pagemap* restrict stem)
 {
-    size_t i;
-    int retval;
-    pmentry_t* root;
-    struct pagemap* vm;
-
-    root = alloc_table();
-
-    if(root == NULL) {
-        return NULL;
-    }
-
-    vm = slab_alloc(sizeof(struct pagemap));
-
-    if(vm == NULL) {
-        pslab_free_virt(root);
-        return NULL;
-    }
-
-    retval = clone_subtables(root, stem->virt, stem->levels);
-
-    if(retval) {
-        free_subtables(root, stem->levels);
-        pslab_free_virt(root);
-        slab_free(vm);
-        return NULL;
-    }
-
-    for(i = PAGEMAP_KERN; i < PAGEMAP_SIZE; ++i) {
-        root[i] = sys_pagemap.virt[i];
-    }
-
-    vm->virt = root;
-    vm->phys = virt_to_phys(root);
-    vm->levels = stem->levels;
-
-    return vm;
+    panic("vmm_clone is not implemented");
+    unreachable();
 }
 
 void vmm_destroy(struct pagemap* restrict vm)
 {
-    free_subtables(vm->virt, vm->levels);
+    if(pagemap_lvl5) {
+        pmentry_collapse(vm->virt, 0U, PAGEMAP_KERN, 5U);
+        goto cleanup;
+    }
+
+    if(pagemap_lvl4) {
+        pmentry_collapse(vm->virt, 0U, PAGEMAP_KERN, 4U);
+        goto cleanup;
+    }
+
+    if(pagemap_lvl3) {
+        pmentry_collapse(vm->virt, 0U, PAGEMAP_KERN, 3U);
+        goto cleanup;
+    }
+
+    pmentry_collapse(vm->virt, 0U, PAGEMAP_KERN, 2U);
+
+cleanup:
     pslab_free_virt(vm->virt);
     slab_free(vm);
 }
@@ -281,205 +203,183 @@ void vmm_switch(const struct pagemap* restrict vm)
 
 int vmm_map(struct pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigned int vprot)
 {
-    int stop = pmentry_level(vprot);
-    pmentry_t* entry = lookup_entry(vm->virt, virt, vm->levels, stop, true);
+    pmentry_t* entry = lookup_pmentry(vm->virt, virt, true);
 
-    if(entry == NULL) {
-        return ENOMEM;
+    if(entry) {
+        if(!pmentry_valid(entry[0])) {
+            entry[0] = make_pmentry(page_align(phys), vprot);
+            return 0;
+        }
+
+        return EINVAL;
     }
 
-    if(pmentry_is_valid(*entry)) {
-        return EEXIST;
-    }
-
-    *entry = make_pmentry(page_align(phys), vprot);
-
-    return 0;
+    return ENOMEM;
 }
 
 int vmm_patch(struct pagemap* restrict vm, uintptr_t virt, unsigned int vprot)
 {
-    pmentry_t* entry = lookup_entry(vm->virt, virt, vm->levels, 1, false);
+    pmentry_t* entry = lookup_pmentry(vm->virt, virt, false);
 
-    if(entry == NULL || !pmentry_is_valid(*entry)) {
-        return ENOENT;
+    if(entry) {
+        if(pmentry_valid(entry[0])) {
+            entry[0] = make_pmentry(pmentry_address(entry[0]), vprot);
+            return 0;
+        }
+
+        return EINVAL;
     }
 
-    *entry = make_pmentry(pmentry_address(*entry), vprot);
-    pagemap_flush_virt(virt);
-    return 0;
+    return ENOMEM;
 }
 
 int vmm_unmap(struct pagemap* restrict vm, uintptr_t virt)
 {
-    pmentry_t* entry = lookup_entry(vm->virt, virt, vm->levels, 1, false);
+    pmentry_t* entry = lookup_pmentry(vm->virt, virt, false);
 
-    if(entry == NULL || !pmentry_is_valid(*entry)) {
-        return ENOENT;
+    if(entry) {
+        if(pmentry_valid(entry[0])) {
+            entry[0] = PMENTRY_NULL;
+            return 0;
+        }
+
+        return EINVAL;
     }
 
-    *entry = PMENTRY_NULL;
-    pagemap_flush_virt(virt);
-    return 0;
+    return ENOMEM;
 }
 
 uintptr_t vmm_resolve(const struct pagemap* restrict vm, uintptr_t virt)
 {
-    int level;
-    pmentry_t entry;
-    pmentry_t* table = vm->virt;
-    uintptr_t mask;
+    pmentry_t* entry = lookup_pmentry(vm->virt, virt, false);
 
-    for(level = vm->levels; level >= 1; level -= 1) {
-        entry = table[pmentry_index(virt, level)];
-
-        if(!pmentry_is_valid(entry)) {
-            return 0;
-        }
-
-        if(level == 1 || pmentry_is_leaf(entry)) {
-            mask = ((uintptr_t)(PAGE_SIZE) << (9U * (unsigned)(level - 1))) - 1U;
-            return pmentry_address(entry) | (virt & mask);
-        }
-
-        table = phys_to_virt(pmentry_address(entry));
+    if(entry && pmentry_valid(entry[0])) {
+        return pmentry_address(entry[0]) + (virt & (PAGE_SIZE - 1U));
     }
 
-    return 0;
+    return 0U;
 }
 
-static int vmm_map_range(uintptr_t virt, uintptr_t phys, uintptr_t length, unsigned int base_vprot)
+static int vmm_map_sys_section(const void* restrict start, const void* restrict end, unsigned int vprot)
 {
     int retval;
-    uintptr_t end;
-    uintptr_t remain;
+    uintptr_t phys;
+    uintptr_t virt;
+    uintptr_t virt_end;
 
-    end = virt + length;
+    virt = page_align((uintptr_t)(start));
+    virt_end = page_align_up((uintptr_t)(end));
+    phys = virt - kbase_virt + kbase_phys;
 
-    while(virt < end) {
-        remain = end - virt;
+    while(virt < virt_end) {
+        retval = vmm_map(&sys_pagemap, virt, phys, vprot);
 
-        if(remain >= PAGE_SIZE_BIG2 && (virt & (PAGE_SIZE_BIG2 - 1)) == 0 && (phys & (PAGE_SIZE_BIG2 - 1)) == 0) {
-            retval = vmm_map(&sys_pagemap, virt, phys, base_vprot | VPROT_BIG2);
-            if(retval && retval != EEXIST)
-                return retval;
-            virt += PAGE_SIZE_BIG2;
-            phys += PAGE_SIZE_BIG2;
+        if(retval == 0) {
+            virt += PAGE_SIZE;
+            phys += PAGE_SIZE;
             continue;
         }
 
-        if(remain >= PAGE_SIZE_BIG1 && (virt & (PAGE_SIZE_BIG1 - 1)) == 0 && (phys & (PAGE_SIZE_BIG1 - 1)) == 0) {
-            retval = vmm_map(&sys_pagemap, virt, phys, base_vprot | VPROT_BIG1);
-            if(retval && retval != EEXIST)
-                return retval;
-            virt += PAGE_SIZE_BIG1;
-            phys += PAGE_SIZE_BIG1;
-            continue;
-        }
-
-        retval = vmm_map(&sys_pagemap, virt, phys, base_vprot);
-        if(retval && retval != EEXIST)
-            return retval;
-        virt += PAGE_SIZE;
-        phys += PAGE_SIZE;
+        return retval;
     }
 
     return 0;
 }
 
-static int vmm_map_section(const char* restrict start, const char* restrict end, unsigned int vprot)
+static int vmm_map_sys_memmap(const struct limine_memmap_entry* restrict entry)
 {
-    uintptr_t virt = page_align((uintptr_t)start);
-    uintptr_t virt_end = page_align_up((uintptr_t)end);
-    uintptr_t phys = virt - kbase_virt + kbase_phys;
-    return vmm_map_range(virt, phys, virt_end - virt, vprot);
-}
+    int retval;
+    uintptr_t phys;
+    uintptr_t virt;
+    uintptr_t virt_end;
 
-static int vmm_map_memmap_entry(const struct limine_memmap_entry* restrict entry)
-{
-    uintptr_t phys = page_align(entry->base);
-    uintptr_t virt = phys + hhdm_base;
-    uintptr_t length = page_align_up(entry->base + entry->length) - phys;
-    return vmm_map_range(virt, phys, length, VPROT_KRW);
+    phys = page_align(entry->base);
+    virt = page_align(entry->base) + hhdm_base;
+    virt_end = page_align_up(virt + entry->length);
+
+    while(virt < virt_end) {
+        retval = vmm_map(&sys_pagemap, virt, phys, VPROT_RWX);
+
+        if(retval == 0 || retval == EINVAL) {
+            virt += PAGE_SIZE;
+            phys += PAGE_SIZE;
+            continue;
+        }
+
+        return retval;
+    }
+
+    return 0;
+
+    return EINVAL;
 }
 
 static int init_vmm(void)
 {
     size_t i;
-    int levels;
     int retval;
-    uint64_t mode;
-    pmentry_t* root;
-    pmentry_t* child;
 
-    if(paging_mode_request.response == NULL) {
-        panic("bootloader did not negotiate paging mode");
+    pagemap_lvl3 = false;
+    pagemap_lvl4 = false;
+    pagemap_lvl5 = false;
+
+    if(paging_mode.response->mode >= PAGING_LEVEL_3)
+        pagemap_lvl3 = true;
+    if(paging_mode.response->mode >= PAGING_LEVEL_4)
+        pagemap_lvl4 = true;
+    if(paging_mode.response->mode >= PAGING_LEVEL_5)
+        pagemap_lvl5 = true;
+
+    sys_pagemap.virt = pslab_alloc_virt();
+    sys_pagemap.phys = virt_to_phys(sys_pagemap.virt);
+
+    if(sys_pagemap.virt == NULL) {
+        panic("vmm: out of memory: sys_pagemap.virt");
+        unreachable();
     }
 
-    mode = paging_mode_request.response->mode;
-
-    if(mode >= PAGING_LEVEL_5) {
-        levels = 5;
-    }
-    else if(mode >= PAGING_LEVEL_4) {
-        levels = 4;
-    }
-    else if(mode >= PAGING_LEVEL_3) {
-        levels = 3;
-    }
-    else {
-        panic("unsupported paging mode %zu", (size_t)(mode));
-    }
-
-    root = alloc_table();
-
-    if(root == NULL) {
-        panic("vmm: out of memory allocating sys_pagemap root");
-    }
-
-    sys_pagemap.virt = root;
-    sys_pagemap.phys = virt_to_phys(root);
-    sys_pagemap.levels = levels;
+    memset(sys_pagemap.virt, 0, PAGE_SIZE);
 
     for(i = PAGEMAP_KERN; i < PAGEMAP_SIZE; ++i) {
-        child = alloc_table();
-
-        if(child == NULL) {
-            panic("vmm: out of memory preallocating kernel entries");
+        if(NULL == get_pmentry(sys_pagemap.virt, i, true)) {
+            panic("vmm: out of memory: sys_pagemap.virt[%zu]", i);
+            unreachable();
         }
-
-        root[i] = make_pmentry(virt_to_phys(child), VPROT_KRW);
     }
 
-    retval = vmm_map_section(text_start, text_end, VPROT_KRX);
+    retval = vmm_map_sys_section(&text_start, &text_end, VPROT_RX);
 
     if(retval) {
-        panic("vmm: failed to map .text: %d", retval);
+        panic("vmm: failed to map kernel section [text]: %s", strerror(retval));
+        unreachable();
     }
 
-    retval = vmm_map_section(rodata_start, rodata_end, VPROT_READ);
+    retval = vmm_map_sys_section(&rodata_start, &rodata_end, VPROT_READ);
 
     if(retval) {
-        panic("vmm: failed to map .rodata: %d", retval);
+        panic("vmm: failed to map kernel section [rodata]: %s", strerror(retval));
+        unreachable();
     }
 
-    retval = vmm_map_section(data_start, data_end, VPROT_KRW);
+    retval = vmm_map_sys_section(&data_start, &data_end, VPROT_RW);
 
     if(retval) {
-        panic("vmm: failed to map .data: %d", retval);
+        panic("vmm: failed to map kernel section [data]: %s", strerror(retval));
+        unreachable();
     }
 
-    for(i = 0; i < memmap->entry_count; ++i) {
-        retval = vmm_map_memmap_entry(memmap->entries[i]);
+    for(i = 0U; i < memmap->entry_count; ++i) {
+        retval = vmm_map_sys_memmap(memmap->entries[i]);
 
-        if(retval) {
-            panic("vmm: failed to map memmap entry %zu: %d", i, retval);
+        if(retval && retval != EINVAL) {
+            panic("vmm: failed to map memory map entry [%zu]: %s", i, strerror(retval));
+            unreachable();
         }
     }
 
     vmm_switch(&sys_pagemap);
 
-    kprintf(KP_INFORM, "vmm: active, sys_pagemap phys=%p levels=%d", (const void*)sys_pagemap.phys, sys_pagemap.levels);
+    kprintf(KP_INFORM, "vmm: sys_pagemap=%p", (const void*)(sys_pagemap.phys));
 
     return 0;
 }
