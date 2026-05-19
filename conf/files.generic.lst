@@ -15,3 +15,8 @@ lib/sprintf.c
 lib/stdlib.c
 lib/string.c
 lib/strings.c
+
+mm/hhdm.c
+mm/memmap.c
+mm/pdma.c
+mm/pslab.c
