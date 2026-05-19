@@ -8,7 +8,7 @@
 
 struct pagemap {
     pmentry_t* virt;
-    uintptr_t phys;
+    struct pagemap_arch arch;
 };
 
 extern struct pagemap sys_pagemap;

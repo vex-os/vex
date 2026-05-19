@@ -3,6 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <mm/hhdm.h>
 #include <mm/vprot.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -36,6 +37,15 @@
 
 typedef uint64_t pmentry_t;
 
+struct pagemap_arch {
+    uintptr_t phys; // CR3 value
+};
+
+static __always_inline inline void pagemap_arch_init(struct pagemap_arch* arch, const pmentry_t* virt_root)
+{
+    arch->phys = virt_to_phys(virt_root);
+}
+
 static __always_inline __nodiscard inline int pmentry_valid(pmentry_t entry)
 {
     return (int)(entry & X86_PML_PRESENT);
@@ -64,9 +74,9 @@ static __always_inline __nodiscard inline pmentry_t make_pmentry(uintptr_t addre
     return entry;
 }
 
-static __always_inline inline void pagemap_switch(uintptr_t address)
+static __always_inline inline void pagemap_switch(const struct pagemap_arch* arch)
 {
-    asm volatile("movq %0, %%cr3" ::"r"(address) : "memory");
+    asm volatile("movq %0, %%cr3" ::"r"(arch->phys) : "memory");
 }
 
 #endif /* B6FB278B_E0A1_44C4_A880_6A58A985FBDC */
