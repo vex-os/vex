@@ -2,7 +2,6 @@
 #include <init/initfn.h>
 #include <lib/limine.h>
 #include <mm/hhdm.h>
-
 #include <stddef.h>
 
 uintptr_t hhdm_base;

@@ -2,7 +2,6 @@
 #define FD177992_9E0F_4161_81C4_364624A1E1F6
 
 #include <core/cdefs.h>
-
 #include <stddef.h>
 #include <stdint.h>
 

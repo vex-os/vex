@@ -2,7 +2,6 @@
 #define FAFBFAA8_6AED_442B_BE3D_AB2AC0D2C60F
 
 #include <core/cdefs.h>
-
 #include <stdint.h>
 
 #define GDT_NULL_SEGMENT 0x00

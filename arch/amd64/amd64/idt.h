@@ -2,7 +2,6 @@
 #define A9515567_5D7D_43CC_B819_83FC461E4E97
 
 #include <core/cdefs.h>
-
 #include <stdint.h>
 
 #define IDT_SIZE 256
