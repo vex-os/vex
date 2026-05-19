@@ -120,18 +120,18 @@ static pmentry_t* lookup_pmentry(pmentry_t* restrict table, uintptr_t virt, bool
 static void pmentry_collapse(pmentry_t* restrict table, size_t begin, size_t end, unsigned int level)
 {
     size_t i;
-    pmentry_t* next;
+    pmentry_t* child;
 
-    if(level) {
-        for(i = begin; i < end; ++i) {
-            next = lookup_pmentry(table, i, false);
+    if(level == 0U) {
+        return;
+    }
 
-            if(next) {
-                pmentry_collapse(next, 0U, PAGEMAP_SIZE, level - 1U);
-            }
+    for(i = begin; i < end; ++i) {
+        if(pmentry_valid(table[i])) {
+            child = phys_to_virt(pmentry_address(table[i]));
+            pmentry_collapse(child, 0U, PAGEMAP_SIZE, level - 1U);
+            pslab_free_virt(child);
         }
-
-        pslab_free_virt(table);
     }
 }
 
@@ -142,9 +142,9 @@ struct pagemap* vmm_create(void)
 
     if(vm) {
         vm->virt = pslab_alloc_virt();
-        vm->phys = virt_to_phys(vm->virt);
 
         if(vm->virt) {
+            pagemap_arch_init(&vm->arch, vm->virt);
             memset(vm->virt, 0, PAGE_SIZE);
 
             for(i = PAGEMAP_KERN; i < PAGEMAP_SIZE; ++i) {
@@ -174,31 +174,29 @@ struct pagemap* vmm_clone(const struct pagemap* restrict stem)
 
 void vmm_destroy(struct pagemap* restrict vm)
 {
+    unsigned int level;
+
     if(pagemap_lvl5) {
-        pmentry_collapse(vm->virt, 0U, PAGEMAP_KERN, 5U);
-        goto cleanup;
+        level = 4U;
+    }
+    else if(pagemap_lvl4) {
+        level = 3U;
+    }
+    else if(pagemap_lvl3) {
+        level = 2U;
+    }
+    else {
+        level = 1U;
     }
 
-    if(pagemap_lvl4) {
-        pmentry_collapse(vm->virt, 0U, PAGEMAP_KERN, 4U);
-        goto cleanup;
-    }
-
-    if(pagemap_lvl3) {
-        pmentry_collapse(vm->virt, 0U, PAGEMAP_KERN, 3U);
-        goto cleanup;
-    }
-
-    pmentry_collapse(vm->virt, 0U, PAGEMAP_KERN, 2U);
-
-cleanup:
+    pmentry_collapse(vm->virt, 0U, PAGEMAP_KERN, level);
     pslab_free_virt(vm->virt);
     slab_free(vm);
 }
 
 void vmm_switch(const struct pagemap* restrict vm)
 {
-    pagemap_switch(vm->phys);
+    pagemap_switch(&vm->arch);
 }
 
 int vmm_map(struct pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigned int vprot)
@@ -340,7 +338,7 @@ static int init_vmm(void)
         unreachable();
     }
 
-    sys_pagemap.phys = virt_to_phys(sys_pagemap.virt);
+    pagemap_arch_init(&sys_pagemap.arch, sys_pagemap.virt);
 
     memset(sys_pagemap.virt, 0, PAGE_SIZE);
 
@@ -383,7 +381,9 @@ static int init_vmm(void)
 
     vmm_switch(&sys_pagemap);
 
-    kprintf(KP_INFORM, "vmm: sys_pagemap=%p", (const void*)(sys_pagemap.phys));
+#if __amd64__
+    kprintf(KP_INFORM, "vmm: sys_pagemap=%p", (const void*)(sys_pagemap.arch.phys));
+#endif
 
     return 0;
 }
