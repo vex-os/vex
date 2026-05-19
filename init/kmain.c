@@ -4,7 +4,12 @@
 #include <core/panic.h>
 #include <core/version.h>
 #include <init/initfn.h>
+#include <lib/limine.h>
 #include <lib/string.h>
+
+static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
+static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
+static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
 static void call_all_initfns(void)
 {

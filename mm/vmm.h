@@ -9,7 +9,6 @@
 struct pagemap {
     pmentry_t* virt;
     uintptr_t phys;
-    int levels;
 };
 
 extern struct pagemap sys_pagemap;

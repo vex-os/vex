@@ -19,9 +19,6 @@ qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -machine type=q35"
 qargs="${qargs} -vga std"
 qargs="${qargs} -m 512M"
-#qargs="${qargs} -d cpu_reset -no-reboot -no-shutdown"
-#qargs="${qargs} -d int"
+qargs="${qargs} -d cpu_reset,int -no-reboot -no-shutdown"
 
-${QEMU_EXECUTABLE} ${qargs} || exit 1
-
-printf "\n"
+{ ${QEMU_EXECUTABLE} ${qargs} 2>&1; printf "\n"; } | tee qemu.log
