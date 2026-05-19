@@ -310,8 +310,6 @@ static int vmm_map_sys_memmap(const struct limine_memmap_entry* restrict entry)
     }
 
     return 0;
-
-    return EINVAL;
 }
 
 static int init_vmm(void)
@@ -323,6 +321,11 @@ static int init_vmm(void)
     pagemap_lvl4 = false;
     pagemap_lvl5 = false;
 
+    if(paging_mode.response == NULL) {
+        panic("vmm: bootloader did not negotiate paging mode");
+        unreachable();
+    }
+
     if(paging_mode.response->mode >= PAGING_LEVEL_3)
         pagemap_lvl3 = true;
     if(paging_mode.response->mode >= PAGING_LEVEL_4)
@@ -330,15 +333,14 @@ static int init_vmm(void)
     if(paging_mode.response->mode >= PAGING_LEVEL_5)
         pagemap_lvl5 = true;
 
-    kprintf(KP_ALERT, "%d%d%d", (int)pagemap_lvl3, (int)pagemap_lvl4, (int)pagemap_lvl5);
-
     sys_pagemap.virt = pslab_alloc_virt();
-    sys_pagemap.phys = virt_to_phys(sys_pagemap.virt);
 
     if(sys_pagemap.virt == NULL) {
         panic("vmm: out of memory: sys_pagemap.virt");
         unreachable();
     }
+
+    sys_pagemap.phys = virt_to_phys(sys_pagemap.virt);
 
     memset(sys_pagemap.virt, 0, PAGE_SIZE);
 

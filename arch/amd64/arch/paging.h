@@ -67,7 +67,6 @@ static __always_inline __nodiscard inline pmentry_t make_pmentry(uintptr_t addre
 static __always_inline inline void pagemap_switch(uintptr_t address)
 {
     asm volatile("movq %0, %%cr3" ::"r"(address) : "memory");
-    asm volatile("invlpg (%%rip)" ::: "memory");
 }
 
 #endif /* B6FB278B_E0A1_44C4_A880_6A58A985FBDC */
