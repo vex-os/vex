@@ -2,7 +2,6 @@
 #define B2DB992B_AE8D_4321_9537_2CA2CF4F59F5
 
 #include <core/cdefs.h>
-
 #include <stdint.h>
 
 static __always_inline inline uint8_t pmread8(uintptr_t offset)

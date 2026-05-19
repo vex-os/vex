@@ -2,7 +2,6 @@
 #define D02B0642_A8FA_4DDB_87E1_45838B67458F
 
 #include <core/cdefs.h>
-
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>

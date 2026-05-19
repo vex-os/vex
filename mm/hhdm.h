@@ -3,7 +3,6 @@
 #pragma once
 
 #include <core/cdefs.h>
-
 #include <stdint.h>
 
 extern uintptr_t hhdm_base;

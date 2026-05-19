@@ -2,7 +2,6 @@
 #define B2E72E76_5D2F_43BF_A8B3_80677A7ECE4C
 
 #include <core/cdefs.h>
-
 #include <stddef.h>
 #include <stdint.h>
 

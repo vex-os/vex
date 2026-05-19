@@ -1,6 +1,5 @@
 #include <lib/format.h>
 #include <lib/sprintf.h>
-
 #include <stdint.h>
 
 struct fmtbuf {

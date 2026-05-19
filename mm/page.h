@@ -3,9 +3,7 @@
 #pragma once
 
 #include <arch/limits.h>
-
 #include <core/cdefs.h>
-
 #include <stddef.h>
 #include <stdint.h>
 

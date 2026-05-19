@@ -17,6 +17,9 @@ lib/string.c
 lib/strings.c
 
 mm/hhdm.c
+mm/kbase.c
 mm/memmap.c
 mm/pdma.c
 mm/pslab.c
+mm/slab.c
+mm/vmm.c

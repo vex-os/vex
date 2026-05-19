@@ -2,7 +2,6 @@
 #define BECC41D1_6D4B_4AC8_AAE9_441C37E140AB
 
 #include <core/cdefs.h>
-
 #include <stdarg.h>
 
 extern void fpanic(const char* restrict file, unsigned long line, const char* restrict fmt, ...) __noreturn __printflike(3, 4);

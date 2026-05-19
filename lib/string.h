@@ -2,7 +2,6 @@
 #define B7AE4B7F_54AE_433C_9BA4_36A2569AF05A
 
 #include <core/cdefs.h>
-
 #include <stddef.h>
 
 extern const void* memchr(const void* restrict buf, int chr, size_t sz) __nodiscard;

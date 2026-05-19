@@ -2,7 +2,6 @@
 #define BEBA1DCE_0EF3_45A9_99D0_F1BE21A28D88
 
 #include <core/cdefs.h>
-
 #include <stddef.h>
 
 extern char* kstrncat(char* restrict dst, const char* restrict src, size_t sz);
