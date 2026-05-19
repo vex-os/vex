@@ -122,6 +122,7 @@ static int init_pdma(void)
 
     size_t bitmap_size;
     size_t bitmap_npages = 0U;
+    uintptr_t bitmap_phys = 0U;
 
     for(i = 0U; i < memmap->entry_count; ++i) {
         entry = memmap->entries[i];
@@ -136,8 +137,9 @@ static int init_pdma(void)
                     info.npages = page_count(info.length);
                 }
 
-                if(info.npages > bitmap_npages)
-                    bitmap_npages = info.npages;
+                if((info.end / PAGE_SIZE + 1U) > bitmap_npages) {
+                    bitmap_npages = info.end / PAGE_SIZE + 1U;
+                }
             }
         }
     }
@@ -155,8 +157,9 @@ static int init_pdma(void)
             get_memmap_info(entry, &info);
 
             if(info.npages >= bitmap_npages && info.start + bitmap_size <= PDMA_APPROX_END) {
-                pdma_bitmap = phys_to_virt(info.start);
-                add_region(info.start, bitmap_size);
+                bitmap_phys = info.start;
+                pdma_bitmap = phys_to_virt(bitmap_phys);
+                add_region(bitmap_phys, bitmap_size);
                 break;
             }
         }
@@ -183,7 +186,14 @@ static int init_pdma(void)
                 info.length = info.end - info.start + 1U;
             }
 
-            add_region(info.start, info.length);
+            if(info.start == bitmap_phys) {
+                info.start += bitmap_size;
+                info.length -= bitmap_size;
+            }
+
+            if(info.length > 0U) {
+                add_region(info.start, info.length);
+            }
         }
     }
 
