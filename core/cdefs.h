@@ -29,7 +29,7 @@
 #define STRINGIFY(x)   STRINGIFY0(x)
 #define STRING_VA(...) #__VA_ARGS__
 
-#define align_ceil(x, align)  (((x) + (align) - 1) & ~((align) - 1))
-#define align_floor(x, align) ((x) & ~((align) - 1))
+#define align_ceil(x, align)  (((x) + (__typeof__(x))((align) - 1)) & ~(__typeof__(x))((align) - 1))
+#define align_floor(x, align) ((x) & ~(__typeof__(x))((align) - 1))
 
 #endif /* A3F007DC_A45C_452A_9065_57ADF398B430 */
