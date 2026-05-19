@@ -330,6 +330,8 @@ static int init_vmm(void)
     if(paging_mode.response->mode >= PAGING_LEVEL_5)
         pagemap_lvl5 = true;
 
+    kprintf(KP_ALERT, "%d%d%d", (int)pagemap_lvl3, (int)pagemap_lvl4, (int)pagemap_lvl5);
+
     sys_pagemap.virt = pslab_alloc_virt();
     sys_pagemap.phys = virt_to_phys(sys_pagemap.virt);
 
