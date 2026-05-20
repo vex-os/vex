@@ -125,11 +125,8 @@ ${KERNEL}: ${LDSCRIPT} ${OBJECTS} ${OUTPUT_DIR}
 ${BOOTIMG}: ${KERNEL} boot/uefi/BOOT${EFI_ARCH}.EFI boot/limine.conf
 	@printf "  IMAG\t%s\n" "$@"
 	@dd if=/dev/zero of=$@ bs=1M count=${BOOTIMG_SIZE_MIB}
-	@parted $@ mklabel gpt
-	@parted $@ mkpart ESP fat16 2048s 50%
-	@parted $@ mkpart BIOS fat16 50% 100%
-	@parted $@ set 1 esp on
-	@parted $@ set 2 bios_grub on
+	@printf 'label: gpt\nstart=2048,size=%d,type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B,name=ESP\nstart=0,size=0,type=21686148-6449-6E6F-744E-656564454649,name=BIOS\n' \
+		$$(( ${BOOTIMG_SIZE_MIB} * 1024 / 2 - 2048 )) | sfdisk $@
 	@mkfs.fat -F16 --offset 2048 $@
 	@mmd -i $@@@2048s ::/EFI
 	@mmd -i $@@@2048s ::/EFI/BOOT
