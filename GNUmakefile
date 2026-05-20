@@ -123,7 +123,7 @@ ${KERNEL}: ${LDSCRIPT} ${OBJECTS} ${OUTPUT_DIR}
 
 ${BOOTIMG}: ${KERNEL} boot/uefi/BOOT${EFI_ARCH}.EFI boot/limine.conf
 	@printf "  IMAG\t%s\n" "$@"
-	@sh sh/generate.bootimg.sh $@ ${EFI_ARCH}
+	@${SHELL} sh/generate.bootimg.sh ${KERNEL} ${EFI_ARCH} $@
 
 ${BUILD_DIR}:
 	@mkdir -p $@
