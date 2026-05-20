@@ -18,3 +18,7 @@ __pycache__/*
 
 ## Ignore configuration artifacts
 .configuration.mk
+
+## Ignore stuff that QEMU and other scripts
+## might emit during debugging sessions
+*.log

@@ -72,7 +72,7 @@ static __always_inline __nodiscard inline vm_entry_t vm_entry_init(uintptr_t add
 static __always_inline inline void vm_switch_pagemap(uintptr_t phys)
 {
     asm volatile("movq %0, %%cr3" : : "r"(phys) : "memory");
-    asm volatile("invlpg (%rip)" ::: "memory");
+    asm volatile("invlpg (%%rip)" ::: "memory");
 }
 
 #endif /* B6FB278B_E0A1_44C4_A880_6A58A985FBDC */

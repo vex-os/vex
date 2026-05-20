@@ -21,4 +21,4 @@ qargs="${qargs} -vga std"
 qargs="${qargs} -m 512M"
 qargs="${qargs} -d cpu_reset,int -no-reboot -no-shutdown"
 
-{ ${QEMU_EXECUTABLE} ${qargs} 2>&1; printf "\n"; } | tee qemu.log
+${QEMU_EXECUTABLE} ${qargs} 2>&1
