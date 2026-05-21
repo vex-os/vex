@@ -4,4 +4,6 @@ arch/amd64/amd64/idts.S
 arch/amd64/amd64/ireq.c
 arch/amd64/amd64/picstub.c
 
+arch/amd64/arch/vmm.c
+
 arch/amd64/dev/bxdebug.c optional bxdebug
