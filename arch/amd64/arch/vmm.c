@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <arch/vmm.h>
 #include <core/assert.h>
 #include <core/errno.h>

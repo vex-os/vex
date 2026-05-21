@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <arch/ireq.h>
 #include <core/errno.h>
 #include <core/ireq.h>

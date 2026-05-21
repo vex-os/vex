@@ -1,5 +1,7 @@
+// SPDX-License-Identifier: BSD-3-Clause
 #ifndef AF47BF7C_48CD_4CD6_A12B_4EC3DE881CA5
 #define AF47BF7C_48CD_4CD6_A12B_4EC3DE881CA5
+#pragma once
 
 #include <core/cdefs.h>
 #include <stdarg.h>

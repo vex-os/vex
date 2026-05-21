@@ -1,5 +1,7 @@
+// SPDX-License-Identifier: BSD-3-Clause
 #ifndef F021F7DB_0BF1_4601_B72B_E7A12F381234
 #define F021F7DB_0BF1_4601_B72B_E7A12F381234
+#pragma once
 
 #include <vex/types.h>
 

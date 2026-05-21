@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <core/kprintf.h>
 #include <dev/console.h>
 #include <lib/format.h>

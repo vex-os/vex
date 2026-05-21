@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <core/version.h>
 
 #ifndef UTSNAME_SYSNAME

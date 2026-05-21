@@ -1,5 +1,7 @@
+// SPDX-License-Identifier: BSD-3-Clause
 #ifndef A11C9C4E_746F_4B83_A57A_B26963B0D836
 #define A11C9C4E_746F_4B83_A57A_B26963B0D836
+#pragma once
 
 #include <vex/errno.h>
 

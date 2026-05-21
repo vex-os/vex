@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <amd64/idt.h>
 #include <arch/interrupts.h>
 #include <core/ireq.h>
