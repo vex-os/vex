@@ -4,7 +4,6 @@
 #include <init/initfn.h>
 #include <lib/limine.h>
 #include <mm/hhdm.h>
-#include <stddef.h>
 
 uintptr_t hhdm_base;
 
@@ -15,7 +14,7 @@ static volatile __used __section(".limine_requests") struct limine_hhdm_request 
 
 static int init_hhdm(void)
 {
-    if(hhdm_request.response == NULL) {
+    if(hhdm_request.response == nullptr) {
         panic("bootloader did not provide HHDM information");
         unreachable();
     }

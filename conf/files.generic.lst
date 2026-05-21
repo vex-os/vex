@@ -4,6 +4,7 @@ core/panic.c
 core/version.c
 
 dev/console.c
+dev/fbcons.c optional fbcons
 
 init/kmain.c
 

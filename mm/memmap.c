@@ -3,7 +3,6 @@
 #include <core/panic.h>
 #include <init/initfn.h>
 #include <mm/memmap.h>
-#include <stddef.h>
 
 const struct limine_memmap_response* memmap;
 
@@ -14,7 +13,7 @@ static volatile __used __section(".limine_requests") struct limine_memmap_reques
 
 static int init_memmap(void)
 {
-    if(memmap_request.response == NULL || memmap_request.response->entry_count == 0) {
+    if(memmap_request.response == nullptr || memmap_request.response->entry_count == 0) {
         panic("no valid memory map provided by bootloader");
         unreachable();
     }

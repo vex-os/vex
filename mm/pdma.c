@@ -11,9 +11,8 @@
 #include <mm/memmap.h>
 #include <mm/page.h>
 #include <mm/pdma.h>
-#include <stddef.h>
 
-static bitmap_t* pdma_bitmap = NULL;
+static bitmap_t* pdma_bitmap = nullptr;
 static size_t pdma_numpages = 0U;
 static size_t pdma_numused = 0U;
 static size_t pdma_lastpage = 0U;
@@ -81,7 +80,7 @@ void* pdma_alloc_virt(size_t numpages)
 {
     uintptr_t address = pdma_alloc(numpages);
     if(address == 0U)
-        return NULL;
+        return nullptr;
     return phys_to_virt(address);
 }
 
@@ -167,7 +166,7 @@ static int init_pdma(void)
         }
     }
 
-    if(pdma_bitmap == NULL) {
+    if(pdma_bitmap == nullptr) {
         panic("pdma: out of memory");
         unreachable();
     }

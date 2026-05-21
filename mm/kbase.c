@@ -4,7 +4,6 @@
 #include <init/initfn.h>
 #include <lib/limine.h>
 #include <mm/kbase.h>
-#include <stddef.h>
 
 uintptr_t kbase_phys;
 uintptr_t kbase_virt;
@@ -16,7 +15,7 @@ static volatile __used __section(".limine_requests") struct limine_executable_ad
 
 static int init_kbase(void)
 {
-    if(kbase_request.response == NULL) {
+    if(kbase_request.response == nullptr) {
         panic("bootloader did not provide executable address information");
         unreachable();
     }

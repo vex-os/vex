@@ -4,7 +4,6 @@
 #include <lib/stdlib.h>
 #include <lib/string.h>
 #include <limits.h>
-#include <stddef.h>
 
 #define F_ZERO_PAD  0x0001 // 0
 #define F_LEFT      0x0002 // -
@@ -160,7 +159,7 @@ static size_t write_str(format_func_t func, void* restrict user, const char* res
     size_t len;
     size_t counter = 0;
 
-    if(s == NULL) {
+    if(s == nullptr) {
         // C standard does not define what happens when you try
         // dereferencing a NULL char pointer. Because NO ONE at INCITS/C
         // expects you to pass a NULL pointer to snprintf... Too bad!
