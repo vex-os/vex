@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <core/panic.h>
 #include <init/initfn.h>
 #include <lib/limine.h>

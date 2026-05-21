@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <arch/halt.h>
 #include <arch/interrupts.h>
 #include <core/kprintf.h>

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
 .section .text
 
 .macro push_interrupt_frame

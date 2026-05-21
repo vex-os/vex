@@ -1,5 +1,7 @@
+// SPDX-License-Identifier: BSD-3-Clause
 #ifndef A3F007DC_A45C_452A_9065_57ADF398B430
 #define A3F007DC_A45C_452A_9065_57ADF398B430
+#pragma once
 
 #include <vex/cdefs.h>
 

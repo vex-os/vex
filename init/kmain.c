@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
 #include <core/cdefs.h>
 #include <core/errno.h>
 #include <core/kprintf.h>

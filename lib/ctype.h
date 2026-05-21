@@ -1,5 +1,7 @@
+// SPDX-License-Identifier: BSD-3-Clause
 #ifndef EF3B2190_ABFB_4621_B0A8_EF49AC4B5C9A
 #define EF3B2190_ABFB_4621_B0A8_EF49AC4B5C9A
+#pragma once
 
 extern int isalnum(int codepoint);
 extern int isalpha(int codepoint);
