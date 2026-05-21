@@ -2,20 +2,25 @@ export LC_ALL=C
 export LANGUAGE=C
 export LANG=C
 
-CONFIG ?= default
-CONFIG_MK := .configuration.mk
+ALLDEPS :=
+PHONIES :=
+CLEAN_S :=
+CLEAN_D :=
 
--include ${CONFIG_MK}
+PYTHON := $(shell command -v python3 2> /dev/null || command -v python 2> /dev/null || command -v py 2> /dev/null)
 
-GIT_REV := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+CONFIGURATION ?= default
+CONFIGURATION_MK := .configuration.mk
+-include ${CONFIGURATION_MK}
+
+${CONFIGURATION_MK}: conf/config.${CONFIGURATION}.conf Configure.py
+	@printf "  CONF\t%s\n" "conf/${CONFIGURATION}.conf"
+	@${PYTHON} Configure.py ${CONFIGURATION}
 
 ARCH ?= amd64
 ENVT ?= clang
-
 SYSNAME ?= Vex
 RELEASE ?= 0.0.2
-
-PYTHON := $(shell command -v python3 2> /dev/null || command -v python 2> /dev/null || command -v py 2> /dev/null)
 
 include conf/envt.${ARCH}.${ENVT}.mk
 
@@ -42,62 +47,49 @@ override CPPFLAGS += -D UTSNAME_MACHINE='"${ARCH}"'
 
 override LDFLAGS += -nostdlib
 
-BUILD_DIR ?= build
-OUTPUT_DIR ?= output
+BUILD_DIR := build
 
-.configuration.mk: conf/config.${CONFIG}.conf Configure.py
-	@printf "  CONF\t%s\n" "conf/${CONFIG}.conf"
-	@${PYTHON} Configure.py ${CONFIG}
-
-${BUILD_DIR}/%.c.o: %.c ${CONFIG_MK} | ${BUILD_DIR}
+${BUILD_DIR}/%.c.o: %.c ${CONFIGURATION_MK} | ${BUILD_DIR}
 	@printf "  CC\t%s\n" "$<"
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-${BUILD_DIR}/%.S.o: %.S ${CONFIG_MK} | ${BUILD_DIR}
+${BUILD_DIR}/%.S.o: %.S ${CONFIGURATION_MK} | ${BUILD_DIR}
 	@printf "  AS\t%s\n" "$<"
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-${BUILD_DIR}/%.s.o: %.s ${CONFIG_MK} | ${BUILD_DIR}
+${BUILD_DIR}/%.s.o: %.s ${CONFIGURATION_MK} | ${BUILD_DIR}
 	@printf "  AS\t%s\n" "$<"
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-${BUILD_DIR}/%.ld: %.lds ${CONFIG_MK} | ${BUILD_DIR}
+${BUILD_DIR}/%.ld: %.lds ${CONFIGURATION_MK} | ${BUILD_DIR}
 	@printf "  CPP\t%s\n" "$<"
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CPPFLAGS} -E -P -xc -D __ASSEMBLER__ $< > $@
 
-ALLDEPS :=
-PHONIES :=
-ROOT_DIR := ${BUILD_DIR}/rootfs
-
-LDSCRIPT := ${BUILD_DIR}/conf/link.${ARCH}.ld
-KERNEL := ${OUTPUT_DIR}/vexsys.elf
-
-BOOTIMG := ${OUTPUT_DIR}/vexsys.boot.img
+LINKER_SCRIPT := ${BUILD_DIR}/conf/link.${ARCH}.ld
+KERNEL_BINARY := ${BUILD_DIR}/vexsys.elf
 
 OBJECTS := ${SOURCES}
-OBJECTS := $(patsubst %,${BUILD_DIR}/%.o,$(OBJECTS))
+OBJECTS := $(patsubst %,${BUILD_DIR}/%.o,${OBJECTS})
 
 CLEAN_S += ${OBJECTS}
-CLEAN_S += ${LDSCRIPT}
-CLEAN_S += ${KERNEL}
-CLEAN_S += ${BOOTIMG}
+CLEAN_S += ${LINKER_SCRIPT}
+CLEAN_S += ${KERNEL_BINARY}
 
-CLEAN_D += ${ROOT_DIR}
-CLEAN_D += ${OUTPUT_DIR}
 CLEAN_D += ${BUILD_DIR}
-CLEAN_D += ${CONFIG_MK}
+CLEAN_D += ${CONFIGURATION_MK}
 
 PHONIES += all
 PHONIES += force
 PHONIES += clean distclean
 PHONIES += kernel
-PHONIES += bootimg
 
 ALLDEPS += kernel
+
+include GNUmakefile.boot
 
 all: ${ALLDEPS}
 	@true
@@ -111,22 +103,15 @@ distclean:
 	@rm -vrf ${CLEAN_S}
 	@rm -vrf ${CLEAN_D}
 
-kernel: ${KERNEL}
+kernel: ${KERNEL_BINARY}
 	@true
 
-bootimg: ${BOOTIMG}
-	@true
-
-${KERNEL}: ${LDSCRIPT} ${OBJECTS} ${OUTPUT_DIR}
+${KERNEL_BINARY}: ${LINKER_SCRIPT} ${OBJECTS} | ${BUILD_DIR}
 	@printf "  LD\t%s\n" "$@"
-	@${LD} ${LDFLAGS} -T ${LDSCRIPT} -o $@ ${OBJECTS}
-
-${BOOTIMG}: ${KERNEL} boot/uefi/BOOT${EFI_ARCH}.EFI boot/limine.conf
-	@printf "  IMAG\t%s\n" "$@"
-	@${SHELL} sh/generate.bootimg.sh ${KERNEL} ${EFI_ARCH} $@
+	@${LD} ${LDFLAGS} -T ${LINKER_SCRIPT} -o $@ ${OBJECTS}
 
 ${BUILD_DIR}:
 	@mkdir -p $@
 
-${OUTPUT_DIR}:
-	@mkdir -p $@
+.DEFAULT_GOAL := all
+.PHONY: ${PHONIES}
