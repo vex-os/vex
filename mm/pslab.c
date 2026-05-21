@@ -8,9 +8,8 @@
 #include <mm/page.h>
 #include <mm/pdma.h>
 #include <mm/pslab.h>
-#include <stddef.h>
 
-static void** pslab_list = NULL;
+static void** pslab_list = nullptr;
 static size_t pslab_numpages = 0U;
 static size_t pslab_numused = 0U;
 
@@ -32,7 +31,7 @@ static void add_region(uintptr_t start, size_t length)
 uintptr_t pslab_alloc(void)
 {
     void* ptr = pslab_alloc_virt();
-    if(ptr == NULL)
+    if(ptr == nullptr)
         return 0U;
     return virt_to_phys(ptr);
 }
@@ -48,7 +47,7 @@ void* pslab_alloc_virt(void)
         return head_ptr;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void pslab_free(uintptr_t physaddr)

@@ -7,7 +7,6 @@
 #include <mm/page.h>
 #include <mm/pdma.h>
 #include <mm/pslab.h>
-#include <stdbool.h>
 
 #define SLAB_BLOCKSIZE(index) ((size_t)((1U << (index)) * sizeof(void*)))
 

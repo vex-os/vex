@@ -28,7 +28,7 @@
         "-pedantic"
       ],
       "compilerPath": "clang",
-      "cStandard": "gnu99"
+      "cStandard": "gnu23"
     }
   ]
 }
