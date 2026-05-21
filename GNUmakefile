@@ -22,6 +22,8 @@ ENVT ?= clang
 SYSNAME ?= Vex
 RELEASE ?= 0.0.2
 
+GIT_REV := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+
 include conf/envt.${ARCH}.${ENVT}.mk
 
 override CFLAGS += -fPIE
