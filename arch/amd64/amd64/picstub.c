@@ -73,22 +73,22 @@ static int AMD64_init_picstub(void)
         pmwrite8(PIC1_COMMAND, 0x20);
     }
 
-    set_idt_entry_kern(0x20, 0, &amd64_spur_20);
-    set_idt_entry_kern(0x21, 0, &amd64_spur_21);
-    set_idt_entry_kern(0x22, 0, &amd64_spur_22);
-    set_idt_entry_kern(0x23, 0, &amd64_spur_23);
-    set_idt_entry_kern(0x24, 0, &amd64_spur_24);
-    set_idt_entry_kern(0x25, 0, &amd64_spur_25);
-    set_idt_entry_kern(0x26, 0, &amd64_spur_26);
-    set_idt_entry_kern(0x27, 0, &amd64_spur_27);
-    set_idt_entry_kern(0x28, 0, &amd64_spur_28);
-    set_idt_entry_kern(0x29, 0, &amd64_spur_29);
-    set_idt_entry_kern(0x2A, 0, &amd64_spur_2A);
-    set_idt_entry_kern(0x2B, 0, &amd64_spur_2B);
-    set_idt_entry_kern(0x2C, 0, &amd64_spur_2C);
-    set_idt_entry_kern(0x2D, 0, &amd64_spur_2D);
-    set_idt_entry_kern(0x2E, 0, &amd64_spur_2E);
-    set_idt_entry_kern(0x2F, 0, &amd64_spur_2F);
+    set_idt_entry_kern(0x20, false, &amd64_spur_20);
+    set_idt_entry_kern(0x21, false, &amd64_spur_21);
+    set_idt_entry_kern(0x22, false, &amd64_spur_22);
+    set_idt_entry_kern(0x23, false, &amd64_spur_23);
+    set_idt_entry_kern(0x24, false, &amd64_spur_24);
+    set_idt_entry_kern(0x25, false, &amd64_spur_25);
+    set_idt_entry_kern(0x26, false, &amd64_spur_26);
+    set_idt_entry_kern(0x27, false, &amd64_spur_27);
+    set_idt_entry_kern(0x28, false, &amd64_spur_28);
+    set_idt_entry_kern(0x29, false, &amd64_spur_29);
+    set_idt_entry_kern(0x2A, false, &amd64_spur_2A);
+    set_idt_entry_kern(0x2B, false, &amd64_spur_2B);
+    set_idt_entry_kern(0x2C, false, &amd64_spur_2C);
+    set_idt_entry_kern(0x2D, false, &amd64_spur_2D);
+    set_idt_entry_kern(0x2E, false, &amd64_spur_2E);
+    set_idt_entry_kern(0x2F, false, &amd64_spur_2F);
 
     return 0;
 }

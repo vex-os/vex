@@ -73,7 +73,7 @@ void __used amd64_isr_handler(struct interrupt_frame* restrict frame, uint64_t i
     unreachable();
 }
 
-void set_idt_entry_kern(unsigned int vector, int is_trap, const void* restrict pfn)
+void set_idt_entry_kern(unsigned int vector, bool trap, const void* restrict pfn)
 {
     struct idt_entry* entry;
 
@@ -87,14 +87,14 @@ void set_idt_entry_kern(unsigned int vector, int is_trap, const void* restrict p
         entry->offset_2 = ((uintptr_t)pfn & 0xFFFFFFFF00000000) >> 32;
         entry->selector = gdt_selector(GDT_KERN_CODE_64, 0, 0);
 
-        entry->flags = is_trap ? IDT_TRAP : IDT_INTR;
+        entry->flags = trap ? IDT_TRAP : IDT_INTR;
 
         entry->flags |= IDT_RING_0;
         entry->flags |= IDT_PRESENT;
     }
 }
 
-void set_idt_entry_user(unsigned int vector, int is_trap, const void* restrict pfn)
+void set_idt_entry_user(unsigned int vector, bool trap, const void* restrict pfn)
 {
     struct idt_entry* entry;
 
@@ -108,7 +108,7 @@ void set_idt_entry_user(unsigned int vector, int is_trap, const void* restrict p
         entry->offset_2 = ((uintptr_t)pfn & 0xFFFFFFFF00000000) >> 32;
         entry->selector = gdt_selector(GDT_KERN_CODE_64, 3, 0);
 
-        entry->flags = is_trap ? IDT_TRAP : IDT_INTR;
+        entry->flags = trap ? IDT_TRAP : IDT_INTR;
 
         entry->flags |= IDT_RING_3;
         entry->flags |= IDT_PRESENT;
@@ -126,38 +126,38 @@ static int AMD64_init_idt(void)
 {
     memset(idt, 0, sizeof(idt));
 
-    set_idt_entry_kern(0x00, 1, &amd64_isr_00);
-    set_idt_entry_kern(0x01, 1, &amd64_isr_01);
-    set_idt_entry_kern(0x02, 1, &amd64_isr_02);
-    set_idt_entry_kern(0x03, 1, &amd64_isr_03);
-    set_idt_entry_kern(0x04, 1, &amd64_isr_04);
-    set_idt_entry_kern(0x05, 1, &amd64_isr_05);
-    set_idt_entry_kern(0x06, 1, &amd64_isr_06);
-    set_idt_entry_kern(0x07, 1, &amd64_isr_07);
-    set_idt_entry_kern(0x08, 1, &amd64_isr_08);
-    set_idt_entry_kern(0x09, 1, &amd64_isr_09);
-    set_idt_entry_kern(0x0A, 1, &amd64_isr_0A);
-    set_idt_entry_kern(0x0B, 1, &amd64_isr_0B);
-    set_idt_entry_kern(0x0C, 1, &amd64_isr_0C);
-    set_idt_entry_kern(0x0D, 1, &amd64_isr_0D);
-    set_idt_entry_kern(0x0E, 1, &amd64_isr_0E);
-    set_idt_entry_kern(0x0F, 1, &amd64_isr_0F);
-    set_idt_entry_kern(0x10, 1, &amd64_isr_10);
-    set_idt_entry_kern(0x11, 1, &amd64_isr_11);
-    set_idt_entry_kern(0x12, 1, &amd64_isr_12);
-    set_idt_entry_kern(0x13, 1, &amd64_isr_13);
-    set_idt_entry_kern(0x14, 1, &amd64_isr_14);
-    set_idt_entry_kern(0x15, 1, &amd64_isr_15);
-    set_idt_entry_kern(0x16, 1, &amd64_isr_16);
-    set_idt_entry_kern(0x17, 1, &amd64_isr_17);
-    set_idt_entry_kern(0x18, 1, &amd64_isr_18);
-    set_idt_entry_kern(0x19, 1, &amd64_isr_19);
-    set_idt_entry_kern(0x1A, 1, &amd64_isr_1A);
-    set_idt_entry_kern(0x1B, 1, &amd64_isr_1B);
-    set_idt_entry_kern(0x1C, 1, &amd64_isr_1C);
-    set_idt_entry_kern(0x1D, 1, &amd64_isr_1D);
-    set_idt_entry_kern(0x1E, 1, &amd64_isr_1E);
-    set_idt_entry_kern(0x1F, 1, &amd64_isr_1F);
+    set_idt_entry_kern(0x00, true, &amd64_isr_00);
+    set_idt_entry_kern(0x01, true, &amd64_isr_01);
+    set_idt_entry_kern(0x02, true, &amd64_isr_02);
+    set_idt_entry_kern(0x03, true, &amd64_isr_03);
+    set_idt_entry_kern(0x04, true, &amd64_isr_04);
+    set_idt_entry_kern(0x05, true, &amd64_isr_05);
+    set_idt_entry_kern(0x06, true, &amd64_isr_06);
+    set_idt_entry_kern(0x07, true, &amd64_isr_07);
+    set_idt_entry_kern(0x08, true, &amd64_isr_08);
+    set_idt_entry_kern(0x09, true, &amd64_isr_09);
+    set_idt_entry_kern(0x0A, true, &amd64_isr_0A);
+    set_idt_entry_kern(0x0B, true, &amd64_isr_0B);
+    set_idt_entry_kern(0x0C, true, &amd64_isr_0C);
+    set_idt_entry_kern(0x0D, true, &amd64_isr_0D);
+    set_idt_entry_kern(0x0E, true, &amd64_isr_0E);
+    set_idt_entry_kern(0x0F, true, &amd64_isr_0F);
+    set_idt_entry_kern(0x10, true, &amd64_isr_10);
+    set_idt_entry_kern(0x11, true, &amd64_isr_11);
+    set_idt_entry_kern(0x12, true, &amd64_isr_12);
+    set_idt_entry_kern(0x13, true, &amd64_isr_13);
+    set_idt_entry_kern(0x14, true, &amd64_isr_14);
+    set_idt_entry_kern(0x15, true, &amd64_isr_15);
+    set_idt_entry_kern(0x16, true, &amd64_isr_16);
+    set_idt_entry_kern(0x17, true, &amd64_isr_17);
+    set_idt_entry_kern(0x18, true, &amd64_isr_18);
+    set_idt_entry_kern(0x19, true, &amd64_isr_19);
+    set_idt_entry_kern(0x1A, true, &amd64_isr_1A);
+    set_idt_entry_kern(0x1B, true, &amd64_isr_1B);
+    set_idt_entry_kern(0x1C, true, &amd64_isr_1C);
+    set_idt_entry_kern(0x1D, true, &amd64_isr_1D);
+    set_idt_entry_kern(0x1E, true, &amd64_isr_1E);
+    set_idt_entry_kern(0x1F, true, &amd64_isr_1F);
 
     idtr.size = (uint16_t)(sizeof(idt) - 1);
     idtr.offset = (uintptr_t)(&idt[0]);
