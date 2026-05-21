@@ -16,7 +16,7 @@ static void bxdebug_write(struct console_driver* restrict driver, const void* re
     }
 }
 
-static struct console_driver_ops bxdebug_ops = {
+static const struct console_driver_ops bxdebug_ops = {
     .init = NULL,
     .write = bxdebug_write,
     .unblank = NULL,

@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #ifndef PDMA_APPROX_END
-#define PDMA_APPROX_END 0x00FFFFFF // First 16 MiB of physical memory
+#define PDMA_APPROX_END 0xFFFFFF // First 16 MiB of physical memory
 #endif
 
 struct pdma_stats {
