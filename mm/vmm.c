@@ -121,16 +121,137 @@ struct vmm_pagemap* vmm_create(void)
     return NULL;
 }
 
+static int vmm_fork_table(vmm_entry_t* restrict dest, vmm_entry_t* restrict stem, size_t begin, size_t end, unsigned int depth)
+{
+    size_t i;
+    uintptr_t dest_child_phys;
+    vmm_entry_t* dest_child;
+    vmm_entry_t* stem_child;
+    unsigned int stem_vprot;
+    int retval;
+
+    for(i = begin; i < end; ++i) {
+        if(vmm_entry_valid(stem[i])) {
+            stem_child = phys_to_virt(vmm_entry_address(stem[i]));
+
+            if(depth) {
+                dest_child_phys = pslab_alloc();
+
+                if(dest_child_phys == 0) {
+                    return ENOMEM;
+                }
+
+                dest_child = phys_to_virt(dest_child_phys);
+                memset(dest_child, 0, PAGE_SIZE);
+
+                dest[i] = vmm_entry_init(dest_child_phys, VPROT_URWX);
+                retval = vmm_fork_table(dest_child, stem_child, 0, VMM_TABLE_SIZE, depth - 1);
+
+                if(retval) {
+                    pslab_free(dest_child_phys);
+
+                    return retval;
+                }
+            }
+            else {
+                stem_vprot = vmm_entry_to_vprot(stem[i]) & ~VPROT_WRITE; // readonly so it triggers a page-fault
+                stem[i] = vmm_entry_init(vmm_entry_address(stem[i]), stem_vprot);
+                dest[i] = stem[i];
+            }
+        }
+    }
+
+    return 0;
+}
+
+static int vmm_clone_table(vmm_entry_t* restrict dest, vmm_entry_t* restrict stem, size_t begin, size_t end, unsigned int depth)
+{
+    size_t i;
+    uintptr_t dest_child_phys;
+    vmm_entry_t* dest_child;
+    vmm_entry_t* stem_child;
+    unsigned int stem_vprot;
+    int retval;
+
+    for(i = begin; i < end; ++i) {
+        if(vmm_entry_valid(stem[i])) {
+            stem_child = phys_to_virt(vmm_entry_address(stem[i]));
+            dest_child_phys = pslab_alloc();
+
+            if(dest_child_phys == 0) {
+                return ENOMEM;
+            }
+
+            dest_child = phys_to_virt(dest_child_phys);
+
+            if(depth) {
+                memset(dest_child, 0, PAGE_SIZE);
+
+                dest[i] = vmm_entry_init(dest_child_phys, VPROT_URWX);
+                retval = vmm_clone_table(dest_child, stem_child, 0, VMM_TABLE_SIZE, depth - 1);
+
+                if(retval) {
+                    return retval;
+                }
+            }
+            else {
+                memcpy(dest_child, stem_child, PAGE_SIZE);
+
+                stem_vprot = vmm_entry_to_vprot(stem[i]);
+                dest[i] = vmm_entry_init(dest_child_phys, stem_vprot);
+            }
+        }
+    }
+
+    return 0;
+}
+
 struct vmm_pagemap* vmm_fork(const struct vmm_pagemap* restrict stem)
 {
-    panic("vmm_fork is not implemented");
-    unreachable();
+    struct vmm_pagemap* vm;
+    vmm_entry_t* stem_table;
+    vmm_entry_t* dest_table;
+    int retval;
+
+    vm = vmm_create();
+
+    if(vm) {
+        stem_table = vmm_pagemap_root(stem, 0);
+        dest_table = vmm_pagemap_root(vm, 0);
+        retval = vmm_fork_table(dest_table, stem_table, 0, VMM_TABLE_USER_END, vm->levels - 1);
+
+        if(retval == 0) {
+            return vm;
+        }
+
+        vmm_destroy(vm);
+    }
+
+    return NULL;
 }
 
 struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem)
 {
-    panic("vmm_clone is not implemented");
-    unreachable();
+    struct vmm_pagemap* vm;
+    vmm_entry_t* stem_table;
+    vmm_entry_t* dest_table;
+    int retval;
+
+    vm = vmm_create();
+
+    if(vm) {
+        stem_table = vmm_pagemap_root(stem, 0);
+        dest_table = vmm_pagemap_root(vm, 0);
+        retval = vmm_clone_table(dest_table, stem_table, 0, VMM_TABLE_USER_END, vm->levels - 1);
+
+        if(retval == 0) {
+            return vm;
+        }
+
+        vmm_destroy(vm);
+    }
+
+    return NULL;
 }
 
 void vmm_destroy(struct vmm_pagemap* restrict vm)

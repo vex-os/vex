@@ -26,7 +26,8 @@
 
 #define VMM_ENTRY_NULL UINT64_C(0x0000000000000000)
 
-#define VMM_TABLE_SIZE 512U
+#define VMM_TABLE_SIZE     512U
+#define VMM_TABLE_USER_END AMD64_VMM_TABLE_KERN
 
 typedef uint64_t vmm_entry_t;
 
@@ -45,7 +46,7 @@ extern void vmm_pagemap_free(struct vmm_pagemap* restrict vm);
 extern void vmm_pagemap_zero(struct vmm_pagemap* restrict vm);
 extern void vmm_pagemap_copy_kernel(struct vmm_pagemap* restrict dest, const struct vmm_pagemap* restrict stem);
 
-static __always_inline __nodiscard inline vmm_entry_t* vmm_pagemap_root(struct vmm_pagemap* restrict vm, uintptr_t virt)
+static __always_inline __nodiscard inline vmm_entry_t* vmm_pagemap_root(const struct vmm_pagemap* restrict vm, uintptr_t virt)
 {
     return vm->amd64.cr3_virt;
 }
@@ -58,6 +59,18 @@ static __always_inline __nodiscard inline bool vmm_entry_valid(vmm_entry_t entry
 static __always_inline __nodiscard inline uintptr_t vmm_entry_address(vmm_entry_t entry)
 {
     return (uintptr_t)(entry & AMD64_VMM_ADDRESS_MASK);
+}
+
+static __always_inline __nodiscard inline unsigned int vmm_entry_to_vprot(vmm_entry_t entry)
+{
+    unsigned int vprot = VPROT_READ;
+    if(entry & AMD64_VMM_PML_WRITE)
+        vprot |= VPROT_WRITE;
+    if(entry & AMD64_VMM_PML_USER)
+        vprot |= VPROT_USER;
+    if(!(entry & AMD64_VMM_PML_NOEXEC))
+        vprot |= VPROT_EXEC;
+    return vprot;
 }
 
 static __always_inline __nodiscard inline vmm_entry_t vmm_entry_init(uintptr_t address, unsigned int vprot)
