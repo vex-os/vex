@@ -81,17 +81,12 @@ static __always_inline __nodiscard inline vmm_entry_t vmm_entry_init(uintptr_t a
     result |= AMD64_VMM_PML_PRESENT;
     result |= AMD64_VMM_PML_NOEXEC;
 
-    if(vprot & VPROT_WRITE) {
+    if(vprot & VPROT_WRITE)
         result |= AMD64_VMM_PML_WRITE;
-    }
-
-    if(vprot & VPROT_USER) {
+    if(vprot & VPROT_USER)
         result |= AMD64_VMM_PML_USER;
-    }
-
-    if(vprot & VPROT_EXEC) {
+    if(vprot & VPROT_EXEC)
         result &= ~AMD64_VMM_PML_NOEXEC;
-    }
 
     return result;
 }
