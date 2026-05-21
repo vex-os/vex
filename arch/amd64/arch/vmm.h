@@ -61,7 +61,7 @@ static __always_inline __nodiscard inline uintptr_t vmm_entry_address(vmm_entry_
     return (uintptr_t)(entry & AMD64_VMM_ADDRESS_MASK);
 }
 
-static __always_inline __nodiscard inline unsigned int vmm_entry_to_vprot(vmm_entry_t entry)
+static __always_inline __nodiscard inline unsigned int vmm_entry_vprot(vmm_entry_t entry)
 {
     unsigned int vprot = VPROT_READ;
     if(entry & AMD64_VMM_PML_WRITE)

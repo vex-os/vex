@@ -154,7 +154,7 @@ static int vmm_fork_table(vmm_entry_t* restrict dest, vmm_entry_t* restrict stem
                 }
             }
             else {
-                stem_vprot = vmm_entry_to_vprot(stem[i]) & ~VPROT_WRITE; // readonly so it triggers a page-fault
+                stem_vprot = vmm_entry_vprot(stem[i]) & ~VPROT_WRITE; // readonly so it triggers a page-fault
                 stem[i] = vmm_entry_init(vmm_entry_address(stem[i]), stem_vprot);
                 dest[i] = stem[i];
             }
@@ -197,7 +197,7 @@ static int vmm_clone_table(vmm_entry_t* restrict dest, vmm_entry_t* restrict ste
             else {
                 memcpy(dest_child, stem_child, PAGE_SIZE);
 
-                stem_vprot = vmm_entry_to_vprot(stem[i]);
+                stem_vprot = vmm_entry_vprot(stem[i]);
                 dest[i] = vmm_entry_init(dest_child_phys, stem_vprot);
             }
         }
