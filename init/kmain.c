@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include <core/assert.h>
 #include <core/cdefs.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
@@ -37,6 +38,8 @@ void __noreturn kmain(void)
     kprintf(KP_INFORM, "%s %s %s", k_sysname, k_release, k_version);
 
     call_all_initfns();
+
+    kassert(false && "LOL 42");
 
     panic("kmain: nothing else to do");
     unreachable();
