@@ -1,3 +1,4 @@
+core/assert.c
 core/ireq.c
 core/kprintf.c
 core/panic.c

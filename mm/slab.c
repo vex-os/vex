@@ -2,6 +2,7 @@
 
 #include <core/assert.h>
 #include <core/kprintf.h>
+#include <core/panic.h>
 #include <init/initfn.h>
 #include <lib/string.h>
 #include <mm/page.h>
