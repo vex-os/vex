@@ -45,7 +45,7 @@ override CPPFLAGS += -I .
 
 override CPPFLAGS += -D UTSNAME_SYSNAME='"${SYSNAME}"'
 override CPPFLAGS += -D UTSNAME_RELEASE='"${RELEASE}"'
-override CPPFLAGS += -D UTSNAME_VERSION='"${GIT_REV} ${ENVT}"'
+override CPPFLAGS += -D UTSNAME_VERSION='"${GIT_REV}-${ENVT}"'
 override CPPFLAGS += -D UTSNAME_MACHINE='"${ARCH}"'
 
 override LDFLAGS += -nostdlib

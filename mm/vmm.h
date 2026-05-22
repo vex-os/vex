@@ -3,9 +3,12 @@
 #define CBE16F75_0279_489A_A726_4EE92C6FEFF2
 #pragma once
 
+#include <arch/limits.h>
 #include <arch/vmm.h>
 #include <mm/vprot.h>
 #include <stdint.h>
+
+static_assert((VMM_TABLE_SIZE * sizeof(vmm_entry_t)) == PAGE_SIZE);
 
 extern struct vmm_pagemap sys_pagemap;
 
