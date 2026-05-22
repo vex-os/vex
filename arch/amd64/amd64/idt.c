@@ -77,6 +77,8 @@ void set_idt_entry_kern(unsigned int vector, bool trap, const void* restrict pfn
 {
     struct idt_entry* entry;
 
+    kassert(pfn && "invalid IDT handler function pointer");
+
     if(vector < IDT_SIZE) {
         entry = &idt[vector];
 
@@ -97,6 +99,8 @@ void set_idt_entry_kern(unsigned int vector, bool trap, const void* restrict pfn
 void set_idt_entry_user(unsigned int vector, bool trap, const void* restrict pfn)
 {
     struct idt_entry* entry;
+
+    kassert(pfn && "invalid IDT handler function pointer");
 
     if(vector < IDT_SIZE) {
         entry = &idt[vector];

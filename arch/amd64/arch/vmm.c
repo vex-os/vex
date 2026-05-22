@@ -35,6 +35,8 @@ unsigned int vmm_detect_levels(void)
 
 int vmm_pagemap_alloc(struct vmm_pagemap* restrict vm)
 {
+    kassert(vm);
+
     vm->amd64.cr3_phys = pslab_alloc();
 
     if(vm->amd64.cr3_phys == 0) {

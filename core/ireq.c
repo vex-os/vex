@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include <arch/ireq.h>
+#include <core/assert.h>
 #include <core/errno.h>
 #include <core/ireq.h>
 #include <core/kprintf.h>
@@ -11,6 +12,8 @@ static ireq_handler_t ireq_table[IREQ_TABLE_SIZE];
 
 int register_ireq_handler(unsigned int vector, ireq_handler_t handler)
 {
+    kassert(handler && "invalid IREQ handler function pointer");
+
     if(vector < IREQ_VECTOR_MIN || vector > IREQ_VECTOR_MAX) {
         return EINVAL;
     }

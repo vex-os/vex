@@ -12,6 +12,9 @@ int register_console_driver(struct console_driver* restrict driver)
 {
     struct console_driver* it;
 
+    kassert(driver && "invalid console driver pointer");
+    kassert(driver->ops && "invalid console driver ops pointer");
+
     for(it = console_head; it; it = it->next) {
         if(it == driver)
             return EEXIST;
@@ -19,8 +22,6 @@ int register_console_driver(struct console_driver* restrict driver)
     }
 
     kprintf(KP_INFORM, "console: adding %s", driver->identity);
-
-    kassert(driver->ops);
 
     if(driver->ops->init) {
         driver->ops->init(driver);
@@ -54,6 +55,8 @@ int unregister_console_driver(struct console_driver* restrict driver)
     struct console_driver* it;
     struct console_driver* prev = NULL;
 
+    kassert(driver && "invalid console driver pointer");
+
     if(console_head == driver) {
         console_head = console_head->next;
         kprintf(KP_INFORM, "console: removing %s", driver->identity);
@@ -80,6 +83,8 @@ int unregister_console_driver(struct console_driver* restrict driver)
 void console_write(const void* restrict data, size_t size)
 {
     struct console_driver* it;
+
+    kassert(data && "invalid console write data pointer");
 
     for(it = console_head; it; it = it->next) {
         if(it->ops->write == NULL)
