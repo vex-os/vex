@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include <core/assert.h>
 #include <core/kprintf.h>
 #include <dev/console.h>
 #include <lib/format.h>
@@ -40,6 +41,8 @@ static void kprintf_format_func(int chr, void* restrict arg)
 
 void kprintf(unsigned int sv, const char* restrict fmt, ...)
 {
+    kassert(fmt && "invalid format string pointer");
+
     va_list ap;
     va_start(ap, fmt);
     kvprintf(sv, fmt, ap);
@@ -49,6 +52,8 @@ void kprintf(unsigned int sv, const char* restrict fmt, ...)
 void kvprintf(unsigned int sv, const char* restrict fmt, va_list ap)
 {
     struct stagebuf st = { 0 };
+
+    kassert(fmt && "invalid format string pointer");
 
     if(sv <= loglevel) {
         vformat(&kprintf_format_func, &st, fmt, ap);

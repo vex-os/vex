@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/linker.h>
@@ -215,6 +216,8 @@ struct vmm_pagemap* vmm_fork(const struct vmm_pagemap* restrict stem)
     vmm_entry_t* dest_table;
     int retval;
 
+    kassert(stem && "invalid stem pagemap pointer");
+
     vm = vmm_create();
 
     if(vm) {
@@ -239,6 +242,8 @@ struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem)
     vmm_entry_t* dest_table;
     int retval;
 
+    kassert(stem && "invalid stem pagemap pointer");
+
     vm = vmm_create();
 
     if(vm) {
@@ -258,6 +263,8 @@ struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem)
 
 void vmm_destroy(struct vmm_pagemap* restrict vm)
 {
+    kassert(vm && "invalid pagemap pointer");
+
     vmm_table_collapse(vmm_pagemap_root(vm, 0), 0, VMM_TABLE_SIZE / 2, vm->levels - 1);
     vmm_pagemap_free(vm);
     slab_free(vm);
@@ -265,7 +272,13 @@ void vmm_destroy(struct vmm_pagemap* restrict vm)
 
 int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigned int vprot)
 {
-    vmm_entry_t* entry = vmm_entry_lookup(vm, virt, true);
+    vmm_entry_t* entry;
+
+    kassert(vm && "invalid pagemap pointer");
+    kassert(phys % PAGE_SIZE == 0 && "physical address must be page-aligned");
+    kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
+
+    entry = vmm_entry_lookup(vm, virt, true);
 
     if(entry == NULL) {
         return ENOMEM;
@@ -282,7 +295,12 @@ int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, uns
 
 int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned int vprot)
 {
-    vmm_entry_t* entry = vmm_entry_lookup(vm, virt, false);
+    vmm_entry_t* entry;
+
+    kassert(vm && "invalid pagemap pointer");
+    kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
+
+    entry = vmm_entry_lookup(vm, virt, false);
 
     if(entry == NULL) {
         return ENOMEM;
@@ -299,7 +317,12 @@ int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned int vpro
 
 int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
 {
-    vmm_entry_t* entry = vmm_entry_lookup(vm, virt, false);
+    vmm_entry_t* entry;
+
+    kassert(vm && "invalid pagemap pointer");
+    kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
+
+    entry = vmm_entry_lookup(vm, virt, false);
 
     if(entry == NULL) {
         return ENOMEM;
@@ -316,7 +339,12 @@ int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
 
 uintptr_t vmm_resolve(const struct vmm_pagemap* restrict vm, uintptr_t virt)
 {
-    vmm_entry_t* entry = vmm_entry_lookup((struct vmm_pagemap*)vm, virt, false);
+    vmm_entry_t* entry;
+
+    kassert(vm && "invalid pagemap pointer");
+    kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
+
+    entry = vmm_entry_lookup((struct vmm_pagemap*)vm, virt, false);
 
     if(entry && vmm_entry_valid(*entry)) {
         return vmm_entry_address(*entry) + (virt & (PAGE_SIZE - 1));

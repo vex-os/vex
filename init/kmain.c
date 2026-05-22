@@ -39,8 +39,6 @@ void __noreturn kmain(void)
 
     call_all_initfns();
 
-    kassert(false && "LOL 42");
-
     panic("kmain: nothing else to do");
     unreachable();
 }
