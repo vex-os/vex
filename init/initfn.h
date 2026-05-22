@@ -11,6 +11,7 @@
 #define INITFN_CAT_PMM        "10000000" ///< Physical memory management
 #define INITFN_CAT_SLAB       "20000000" ///< Internal dynamic memory management for sub-page-size allocations
 #define INITFN_CAT_VMM        "40000000" ///< Virtual memory management
+#define INITFN_CAT_HEAP       "48000000" ///< Kernel heap allocator
 #define INITFN_CAT_LOCKS      "50000000" ///< Synchronization primitives
 #define INITFN_CAT_HART       "58000000" ///< Per-CPU data and feature detection
 #define INITFN_CAT_SMP        "60000000" ///< Other cores wake up

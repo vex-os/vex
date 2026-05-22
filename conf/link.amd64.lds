@@ -16,6 +16,7 @@ PHDRS
 SECTIONS
 {
     . = 0xFFFFFFFF80000000;
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
 
     text_start = .;
 
@@ -69,6 +70,10 @@ SECTIONS
     } :data
 
     data_end = .;
+
+    . = ALIGN(CONSTANT(MAXPAGESIZE));
+
+    kernel_end = .;
 
     /DISCARD/ : {
         *(.discard)

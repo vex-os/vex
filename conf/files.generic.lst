@@ -20,6 +20,7 @@ lib/strings.c
 
 mm/hhdm.c
 mm/kbase.c
+mm/malloc.c
 mm/memmap.c
 mm/pdma.c
 mm/pslab.c
