@@ -10,7 +10,7 @@
 #define INITFN_CAT_SANITIZERS "04000000" ///< KASAN, UBSAN and similar instrumentation
 #define INITFN_CAT_PMM        "10000000" ///< Physical memory management
 #define INITFN_CAT_SLAB       "20000000" ///< Internal dynamic memory management for sub-page-size allocations
-#define INITFN_CAT_VMM        "40000000" ///< Virtual memory management, after this the kernel can reclaim bootloader memory
+#define INITFN_CAT_VMM        "40000000" ///< Virtual memory management
 #define INITFN_CAT_LOCKS      "50000000" ///< Synchronization primitives
 #define INITFN_CAT_HART       "58000000" ///< Per-CPU data and feature detection
 #define INITFN_CAT_SMP        "60000000" ///< Other cores wake up
