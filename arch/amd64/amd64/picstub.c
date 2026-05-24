@@ -30,6 +30,8 @@ extern void amd64_spur_2F(void);
 
 void __used amd64_spur_handler(struct interrupt_frame* restrict frame, uint64_t intvec)
 {
+    // <<  Because it's a shit chip >>
+    //                  - streaksu
     kprintf(KP_WARNING, "picstub: spurious interrupt 0x%02zX", (size_t)intvec);
 }
 
