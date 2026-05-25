@@ -95,4 +95,4 @@ static int AMD64_init_picstub(void)
     return 0;
 }
 
-DEFINE_INITFN(AMD64_init_picstub, INITFN_CAT_ARCH, INITFN_ORDER_MIDDLE);
+DEFINE_INITFN(AMD64_init_picstub, INITFN_STAGE_ARCH, INITFN_ORDER_MIDDLE);
