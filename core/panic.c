@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include <arch/halt.h>
+#include <arch/hart.h>
 #include <arch/interrupts.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
@@ -24,7 +24,7 @@ void __noreturn fvpanic(const char* restrict file, unsigned long line, const cha
 
     for(;;) {
         disable_interrupts();
-        halt_cpu();
+        stop_hart();
         continue;
     }
 

@@ -8,9 +8,9 @@
 
 #define IREQ_TABLE_SIZE (IREQ_VECTOR_MAX - IREQ_VECTOR_MIN + 1)
 
-static ireq_handler_t ireq_table[IREQ_TABLE_SIZE];
+static ireq_handler_type ireq_table[IREQ_TABLE_SIZE];
 
-int register_ireq_handler(unsigned int vector, ireq_handler_t handler)
+int register_ireq_handler(unsigned int vector, ireq_handler_type handler)
 {
     kassert(handler && "invalid IREQ handler function pointer");
 
@@ -36,7 +36,7 @@ int unregister_ireq_handler(unsigned int vector)
 
 void dispatch_ireq(unsigned int vector, struct interrupt_frame* restrict frame)
 {
-    ireq_handler_t handler;
+    ireq_handler_type handler;
 
     if(vector < IREQ_VECTOR_MIN || vector > IREQ_VECTOR_MAX) {
         kprintf(KP_WARNING, "ireq: spurious vector 0x%02X out of range", vector);

@@ -5,7 +5,12 @@
 
 #include <core/cdefs.h>
 
-static __always_inline inline void halt_cpu(void)
+static __always_inline inline void yield_hart(void)
+{
+    asm volatile("pause");
+}
+
+static __always_inline inline void stop_hart(void)
 {
     asm volatile("hlt");
 }
