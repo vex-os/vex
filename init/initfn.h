@@ -5,23 +5,22 @@
 
 #include <core/cdefs.h>
 
-#define INITFN_CAT_EARLY      "01000000" ///< Very early initialization
-#define INITFN_CAT_ARCH       "02000000" ///< Arch-specific initialization (eg. GDT on AMD64)
-#define INITFN_CAT_SANITIZERS "04000000" ///< KASAN, UBSAN and similar instrumentation
-#define INITFN_CAT_PMM        "10000000" ///< Physical memory management
-#define INITFN_CAT_SLAB       "20000000" ///< Internal dynamic memory management for sub-page-size allocations
-#define INITFN_CAT_VMM        "40000000" ///< Virtual memory management
-#define INITFN_CAT_HEAP       "48000000" ///< Kernel heap allocator
-#define INITFN_CAT_LOCKS      "50000000" ///< Synchronization primitives
-#define INITFN_CAT_HART       "58000000" ///< Per-CPU data and feature detection
-#define INITFN_CAT_SMP        "60000000" ///< Other cores wake up
-#define INITFN_CAT_IREQ       "68000000" ///< Interrupt controller (APIC, GIC, etc.)
-#define INITFN_CAT_TIMER      "70000000" ///< System timer and clocksource
-#define INITFN_CAT_BUS        "78000000" ///< Bus enumeration (ACPI, PCI, etc.)
-#define INITFN_CAT_DEV        "88000000" ///< Device drivers
-#define INITFN_CAT_FS         "98000000" ///< VFS and filesystem drivers
-#define INITFN_CAT_SERVICES   "a8000000" ///< OS-level subsystems (IPC, sockets, etc.)
-#define INITFN_CAT_LATE       "f0000000" ///< Anything that can wait until the end of kernel initialization
+#define INITFN_CAT_EARLY    "01000000" ///< Very early initialization
+#define INITFN_CAT_ARCH     "02000000" ///< Arch-specific initialization (eg. GDT on AMD64)
+#define INITFN_CAT_BOOTINFO "08000000" ///< Bootloader-provided data (memory map, HHDM, kernel base)
+#define INITFN_CAT_PMM      "10000000" ///< Physical memory management
+#define INITFN_CAT_SLAB     "20000000" ///< Internal dynamic memory management for sub-page-size allocations
+#define INITFN_CAT_VMM      "40000000" ///< Virtual memory management
+#define INITFN_CAT_HEAP     "48000000" ///< Kernel heap allocator
+#define INITFN_CAT_HART     "58000000" ///< Per-CPU data and feature detection
+#define INITFN_CAT_SMP      "60000000" ///< Other cores wake up
+#define INITFN_CAT_IREQ     "68000000" ///< Interrupt controller (APIC, GIC, etc.)
+#define INITFN_CAT_TIMER    "70000000" ///< System timer and clocksource
+#define INITFN_CAT_BUS      "78000000" ///< Bus enumeration (ACPI, PCI, etc.)
+#define INITFN_CAT_DEV      "88000000" ///< Device drivers
+#define INITFN_CAT_FS       "98000000" ///< VFS and filesystem drivers
+#define INITFN_CAT_SERVICES "a8000000" ///< OS-level subsystems (IPC, sockets, etc.)
+#define INITFN_CAT_LATE     "f0000000" ///< Anything that can wait until the end of kernel initialization
 
 #define INITFN_ORDER_FIRST  "0"
 #define INITFN_ORDER_EARLY  "3"

@@ -26,4 +26,4 @@ static int init_kbase(void)
     return 0;
 }
 
-DEFINE_INITFN(init_kbase, INITFN_CAT_ARCH, INITFN_ORDER_MIDDLE);
+DEFINE_INITFN(init_kbase, INITFN_CAT_BOOTINFO, INITFN_ORDER_FIRST);
