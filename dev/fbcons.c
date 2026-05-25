@@ -7,8 +7,7 @@
 #include <init/initfn.h>
 #include <lib/limine.h>
 #include <lib/string.h>
-#include <mm/page.h>
-#include <mm/pdma.h>
+#include <mm/malloc.h>
 
 #define CHR_BS  0x08
 #define CHR_HT  0x09
@@ -484,7 +483,7 @@ static int init_fbcons(void)
                 vt_height = fb_height / FONT_HEIGHT;
                 vt_length = vt_width * vt_height;
 
-                vt_cells = pdma_alloc_virt(page_count(vt_length * sizeof(struct vt_cell)));
+                vt_cells = kmalloc(vt_length * sizeof(struct vt_cell));
 
                 if(vt_cells == NULL) {
                     panic("fbcons: out of memory: vt_cells");
@@ -508,4 +507,4 @@ static int init_fbcons(void)
     return ENODEV;
 }
 
-DEFINE_INITFN(init_fbcons, INITFN_CAT_PMM, INITFN_ORDER_LAST);
+DEFINE_INITFN(init_fbcons, INITFN_STAGE_HEAP, INITFN_ORDER_LAST);

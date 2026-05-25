@@ -443,4 +443,4 @@ static int init_vmm(void)
     return 0;
 }
 
-DEFINE_INITFN(init_vmm, INITFN_CAT_VMM, INITFN_ORDER_MIDDLE);
+DEFINE_INITFN(init_vmm, INITFN_STAGE_VMM, INITFN_ORDER_MIDDLE);

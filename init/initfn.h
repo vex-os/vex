@@ -5,22 +5,22 @@
 
 #include <core/cdefs.h>
 
-#define INITFN_CAT_EARLY    "01000000" ///< Very early initialization
-#define INITFN_CAT_ARCH     "02000000" ///< Arch-specific initialization (eg. GDT on AMD64)
-#define INITFN_CAT_BOOTINFO "08000000" ///< Bootloader-provided data (memory map, HHDM, kernel base)
-#define INITFN_CAT_PMM      "10000000" ///< Physical memory management
-#define INITFN_CAT_SLAB     "20000000" ///< Internal dynamic memory management for sub-page-size allocations
-#define INITFN_CAT_VMM      "40000000" ///< Virtual memory management
-#define INITFN_CAT_HEAP     "48000000" ///< Kernel heap allocator
-#define INITFN_CAT_HART     "58000000" ///< Per-CPU data and feature detection
-#define INITFN_CAT_SMP      "60000000" ///< Other cores wake up
-#define INITFN_CAT_IREQ     "68000000" ///< Interrupt controller (APIC, GIC, etc.)
-#define INITFN_CAT_TIMER    "70000000" ///< System timer and clocksource
-#define INITFN_CAT_BUS      "78000000" ///< Bus enumeration (ACPI, PCI, etc.)
-#define INITFN_CAT_DEV      "88000000" ///< Device drivers
-#define INITFN_CAT_FS       "98000000" ///< VFS and filesystem drivers
-#define INITFN_CAT_SERVICES "a8000000" ///< OS-level subsystems (IPC, sockets, etc.)
-#define INITFN_CAT_LATE     "f0000000" ///< Anything that can wait until the end of kernel initialization
+#define INITFN_STAGE_EARLY    "00000000" ///< Very early initialization
+#define INITFN_STAGE_ARCH     "01000000" ///< Arch-specific initialization (eg. GDT on AMD64)
+#define INITFN_STAGE_BOOTINFO "02000000" ///< Bootloader-provided data (memory map, HHDM, kernel base)
+#define INITFN_STAGE_PMM      "10000000" ///< Physical memory management
+#define INITFN_STAGE_SLAB     "11000000" ///< Internal dynamic memory management for sub-page-size allocations
+#define INITFN_STAGE_VMM      "12000000" ///< Virtual memory management
+#define INITFN_STAGE_HEAP     "13000000" ///< Kernel heap allocator
+#define INITFN_STAGE_HART     "20000000" ///< Per-CPU data and feature detection
+#define INITFN_STAGE_SMP      "21000000" ///< Other cores wake up
+#define INITFN_STAGE_IREQ     "22000000" ///< Interrupt controller (APIC, GIC, etc.)
+#define INITFN_STAGE_TIMER    "23000000" ///< System timer and clocksource
+#define INITFN_STAGE_DEV      "30000000" ///< Device drivers
+#define INITFN_STAGE_BUS      "31000000" ///< Bus enumeration (ACPI, PCI, etc.)
+#define INITFN_STAGE_FS       "32000000" ///< VFS and filesystem drivers
+#define INITFN_STAGE_SERVICES "40000000" ///< OS-level subsystems (IPC, sockets, etc.)
+#define INITFN_STAGE_LATE     "ff000000" ///< Anything that can wait until the end of kernel initialization
 
 #define INITFN_ORDER_FIRST  "0"
 #define INITFN_ORDER_EARLY  "3"
@@ -36,10 +36,10 @@ struct initfn_entry {
     initfn_pfn_t pfn;
 };
 
-#define DEFINE_INITFN(fn, cat, order)                                                         \
-    static const __used __section(".initfn." cat order) struct initfn_entry __initfn_##fn = { \
-        .name = #fn,                                                                          \
-        .pfn = fn,                                                                            \
+#define DEFINE_INITFN(fn, stage, order)                                                         \
+    static const __used __section(".initfn." stage order) struct initfn_entry __initfn_##fn = { \
+        .name = #fn,                                                                            \
+        .pfn = fn,                                                                              \
     }
 
 extern const struct initfn_entry initfns_start[];

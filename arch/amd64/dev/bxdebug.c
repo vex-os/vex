@@ -41,4 +41,4 @@ static int init_bxdebug(void)
     return ENODEV;
 }
 
-DEFINE_INITFN(init_bxdebug, INITFN_CAT_EARLY, INITFN_ORDER_FIRST);
+DEFINE_INITFN(init_bxdebug, INITFN_STAGE_EARLY, INITFN_ORDER_FIRST);
