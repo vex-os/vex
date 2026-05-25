@@ -23,4 +23,4 @@ static int init_memmap(void)
     return 0;
 }
 
-DEFINE_INITFN(init_memmap, INITFN_CAT_ARCH, INITFN_ORDER_MIDDLE);
+DEFINE_INITFN(init_memmap, INITFN_CAT_BOOTINFO, INITFN_ORDER_FIRST);

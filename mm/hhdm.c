@@ -24,4 +24,4 @@ static int init_hhdm(void)
     return 0;
 }
 
-DEFINE_INITFN(init_hhdm, INITFN_CAT_ARCH, INITFN_ORDER_MIDDLE);
+DEFINE_INITFN(init_hhdm, INITFN_CAT_BOOTINFO, INITFN_ORDER_FIRST);
