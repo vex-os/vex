@@ -8,7 +8,7 @@
 #include <mm/vprot.h>
 #include <stdint.h>
 
-static_assert((VMM_TABLE_SIZE * sizeof(vmm_entry_t)) == PAGE_SIZE);
+static_assert((VMM_TABLE_SIZE * sizeof(vmm_entry_type)) == PAGE_SIZE);
 
 extern struct vmm_pagemap sys_pagemap;
 

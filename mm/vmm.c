@@ -22,10 +22,10 @@ static size_t pagemap_index(uintptr_t virt, uintptr_t shift)
     return (size_t)((virt >> shift) & VMM_ENTRY_LEVEL_MASK);
 }
 
-static vmm_entry_t* vmm_entry_get(vmm_entry_t* restrict table, size_t index, bool allocate)
+static vmm_entry_type* vmm_entry_get(vmm_entry_type* restrict table, size_t index, bool allocate)
 {
     uintptr_t phys;
-    vmm_entry_t* child;
+    vmm_entry_type* child;
 
     if(vmm_entry_valid(table[index])) {
         return phys_to_virt(vmm_entry_address(table[index]));
@@ -45,10 +45,10 @@ static vmm_entry_t* vmm_entry_get(vmm_entry_t* restrict table, size_t index, boo
     return NULL;
 }
 
-static vmm_entry_t* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr_t virt, bool allocate)
+static vmm_entry_type* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr_t virt, bool allocate)
 {
     size_t index;
-    vmm_entry_t* table = vmm_pagemap_root(vm, virt);
+    vmm_entry_type* table = vmm_pagemap_root(vm, virt);
 
     if(vm->levels >= 5) {
         index = pagemap_index(virt, VMM_ENTRY_LVL5_SHIFT);
@@ -88,10 +88,10 @@ static vmm_entry_t* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr_t 
     return &table[index];
 }
 
-static void vmm_table_collapse(vmm_entry_t* restrict table, size_t begin, size_t end, unsigned int depth)
+static void vmm_table_collapse(vmm_entry_type* restrict table, size_t begin, size_t end, unsigned int depth)
 {
     size_t i;
-    vmm_entry_t* child;
+    vmm_entry_type* child;
 
     if(depth) {
         for(i = begin; i < end; ++i) {
@@ -124,12 +124,12 @@ struct vmm_pagemap* vmm_create(void)
     return NULL;
 }
 
-static int vmm_fork_table(vmm_entry_t* restrict dest, vmm_entry_t* restrict stem, size_t begin, size_t end, unsigned int depth)
+static int vmm_fork_table(vmm_entry_type* restrict dest, vmm_entry_type* restrict stem, size_t begin, size_t end, unsigned int depth)
 {
     size_t i;
     uintptr_t dest_child_phys;
-    vmm_entry_t* dest_child;
-    vmm_entry_t* stem_child;
+    vmm_entry_type* dest_child;
+    vmm_entry_type* stem_child;
     unsigned int stem_vprot;
     int retval;
 
@@ -167,12 +167,12 @@ static int vmm_fork_table(vmm_entry_t* restrict dest, vmm_entry_t* restrict stem
     return 0;
 }
 
-static int vmm_clone_table(vmm_entry_t* restrict dest, vmm_entry_t* restrict stem, size_t begin, size_t end, unsigned int depth)
+static int vmm_clone_table(vmm_entry_type* restrict dest, vmm_entry_type* restrict stem, size_t begin, size_t end, unsigned int depth)
 {
     size_t i;
     uintptr_t dest_child_phys;
-    vmm_entry_t* dest_child;
-    vmm_entry_t* stem_child;
+    vmm_entry_type* dest_child;
+    vmm_entry_type* stem_child;
     unsigned int stem_vprot;
     int retval;
 
@@ -212,8 +212,8 @@ static int vmm_clone_table(vmm_entry_t* restrict dest, vmm_entry_t* restrict ste
 struct vmm_pagemap* vmm_fork(const struct vmm_pagemap* restrict stem)
 {
     struct vmm_pagemap* vm;
-    vmm_entry_t* stem_table;
-    vmm_entry_t* dest_table;
+    vmm_entry_type* stem_table;
+    vmm_entry_type* dest_table;
     int retval;
 
     kassert(stem && "invalid stem pagemap pointer");
@@ -238,8 +238,8 @@ struct vmm_pagemap* vmm_fork(const struct vmm_pagemap* restrict stem)
 struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem)
 {
     struct vmm_pagemap* vm;
-    vmm_entry_t* stem_table;
-    vmm_entry_t* dest_table;
+    vmm_entry_type* stem_table;
+    vmm_entry_type* dest_table;
     int retval;
 
     kassert(stem && "invalid stem pagemap pointer");
@@ -272,7 +272,7 @@ void vmm_destroy(struct vmm_pagemap* restrict vm)
 
 int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigned int vprot)
 {
-    vmm_entry_t* entry;
+    vmm_entry_type* entry;
 
     kassert(vm && "invalid pagemap pointer");
     kassert(phys % PAGE_SIZE == 0 && "physical address must be page-aligned");
@@ -295,7 +295,7 @@ int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, uns
 
 int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned int vprot)
 {
-    vmm_entry_t* entry;
+    vmm_entry_type* entry;
 
     kassert(vm && "invalid pagemap pointer");
     kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
@@ -317,7 +317,7 @@ int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned int vpro
 
 int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
 {
-    vmm_entry_t* entry;
+    vmm_entry_type* entry;
 
     kassert(vm && "invalid pagemap pointer");
     kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
@@ -339,7 +339,7 @@ int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
 
 uintptr_t vmm_resolve(const struct vmm_pagemap* restrict vm, uintptr_t virt)
 {
-    vmm_entry_t* entry;
+    vmm_entry_type* entry;
 
     kassert(vm && "invalid pagemap pointer");
     kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");

@@ -28,7 +28,7 @@
 static const char lc_digits[MAX_BASE + 1] = "0123456789abcdef";
 static const char uc_digits[MAX_BASE + 1] = "0123456789ABCDEF";
 
-static size_t write_int(format_func_t func, void* restrict user, uintmax_t value, unsigned int flags, unsigned int width,
+static size_t write_int(format_func_type func, void* restrict user, uintmax_t value, unsigned int flags, unsigned int width,
     unsigned int precision, unsigned int base)
 {
     unsigned int i;
@@ -151,7 +151,7 @@ static size_t write_int(format_func_t func, void* restrict user, uintmax_t value
 }
 
 static const char defined_behaviour[] = "(null)";
-static size_t write_str(format_func_t func, void* restrict user, const char* restrict s, unsigned int flags, unsigned int width,
+static size_t write_str(format_func_type func, void* restrict user, const char* restrict s, unsigned int flags, unsigned int width,
     unsigned int precision)
 {
     size_t i;
@@ -265,7 +265,7 @@ static uintmax_t remove_sign(uintmax_t x, int length, unsigned int* restrict fla
 #undef sign_hack
 }
 
-int format(format_func_t func, void* restrict user, const char* restrict fmt, ...)
+int format(format_func_type func, void* restrict user, const char* restrict fmt, ...)
 {
     int r;
     va_list ap;
@@ -275,7 +275,7 @@ int format(format_func_t func, void* restrict user, const char* restrict fmt, ..
     return r;
 }
 
-int vformat(format_func_t func, void* restrict user, const char* restrict fmt, va_list ap)
+int vformat(format_func_type func, void* restrict user, const char* restrict fmt, va_list ap)
 {
     size_t counter = 0;
     unsigned int width;

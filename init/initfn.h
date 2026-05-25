@@ -28,12 +28,12 @@
 #define INITFN_ORDER_LATE   "7"
 #define INITFN_ORDER_LAST   "9"
 
-typedef int (*initfn_pfn_t)(void);
-typedef char initfn_name_t[64];
+typedef int (*initfn_func_type)(void);
+typedef char initfn_name_type[64];
 
 struct initfn_entry {
-    initfn_name_t name;
-    initfn_pfn_t pfn;
+    initfn_name_type name;
+    initfn_func_type pfn;
 };
 
 #define DEFINE_INITFN(fn, stage, order)                                                         \
