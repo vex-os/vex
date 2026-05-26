@@ -49,9 +49,6 @@ static int init_invtsc(void)
         return ENODEV;
     }
 
-    // mult/shift so that: ns = tsc * mult >> shift
-    // We want mult = 10^9 / freq_hz * 2^shift.
-    // Use shift=32 to keep precision with integer arithmetic.
     invtsc_clocksource.read_shift = 32;
     invtsc_clocksource.read_mult = UINT64_C(1000000000) << 32;
     invtsc_clocksource.read_mult /= freq_hz;
