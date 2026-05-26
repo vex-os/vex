@@ -4,14 +4,13 @@ bus/acpi_rsdp.c
 bus/pci.c
 
 core/assert.c
+core/console.c
+core/fbconsole.c optional fbconsole
 core/intctl.c
 core/ireq.c
 core/kprintf.c
 core/panic.c
 core/version.c
-
-dev/console.c
-dev/fbcons.c optional fbcons
 
 ext/uacpi/default_handlers.c
 ext/uacpi/event.c
@@ -52,3 +51,5 @@ mm/pdma.c
 mm/pslab.c
 mm/slab.c
 mm/vmm.c
+
+time/clocksource.c

@@ -161,8 +161,8 @@ static size_t write_str(format_func_type func, void* restrict user, const char* 
 
     if(s == nullptr) {
         // C standard does not define what happens when you try
-        // dereferencing a NULL char pointer. Because NO ONE at INCITS/C
-        // expects you to pass a NULL pointer to snprintf... Too bad!
+        // dereferencing a nullptr char pointer. Because NO ONE at INCITS/C
+        // expects you to pass a nullptr pointer to snprintf... Too bad!
         s = defined_behaviour;
     }
 

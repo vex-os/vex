@@ -13,7 +13,7 @@ static int init_acpi_tables(void)
 {
     void* temporary_buffer = pslab_alloc_virt();
 
-    if(temporary_buffer == NULL) {
+    if(temporary_buffer == nullptr) {
         panic("acpi: out of memory");
         unreachable();
     }

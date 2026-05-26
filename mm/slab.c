@@ -17,7 +17,7 @@ struct slab {
 };
 
 static size_t slabs_count = 0U;
-static struct slab* slabs = NULL;
+static struct slab* slabs = nullptr;
 
 static struct slab* find_slab(size_t sz)
 {
@@ -37,7 +37,7 @@ static struct slab* find_slab(size_t sz)
         continue;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 static bool expand_slab(struct slab* restrict sl)
@@ -65,7 +65,7 @@ static bool expand_slab(struct slab* restrict sl)
 
         for(i = 1U; i < count; ++i)
             sl->head[gap * (i - 1)] = &sl->head[gap * i];
-        sl->head[gap * (count - 1)] = NULL;
+        sl->head[gap * (count - 1)] = nullptr;
 
         return true;
     }
@@ -80,7 +80,7 @@ void* __nodiscard slab_alloc(size_t sz)
 
     if(sl) {
         if(!sl->head && !expand_slab(sl)) {
-            return NULL;
+            return nullptr;
         }
 
         head_ptr = sl->head;
@@ -88,14 +88,14 @@ void* __nodiscard slab_alloc(size_t sz)
         return head_ptr;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void* __nodiscard slab_calloc(size_t count, size_t sz)
 {
     void* ptr = slab_alloc(count * sz);
-    if(ptr == NULL)
-        return NULL;
+    if(ptr == nullptr)
+        return nullptr;
     return memset(ptr, 0, count * sz);
 }
 
@@ -105,7 +105,7 @@ void* __nodiscard slab_realloc(void* restrict ptr, size_t sz)
     void** head_ptr;
     void* new_ptr = slab_alloc(sz);
 
-    if(ptr == NULL) {
+    if(ptr == nullptr) {
         // Just return the new thing
         // without any memory copying
         return new_ptr;
@@ -150,14 +150,14 @@ static int init_slab(void)
     npages = page_count(slabs_count * sizeof(struct slab));
     slabs = pdma_alloc_virt(npages);
 
-    if(slabs == NULL) {
+    if(slabs == nullptr) {
         panic("slab: out of memory [pdma_alloc %zu pages]", npages);
         unreachable();
     }
 
     for(i = 0U; i < slabs_count; ++i) {
         slabs[i].blocksize = SLAB_BLOCKSIZE(i);
-        slabs[i].head = NULL;
+        slabs[i].head = nullptr;
 
         if(!expand_slab(&slabs[i])) {
             panic("slab: out of memory [slab %zu:%zu]", i, slabs[i].blocksize);

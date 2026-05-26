@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include <core/assert.h>
+#include <core/console.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
-#include <dev/console.h>
 #include <lib/string.h>
 
-static struct console_driver* console_head = NULL;
+static struct console_driver* console_head = nullptr;
 
 int register_console_driver(struct console_driver* restrict driver)
 {
@@ -53,7 +53,7 @@ int register_console_driver(struct console_driver* restrict driver)
 int unregister_console_driver(struct console_driver* restrict driver)
 {
     struct console_driver* it;
-    struct console_driver* prev = NULL;
+    struct console_driver* prev = nullptr;
 
     kassert(driver && "invalid console driver pointer");
 
@@ -87,7 +87,7 @@ void console_write(const void* restrict data, size_t size)
     kassert(data && "invalid console write data pointer");
 
     for(it = console_head; it; it = it->next) {
-        if(it->ops->write == NULL)
+        if(it->ops->write == nullptr)
             continue;
         if(it->consflags & CONSF_BLANKED)
             continue;

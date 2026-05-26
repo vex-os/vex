@@ -2,9 +2,9 @@
 
 #include <arch/hart.h>
 #include <arch/interrupts.h>
+#include <core/console.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
-#include <dev/console.h>
 
 void __noreturn fpanic(const char* restrict file, unsigned long line, const char* restrict fmt, ...)
 {
