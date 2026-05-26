@@ -9,7 +9,6 @@
 #include <stdint.h>
 #include <uacpi/uacpi.h>
 
-
 static int init_acpi_tables(void)
 {
     void* temporary_buffer = pslab_alloc_virt();

@@ -234,13 +234,13 @@ uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* reques
 }
 
 struct acpi_irq_trampoline {
-    unsigned int ireq_vector;
+    unsigned int ireq_number;
     uacpi_interrupt_handler handler;
     uacpi_handle ctx;
     uint32_t gsi;
 };
 
-static void acpi_irq_dispatch(unsigned int vector, struct interrupt_frame* restrict frame, void* restrict privdata)
+static void acpi_irq_dispatch(unsigned int number, struct interrupt_frame* restrict frame, void* restrict privdata)
 {
     struct acpi_irq_trampoline* trampoline = privdata;
 
@@ -252,7 +252,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
 {
     struct acpi_irq_trampoline* trampoline = slab_alloc(sizeof(struct acpi_irq_trampoline));
     struct intctl* controller;
-    unsigned int ireq_vector;
+    unsigned int ireq_number;
 
     if(trampoline == nullptr) {
         return UACPI_STATUS_OUT_OF_MEMORY;
@@ -270,17 +270,17 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
     trampoline->ctx = ctx;
     trampoline->gsi = gsi;
 
-    ireq_vector = register_ireq_handler(UINT_MAX, &acpi_irq_dispatch, trampoline);
+    ireq_number = register_ireq_handler(UINT_MAX, &acpi_irq_dispatch, trampoline);
 
-    if(ireq_vector == UINT_MAX) {
+    if(ireq_number == UINT_MAX) {
         slab_free(trampoline);
 
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
 
-    trampoline->ireq_vector = ireq_vector;
+    trampoline->ireq_number = ireq_number;
 
-    intctl_route(controller, gsi, (uint8_t)(ireq_vector + IREQ_VECTOR_MIN), 0, true, true);
+    intctl_route(controller, gsi, (uint8_t)(ireq_number + ARCH_IREQ_BASE), 0, true, true);
     intctl_unmask(controller, gsi);
 
     out_handle[0] = trampoline;
@@ -299,7 +299,7 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler ha
         intctl_mask(controller, trampoline->gsi);
     }
 
-    unregister_ireq_handler(trampoline->ireq_vector);
+    unregister_ireq_handler(trampoline->ireq_number);
     slab_free(trampoline);
 
     return UACPI_STATUS_OK;

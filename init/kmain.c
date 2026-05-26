@@ -108,9 +108,9 @@ static void __used test_malloc(void)
 
 static volatile unsigned int pit_ticks = 0;
 
-static void pit_handler(unsigned int vector, struct interrupt_frame* restrict frame, void* restrict ctx)
+static void pit_handler(unsigned int number, struct interrupt_frame* restrict frame, void* restrict ctx)
 {
-    (void)vector;
+    (void)number;
     (void)frame;
     (void)ctx;
 
@@ -148,12 +148,10 @@ static void test_pit(void)
     pmwrite8(PIT_CH0, (uint8_t)(divisor));
     pmwrite8(PIT_CH0, (uint8_t)(divisor >> 8));
 
-    kprintf(KP_DEBUG, "test_pit: isa irq 0 -> gsi %u, ireq %u (int 0x%02X), lapic_id=%u, %s %s",
-        gsi, vec, vec + IREQ_VECTOR_MIN, lapic_id,
-        level ? "level" : "edge",
-        active_low ? "active-low" : "active-high");
+    kprintf(KP_DEBUG, "test_pit: isa irq 0 -> gsi %u, ireq %u (int 0x%02X), lapic_id=%u, %s %s", gsi, vec, vec + ARCH_IREQ_BASE, lapic_id,
+        level ? "level" : "edge", active_low ? "active-low" : "active-high");
 
-    intctl_route(ctl, gsi, (uint8_t)(vec + IREQ_VECTOR_MIN), lapic_id, level, active_low);
+    intctl_route(ctl, gsi, (uint8_t)(vec + ARCH_IREQ_BASE), lapic_id, level, active_low);
     intctl_unmask(ctl, gsi);
 
     enable_interrupts();
