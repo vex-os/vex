@@ -42,7 +42,7 @@ static vmm_entry_type* vmm_entry_get(vmm_entry_type* restrict table, size_t inde
         }
     }
 
-    return NULL;
+    return nullptr;
 }
 
 static vmm_entry_type* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr_t virt, bool allocate)
@@ -54,8 +54,8 @@ static vmm_entry_type* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr
         index = pagemap_index(virt, VMM_ENTRY_LVL5_SHIFT);
         table = vmm_entry_get(table, index, allocate);
 
-        if(table == NULL) {
-            return NULL;
+        if(table == nullptr) {
+            return nullptr;
         }
     }
 
@@ -63,8 +63,8 @@ static vmm_entry_type* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr
         index = pagemap_index(virt, VMM_ENTRY_LVL4_SHIFT);
         table = vmm_entry_get(table, index, allocate);
 
-        if(table == NULL) {
-            return NULL;
+        if(table == nullptr) {
+            return nullptr;
         }
     }
 
@@ -72,16 +72,16 @@ static vmm_entry_type* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr
         index = pagemap_index(virt, VMM_ENTRY_LVL3_SHIFT);
         table = vmm_entry_get(table, index, allocate);
 
-        if(table == NULL) {
-            return NULL;
+        if(table == nullptr) {
+            return nullptr;
         }
     }
 
     index = pagemap_index(virt, VMM_ENTRY_LVL2_SHIFT);
     table = vmm_entry_get(table, index, allocate);
 
-    if(table == NULL) {
-        return NULL;
+    if(table == nullptr) {
+        return nullptr;
     }
 
     index = pagemap_index(virt, VMM_ENTRY_LVL1_SHIFT);
@@ -121,7 +121,7 @@ struct vmm_pagemap* vmm_create(void)
         slab_free(vm);
     }
 
-    return NULL;
+    return nullptr;
 }
 
 static int vmm_fork_table(vmm_entry_type* restrict dest, vmm_entry_type* restrict stem, size_t begin, size_t end, unsigned int depth)
@@ -232,7 +232,7 @@ struct vmm_pagemap* vmm_fork(const struct vmm_pagemap* restrict stem)
         vmm_destroy(vm);
     }
 
-    return NULL;
+    return nullptr;
 }
 
 struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem)
@@ -258,7 +258,7 @@ struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem)
         vmm_destroy(vm);
     }
 
-    return NULL;
+    return nullptr;
 }
 
 void vmm_destroy(struct vmm_pagemap* restrict vm)
@@ -280,7 +280,7 @@ int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, uns
 
     entry = vmm_entry_lookup(vm, virt, true);
 
-    if(entry == NULL) {
+    if(entry == nullptr) {
         return ENOMEM;
     }
 
@@ -302,7 +302,7 @@ int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned int vpro
 
     entry = vmm_entry_lookup(vm, virt, false);
 
-    if(entry == NULL) {
+    if(entry == nullptr) {
         return ENOMEM;
     }
 
@@ -324,7 +324,7 @@ int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
 
     entry = vmm_entry_lookup(vm, virt, false);
 
-    if(entry == NULL) {
+    if(entry == nullptr) {
         return ENOMEM;
     }
 

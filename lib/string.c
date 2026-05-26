@@ -17,7 +17,7 @@ const void* memchr(const void* restrict buf, int chr, size_t sz)
         sp++;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 int memcmp(const void* restrict ba, const void* restrict bb, size_t sz)
@@ -108,7 +108,7 @@ const char* strchr(const char* restrict str, int chr)
         return str;
     } while(*str++);
 
-    return NULL;
+    return nullptr;
 }
 
 int strcmp(const char* restrict sa, const char* restrict sb)
@@ -560,12 +560,12 @@ const char* strpbrk(const char* restrict str, const char* restrict sym)
         str++;
     }
 
-    return NULL;
+    return nullptr;
 }
 
 const char* strrchr(const char* restrict str, int chr)
 {
-    const char* cp = NULL;
+    const char* cp = nullptr;
 
     do {
         if(*str == chr) {
@@ -607,5 +607,5 @@ const char* strstr(const char* restrict str, const char* restrict substr)
         ap = ++str;
     }
 
-    return NULL;
+    return nullptr;
 }

@@ -18,7 +18,7 @@ static volatile __used __section(".limine_requests") struct limine_paging_mode_r
 
 unsigned int vmm_detect_levels(void)
 {
-    if(paging_mode.response == NULL) {
+    if(paging_mode.response == nullptr) {
         panic("vmm: bootloader did not negotiate paging mode");
     }
 
@@ -56,7 +56,7 @@ void vmm_pagemap_free(struct vmm_pagemap* restrict vm)
     pslab_free_virt(vm->amd64.cr3_virt);
 
     vm->amd64.cr3_phys = 0;
-    vm->amd64.cr3_virt = NULL;
+    vm->amd64.cr3_virt = nullptr;
 }
 
 void vmm_pagemap_zero(struct vmm_pagemap* restrict vm)

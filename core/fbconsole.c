@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include <core/console.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
-#include <dev/console.h>
 #include <init/initfn.h>
 #include <lib/string.h>
 #include <limine.h>
@@ -29,7 +29,7 @@ struct vt_cell {
     bool dirty;
 };
 
-static const char fbcons_font[4096] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+static const char fbconsole_font[4096] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x7E, 0x81, 0xA5, 0x81, 0x81, 0xBD, 0x99, 0x81, 0x7E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x7E, 0xFF, 0xDB, 0xFF,
     0xFF, 0xC3, 0xE7, 0xFF, 0x7E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x36, 0x7F, 0x7F, 0x7F, 0x7F, 0x3E, 0x1C, 0x08, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x08, 0x1C, 0x3E, 0x7F, 0x3E, 0x1C, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -227,14 +227,14 @@ static size_t fb_width = 0U;
 static size_t fb_height = 0U;
 static size_t fb_depth = 0U;
 static size_t fb_length = 0U;
-static volatile uint8_t* fb_8 = NULL;
-static volatile uint16_t* fb_16 = NULL;
-static volatile uint32_t* fb_32 = NULL;
+static volatile uint8_t* fb_8 = nullptr;
+static volatile uint16_t* fb_16 = nullptr;
+static volatile uint32_t* fb_32 = nullptr;
 
 static size_t vt_width = 0U;
 static size_t vt_height = 0U;
 static size_t vt_length = 0U;
-static struct vt_cell* vt_cells = NULL;
+static struct vt_cell* vt_cells = nullptr;
 
 static size_t cursor_xpos_prev = 0U;
 static size_t cursor_ypos_prev = 0U;
@@ -257,7 +257,7 @@ static __always_inline inline void put_pixel(size_t offset, bool white)
             break;
 
         default:
-            panic("fbcons: unsupported framebuffer depth");
+            panic("fbconsole: unsupported framebuffer depth");
             unreachable();
     }
 }
@@ -281,7 +281,7 @@ static void render_cell(size_t sx, size_t sy, int value)
 
     if(value < 0 || value > FONT_MAX_CP)
         value = 0;
-    gptr = &fbcons_font[value * FONT_STRIDE];
+    gptr = &fbconsole_font[value * FONT_STRIDE];
 
     for(gy = 0U; gy < FONT_HEIGHT; gy += 1U) {
         for(gx = 0U; gx < FONT_WIDTH; gx += 1U)
@@ -378,7 +378,7 @@ static void do_clear(void)
     memset(vt_cells, 0, vt_length * sizeof(struct vt_cell));
 }
 
-static void fbcons_putchar(int character)
+static void fbconsole_putchar(int character)
 {
     struct vt_cell* cell;
 
@@ -437,29 +437,29 @@ static void fbcons_putchar(int character)
     do_redraw();
 }
 
-static void fbcons_write(struct console_driver* restrict driver, const void* restrict data, size_t sz)
+static void fbconsole_op_write(struct console_driver* restrict driver, const void* restrict data, size_t sz)
 {
     size_t i;
     const char* psz = data;
 
-    for(i = 0U; i < sz; fbcons_putchar(psz[i++])) {
+    for(i = 0U; i < sz; fbconsole_putchar(psz[i++])) {
         // empty
     }
 }
 
-static const struct console_driver_ops fbcons_ops = {
-    .init = NULL,
-    .write = &fbcons_write,
-    .unblank = NULL,
+static const struct console_driver_ops fbconsole_ops = {
+    .init = nullptr,
+    .write = &fbconsole_op_write,
+    .unblank = nullptr,
 };
 
-static struct console_driver fbcons_driver = {
+static struct console_driver fbconsole_driver = {
     .consflags = CONSF_RECALL,
-    .identity = "fbcons",
-    .ops = &fbcons_ops,
+    .identity = "fbconsole",
+    .ops = &fbconsole_ops,
 };
 
-static int init_fbcons(void)
+static int init_fbconsole(void)
 {
     size_t i;
     struct limine_framebuffer* fb;
@@ -485,8 +485,8 @@ static int init_fbcons(void)
 
                 vt_cells = kmalloc(vt_length * sizeof(struct vt_cell));
 
-                if(vt_cells == NULL) {
-                    panic("fbcons: out of memory: vt_cells");
+                if(vt_cells == nullptr) {
+                    panic("fbconsole: out of memory: vt_cells");
                     unreachable();
                 }
 
@@ -497,7 +497,7 @@ static int init_fbcons(void)
 
                 do_clear();
 
-                register_console_driver(&fbcons_driver);
+                register_console_driver(&fbconsole_driver);
 
                 return 0;
             }
@@ -507,4 +507,4 @@ static int init_fbcons(void)
     return ENODEV;
 }
 
-DEFINE_INITFN(init_fbcons, INITFN_STAGE_HEAP, INITFN_ORDER_LAST);
+DEFINE_INITFN(init_fbconsole, INITFN_STAGE_HEAP, INITFN_ORDER_LAST);

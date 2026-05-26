@@ -1,3 +1,4 @@
+arch/amd64/amd64/bxconsole.c optional bxconsole
 arch/amd64/amd64/gdt.c
 arch/amd64/amd64/idt.c
 arch/amd64/amd64/idts.S
@@ -11,4 +12,4 @@ arch/amd64/arch/vmm.c
 arch/amd64/bus/acpi_glue.c
 arch/amd64/bus/pci_legacy.c
 
-arch/amd64/dev/bxdebug.c optional bxdebug
+arch/amd64/time/hpet.c

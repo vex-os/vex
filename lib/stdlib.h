@@ -49,9 +49,9 @@ static __always_inline __nodiscard inline long long llabs(long long value)
 #endif
 }
 
-#define atoi(nptr)  strtol((nptr), NULL, 10)
-#define atol(nptr)  strtol((nptr), NULL, 10)
-#define atoll(nptr) strtoll((nptr), NULL, 10)
+#define atoi(nptr)  strtol((nptr), nullptr, 10)
+#define atol(nptr)  strtol((nptr), nullptr, 10)
+#define atoll(nptr) strtoll((nptr), nullptr, 10)
 
 extern long strtol(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
 extern long long strtoll(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
