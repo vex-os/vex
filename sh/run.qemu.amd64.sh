@@ -22,7 +22,7 @@ qargs="${qargs} -m 512M"
 
 # only log stuff if argv[1] is verbose
 if test "${1}" = "verbose"; then
-    qargs="${qargs} -d int -D qemu.debug.log"
+    qargs="${qargs} -d cpu_reset,int -no-reboot -no-shutdown"
 fi
 
 { ${QEMU_EXECUTABLE} ${qargs} 2>&1; printf "\n"; } | tee qemu.log
