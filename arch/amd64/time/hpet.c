@@ -108,4 +108,4 @@ static int init_hpet(void)
     return register_clocksource(&hpet_clocksource);
 }
 
-DEFINE_INITFN(init_hpet, INITFN_STAGE_TIMER, INITFN_ORDER_EARLY);
+DEFINE_INITFN(init_hpet, INITFN_STAGE_TIMER, INITFN_ORDER_FIRST);

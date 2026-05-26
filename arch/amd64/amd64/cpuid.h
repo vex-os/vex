@@ -1,0 +1,8 @@
+// SPDX-License-Identifier: BSD-3-Clause
+#ifndef A977E2F6_C6E5_4614_9F86_A1E18D4BE9BB
+#define A977E2F6_C6E5_4614_9F86_A1E18D4BE9BB
+#pragma once
+
+// TODO: do cpuid here
+
+#endif /* A977E2F6_C6E5_4614_9F86_A1E18D4BE9BB */
