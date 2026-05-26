@@ -2,6 +2,7 @@ arch/amd64/amd64/gdt.c
 arch/amd64/amd64/idt.c
 arch/amd64/amd64/idts.S
 arch/amd64/amd64/ireq.c
+arch/amd64/amd64/ioapic.c
 arch/amd64/amd64/lapic.c
 arch/amd64/amd64/picstub.c
 
