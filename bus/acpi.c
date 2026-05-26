@@ -1,36 +1,62 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include <arch/limits.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <init/initfn.h>
+#include <mm/pslab.h>
+#include <stdint.h>
 #include <uacpi/uacpi.h>
 
-static int acpi_init(void)
+static int init_acpi_tables(void)
 {
-    uacpi_status status;
+    void* temporary_buffer = pslab_alloc_virt();
 
-    status = uacpi_initialize(0);
-
-    if(uacpi_unlikely_error(status)) {
-        kprintf(KP_ERROR, "acpi: %s", uacpi_status_to_string(status));
-        return EIO;
+    if(temporary_buffer == NULL) {
+        panic("acpi: out of memory");
+        unreachable();
     }
 
-    status = uacpi_namespace_load();
+    uacpi_status status = uacpi_setup_early_table_access(temporary_buffer, PAGE_SIZE);
+
+    pslab_free_virt(temporary_buffer);
 
     if(uacpi_unlikely_error(status)) {
-        kprintf(KP_ERROR, "acpi: uacpi_namespace_load: %s", uacpi_status_to_string(status));
-        return EIO;
-    }
-
-    status = uacpi_namespace_initialize();
-
-    if(uacpi_unlikely_error(status)) {
-        kprintf(KP_ERROR, "acpi: uacpi_namespace_initialize: %s", uacpi_status_to_string(status));
-        return EIO;
+        panic("acpi: early table access: %s", uacpi_status_to_string(status));
+        unreachable();
     }
 
     return 0;
 }
 
-DEFINE_INITFN(acpi_init, INITFN_STAGE_BUS, INITFN_ORDER_MIDDLE);
+DEFINE_INITFN(init_acpi_tables, INITFN_STAGE_VMM, INITFN_ORDER_LAST);
+
+static int init_acpi(void)
+{
+    uacpi_status status;
+
+    status = uinit_acpiialize(0);
+
+    if(uacpi_unlikely_error(status)) {
+        panic("acpi: %s", uacpi_status_to_string(status));
+        unreachable();
+    }
+
+    status = uacpi_namespace_load();
+
+    if(uacpi_unlikely_error(status)) {
+        panic("acpi: uacpi_namespace_load: %s", uacpi_status_to_string(status));
+        unreachable();
+    }
+
+    status = uacpi_namespace_initialize();
+
+    if(uacpi_unlikely_error(status)) {
+        panic("acpi: uacpi_namespace_initialize: %s", uacpi_status_to_string(status));
+        unreachable();
+    }
+
+    return 0;
+}
+
+DEFINE_INITFN(init_acpi, INITFN_STAGE_BUS, INITFN_ORDER_MIDDLE);

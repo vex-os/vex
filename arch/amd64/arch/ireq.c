@@ -3,6 +3,7 @@
 #include <amd64/idt.h>
 #include <amd64/lapic.h>
 #include <arch/interrupts.h>
+#include <arch/ireq.h>
 #include <core/ireq.h>
 #include <init/initfn.h>
 
@@ -217,7 +218,7 @@ extern void amd64_ireq_FF(void);
 
 void __used amd64_ireq_handler(struct interrupt_frame* restrict frame, uint64_t vector)
 {
-    dispatch_ireq(vector, frame);
+    dispatch_ireq((unsigned int)(vector - IREQ_VECTOR_MIN), frame);
 
     lapic_write(LAPIC_REG_EOI, UINT32_C(0));
 }

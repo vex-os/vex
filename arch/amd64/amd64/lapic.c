@@ -9,12 +9,10 @@
 #include <mm/page.h>
 #include <mm/vmm.h>
 
-// IA32_APIC_BASE MSR: bits [35:12] = physical base, bit 11 = global enable
 #define MSR_IA32_APIC_BASE     UINT32_C(0x0000001B)
 #define MSR_APIC_BASE_PHYSMASK UINT64_C(0x0000000FFFFFF000)
 #define MSR_APIC_BASE_ENABLE   UINT64_C(0x0000000000000800)
 
-// SVR: bit 8 = APIC software enable, bits [7:0] = spurious vector
 #define LAPIC_SVR_ENABLE      UINT32_C(0x00000100)
 #define LAPIC_SPURIOUS_VECTOR UINT32_C(0x000000FF)
 
@@ -32,6 +30,7 @@ void lapic_write(uint32_t reg, uint32_t value)
 
 static int AMD64_init_lapic(void)
 {
+    uint32_t lapic_svr_value;
     uint64_t lapic_base_msr;
     uintptr_t lapic_phys;
 
@@ -48,9 +47,13 @@ static int AMD64_init_lapic(void)
         panic("failed to map local APIC MMIO");
     }
 
-    lapic_write(LAPIC_REG_SVR, lapic_read(LAPIC_REG_SVR) | LAPIC_SVR_ENABLE | LAPIC_SPURIOUS_VECTOR);
+    lapic_svr_value = lapic_read(LAPIC_REG_SVR);
+    lapic_svr_value |= LAPIC_SVR_ENABLE;
+    lapic_svr_value |= LAPIC_SPURIOUS_VECTOR;
 
-    kprintf(KP_INFORM, "lapic: id=%u base=0x%016lx\n", lapic_id(), (unsigned long)lapic_phys);
+    lapic_write(LAPIC_REG_SVR, lapic_svr_value);
+
+    kprintf(KP_INFORM, "lapic: id=%u, base=%p", (unsigned int)(lapic_query_id()), (const void*)(lapic_phys));
 
     return 0;
 }

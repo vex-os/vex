@@ -3,8 +3,10 @@
 #include <arch/ireq.h>
 #include <bus/acpi_rsdp.h>
 #include <bus/pci.h>
+#include <core/intctl.h>
 #include <core/ireq.h>
 #include <core/kprintf.h>
+#include <limits.h>
 #include <mm/hhdm.h>
 #include <mm/malloc.h>
 #include <mm/page.h>
@@ -232,47 +234,72 @@ uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* reques
 }
 
 struct acpi_irq_trampoline {
+    unsigned int ireq_vector;
     uacpi_interrupt_handler handler;
     uacpi_handle ctx;
-    uacpi_u32 vector;
+    uint32_t gsi;
 };
 
-static void acpi_irq_dispatch(unsigned int vector, struct interrupt_frame* restrict frame, void* restrict ctx)
+static void acpi_irq_dispatch(unsigned int vector, struct interrupt_frame* restrict frame, void* restrict privdata)
 {
-    struct acpi_irq_trampoline* trampoline = ctx;
+    struct acpi_irq_trampoline* trampoline = privdata;
 
     trampoline->handler(trampoline->ctx);
 }
 
-uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 vector, uacpi_interrupt_handler handler, uacpi_handle ctx,
+uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interrupt_handler handler, uacpi_handle ctx,
     uacpi_handle* out_handle)
 {
     struct acpi_irq_trampoline* trampoline = slab_alloc(sizeof(struct acpi_irq_trampoline));
+    struct intctl* controller;
+    unsigned int ireq_vector;
 
     if(trampoline == nullptr) {
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
 
-    trampoline->handler = handler;
-    trampoline->ctx = ctx;
-    trampoline->vector = IREQ_VECTOR_MIN + vector;
+    controller = find_intctl(gsi);
 
-    if(register_ireq_handler(trampoline->vector, acpi_irq_dispatch, trampoline)) {
+    if(controller == nullptr) {
         slab_free(trampoline);
 
-        return UACPI_STATUS_INTERNAL_ERROR;
+        return UACPI_STATUS_NOT_FOUND;
     }
+
+    trampoline->handler = handler;
+    trampoline->ctx = ctx;
+    trampoline->gsi = gsi;
+
+    ireq_vector = register_ireq_handler(UINT_MAX, &acpi_irq_dispatch, trampoline);
+
+    if(ireq_vector == UINT_MAX) {
+        slab_free(trampoline);
+
+        return UACPI_STATUS_OUT_OF_MEMORY;
+    }
+
+    trampoline->ireq_vector = ireq_vector;
+
+    intctl_route(controller, gsi, (uint8_t)(ireq_vector + IREQ_VECTOR_MIN), 0, true, true);
+    intctl_unmask(controller, gsi);
 
     out_handle[0] = trampoline;
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler handler, uacpi_handle vector_handle)
+uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler handler, uacpi_handle irq_handle)
 {
-    struct acpi_irq_trampoline* trampoline = vector_handle;
+    struct acpi_irq_trampoline* trampoline = irq_handle;
+    struct intctl* controller;
 
-    unregister_ireq_handler(trampoline->vector);
+    controller = find_intctl(trampoline->gsi);
+
+    if(controller) {
+        intctl_mask(controller, trampoline->gsi);
+    }
+
+    unregister_ireq_handler(trampoline->ireq_vector);
     slab_free(trampoline);
 
     return UACPI_STATUS_OK;
