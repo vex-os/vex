@@ -7,7 +7,7 @@
 #include <core/kprintf.h>
 #include <limits.h>
 
-#define IREQ_TABLE_SIZE (IREQ_VECTOR_MAX - IREQ_VECTOR_MIN + 1)
+#define IREQ_TABLE_SIZE (ARCH_IREQ_MAX - ARCH_IREQ_BASE + 1)
 
 struct ireq_entry {
     ireq_handler_type handler;
@@ -16,50 +16,50 @@ struct ireq_entry {
 
 static struct ireq_entry ireq_table[IREQ_TABLE_SIZE] = { 0 };
 
-unsigned int register_ireq_handler(unsigned int desired_vector, ireq_handler_type handler, void* restrict privdata)
+unsigned int register_ireq_handler(unsigned int desired_number, ireq_handler_type handler, void* restrict privdata)
 {
-    unsigned int vector;
+    unsigned int number;
 
-    if(desired_vector < IREQ_TABLE_SIZE && ireq_table[desired_vector].handler == nullptr) {
-        ireq_table[desired_vector].handler = handler;
-        ireq_table[desired_vector].privdata = privdata;
-        return desired_vector;
+    if(desired_number < IREQ_TABLE_SIZE && ireq_table[desired_number].handler == nullptr) {
+        ireq_table[desired_number].handler = handler;
+        ireq_table[desired_number].privdata = privdata;
+        return desired_number;
     }
 
-    for(vector = 0; vector < IREQ_TABLE_SIZE; vector += 1) {
-        if(ireq_table[vector].handler == nullptr) {
-            ireq_table[vector].handler = handler;
-            ireq_table[vector].privdata = privdata;
-            return vector;
+    for(number = 0; number < IREQ_TABLE_SIZE; number += 1) {
+        if(ireq_table[number].handler == nullptr) {
+            ireq_table[number].handler = handler;
+            ireq_table[number].privdata = privdata;
+            return number;
         }
     }
 
     return UINT_MAX;
 }
 
-void unregister_ireq_handler(unsigned int vector)
+void unregister_ireq_handler(unsigned int number)
 {
-    kassert(vector < IREQ_TABLE_SIZE && "invalid ireq vector");
+    kassert(number < IREQ_TABLE_SIZE && "invalid ireq number");
 
-    ireq_table[vector].handler = nullptr;
-    ireq_table[vector].privdata = nullptr;
+    ireq_table[number].handler = nullptr;
+    ireq_table[number].privdata = nullptr;
 }
 
-void dispatch_ireq(unsigned int vector, struct interrupt_frame* restrict frame)
+void dispatch_ireq(unsigned int number, struct interrupt_frame* restrict frame)
 {
     ireq_handler_type handler;
 
-    if(vector >= IREQ_TABLE_SIZE) {
-        kprintf(KP_WARNING, "ireq: spurious vector 0x%02X out of range", vector);
+    if(number >= IREQ_TABLE_SIZE) {
+        kprintf(KP_WARNING, "ireq: spurious IRQ 0x%02X out of range", number);
         return;
     }
 
-    handler = ireq_table[vector].handler;
+    handler = ireq_table[number].handler;
 
     if(handler) {
-        handler(vector, frame, ireq_table[vector].privdata);
+        handler(number, frame, ireq_table[number].privdata);
         return;
     }
 
-    kprintf(KP_WARNING, "ireq: unhandled vector 0x%02X", vector);
+    kprintf(KP_WARNING, "ireq: unhandled IRQ 0x%02X", number);
 }
