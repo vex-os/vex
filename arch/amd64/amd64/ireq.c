@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include <amd64/idt.h>
+#include <amd64/lapic.h>
 #include <arch/interrupts.h>
 #include <core/ireq.h>
 #include <init/initfn.h>
@@ -218,7 +219,7 @@ void __used amd64_ireq_handler(struct interrupt_frame* restrict frame, uint64_t 
 {
     dispatch_ireq(vector, frame);
 
-    // TODO: send LAPIC EOI
+    lapic_write(LAPIC_REG_EOI, UINT32_C(0));
 }
 
 static int AMD64_init_ireq(void)

@@ -13,6 +13,7 @@
 #define AMD64_VMM_PML_PRESENT UINT64_C(0x0000000000000001)
 #define AMD64_VMM_PML_WRITE   UINT64_C(0x0000000000000002)
 #define AMD64_VMM_PML_USER    UINT64_C(0x0000000000000004)
+#define AMD64_VMM_PML_PCD     UINT64_C(0x0000000000000010)
 #define AMD64_VMM_PML_NOEXEC  UINT64_C(0x8000000000000000)
 
 #define AMD64_VMM_TABLE_KERN 256U
@@ -70,6 +71,8 @@ static __always_inline __nodiscard inline unsigned int vmm_entry_vprot(vmm_entry
         vprot |= VPROT_USER;
     if(!(entry & AMD64_VMM_PML_NOEXEC))
         vprot |= VPROT_EXEC;
+    if(entry & AMD64_VMM_PML_PCD)
+        vprot |= VPROT_NOCACHE;
     return vprot;
 }
 
@@ -87,6 +90,8 @@ static __always_inline __nodiscard inline vmm_entry_type vmm_entry_init(uintptr_
         result |= AMD64_VMM_PML_USER;
     if(vprot & VPROT_EXEC)
         result &= ~AMD64_VMM_PML_NOEXEC;
+    if(vprot & VPROT_NOCACHE)
+        result |= AMD64_VMM_PML_PCD;
 
     return result;
 }
