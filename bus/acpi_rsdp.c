@@ -1,4 +1,4 @@
-#include <bus/acpi/rsdp.h>
+#include <bus/acpi_rsdp.h>
 #include <core/panic.h>
 #include <init/initfn.h>
 #include <limine.h>

@@ -1,6 +1,6 @@
-bus/acpi/acpi.c
-bus/acpi/glue.c
-bus/acpi/rsdp.c
+bus/acpi.c
+bus/acpi_glue.c
+bus/acpi_rsdp.c
 
 core/assert.c
 core/ireq.c
