@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include <arch/ireq.h>
-#include <bus/acpi/rsdp.h>
+#include <bus/acpi_rsdp.h>
 #include <core/ireq.h>
 #include <core/kprintf.h>
 #include <mm/hhdm.h>
