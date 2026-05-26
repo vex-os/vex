@@ -23,6 +23,7 @@
 
 #define __alias(func)      __attribute__((alias(#func)))
 #define __align_as(type)   __attribute__((aligned(sizeof(type))))
+#define __aligned(n)       __attribute__((aligned(n)))
 #define __always_inline    __attribute__((always_inline))
 #define __nodiscard        __attribute__((warn_unused_result))
 #define __noreturn         __attribute__((noreturn))

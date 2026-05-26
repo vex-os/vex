@@ -5,67 +5,61 @@
 #include <core/errno.h>
 #include <core/ireq.h>
 #include <core/kprintf.h>
+#include <limits.h>
 
 #define IREQ_TABLE_SIZE (IREQ_VECTOR_MAX - IREQ_VECTOR_MIN + 1)
 
 struct ireq_entry {
     ireq_handler_type handler;
-    void* ctx;
+    void* privdata;
 };
 
-static struct ireq_entry ireq_table[IREQ_TABLE_SIZE];
+static struct ireq_entry ireq_table[IREQ_TABLE_SIZE] = { 0 };
 
-int register_ireq_handler(unsigned int vector, ireq_handler_type handler, void* restrict ctx)
+unsigned int register_ireq_handler(unsigned int desired_vector, ireq_handler_type handler, void* restrict privdata)
 {
-    kassert(handler && "invalid IREQ handler function pointer");
+    unsigned int vector;
 
-    if(vector < IREQ_VECTOR_MIN || vector > IREQ_VECTOR_MAX) {
-        return EINVAL;
+    if(desired_vector < IREQ_TABLE_SIZE && ireq_table[desired_vector].handler == nullptr) {
+        ireq_table[desired_vector].handler = handler;
+        ireq_table[desired_vector].privdata = privdata;
+        return desired_vector;
     }
 
-    ireq_table[vector - IREQ_VECTOR_MIN].handler = handler;
-    ireq_table[vector - IREQ_VECTOR_MIN].ctx = ctx;
+    for(vector = 0; vector < IREQ_TABLE_SIZE; vector += 1) {
+        if(ireq_table[vector].handler == nullptr) {
+            ireq_table[vector].handler = handler;
+            ireq_table[vector].privdata = privdata;
+            return vector;
+        }
+    }
 
-    return 0;
+    return UINT_MAX;
 }
 
-int unregister_ireq_handler(unsigned int vector)
+void unregister_ireq_handler(unsigned int vector)
 {
-    if(vector < IREQ_VECTOR_MIN || vector > IREQ_VECTOR_MAX) {
-        return EINVAL;
-    }
+    kassert(vector < IREQ_TABLE_SIZE && "invalid ireq vector");
 
-    ireq_table[vector - IREQ_VECTOR_MIN].handler = NULL;
-    ireq_table[vector - IREQ_VECTOR_MIN].ctx = NULL;
-
-    return 0;
+    ireq_table[vector].handler = nullptr;
+    ireq_table[vector].privdata = nullptr;
 }
 
 void dispatch_ireq(unsigned int vector, struct interrupt_frame* restrict frame)
 {
     ireq_handler_type handler;
 
-    if(vector < IREQ_VECTOR_MIN || vector > IREQ_VECTOR_MAX) {
+    if(vector >= IREQ_TABLE_SIZE) {
         kprintf(KP_WARNING, "ireq: spurious vector 0x%02X out of range", vector);
         return;
     }
 
-    handler = ireq_table[vector - IREQ_VECTOR_MIN].handler;
+    handler = ireq_table[vector].handler;
 
     if(handler) {
-        handler(vector, frame, ireq_table[vector - IREQ_VECTOR_MIN].ctx);
+        handler(vector, frame, ireq_table[vector].privdata);
         return;
     }
 
     kprintf(KP_WARNING, "ireq: unhandled vector 0x%02X", vector);
-}
-
-void init_ireq(void)
-{
-    size_t i;
-
-    for(i = 0; i < IREQ_TABLE_SIZE; ++i) {
-        ireq_table[i].handler = NULL;
-        ireq_table[i].ctx = NULL;
-    }
 }

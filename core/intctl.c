@@ -9,6 +9,8 @@ static struct intctl* intctl_head = nullptr;
 
 int register_intctl(struct intctl* restrict controller)
 {
+    size_t gsi_base;
+    size_t gsi_count;
     struct intctl* it;
 
     kassert(controller && "invalid interrupt controller pointer");
@@ -20,7 +22,9 @@ int register_intctl(struct intctl* restrict controller)
         continue;
     }
 
-    kprintf(KP_INFORM, "intctl: adding %s: gsi_base=%zu", controller->identity, (size_t)(controller->gsi_base));
+    gsi_base = controller->gsi_base;
+    gsi_count = controller->gsi_count;
+    kprintf(KP_INFORM, "intctl: adding %s: gsi_base=%zu, gsi_count=%zu", controller->identity, gsi_base, gsi_count);
 
     controller->next = intctl_head;
     intctl_head = controller;

@@ -4,6 +4,7 @@
 #include <core/intctl.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
+#include <init/initfn.h>
 #include <lib/sprintf.h>
 #include <lib/string.h>
 #include <mm/hhdm.h>
@@ -11,9 +12,11 @@
 #include <mm/vmm.h>
 #include <mm/vprot.h>
 #include <stddef.h>
+#include <uacpi/acpi.h>
+#include <uacpi/tables.h>
 
-#define IOAPIC_MMIO_SELECT 0 ///< IOAPIC REGSEL
-#define IOAPIC_MMIO_WINDOW 1 ///< IOAPIC IOWIN
+#define IOAPIC_MMIO_SELECT 0 ///< IOAPIC REGSEL (offset 0x00)
+#define IOAPIC_MMIO_WINDOW 4 ///< IOAPIC IOWIN  (offset 0x10)
 
 #define IOAPIC_REG_ID         UINT32_C(0x00000000) ///< Bits 24-27: APIC ID for this I/O APIC
 #define IOAPIC_REG_VER        UINT32_C(0x00000001) ///< Bits 16-23: Maximum redirection entry, Bits 0-7: APIC version
@@ -126,49 +129,127 @@ static void ioapic_op_route(struct intctl* restrict controller, uint32_t gsi, ui
     ioapic_write_rte(data, irq, entry);
 }
 
-static const struct intctl_ops ioapic_ops = {
-    .mask = ioapic_op_mask,
-    .unmask = ioapic_op_unmask,
-    .route = ioapic_op_route,
+#define ISA_IRQ_COUNT 16
+
+// Bits [1:0] of ISO flags: polarity. 3 = active low, anything else = active high (ISA default).
+// Bits [3:2] of ISO flags: trigger.  3 = level,     anything else = edge (ISA default).
+#define ISO_FLAGS_ACTIVE_LOW 3
+#define ISO_FLAGS_LEVEL      3
+
+struct isa_irq_entry {
+    uint32_t gsi;
+    bool level;
+    bool active_low;
 };
 
-void ioapic_register(uintptr_t phys, uint32_t gsi_base)
+static struct isa_irq_entry isa_irq_table[ISA_IRQ_COUNT];
+
+void isa_irq_route(uint8_t irq, uint32_t* out_gsi, bool* out_level, bool* out_active_low)
 {
+    if(irq < ISA_IRQ_COUNT) {
+        *out_gsi = isa_irq_table[irq].gsi;
+        *out_level = isa_irq_table[irq].level;
+        *out_active_low = isa_irq_table[irq].active_low;
+    }
+    else {
+        *out_gsi = irq;
+        *out_level = false;
+        *out_active_low = false;
+    }
+}
+
+static const struct intctl_ops ioapic_ops = {
+    .mask = &ioapic_op_mask,
+    .unmask = &ioapic_op_unmask,
+    .route = &ioapic_op_route,
+};
+
+static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct acpi_entry_hdr* entry)
+{
+    struct acpi_madt_ioapic* ioapic;
     struct ioapic_data* data;
     struct intctl* controller;
 
     void* virt;
+    uint32_t id;
     uint32_t ver;
     uint8_t i;
 
-    data = slab_alloc(sizeof(struct ioapic_data));
-    controller = slab_alloc(sizeof(struct intctl));
+    if(entry->type == ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE) {
+        struct acpi_madt_interrupt_source_override* iso = (struct acpi_madt_interrupt_source_override*)entry;
 
-    if(data == nullptr || controller == nullptr) {
-        panic("ioapic: out of memory");
+        if(iso->bus == 0 && iso->source < ISA_IRQ_COUNT) {
+            isa_irq_table[iso->source].gsi = iso->gsi;
+            isa_irq_table[iso->source].level = ((iso->flags >> 2) & 3) == ISO_FLAGS_LEVEL;
+            isa_irq_table[iso->source].active_low = (iso->flags & 3) == ISO_FLAGS_ACTIVE_LOW;
+
+            kprintf(KP_DEBUG, "ioapic: iso: isa irq %u -> gsi %u %s %s", (unsigned int)iso->source, iso->gsi,
+                isa_irq_table[iso->source].level ? "level" : "edge", isa_irq_table[iso->source].active_low ? "active-low" : "active-high");
+        }
     }
 
-    virt = phys_to_virt(phys);
+    if(entry->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
+        ioapic = (struct acpi_madt_ioapic*)(entry);
 
-    if(vmm_map(&sys_pagemap, (uintptr_t)virt, phys, VPROT_RW | VPROT_NOCACHE)) {
-        panic("ioapic: failed to map MMIO at %p", (const void*)(phys));
+        data = slab_alloc(sizeof(struct ioapic_data));
+        controller = slab_alloc(sizeof(struct intctl));
+
+        if(data == nullptr || controller == nullptr) {
+            panic("ioapic: out of memory");
+        }
+
+        virt = phys_to_virt(ioapic->address);
+
+        if(vmm_map(&sys_pagemap, (uintptr_t)(virt), ioapic->address, VPROT_RW | VPROT_NOCACHE)) {
+            panic("ioapic: failed to map MMIO at %p", (const void*)((uintptr_t)(ioapic->address)));
+        }
+
+        data->base = (volatile uint32_t*)(virt);
+
+        id = ioapic_read(data, IOAPIC_REG_ID) >> 24;
+        ver = ioapic_read(data, IOAPIC_REG_VER);
+
+        controller->ops = &ioapic_ops;
+        controller->gsi_base = ioapic->gsi_base;
+        controller->gsi_count = ((ver >> IOAPIC_VER_MAXREDIR_SHIFT) & IOAPIC_VER_MAXREDIR_MASK) + 1;
+        controller->privdata = data;
+
+        snprintf(controller->identity, sizeof(controller->identity), "ioapic-%u", (unsigned int)(id));
+
+        for(i = 0; i < controller->gsi_count; ++i) {
+            ioapic_write_rte(data, i, (struct rte_entry) { .masked = 1 });
+        }
+
+        if(register_intctl(controller)) {
+            panic("ioapic: failed to register interrupt controller");
+        }
     }
 
-    data->base = (volatile uint32_t*)(virt);
-
-    ver = ioapic_read(data, IOAPIC_REG_VER);
-
-    controller->ops = &ioapic_ops;
-    controller->gsi_base = gsi_base;
-    controller->gsi_count = ((ver >> IOAPIC_VER_MAXREDIR_SHIFT) & IOAPIC_VER_MAXREDIR_MASK) + 1;
-    controller->privdata = data;
-
-    snprintf(controller->identity, sizeof(controller->identity), "ioapic id=%u gsi_count=%u", ioapic_read(data, IOAPIC_REG_ID) >> 24,
-        controller->gsi_count);
-
-    for(i = 0; i < controller->gsi_count; i++) {
-        ioapic_write_rte(data, i, (struct rte_entry) { .masked = 1 });
-    }
-
-    register_intctl(controller);
+    return UACPI_ITERATION_DECISION_CONTINUE;
 }
+
+static int AMD64_init_ioapic(void)
+{
+    uacpi_table madt;
+    uacpi_status status;
+    uint8_t i;
+
+    for(i = 0; i < ISA_IRQ_COUNT; i++) {
+        isa_irq_table[i].gsi = i;
+        isa_irq_table[i].level = false;
+        isa_irq_table[i].active_low = false;
+    }
+
+    status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);
+
+    if(uacpi_unlikely_error(status)) {
+        panic("ioapic: MADT not found: %s", uacpi_status_to_string(status));
+    }
+
+    uacpi_for_each_subtable(madt.hdr, sizeof(struct acpi_madt), &ioapic_madt_callback, nullptr);
+    uacpi_table_unref(&madt);
+
+    return 0;
+}
+
+DEFINE_INITFN(AMD64_init_ioapic, INITFN_STAGE_IREQ, INITFN_ORDER_FIRST);
