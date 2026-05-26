@@ -3,10 +3,12 @@
 #include <arch/limits.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
+#include <core/panic.h>
 #include <init/initfn.h>
 #include <mm/pslab.h>
 #include <stdint.h>
 #include <uacpi/uacpi.h>
+
 
 static int init_acpi_tables(void)
 {
@@ -35,7 +37,7 @@ static int init_acpi(void)
 {
     uacpi_status status;
 
-    status = uinit_acpiialize(0);
+    status = uacpi_initialize(0);
 
     if(uacpi_unlikely_error(status)) {
         panic("acpi: %s", uacpi_status_to_string(status));
