@@ -4,6 +4,7 @@ bus/acpi_rsdp.c
 bus/pci.c
 
 core/assert.c
+core/intctl.c
 core/ireq.c
 core/kprintf.c
 core/panic.c
