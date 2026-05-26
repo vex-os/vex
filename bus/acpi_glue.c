@@ -2,6 +2,7 @@
 
 #include <arch/ireq.h>
 #include <bus/acpi_rsdp.h>
+#include <bus/pci.h>
 #include <core/ireq.h>
 #include <core/kprintf.h>
 #include <mm/hhdm.h>
@@ -155,42 +156,61 @@ void uacpi_kernel_sleep(uacpi_u64 msec)
 
 uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handle* out_handle)
 {
-    return UACPI_STATUS_UNIMPLEMENTED;
+    struct pci_device* dev = pci_open(address.segment, address.bus, address.device, address.function);
+
+    if(dev == nullptr) {
+        return UACPI_STATUS_NOT_FOUND;
+    }
+
+    out_handle[0] = dev;
+
+    return UACPI_STATUS_OK;
 }
 
 void uacpi_kernel_pci_device_close(uacpi_handle handle)
 {
-    // empty
+    pci_close(handle);
 }
 
-uacpi_status uacpi_kernel_pci_read8(uacpi_handle dev, uacpi_size off, uacpi_u8* val)
+uacpi_status uacpi_kernel_pci_read8(uacpi_handle handle, uacpi_size off, uacpi_u8* val)
 {
-    return UACPI_STATUS_UNIMPLEMENTED;
+    val[0] = pci_read8(handle, off);
+
+    return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_read16(uacpi_handle dev, uacpi_size off, uacpi_u16* val)
+uacpi_status uacpi_kernel_pci_read16(uacpi_handle handle, uacpi_size off, uacpi_u16* val)
 {
-    return UACPI_STATUS_UNIMPLEMENTED;
+    val[0] = pci_read16(handle, off);
+
+    return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_read32(uacpi_handle dev, uacpi_size off, uacpi_u32* val)
+uacpi_status uacpi_kernel_pci_read32(uacpi_handle handle, uacpi_size off, uacpi_u32* val)
 {
-    return UACPI_STATUS_UNIMPLEMENTED;
+    val[0] = pci_read32(handle, off);
+    return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_write8(uacpi_handle dev, uacpi_size off, uacpi_u8 val)
+uacpi_status uacpi_kernel_pci_write8(uacpi_handle handle, uacpi_size off, uacpi_u8 val)
 {
-    return UACPI_STATUS_UNIMPLEMENTED;
+    pci_write8(handle, off, val);
+
+    return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_write16(uacpi_handle dev, uacpi_size off, uacpi_u16 val)
+uacpi_status uacpi_kernel_pci_write16(uacpi_handle handle, uacpi_size off, uacpi_u16 val)
 {
-    return UACPI_STATUS_UNIMPLEMENTED;
+    pci_write16(handle, off, val);
+
+    return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_write32(uacpi_handle dev, uacpi_size off, uacpi_u32 val)
+uacpi_status uacpi_kernel_pci_write32(uacpi_handle handle, uacpi_size off, uacpi_u32 val)
 {
-    return UACPI_STATUS_UNIMPLEMENTED;
+    pci_write32(handle, off, val);
+
+    return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* request)
