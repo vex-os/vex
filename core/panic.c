@@ -20,6 +20,7 @@ void __noreturn fvpanic(const char* restrict file, unsigned long line, const cha
 
     console_unblank_all();
 
+    kprintf(KP_EMERG, "kernel panic at %s:%lu", file, line);
     kvprintf(KP_EMERG, fmt, ap);
 
     for(;;) {

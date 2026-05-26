@@ -85,6 +85,8 @@ static void test_malloc(void)
     d = kmalloc(64);
     kassert(d != nullptr);
     kfree(d);
+
+    kprintf(KP_DEBUG, "RANDOM BULLSHIT GOOOOOOOO");
     kfree(d); // must panic here
 
     kprintf(KP_NOTICE, "malloc: test: all passed");
