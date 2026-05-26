@@ -53,8 +53,6 @@ static int init_invtsc(void)
     invtsc_clocksource.read_mult = UINT64_C(1000000000) << 32;
     invtsc_clocksource.read_mult /= freq_hz;
 
-    kprintf(KP_INFORM, "invtsc: frequency=%llu Hz", (unsigned long long)(freq_hz));
-
     return register_clocksource(&invtsc_clocksource);
 }
 
