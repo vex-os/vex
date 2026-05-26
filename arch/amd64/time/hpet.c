@@ -103,8 +103,6 @@ static int init_hpet(void)
     hpet_clocksource.read_mult = period_fs << 32;
     hpet_clocksource.read_mult /= HPET_FEMTO_PER_NANO;
 
-    kprintf(KP_INFORM, "hpet: period=%llu fs", (unsigned long long)(period_fs));
-
     return register_clocksource(&hpet_clocksource);
 }
 
