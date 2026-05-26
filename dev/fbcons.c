@@ -5,8 +5,8 @@
 #include <core/panic.h>
 #include <dev/console.h>
 #include <init/initfn.h>
-#include <lib/limine.h>
 #include <lib/string.h>
+#include <limine.h>
 #include <mm/malloc.h>
 
 #define CHR_BS  0x08

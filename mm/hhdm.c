@@ -2,7 +2,7 @@
 
 #include <core/panic.h>
 #include <init/initfn.h>
-#include <lib/limine.h>
+#include <limine.h>
 #include <mm/hhdm.h>
 
 uintptr_t hhdm_base;

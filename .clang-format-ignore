@@ -1,1 +1,4 @@
-lib/limine.h
+ext/*.c
+ext/*.h
+ext/**/*.c
+ext/**/*.h

@@ -49,6 +49,28 @@ void* memcpy(void* restrict dst, const void* restrict src, size_t sz)
     return dst;
 }
 
+void* memmove(void* dst, const void* src, size_t sz)
+{
+    unsigned char* dp = dst;
+    const unsigned char* sp = src;
+
+    if(dp < sp) {
+        while(sz--) {
+            *dp++ = *sp++;
+        }
+    }
+    else if(dp > sp) {
+        dp += sz;
+        sp += sz;
+
+        while(sz--) {
+            *--dp = *--sp;
+        }
+    }
+
+    return dst;
+}
+
 void* memset(void* restrict dst, int chr, size_t sz)
 {
     unsigned char* sp = dst;

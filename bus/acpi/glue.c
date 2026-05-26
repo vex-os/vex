@@ -1,0 +1,269 @@
+// SPDX-License-Identifier: BSD-3-Clause
+
+#include <arch/ireq.h>
+#include <bus/acpi/rsdp.h>
+#include <core/ireq.h>
+#include <core/kprintf.h>
+#include <mm/hhdm.h>
+#include <mm/malloc.h>
+#include <mm/page.h>
+#include <mm/slab.h>
+#include <mm/vmm.h>
+#include <mm/vprot.h>
+#include <stdint.h>
+#include <uacpi/kernel_api.h>
+
+uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out)
+{
+    out[0] = rsdp_address;
+    return UACPI_STATUS_OK;
+}
+
+void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* msg)
+{
+    unsigned int sv;
+
+    switch(lvl) {
+        case UACPI_LOG_ERROR:
+            sv = KP_ERROR;
+            break;
+
+        case UACPI_LOG_WARN:
+            sv = KP_WARNING;
+            break;
+
+        case UACPI_LOG_INFO:
+            sv = KP_INFORM;
+            break;
+
+        case UACPI_LOG_TRACE:
+            sv = KP_DEBUG;
+            break;
+
+        case UACPI_LOG_DEBUG:
+            sv = KP_DEBUG;
+            break;
+
+        default:
+            sv = KP_DEBUG;
+            break;
+    }
+
+    kprintf(sv, "uacpi: %s", msg);
+}
+
+void* uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
+{
+    uintptr_t phys = page_align((uintptr_t)(addr));
+    uintptr_t virt = hhdm_base + phys;
+    uintptr_t end = page_align_up((uintptr_t)(addr) + len);
+
+    while(phys < end) {
+        vmm_map(&sys_pagemap, virt, phys, VPROT_RW);
+        phys += PAGE_SIZE;
+        virt += PAGE_SIZE;
+    }
+
+    return phys_to_virt(addr);
+}
+
+void uacpi_kernel_unmap(void* addr, uacpi_size len)
+{
+    uintptr_t virt = page_align((uintptr_t)(addr));
+    uintptr_t end = page_align_up((uintptr_t)(addr) + len);
+
+    while(virt < end) {
+        vmm_unmap(&sys_pagemap, virt);
+
+        virt += PAGE_SIZE;
+    }
+}
+
+void* uacpi_kernel_alloc(uacpi_size size)
+{
+    return kmalloc(size);
+}
+
+void uacpi_kernel_free(void* mem)
+{
+    kfree(mem);
+}
+
+uacpi_handle uacpi_kernel_create_mutex(void)
+{
+    return ((uacpi_handle)(42));
+}
+
+void uacpi_kernel_free_mutex(uacpi_handle handle)
+{
+    // empty
+}
+
+uacpi_status uacpi_kernel_acquire_mutex(uacpi_handle handle, uacpi_u16 timeout)
+{
+    return UACPI_STATUS_OK;
+}
+
+void uacpi_kernel_release_mutex(uacpi_handle handle)
+{
+    // empty
+}
+
+uacpi_handle uacpi_kernel_create_event(void)
+{
+    return ((uacpi_handle)(69));
+}
+
+void uacpi_kernel_free_event(uacpi_handle handle)
+{
+    // empty
+}
+
+uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle handle, uacpi_u16 timeout)
+{
+    return UACPI_TRUE;
+}
+
+void uacpi_kernel_signal_event(uacpi_handle handle)
+{
+    // empty
+}
+
+void uacpi_kernel_reset_event(uacpi_handle handle)
+{
+    // empty
+}
+
+// ---------------------------------------------------------------------------
+// Timing (stub — no hardware timer yet)
+// ---------------------------------------------------------------------------
+
+uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void)
+{
+    return 0; // TODO: clocksource
+}
+
+void uacpi_kernel_stall(uacpi_u8 usec)
+{
+    // empty
+}
+
+void uacpi_kernel_sleep(uacpi_u64 msec)
+{
+    // empty
+}
+
+uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handle* out_handle)
+{
+    return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+void uacpi_kernel_pci_device_close(uacpi_handle handle)
+{
+    // empty
+}
+
+uacpi_status uacpi_kernel_pci_read8(uacpi_handle dev, uacpi_size off, uacpi_u8* val)
+{
+    return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_pci_read16(uacpi_handle dev, uacpi_size off, uacpi_u16* val)
+{
+    return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_pci_read32(uacpi_handle dev, uacpi_size off, uacpi_u32* val)
+{
+    return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_pci_write8(uacpi_handle dev, uacpi_size off, uacpi_u8 val)
+{
+    return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_pci_write16(uacpi_handle dev, uacpi_size off, uacpi_u16 val)
+{
+    return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_pci_write32(uacpi_handle dev, uacpi_size off, uacpi_u32 val)
+{
+    return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* request)
+{
+    unsigned long long arg;
+
+    if(request->type == UACPI_FIRMWARE_REQUEST_TYPE_BREAKPOINT) {
+        kprintf(KP_WARNING, "uacpi: AML breakpoint hit");
+        return UACPI_STATUS_OK;
+    }
+
+    if(request->type == UACPI_FIRMWARE_REQUEST_TYPE_FATAL) {
+        arg = request->fatal.arg;
+        kprintf(KP_ERROR, "uacpi: AML fatal: type=0x%x code=0x%x arg=0x%llx", request->fatal.type, request->fatal.code, arg);
+        return UACPI_STATUS_OK;
+    }
+
+    return UACPI_STATUS_UNIMPLEMENTED;
+}
+
+struct acpi_irq_trampoline {
+    uacpi_interrupt_handler handler;
+    uacpi_handle ctx;
+    uacpi_u32 vector;
+};
+
+static void acpi_irq_dispatch(unsigned int vector, struct interrupt_frame* restrict frame, void* restrict ctx)
+{
+    struct acpi_irq_trampoline* trampoline = ctx;
+
+    trampoline->handler(trampoline->ctx);
+}
+
+uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 vector, uacpi_interrupt_handler handler, uacpi_handle ctx,
+    uacpi_handle* out_handle)
+{
+    struct acpi_irq_trampoline* trampoline = slab_alloc(sizeof(struct acpi_irq_trampoline));
+
+    if(trampoline == nullptr) {
+        return UACPI_STATUS_OUT_OF_MEMORY;
+    }
+
+    trampoline->handler = handler;
+    trampoline->ctx = ctx;
+    trampoline->vector = IREQ_VECTOR_MIN + vector;
+
+    if(register_ireq_handler(trampoline->vector, acpi_irq_dispatch, trampoline)) {
+        slab_free(trampoline);
+
+        return UACPI_STATUS_INTERNAL_ERROR;
+    }
+
+    out_handle[0] = trampoline;
+
+    return UACPI_STATUS_OK;
+}
+
+uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler handler, uacpi_handle vector_handle)
+{
+    struct acpi_irq_trampoline* trampoline = vector_handle;
+
+    unregister_ireq_handler(trampoline->vector);
+    slab_free(trampoline);
+
+    return UACPI_STATUS_OK;
+}
+
+uacpi_status uacpi_kernel_schedule_work(uacpi_work_type type, uacpi_work_handler handler, uacpi_handle ctx)
+{
+    return UACPI_STATUS_OK;
+}
+
+uacpi_status uacpi_kernel_wait_for_work_completion(void)
+{
+    return UACPI_STATUS_OK;
+}

@@ -9,6 +9,7 @@
 extern const void* memchr(const void* restrict buf, int chr, size_t sz) __nodiscard;
 extern int memcmp(const void* restrict ba, const void* restrict bb, size_t sz) __nodiscard;
 extern void* memcpy(void* restrict dst, const void* restrict src, size_t sz);
+extern void* memmove(void* dst, const void* src, size_t sz);
 extern void* memset(void* restrict dst, int chr, size_t sz);
 
 extern char* strcat(char* restrict dst, const char* restrict src);
