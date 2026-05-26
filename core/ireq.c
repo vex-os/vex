@@ -8,9 +8,14 @@
 
 #define IREQ_TABLE_SIZE (IREQ_VECTOR_MAX - IREQ_VECTOR_MIN + 1)
 
-static ireq_handler_type ireq_table[IREQ_TABLE_SIZE];
+struct ireq_entry {
+    ireq_handler_type handler;
+    void* ctx;
+};
 
-int register_ireq_handler(unsigned int vector, ireq_handler_type handler)
+static struct ireq_entry ireq_table[IREQ_TABLE_SIZE];
+
+int register_ireq_handler(unsigned int vector, ireq_handler_type handler, void* restrict ctx)
 {
     kassert(handler && "invalid IREQ handler function pointer");
 
@@ -18,7 +23,8 @@ int register_ireq_handler(unsigned int vector, ireq_handler_type handler)
         return EINVAL;
     }
 
-    ireq_table[vector - IREQ_VECTOR_MIN] = handler;
+    ireq_table[vector - IREQ_VECTOR_MIN].handler = handler;
+    ireq_table[vector - IREQ_VECTOR_MIN].ctx = ctx;
 
     return 0;
 }
@@ -29,7 +35,8 @@ int unregister_ireq_handler(unsigned int vector)
         return EINVAL;
     }
 
-    ireq_table[vector - IREQ_VECTOR_MIN] = NULL;
+    ireq_table[vector - IREQ_VECTOR_MIN].handler = NULL;
+    ireq_table[vector - IREQ_VECTOR_MIN].ctx = NULL;
 
     return 0;
 }
@@ -43,10 +50,10 @@ void dispatch_ireq(unsigned int vector, struct interrupt_frame* restrict frame)
         return;
     }
 
-    handler = ireq_table[vector - IREQ_VECTOR_MIN];
+    handler = ireq_table[vector - IREQ_VECTOR_MIN].handler;
 
     if(handler) {
-        handler(vector, frame);
+        handler(vector, frame, ireq_table[vector - IREQ_VECTOR_MIN].ctx);
         return;
     }
 
@@ -58,6 +65,7 @@ void init_ireq(void)
     size_t i;
 
     for(i = 0; i < IREQ_TABLE_SIZE; ++i) {
-        ireq_table[i] = NULL;
+        ireq_table[i].handler = NULL;
+        ireq_table[i].ctx = NULL;
     }
 }

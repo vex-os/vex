@@ -2,7 +2,7 @@
 
 #include <core/panic.h>
 #include <init/initfn.h>
-#include <lib/limine.h>
+#include <limine.h>
 #include <mm/kbase.h>
 
 uintptr_t kbase_phys;

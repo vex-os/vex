@@ -16,6 +16,7 @@
       "includePath": [
         "${workspaceFolder}/arch/amd64/pub",
         "${workspaceFolder}/arch/amd64",
+        "${workspaceFolder}/ext",
         "${workspaceFolder}/pub",
         "${workspaceFolder}"
       ],

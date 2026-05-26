@@ -1,3 +1,7 @@
+bus/acpi/acpi.c
+bus/acpi/glue.c
+bus/acpi/rsdp.c
+
 core/assert.c
 core/ireq.c
 core/kprintf.c
@@ -6,6 +10,26 @@ core/version.c
 
 dev/console.c
 dev/fbcons.c optional fbcons
+
+ext/uacpi/default_handlers.c
+ext/uacpi/event.c
+ext/uacpi/interpreter.c
+ext/uacpi/io.c
+ext/uacpi/mutex.c
+ext/uacpi/namespace.c
+ext/uacpi/notify.c
+ext/uacpi/opcodes.c
+ext/uacpi/opregion.c
+ext/uacpi/osi.c
+ext/uacpi/registers.c
+ext/uacpi/resources.c
+ext/uacpi/shareable.c
+ext/uacpi/sleep.c
+ext/uacpi/stdlib.c
+ext/uacpi/tables.c
+ext/uacpi/types.c
+ext/uacpi/uacpi.c
+ext/uacpi/utilities.c
 
 init/kmain.c
 

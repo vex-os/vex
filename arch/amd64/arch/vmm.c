@@ -4,8 +4,8 @@
 #include <core/assert.h>
 #include <core/errno.h>
 #include <core/panic.h>
-#include <lib/limine.h>
 #include <lib/string.h>
+#include <limine.h>
 #include <mm/hhdm.h>
 #include <mm/page.h>
 #include <mm/pslab.h>

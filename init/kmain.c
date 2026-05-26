@@ -7,8 +7,8 @@
 #include <core/panic.h>
 #include <core/version.h>
 #include <init/initfn.h>
-#include <lib/limine.h>
 #include <lib/string.h>
+#include <limine.h>
 #include <mm/malloc.h>
 
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);

@@ -8,9 +8,9 @@
 
 struct interrupt_frame;
 
-typedef void (*ireq_handler_type)(unsigned int vector, struct interrupt_frame* restrict frame);
+typedef void (*ireq_handler_type)(unsigned int vector, struct interrupt_frame* restrict frame, void* restrict ctx);
 
-extern int register_ireq_handler(unsigned int vector, ireq_handler_type handler);
+extern int register_ireq_handler(unsigned int vector, ireq_handler_type handler, void* restrict ctx);
 extern int unregister_ireq_handler(unsigned int vector);
 extern void dispatch_ireq(unsigned int vector, struct interrupt_frame* restrict frame);
 

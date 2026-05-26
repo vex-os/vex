@@ -18,6 +18,7 @@
 struct stagebuf {
     char data[STAGEBUF_SIZE];
     size_t size;
+    int last;
 };
 
 size_t kp_writepos = 0;
@@ -27,6 +28,7 @@ unsigned int loglevel = KP_DEFAULT_LOGLEVEL;
 static void kprintf_format_func(int chr, void* restrict arg)
 {
     struct stagebuf* stage = arg;
+    stage->last = chr;
     stage->data[stage->size++] = chr;
 
     if(stage->size >= STAGEBUF_SIZE) {
@@ -57,8 +59,10 @@ void kvprintf(unsigned int sv, const char* restrict fmt, va_list ap)
 
     if(sv <= loglevel) {
         vformat(&kprintf_format_func, &st, fmt, ap);
-        kprintf_format_func(CR, &st);
-        kprintf_format_func(LF, &st);
+        if(st.last != LF) {
+            kprintf_format_func(CR, &st);
+            kprintf_format_func(LF, &st);
+        }
     }
 
     if(st.size) {

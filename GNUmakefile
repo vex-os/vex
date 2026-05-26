@@ -42,6 +42,7 @@ override CPPFLAGS += -D __KERNEL__
 override CPPFLAGS += -I arch/${ARCH}/pub
 override CPPFLAGS += -I arch/${ARCH}
 override CPPFLAGS += -I pub
+override CPPFLAGS += -I ext
 override CPPFLAGS += -I .
 
 override CPPFLAGS += -D UTSNAME_SYSNAME='"${SYSNAME}"'
