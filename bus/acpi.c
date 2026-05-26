@@ -33,4 +33,4 @@ static int acpi_init(void)
     return 0;
 }
 
-DEFINE_INITFN(acpi_init, INITFN_STAGE_BUS, INITFN_ORDER_FIRST);
+DEFINE_INITFN(acpi_init, INITFN_STAGE_BUS, INITFN_ORDER_MIDDLE);
