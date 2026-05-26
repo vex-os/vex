@@ -74,9 +74,9 @@ static struct pci_bus legacy_bus = {
     .bus_index = 0,
 };
 
-static int pci_legacy_init(void)
+static int init_legacy_pci(void)
 {
     return register_pci_bus(&legacy_bus);
 }
 
-DEFINE_INITFN(pci_legacy_init, INITFN_STAGE_BUS, INITFN_ORDER_FIRST);
+DEFINE_INITFN(init_legacy_pci, INITFN_STAGE_BUS, INITFN_ORDER_FIRST);
