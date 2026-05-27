@@ -25,7 +25,7 @@ static void add_region(uintptr_t start, size_t length)
         pslab_numpages += 1U;
     }
 
-    kprintf(KP_NOTICE, "pslab: adding region: [%p - %p]", (const void*)start, (const void*)(start + length - 1U));
+    kprintf(KP_NOTICE, "pslab: adding region: [%p..%p]", (const void*)start, (const void*)(start + length - 1U));
 }
 
 uintptr_t pslab_alloc(void)

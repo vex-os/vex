@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+from datetime import datetime
 import os
 import sys
 
@@ -177,11 +178,14 @@ def main():
     parse_filelist(os.path.join(CONF_DIR, f"files.{cur_arch}.lst"))
 
     config_path = os.path.join(ROOT_DIR, ".configuration.mk")
+    config_date = datetime.now().strftime("%Y-%m-%d")
 
     assert cur_arch is not None, "ARCH not set in configuration"
     assert cur_envt is not None, "ENVT not set in configuration"
 
     with open(config_path, 'w') as f:
+        f.write(f"# Generated at {config_date}\n")
+        f.write(f"# WARNING: changes will be lost\n")
         f.write(f"ARCH := {cur_arch}\n")
         f.write(f"ENVT := {cur_envt}\n")
         if cur_sysname:
