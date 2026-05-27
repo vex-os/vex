@@ -30,7 +30,7 @@ static void call_all_initfns(void)
     int error;
 
     for(i = 0; &initfns_start[i] < initfns_end; ++i) {
-        kprintf(KP_DEBUG, "kmain: calling initfn: %s [%p]", initfns_start[i].name, initfns_start[i].pfn);
+        kprintf(KP_DEBUG, "kmain: calling initfn: %s <%p>", initfns_start[i].name, initfns_start[i].pfn);
 
         error = initfns_start[i].pfn();
 

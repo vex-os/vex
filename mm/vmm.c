@@ -413,26 +413,26 @@ static int init_vmm(void)
     retval = vmm_map_sys_section(&text_start, &text_end, VPROT_RX);
 
     if(retval) {
-        panic("vmm: failed to map [text]: %s", strerror(retval));
+        panic("vmm: failed to map .text: %s", strerror(retval));
     }
 
     retval = vmm_map_sys_section(&rodata_start, &rodata_end, VPROT_READ);
 
     if(retval) {
-        panic("vmm: failed to map [rodata]: %s", strerror(retval));
+        panic("vmm: failed to map .rodata: %s", strerror(retval));
     }
 
     retval = vmm_map_sys_section(&data_start, &data_end, VPROT_RW);
 
     if(retval) {
-        panic("vmm: failed to map [data]: %s", strerror(retval));
+        panic("vmm: failed to map .data: %s", strerror(retval));
     }
 
     for(i = 0; i < memmap->entry_count; ++i) {
         retval = vmm_map_sys_memmap(memmap->entries[i]);
 
         if(retval) {
-            panic("vmm: failed to map memmap entry [%zu]: %s", i, strerror(retval));
+            panic("vmm: failed to map memmap entry[%zu]: %s", i, strerror(retval));
         }
     }
 

@@ -34,7 +34,7 @@ int register_pci_bus(struct pci_bus* restrict bus)
         continue;
     }
 
-    kprintf(KP_INFORM, "pci: adding %s: segment=%zu bus_index=%zu", bus->identity, (size_t)(bus->segment), (size_t)(bus->bus_index));
+    kprintf(KP_INFORM, "pci: adding %s: segment=%zu, bus_index=%zu", bus->identity, (size_t)(bus->segment), (size_t)(bus->bus_index));
 
     bus->next = bus_head;
     bus_head = bus;

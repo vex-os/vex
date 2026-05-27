@@ -151,7 +151,7 @@ static int init_slab(void)
     slabs = pdma_alloc_virt(npages);
 
     if(slabs == nullptr) {
-        panic("slab: out of memory [pdma_alloc %zu pages]", npages);
+        panic("slab: out of memory: pdma_alloc: %zu", npages);
         unreachable();
     }
 
@@ -160,11 +160,11 @@ static int init_slab(void)
         slabs[i].head = nullptr;
 
         if(!expand_slab(&slabs[i])) {
-            panic("slab: out of memory [slab %zu:%zu]", i, slabs[i].blocksize);
+            panic("slab: out of memory: expand_slab: %zu %zu", i, slabs[i].blocksize);
             unreachable();
         }
 
-        kprintf(KP_NOTICE, "slab: slab[%zu] head=%p blocksize=[%zu]", i, slabs[i].head, slabs[i].blocksize);
+        kprintf(KP_NOTICE, "slab: slab[%zu] head=%p blocksize=%zu", i, slabs[i].head, slabs[i].blocksize);
     }
 
     return 0;

@@ -21,7 +21,7 @@ int register_clocksource(struct clocksource* restrict clock)
         continue;
     }
 
-    kprintf(KP_INFORM, "clocksource: adding %s [rating=%u]", clock->identity, clock->rating);
+    kprintf(KP_INFORM, "clocksource: adding %s: rating=%u", clock->identity, clock->rating);
 
     clock->next = clocksource_head;
     clocksource_head = clock;

@@ -19,6 +19,7 @@ ${CONFIGURATION_MK}: conf/config.${CONFIGURATION}.conf Configure.py
 
 ARCH ?= amd64
 ENVT ?= clang
+
 SYSNAME ?= Vex
 RELEASE ?= 0.0.2
 

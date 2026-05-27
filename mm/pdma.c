@@ -45,7 +45,7 @@ static void add_region(uintptr_t start, size_t length)
 
     bitmap_range_set(pdma_bitmap, page, page + npages - 1U);
 
-    kprintf(KP_NOTICE, "pdma: adding region: [%p - %p]", (const void*)start, (const void*)(start + length - 1U));
+    kprintf(KP_NOTICE, "pdma: adding region: [%p..%p]", (const void*)start, (const void*)(start + length - 1U));
 }
 
 uintptr_t pdma_alloc(size_t numpages)
