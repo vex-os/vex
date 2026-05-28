@@ -56,7 +56,7 @@ static int AMD64_init_hpet(void)
     status = uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &table);
 
     if(uacpi_unlikely_error(status)) {
-        kprintf(KP_WARNING, "hpet: ACPI HPET table not found");
+        kprintf(KP_WARNING, "hpet: acpi hpet table not found");
         return ENODEV;
     }
 
@@ -71,7 +71,7 @@ static int AMD64_init_hpet(void)
     mmio = phys_to_virt(hpet->address.address);
 
     if(vmm_map(&sys_pagemap, (uintptr_t)(mmio), hpet->address.address, VPROT_RW | VPROT_NOCACHE)) {
-        kprintf(KP_WARNING, "hpet: failed to map MMIO at %p", (const void*)((uintptr_t)(hpet->address.address)));
+        kprintf(KP_WARNING, "hpet: failed to map mmio at %p", (const void*)((uintptr_t)(hpet->address.address)));
         uacpi_table_unref(&table);
         return ENODEV;
     }

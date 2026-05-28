@@ -201,7 +201,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         virt = phys_to_virt(ioapic->address);
 
         if(vmm_map(&sys_pagemap, (uintptr_t)(virt), ioapic->address, VPROT_RW | VPROT_NOCACHE)) {
-            panic("ioapic: failed to map MMIO at %p", (const void*)((uintptr_t)(ioapic->address)));
+            panic("ioapic: failed to map mmio at %p", (const void*)((uintptr_t)(ioapic->address)));
         }
 
         data->base = (volatile uint32_t*)(virt);
@@ -243,7 +243,7 @@ static int AMD64_init_ioapic(void)
     status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);
 
     if(uacpi_unlikely_error(status)) {
-        panic("ioapic: MADT not found: %s", uacpi_status_to_string(status));
+        panic("ioapic: acpi madt not found: %s", uacpi_status_to_string(status));
     }
 
     uacpi_for_each_subtable(madt.hdr, sizeof(struct acpi_madt), &ioapic_madt_callback, nullptr);
