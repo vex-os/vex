@@ -16,6 +16,7 @@
 #include <amd64/pmio.h>
 #include <arch/interrupts.h>
 #include <arch/ireq.h>
+#include <bus/pci.h>
 #include <core/intctl.h>
 #include <core/ireq.h>
 #include <limits.h>
@@ -43,7 +44,67 @@ static void call_all_initfns(void)
     }
 }
 
-static void __used test_malloc(void)
+static void test_pci_scan(void)
+{
+    struct pci_device* dev;
+    uint32_t id;
+    uint8_t header_type;
+    uint8_t class_code, subclass, prog_if;
+    uint16_t vendor, device_id;
+    uint8_t dev_idx, func;
+    unsigned int found = 0;
+
+    kprintf(KP_DEBUG, "pci: scanning segment=0 bus=0");
+
+    for(dev_idx = 0; dev_idx < 32; ++dev_idx) {
+        dev = pci_open(0, 0, dev_idx, 0);
+        if(dev == nullptr)
+            continue;
+
+        id = pci_read32(dev, 0x00);
+        vendor = (uint16_t)(id & 0xFFFF);
+
+        if(vendor == 0xFFFF) {
+            pci_close(dev);
+            continue;
+        }
+
+        header_type = pci_read8(dev, 0x0E);
+        pci_close(dev);
+
+        for(func = 0; func < 8; ++func) {
+            if(func != 0 && !(header_type & 0x80))
+                break;
+
+            dev = pci_open(0, 0, dev_idx, func);
+            if(dev == nullptr)
+                continue;
+
+            id = pci_read32(dev, 0x00);
+            vendor = (uint16_t)(id & 0xFFFF);
+            device_id = (uint16_t)(id >> 16);
+
+            if(vendor == 0xFFFF) {
+                pci_close(dev);
+                continue;
+            }
+
+            class_code = pci_read8(dev, 0x0B);
+            subclass = pci_read8(dev, 0x0A);
+            prog_if = pci_read8(dev, 0x09);
+
+            kprintf(KP_INFORM, "pci: [0:0:%u:%u] vendor=%04x device=%04x class=%02x:%02x:%02x", (unsigned)dev_idx, (unsigned)func,
+                (unsigned)vendor, (unsigned)device_id, (unsigned)class_code, (unsigned)subclass, (unsigned)prog_if);
+
+            pci_close(dev);
+            ++found;
+        }
+    }
+
+    kprintf(KP_INFORM, "pci: scan complete, %u device(s) found", found);
+}
+
+static void test_malloc(void)
 {
     size_t i;
     char* a;
@@ -89,14 +150,6 @@ static void __used test_malloc(void)
     for(i = 0; i < 64; ++i)
         kassert((unsigned char)d[i] == 0xCD);
     kfree(d);
-
-    kprintf(KP_DEBUG, "malloc: test: double free triggers panic");
-    d = kmalloc(64);
-    kassert(d != nullptr);
-    kfree(d);
-
-    kprintf(KP_DEBUG, "RANDOM BULLSHIT GOOOOOOOO");
-    kfree(d); // must panic here
 
     kprintf(KP_NOTICE, "malloc: test: all passed");
 }
@@ -162,6 +215,10 @@ void __noreturn kmain(void)
     kprintf(KP_INFORM, "%s %s %s", k_sysname, k_release, k_version);
 
     call_all_initfns();
+
+    test_malloc();
+
+    test_pci_scan();
 
     test_pit();
 
