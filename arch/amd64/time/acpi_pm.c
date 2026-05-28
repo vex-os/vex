@@ -36,7 +36,7 @@ static const struct clocksource_ops acpi_pm_ops = {
 
 static struct clocksource acpi_pm_clocksource = {
     .ops = &acpi_pm_ops,
-    .identity = "acpi_pm",
+    .identifier = "acpi_pm",
     .rating = 100,
 };
 

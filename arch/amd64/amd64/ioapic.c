@@ -171,7 +171,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         controller->gsi_count = ((ver >> IOAPIC_VER_MAXREDIR_SHIFT) & IOAPIC_VER_MAXREDIR_MASK) + 1;
         controller->privdata = data;
 
-        snprintf(controller->identity, sizeof(controller->identity), "ioapic-%u", (unsigned)(id));
+        snprintf(controller->identifier, sizeof(controller->identifier), "ioapic-%u", (unsigned)(id));
 
         for(i = 0; i < controller->gsi_count; ++i) {
             ioapic_write_rte(data, i, (struct rte_entry) { .masked = 1 });

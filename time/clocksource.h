@@ -17,7 +17,7 @@ struct clocksource {
     const struct clocksource_ops* ops;
     struct timecounter tc;
     unsigned rating;
-    char identity[64];
+    char identifier[64];
     void* privdata;
 };
 

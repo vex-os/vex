@@ -16,9 +16,10 @@
 #define INITFN_STAGE_SMP      "21000000" ///< Other cores wake up
 #define INITFN_STAGE_IREQ     "22000000" ///< Interrupt controller (APIC, GIC, etc.)
 #define INITFN_STAGE_TIMER    "23000000" ///< System timer and clocksource
-#define INITFN_STAGE_DEV      "30000000" ///< Device drivers
-#define INITFN_STAGE_BUS      "31000000" ///< Bus enumeration (ACPI, PCI, etc.)
-#define INITFN_STAGE_FS       "32000000" ///< VFS and filesystem drivers
+#define INITFN_STAGE_BUS      "30000000" ///< Bus enumeration (ACPI, PCI, etc.)
+#define INITFN_STAGE_VFS      "31000000" ///< Virtual filesystem and pseudo-filesystems like devfs
+#define INITFN_STAGE_DEV      "32000000" ///< Device drivers
+#define INITFN_STAGE_FS       "33000000" ///< Actual filesystem drivers
 #define INITFN_STAGE_SERVICES "40000000" ///< OS-level subsystems (IPC, sockets, etc.)
 #define INITFN_STAGE_LATE     "ff000000" ///< Anything that can wait until the end of kernel initialization
 

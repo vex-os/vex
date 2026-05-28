@@ -28,7 +28,7 @@ static struct console_driver bxconsole_driver = {
     .next = nullptr,
     .ops = &bxconsole_ops,
     .consflags = CONSF_RECALL,
-    .identity = "bochs_e9",
+    .identifier = "bochs_e9",
     .privdata = nullptr,
 };
 

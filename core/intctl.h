@@ -23,7 +23,7 @@ struct intctl_ops {
 struct intctl {
     struct intctl* next;
     const struct intctl_ops* ops;
-    char identity[64];
+    char identifier[64];
     uint32_t gsi_base;
     uint32_t gsi_count;
     void* privdata;

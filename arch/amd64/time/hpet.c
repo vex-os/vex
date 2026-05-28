@@ -40,7 +40,7 @@ static const struct clocksource_ops hpet_ops = {
 
 static struct clocksource hpet_clocksource = {
     .ops = &hpet_ops,
-    .identity = "hpet",
+    .identifier = "hpet",
     .rating = 200,
 };
 

@@ -69,7 +69,7 @@ static const struct pci_bus_ops legacy_ops = {
 
 static struct pci_bus legacy_bus = {
     .ops = &legacy_ops,
-    .identity = "cf8_legacy",
+    .identifier = "cf8_legacy",
     .segment = 0,
     .bus_index = 0,
 };

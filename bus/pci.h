@@ -41,57 +41,57 @@
 #define PCI_HDR_TYPE_CARDBUS 0x02
 #define PCI_HDR_MULTIFUNC    0x80
 
-#define PCI_CMD_IO_SPACE    (1 << 0)
-#define PCI_CMD_MEM_SPACE   (1 << 1)
-#define PCI_CMD_BUS_MASTER  (1 << 2)
-#define PCI_CMD_PARITY_ERR  (1 << 6)
-#define PCI_CMD_SERR        (1 << 8)
-#define PCI_CMD_INT_DISABLE (1 << 10)
+#define PCI_CMD_IO_SPACE    0x0001
+#define PCI_CMD_MEM_SPACE   0x0002
+#define PCI_CMD_BUS_MASTER  0x0004
+#define PCI_CMD_PARITY_ERR  0x0040
+#define PCI_CMD_SERR        0x0100
+#define PCI_CMD_INT_DISABLE 0x0400
 
-#define PCI_BAR_IO            (1 << 0)
-#define PCI_BAR_MEM_TYPE_MASK (3 << 1)
-#define PCI_BAR_MEM_32BIT     (0 << 1)
-#define PCI_BAR_MEM_64BIT     (2 << 1)
-#define PCI_BAR_PREFETCH      (1 << 3)
-#define PCI_BAR_ADDR_MASK_IO  (~(uintptr_t)0x03)
-#define PCI_BAR_ADDR_MASK_MEM (~(uintptr_t)0x0F)
+#define PCI_BAR_IO            0x0001
+#define PCI_BAR_MEM_TYPE_MASK 0x0006
+#define PCI_BAR_MEM_32BIT     0x0000
+#define PCI_BAR_MEM_64BIT     0x0004
+#define PCI_BAR_PREFETCH      0x0008
+#define PCI_BAR_ADDR_MASK_IO  (~((uintptr_t)(0x03)))
+#define PCI_BAR_ADDR_MASK_MEM (~((uintptr_t)(0x0F)))
 
 struct pci_bus;
-struct pci_device;
-struct pci_driver;
-
 struct pci_bus_ops {
-    uint8_t (*read8)(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset);
-    uint16_t (*read16)(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset);
-    uint32_t (*read32)(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset);
-    void (*write8)(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset, uint8_t value);
-    void (*write16)(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset, uint16_t value);
-    void (*write32)(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset, uint32_t value);
+    uint8_t (*read8)(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset);
+    uint16_t (*read16)(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset);
+    uint32_t (*read32)(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset);
+    void (*write8)(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint8_t value);
+    void (*write16)(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint16_t value);
+    void (*write32)(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint32_t value);
 };
 
+struct pci_device;
 struct pci_bus {
     struct pci_bus* next;
+    struct pci_device* devices;
     const struct pci_bus_ops* ops;
-    char identity[64];
-    uint16_t segment;
-    uint8_t bus_index;
+    char identifier[64];
+    unsigned segment;
+    unsigned index;
     void* privdata;
 };
 
+struct pci_driver;
 struct pci_device {
     struct pci_device* next;
+    struct pci_driver* driver;
     struct pci_bus* bus;
-    const struct pci_driver* driver;
-    uint8_t device_index;
-    uint8_t function;
-    uint16_t vendor_id;
-    uint16_t device_id;
+    unsigned index;
+    unsigned function;
+    unsigned vendor_id;
+    unsigned device_id;
     void* privdata;
 };
 
 struct pci_driver_id {
-    uint16_t vendor;
-    uint16_t device;
+    unsigned vendor_id;
+    unsigned device_id;
 };
 
 struct pci_driver_ops {
@@ -102,22 +102,26 @@ struct pci_driver_ops {
 struct pci_driver {
     struct pci_driver* next;
     const struct pci_driver_ops* ops;
-    const struct pci_driver_id* id_table;
-    size_t num_ids;
+    const struct pci_driver_id* ids;
 };
 
+#define PCI_DEVICE(vendor, device) ((struct pci_driver_id) { .vendor_id = (vendor), .device_id = (device) })
+#define PCI_DEVICE_END()           ((struct pci_driver_id) { .vendor_id = 0xFFFF, .device_id = 0xFFFF })
+
 extern int register_pci_bus(struct pci_bus* restrict bus);
+extern int unregister_pci_bus(struct pci_bus* restrict bus);
+
 extern int register_pci_driver(struct pci_driver* restrict driver);
+extern int unregister_pci_driver(struct pci_driver* restrict driver);
 
-extern struct pci_device* pci_open(uint16_t segment, uint8_t bus_index, uint8_t device_index, uint8_t function) __nodiscard;
-extern void pci_close(struct pci_device* restrict device);
+extern struct pci_device* pci_find(unsigned vendor_id, unsigned device_id, unsigned index) __nodiscard;
 
-extern uint8_t pci_read8(struct pci_device* restrict device, uint16_t offset);
-extern uint16_t pci_read16(struct pci_device* restrict device, uint16_t offset);
-extern uint32_t pci_read32(struct pci_device* restrict device, uint16_t offset);
+extern uint8_t pci_read8(struct pci_device* restrict device, uintptr_t offset);
+extern uint16_t pci_read16(struct pci_device* restrict device, uintptr_t offset);
+extern uint32_t pci_read32(struct pci_device* restrict device, uintptr_t offset);
 
-extern void pci_write8(struct pci_device* restrict device, uint16_t offset, uint8_t value);
-extern void pci_write16(struct pci_device* restrict device, uint16_t offset, uint16_t value);
-extern void pci_write32(struct pci_device* restrict device, uint16_t offset, uint32_t value);
+extern void pci_write8(struct pci_device* restrict device, uintptr_t offset, uint8_t value);
+extern void pci_write16(struct pci_device* restrict device, uintptr_t offset, uint16_t value);
+extern void pci_write32(struct pci_device* restrict device, uintptr_t offset, uint32_t value);
 
 #endif /* DE230BAC_AA17_4780_B3C2_71F7DA67E522 */

@@ -20,8 +20,8 @@ struct console_driver_ops {
 struct console_driver {
     struct console_driver* next;
     const struct console_driver_ops* ops;
+    char identifier[64];
     unsigned consflags;
-    char identity[64];
     void* privdata;
 };
 
