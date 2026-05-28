@@ -11,8 +11,6 @@
 #include <lib/string.h>
 #include <limine.h>
 
-#include <amd64/lapic.h>
-
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
@@ -43,9 +41,6 @@ void __noreturn kmain(void)
     call_all_initfns();
 
     enable_interrupts();
-
-    kprintf(KP_DEBUG, "kmain: sending self-IPI to test interrupt path");
-    lapic_write(LAPIC_REG_ICR_LO, 0x00044030U); // self-IPI, vector 0x30
 
     kprintf(KP_INFORM, "hanging around...");
 
