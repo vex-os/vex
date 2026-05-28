@@ -24,12 +24,13 @@ struct isa_resource_mmio {
     volatile uint8_t* virt8;
     volatile uint16_t* virt16;
     volatile uint32_t* virt32;
-    uintptr_t phys;
     size_t length;
 };
 
 struct isa_resource_pmio {
-    uintptr_t offset;
+    volatile uint8_t* virt8;
+    volatile uint16_t* virt16;
+    uintptr_t pmio;
     size_t length;
 };
 
@@ -55,25 +56,12 @@ struct isa_resource {
     };
 };
 
-/// Abstracted mapped IO operations for PMIO resources; on
-/// amd64, these plug straight into pmio (pmread8, pmread16,
-/// pmwrite8, etc) and on architectures like RISC-V that might
-/// suddenly and unexpectedly need to interface with a SoundBlaster16
-/// but happen to not posess an IO bus, these should be memory-mapped
-struct isa_pmio_ops {
-    uint8_t (*read8)(struct isa_resource_pmio* restrict pmio, void* restrict privdata, uintptr_t port);
-    uint16_t (*read16)(struct isa_resource_pmio* restrict pmio, void* restrict privdata, uintptr_t port);
-    void (*write8)(struct isa_resource_pmio* restrict pmio, void* restrict privdata, uintptr_t port, uint8_t value);
-    void (*write16)(struct isa_resource_pmio* restrict pmio, void* restrict privdata, uintptr_t port, uint16_t value);
-};
-
 struct isa_device {
     struct isa_device* next;
     struct isa_driver* driver;
     char identifier[64];
     struct isa_resource* resources;
     size_t num_resources;
-    const struct isa_pmio_ops* pmio_ops;
     void* pmio_privdata;
     void* acpi_node;
     void* privdata;
@@ -90,6 +78,11 @@ struct isa_driver {
     char identifier[64];
     unsigned type;
 };
+
+extern uint8_t arch_isa_read8(struct isa_resource_pmio* restrict pmio, void* privdata, uintptr_t port);
+extern uint16_t arch_isa_read16(struct isa_resource_pmio* restrict pmio, void* privdata, uintptr_t port);
+extern void arch_isa_write8(struct isa_resource_pmio* restrict pmio, void* privdata, uintptr_t port, uint8_t value);
+extern void arch_isa_write16(struct isa_resource_pmio* restrict pmio, void* privdata, uintptr_t port, uint16_t value);
 
 extern int register_isa_device(struct isa_device* restrict device);
 extern int unregister_isa_device(struct isa_device* restrict device);

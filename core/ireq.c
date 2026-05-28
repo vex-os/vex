@@ -49,6 +49,8 @@ void dispatch_ireq(unsigned number, struct interrupt_frame* restrict frame)
 {
     ireq_handler_type handler;
 
+    kprintf(KP_DEBUG, "ireq: dispatching IRQ 0x%02X", number);
+
     if(number >= IREQ_TABLE_SIZE) {
         kprintf(KP_WARNING, "ireq: spurious IRQ 0x%02X out of range", number);
         return;

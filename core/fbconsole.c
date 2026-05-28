@@ -227,9 +227,9 @@ static size_t fb_width = 0U;
 static size_t fb_height = 0U;
 static size_t fb_depth = 0U;
 static size_t fb_length = 0U;
-static volatile uint8_t* fb_8 = nullptr;
-static volatile uint16_t* fb_16 = nullptr;
-static volatile uint32_t* fb_32 = nullptr;
+static uint8_t* fb_8 = nullptr;
+static uint16_t* fb_16 = nullptr;
+static uint32_t* fb_32 = nullptr;
 
 static size_t vt_width = 0U;
 static size_t vt_height = 0U;

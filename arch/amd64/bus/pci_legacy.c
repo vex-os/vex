@@ -11,48 +11,48 @@
 #define PCI_CF8 UINT16_C(0x0CF8)
 #define PCI_CFC UINT16_C(0x0CFC)
 
-static uint32_t cf8_addr(struct pci_bus* bus, uint8_t device_index, uint8_t function, uint16_t offset)
+static uint32_t cf8_addr(struct pci_bus* bus, unsigned device_index, unsigned function, uintptr_t offset)
 {
     uint32_t result = UINT32_C(0);
     result |= UINT32_C(1) << 31;
-    result |= (uint32_t)(bus->bus_index) << 16;
+    result |= (uint32_t)(bus->index) << 16;
     result |= (uint32_t)(device_index & 0x1F) << 11;
     result |= (uint32_t)(function & 0x07) << 8;
     result |= (uint32_t)(offset & 0xFC);
     return result;
 }
 
-static uint8_t legacy_read8(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset)
+static uint8_t legacy_read8(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset)
 {
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
     return pmread8(PCI_CFC + (offset & 3));
 }
 
-static uint16_t legacy_read16(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset)
+static uint16_t legacy_read16(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset)
 {
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
     return pmread16(PCI_CFC + (offset & 2));
 }
 
-static uint32_t legacy_read32(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset)
+static uint32_t legacy_read32(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset)
 {
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
     return pmread32(PCI_CFC);
 }
 
-static void legacy_write8(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset, uint8_t value)
+static void legacy_write8(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint8_t value)
 {
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
     pmwrite8(PCI_CFC + (offset & 3), value);
 }
 
-static void legacy_write16(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset, uint16_t value)
+static void legacy_write16(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint16_t value)
 {
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
     pmwrite16(PCI_CFC + (offset & 2), value);
 }
 
-static void legacy_write32(struct pci_bus* restrict bus, uint8_t device_index, uint8_t function, uint16_t offset, uint32_t value)
+static void legacy_write32(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint32_t value)
 {
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
     pmwrite32(PCI_CFC, value);
@@ -71,7 +71,7 @@ static struct pci_bus legacy_bus = {
     .ops = &legacy_ops,
     .identifier = "cf8_legacy",
     .segment = 0,
-    .bus_index = 0,
+    .index = 0,
 };
 
 static int AMD64_init_legacy_pci(void)

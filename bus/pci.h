@@ -115,6 +115,7 @@ extern int register_pci_driver(struct pci_driver* restrict driver);
 extern int unregister_pci_driver(struct pci_driver* restrict driver);
 
 extern struct pci_device* pci_find(unsigned vendor_id, unsigned device_id, unsigned index) __nodiscard;
+extern struct pci_device* pci_find_raw(unsigned segment, unsigned bus, unsigned device, unsigned function) __nodiscard;
 
 extern uint8_t pci_read8(struct pci_device* restrict device, uintptr_t offset);
 extern uint16_t pci_read16(struct pci_device* restrict device, uintptr_t offset);

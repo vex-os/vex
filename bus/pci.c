@@ -241,6 +241,24 @@ struct pci_device* pci_find(unsigned vendor_id, unsigned device_id, unsigned ind
     return nullptr;
 }
 
+struct pci_device* pci_find_raw(unsigned segment, unsigned bus, unsigned device, unsigned function)
+{
+    struct pci_bus* it;
+    struct pci_device* dev;
+
+    for(it = bus_head; it; it = it->next) {
+        if(it->segment == segment && it->index == bus) {
+            for(dev = it->devices; dev; dev = dev->next) {
+                if(dev->index == device && dev->function == function) {
+                    return dev;
+                }
+            }
+        }
+    }
+
+    return nullptr;
+}
+
 uint8_t pci_read8(struct pci_device* restrict device, uintptr_t offset)
 {
     kassert(device && "invalid PCI device pointer");
