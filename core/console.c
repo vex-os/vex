@@ -21,7 +21,7 @@ int register_console_driver(struct console_driver* restrict driver)
         continue;
     }
 
-    kprintf(KP_INFORM, "console: adding %s", driver->identity);
+    kprintf(KP_INFORM, "console: adding %s", driver->identifier);
 
     if(driver->ops->init) {
         driver->ops->init(driver);
@@ -59,7 +59,7 @@ int unregister_console_driver(struct console_driver* restrict driver)
 
     if(console_head == driver) {
         console_head = console_head->next;
-        kprintf(KP_INFORM, "console: removing %s", driver->identity);
+        kprintf(KP_INFORM, "console: removing %s", driver->identifier);
         return 0;
     }
 
@@ -69,7 +69,7 @@ int unregister_console_driver(struct console_driver* restrict driver)
                 prev->next = it->next;
             }
 
-            kprintf(KP_INFORM, "console: removing %s", driver->identity);
+            kprintf(KP_INFORM, "console: removing %s", driver->identifier);
 
             return 0;
         }

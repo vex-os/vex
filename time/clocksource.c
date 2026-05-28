@@ -20,7 +20,7 @@ int register_clocksource(struct clocksource* restrict clock)
         continue;
     }
 
-    kprintf(KP_INFORM, "clocksource: adding %s: rating=%u", clock->identity, clock->rating);
+    kprintf(KP_INFORM, "clocksource: adding %s: rating=%u", clock->identifier, clock->rating);
 
     clock->next = clocksource_head;
     clocksource_head = clock;
@@ -28,7 +28,7 @@ int register_clocksource(struct clocksource* restrict clock)
     if(clocksource_active == nullptr || clock->rating > clocksource_active->rating) {
         clocksource_active = clock;
 
-        kprintf(KP_INFORM, "clocksource: %s is now active", clock->identity);
+        kprintf(KP_INFORM, "clocksource: %s is now active", clock->identifier);
     }
 
     return 0;
@@ -69,7 +69,7 @@ int unregister_clocksource(struct clocksource* restrict clock)
         }
 
         if(clocksource_active) {
-            kprintf(KP_INFORM, "clocksource: %s is now active", clocksource_active->identity);
+            kprintf(KP_INFORM, "clocksource: %s is now active", clocksource_active->identifier);
         }
         else {
             kprintf(KP_INFORM, "clocksource: no active clocksources");

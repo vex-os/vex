@@ -24,7 +24,7 @@ int register_intctl(struct intctl* restrict controller)
 
     gsi_base = controller->gsi_base;
     gsi_count = controller->gsi_count;
-    kprintf(KP_INFORM, "intctl: adding %s: gsi_base=%zu, gsi_count=%zu", controller->identity, gsi_base, gsi_count);
+    kprintf(KP_INFORM, "intctl: adding %s: gsi_base=%zu, gsi_count=%zu", controller->identifier, gsi_base, gsi_count);
 
     controller->next = intctl_head;
     intctl_head = controller;
