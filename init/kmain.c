@@ -20,6 +20,8 @@
 #include <core/intctl.h>
 #include <core/ireq.h>
 #include <limits.h>
+#include <uacpi/namespace.h>
+#include <uacpi/utilities.h>
 
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
@@ -42,6 +44,40 @@ static void call_all_initfns(void)
         panic("kmain: initfn: %s: %s", initfns_start[i].name, strerror(error));
         unreachable();
     }
+}
+
+static uacpi_iteration_decision acpi_device_dump(void* ctx, uacpi_namespace_node* node, uacpi_u32 depth)
+{
+    uacpi_namespace_node_info* info;
+
+    (void)ctx;
+    (void)depth;
+
+    if(uacpi_get_namespace_node_info(node, &info) != UACPI_STATUS_OK)
+        return UACPI_ITERATION_DECISION_CONTINUE;
+
+    if(info->flags & UACPI_NS_NODE_INFO_HAS_HID) {
+        kprintf(KP_INFORM, "acpi: device %4s hid=%s%s", info->name.text, info->hid.value,
+            (info->flags & UACPI_NS_NODE_INFO_HAS_UID) ? "" : "");
+
+        if(info->flags & UACPI_NS_NODE_INFO_HAS_UID)
+            kprintf(KP_INFORM, "acpi:        uid=%s", info->uid.value);
+
+        if(info->flags & UACPI_NS_NODE_INFO_HAS_CID) {
+            uacpi_u32 i;
+            for(i = 0; i < info->cid.num_ids; ++i)
+                kprintf(KP_INFORM, "acpi:        cid=%s", info->cid.ids[i].value);
+        }
+    }
+
+    uacpi_free_namespace_node_info(info);
+    return UACPI_ITERATION_DECISION_CONTINUE;
+}
+
+static void test_acpi_device_dump(void)
+{
+    uacpi_namespace_for_each_child(uacpi_namespace_get_predefined(UACPI_PREDEFINED_NAMESPACE_SB), acpi_device_dump, nullptr,
+        UACPI_OBJECT_DEVICE_BIT, UACPI_MAX_DEPTH_ANY, nullptr);
 }
 
 static void test_pci_scan(void)
@@ -217,6 +253,8 @@ void __noreturn kmain(void)
     call_all_initfns();
 
     test_malloc();
+
+    test_acpi_device_dump();
 
     test_pci_scan();
 
