@@ -8,8 +8,8 @@
 
 #define IDT_SIZE 256
 
-extern void set_idt_entry_kern(unsigned int vector, bool trap, const void* restrict pfn);
-extern void set_idt_entry_user(unsigned int vector, bool trap, const void* restrict pfn);
-extern void unset_idt_entry(unsigned int vector);
+extern void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn);
+extern void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn);
+extern void unset_idt_entry(unsigned vector);
 
 #endif /* A9515567_5D7D_43CC_B819_83FC461E4E97 */

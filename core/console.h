@@ -20,7 +20,7 @@ struct console_driver_ops {
 struct console_driver {
     struct console_driver* next;
     const struct console_driver_ops* ops;
-    unsigned int consflags;
+    unsigned consflags;
     char identity[64];
     void* privdata;
 };

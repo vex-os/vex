@@ -28,10 +28,10 @@
 static const char lc_digits[MAX_BASE + 1] = "0123456789abcdef";
 static const char uc_digits[MAX_BASE + 1] = "0123456789ABCDEF";
 
-static size_t write_int(format_func_type func, void* restrict user, uintmax_t value, unsigned int flags, unsigned int width,
-    unsigned int precision, unsigned int base)
+static size_t write_int(format_func_type func, void* restrict user, uintmax_t value, unsigned flags, unsigned width, unsigned precision,
+    unsigned base)
 {
-    unsigned int i;
+    unsigned i;
     size_t stager;
     size_t counter;
     int sign, pad;
@@ -151,8 +151,8 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
 }
 
 static const char defined_behaviour[] = "(null)";
-static size_t write_str(format_func_type func, void* restrict user, const char* restrict s, unsigned int flags, unsigned int width,
-    unsigned int precision)
+static size_t write_str(format_func_type func, void* restrict user, const char* restrict s, unsigned flags, unsigned width,
+    unsigned precision)
 {
     size_t i;
     size_t cap;
@@ -200,7 +200,7 @@ static size_t write_str(format_func_type func, void* restrict user, const char* 
     return counter;
 }
 
-static unsigned int get_flag(int character)
+static unsigned get_flag(int character)
 {
     switch(character) {
         case '0':
@@ -223,7 +223,7 @@ static unsigned int get_flag(int character)
     }
 }
 
-static uintmax_t remove_sign(uintmax_t x, int length, unsigned int* restrict flags)
+static uintmax_t remove_sign(uintmax_t x, int length, unsigned* restrict flags)
 {
 #define sign_hack(type)                \
     if((type)(x) < 0) {                \
@@ -278,11 +278,11 @@ int format(format_func_type func, void* restrict user, const char* restrict fmt,
 int vformat(format_func_type func, void* restrict user, const char* restrict fmt, va_list ap)
 {
     size_t counter = 0;
-    unsigned int width;
-    unsigned int precision;
-    unsigned int flags;
-    unsigned int fvalue;
-    unsigned int length;
+    unsigned width;
+    unsigned precision;
+    unsigned flags;
+    unsigned fvalue;
+    unsigned length;
     const char* endptr;
     uintmax_t value;
 
@@ -369,7 +369,7 @@ int vformat(format_func_type func, void* restrict user, const char* restrict fmt
                 case L_CHAR:
                 case L_SHORT:
                 case L_INT:
-                    value = va_arg(ap, unsigned int);
+                    value = va_arg(ap, unsigned);
                     break;
 
                 case L_LONG:

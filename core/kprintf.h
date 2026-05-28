@@ -27,9 +27,9 @@
 
 extern size_t kp_writepos;
 extern char kp_buffer[KP_BUFSIZE];
-extern unsigned int loglevel;
+extern unsigned loglevel;
 
-extern void kprintf(unsigned int sv, const char* restrict fmt, ...) __printflike(2, 3);
-extern void kvprintf(unsigned int sv, const char* restrict fmt, va_list ap) __printflike(2, 0);
+extern void kprintf(unsigned sv, const char* restrict fmt, ...) __printflike(2, 3);
+extern void kvprintf(unsigned sv, const char* restrict fmt, va_list ap) __printflike(2, 0);
 
 #endif /* CF91645C_FD7B_4867_ACAF_DFEFD227B222 */

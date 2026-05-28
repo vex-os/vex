@@ -11,11 +11,11 @@
 #include <limine.h>
 #include <mm/malloc.h>
 
-#include <amd64/ioapic.h>
 #include <amd64/lapic.h>
 #include <amd64/pmio.h>
 #include <arch/interrupts.h>
 #include <arch/ireq.h>
+#include <bus/isa.h>
 #include <bus/pci.h>
 #include <core/intctl.h>
 #include <core/ireq.h>
@@ -52,7 +52,7 @@ static void test_pci_scan(void)
     uint8_t class_code, subclass, prog_if;
     uint16_t vendor, device_id;
     uint8_t dev_idx, func;
-    unsigned int found = 0;
+    unsigned found = 0;
 
     kprintf(KP_DEBUG, "pci: scanning segment=0 bus=0");
 
@@ -159,9 +159,9 @@ static void test_malloc(void)
 #define PIT_HZ  1193182
 #define TEST_HZ 100
 
-static volatile unsigned int pit_ticks = 0;
+static volatile unsigned pit_ticks = 0;
 
-static void pit_handler(unsigned int number, struct interrupt_frame* restrict frame, void* restrict ctx)
+static void pit_handler(unsigned number, struct interrupt_frame* restrict frame, void* restrict ctx)
 {
     (void)number;
     (void)frame;
@@ -176,15 +176,15 @@ static void pit_handler(unsigned int number, struct interrupt_frame* restrict fr
 static void test_pit(void)
 {
     struct intctl* ctl;
-    unsigned int vec;
+    unsigned vec;
     uint32_t gsi;
-    bool level, active_low;
+    unsigned trigger, polarity;
     uint16_t divisor;
     uint32_t lapic_id;
 
     lapic_id = lapic_read(LAPIC_REG_ID) >> 24;
 
-    isa_irq_route(0, &gsi, &level, &active_low);
+    isa_irq_route(0, &gsi, &trigger, &polarity);
 
     ctl = find_intctl(gsi);
     if(ctl == nullptr)
@@ -202,9 +202,9 @@ static void test_pit(void)
     pmwrite8(PIT_CH0, (uint8_t)(divisor >> 8));
 
     kprintf(KP_DEBUG, "test_pit: isa irq 0 -> gsi %u, ireq %u (int 0x%02X), lapic_id=%u, %s %s", gsi, vec, vec + ARCH_IREQ_BASE, lapic_id,
-        level ? "level" : "edge", active_low ? "active-low" : "active-high");
+        (trigger == TRIGGER_LEVEL) ? "level" : "edge", (polarity == ACTIVE_LOW) ? "active-low" : "active-high");
 
-    intctl_route(ctl, gsi, (uint8_t)(vec + ARCH_IREQ_BASE), lapic_id, level, active_low);
+    intctl_route(ctl, gsi, (uint8_t)(vec + ARCH_IREQ_BASE), lapic_id, trigger, polarity);
     intctl_unmask(ctl, gsi);
 
     enable_interrupts();

@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
-#include <amd64/ioapic.h>
 #include <core/intctl.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
@@ -11,7 +10,6 @@
 #include <mm/slab.h>
 #include <mm/vmm.h>
 #include <mm/vprot.h>
-#include <stddef.h>
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
 
@@ -113,7 +111,8 @@ static void ioapic_op_unmask(struct intctl* restrict controller, uint32_t gsi)
     ioapic_write_rte(data, irq, entry);
 }
 
-static void ioapic_op_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t cpu_id, bool level, bool active_low)
+static void ioapic_op_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
+    unsigned polarity)
 {
     struct ioapic_data* data = controller->privdata;
 
@@ -121,41 +120,12 @@ static void ioapic_op_route(struct intctl* restrict controller, uint32_t gsi, ui
 
     struct rte_entry entry = { 0 };
     entry.vector = vector;
-    entry.dest = cpu_id;
-    entry.level = level;
-    entry.active_low = active_low;
+    entry.dest = hart;
+    entry.level = (trigger == TRIGGER_LEVEL);
+    entry.active_low = (polarity == ACTIVE_LOW);
     entry.masked = 1;
 
     ioapic_write_rte(data, irq, entry);
-}
-
-#define ISA_IRQ_COUNT 16
-
-// Bits [1:0] of ISO flags: polarity. 3 = active low, anything else = active high (ISA default).
-// Bits [3:2] of ISO flags: trigger.  3 = level,     anything else = edge (ISA default).
-#define ISO_FLAGS_ACTIVE_LOW 3
-#define ISO_FLAGS_LEVEL      3
-
-struct isa_irq_entry {
-    uint32_t gsi;
-    bool level;
-    bool active_low;
-};
-
-static struct isa_irq_entry isa_irq_table[ISA_IRQ_COUNT];
-
-void isa_irq_route(uint8_t irq, uint32_t* out_gsi, bool* out_level, bool* out_active_low)
-{
-    if(irq < ISA_IRQ_COUNT) {
-        *out_gsi = isa_irq_table[irq].gsi;
-        *out_level = isa_irq_table[irq].level;
-        *out_active_low = isa_irq_table[irq].active_low;
-    }
-    else {
-        *out_gsi = irq;
-        *out_level = false;
-        *out_active_low = false;
-    }
 }
 
 static const struct intctl_ops ioapic_ops = {
@@ -174,19 +144,6 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
     uint32_t id;
     uint32_t ver;
     uint8_t i;
-
-    if(entry->type == ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE) {
-        struct acpi_madt_interrupt_source_override* iso = (struct acpi_madt_interrupt_source_override*)entry;
-
-        if(iso->bus == 0 && iso->source < ISA_IRQ_COUNT) {
-            isa_irq_table[iso->source].gsi = iso->gsi;
-            isa_irq_table[iso->source].level = ((iso->flags >> 2) & 3) == ISO_FLAGS_LEVEL;
-            isa_irq_table[iso->source].active_low = (iso->flags & 3) == ISO_FLAGS_ACTIVE_LOW;
-
-            kprintf(KP_DEBUG, "ioapic: iso: isa irq %u -> gsi %u %s %s", (unsigned int)iso->source, iso->gsi,
-                isa_irq_table[iso->source].level ? "level" : "edge", isa_irq_table[iso->source].active_low ? "active-low" : "active-high");
-        }
-    }
 
     if(entry->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
         ioapic = (struct acpi_madt_ioapic*)(entry);
@@ -214,7 +171,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         controller->gsi_count = ((ver >> IOAPIC_VER_MAXREDIR_SHIFT) & IOAPIC_VER_MAXREDIR_MASK) + 1;
         controller->privdata = data;
 
-        snprintf(controller->identity, sizeof(controller->identity), "ioapic-%u", (unsigned int)(id));
+        snprintf(controller->identity, sizeof(controller->identity), "ioapic-%u", (unsigned)(id));
 
         for(i = 0; i < controller->gsi_count; ++i) {
             ioapic_write_rte(data, i, (struct rte_entry) { .masked = 1 });
@@ -233,12 +190,6 @@ static int AMD64_init_ioapic(void)
     uacpi_table madt;
     uacpi_status status;
     uint8_t i;
-
-    for(i = 0; i < ISA_IRQ_COUNT; i++) {
-        isa_irq_table[i].gsi = i;
-        isa_irq_table[i].level = false;
-        isa_irq_table[i].active_low = false;
-    }
 
     status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);
 

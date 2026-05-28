@@ -73,7 +73,7 @@ void __used amd64_isr_handler(struct interrupt_frame* restrict frame, uint64_t i
     unreachable();
 }
 
-void set_idt_entry_kern(unsigned int vector, bool trap, const void* restrict pfn)
+void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn)
 {
     struct idt_entry* entry;
 
@@ -96,7 +96,7 @@ void set_idt_entry_kern(unsigned int vector, bool trap, const void* restrict pfn
     }
 }
 
-void set_idt_entry_user(unsigned int vector, bool trap, const void* restrict pfn)
+void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn)
 {
     struct idt_entry* entry;
 
@@ -119,7 +119,7 @@ void set_idt_entry_user(unsigned int vector, bool trap, const void* restrict pfn
     }
 }
 
-void unset_idt_entry(unsigned int vector)
+void unset_idt_entry(unsigned vector)
 {
     if(vector >= IDT_SIZE)
         return;

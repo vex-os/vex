@@ -24,7 +24,7 @@ struct stagebuf {
 
 size_t kp_writepos = 0;
 char kp_buffer[KP_BUFSIZE];
-unsigned int loglevel = KP_DEFAULT_LOGLEVEL;
+unsigned loglevel = KP_DEFAULT_LOGLEVEL;
 
 static void kprintf_format_func(int chr, void* restrict arg)
 {
@@ -42,7 +42,7 @@ static void kprintf_format_func(int chr, void* restrict arg)
     kp_writepos %= KP_BUFSIZE;
 }
 
-void kprintf(unsigned int sv, const char* restrict fmt, ...)
+void kprintf(unsigned sv, const char* restrict fmt, ...)
 {
     kassert(fmt && "invalid format string pointer");
 
@@ -52,7 +52,7 @@ void kprintf(unsigned int sv, const char* restrict fmt, ...)
     va_end(ap);
 }
 
-void kvprintf(unsigned int sv, const char* restrict fmt, va_list ap)
+void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 {
     struct stagebuf st = { 0 };
     uint64_t timestamp = 0;
