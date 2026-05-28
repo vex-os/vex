@@ -42,12 +42,4 @@ static __always_inline inline void pmwrite32(uintptr_t offset, uint32_t value)
     asm volatile("outl %0, %1" ::"a"(value), "Nd"((uint16_t)(offset & 0xFFFF)) : "memory");
 }
 
-static __always_inline inline void pmwait(void)
-{
-    // FIXME: this may startle a random ISA device
-    // and cause the machine to shit itself... Though
-    // it shoudln't really happen at all on a 64-bit system!
-    asm volatile("outb %0, $0x80" ::"a"(UINT8_C(0)) : "memory");
-}
-
 #endif /* B2DB992B_AE8D_4321_9537_2CA2CF4F59F5 */
