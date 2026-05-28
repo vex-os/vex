@@ -245,10 +245,6 @@ int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_han
         return ENOMEM;
     }
 
-    kprintf(KP_INFORM, "isa: routing IRQ line %u (GSI %u) to ireq 0x%02X (trigger=%s, polarity=%s)", res->irq.line, res->irq.gsi,
-        ireq_number + ARCH_IREQ_BASE, res->irq.trigger == TRIGGER_EDGE ? "edge" : "level",
-        res->irq.polarity == ACTIVE_HIGH ? "active-high" : "active-low");
-
     res->irq.ireq_number = ireq_number;
 
     intctl_route(controller, res->irq.gsi, (uint8_t)(ireq_number + ARCH_IREQ_BASE), 0, res->irq.trigger, res->irq.polarity);
