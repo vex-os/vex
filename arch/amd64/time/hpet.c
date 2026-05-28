@@ -15,52 +15,48 @@
 
 #define HPET_CAPS_PERIOD_SHIFT UINT64_C(32)
 #define HPET_CONFIG_ENABLE     UINT64_C(1)
+#define HPET_PERIOD_MAX        UINT64_C(100000000)
 
-#define HPET_FEMTO_PER_NANO UINT64_C(1000000)
-#define HPET_PERIOD_MAX     UINT64_C(100000000)
-
-static volatile uint64_t* hpet_mmio = nullptr;
-
-static inline uint64_t hpet_read_reg(uint32_t offset)
+static inline uint64_t hpet_read_reg(volatile uint64_t* restrict mmio, uint32_t offset)
 {
-    return hpet_mmio[offset / sizeof(uint64_t)];
+    return mmio[offset / sizeof(uint64_t)];
 }
 
-static inline void hpet_write_reg(uint32_t offset, uint64_t value)
+static inline void hpet_write_reg(volatile uint64_t* restrict mmio, uint32_t offset, uint64_t value)
 {
-    hpet_mmio[offset / sizeof(uint64_t)] = value;
+    mmio[offset / sizeof(uint64_t)] = value;
 }
 
-static uint64_t hpet_op_read(const struct clocksource* restrict clock)
+static uint64_t hpet_op_read_nsec(struct clocksource* restrict clock)
 {
-    return hpet_read_reg(HPET_REG_MAIN);
+    volatile uint64_t* mmio = clock->privdata;
+
+    return timecounter_update((struct timecounter*)(&clock->tc), hpet_read_reg(mmio, HPET_REG_MAIN));
 }
 
 static const struct clocksource_ops hpet_ops = {
-    .read = hpet_op_read,
+    .read_nsec = hpet_op_read_nsec,
 };
 
 static struct clocksource hpet_clocksource = {
     .ops = &hpet_ops,
     .identity = "hpet",
     .rating = 50,
-    .read_mask = UINT64_MAX,
-    .read_mult = UINT64_C(0),
-    .read_shift = UINT64_C(0),
 };
 
-static int init_hpet(void)
+static int AMD64_init_hpet(void)
 {
     uacpi_table table;
     uacpi_status status;
     struct acpi_hpet* hpet;
-    void* virt;
+    uint32_t hpet_config_reg;
+    uint64_t hpet_period_fsec;
+    volatile uint64_t* mmio;
 
     status = uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &table);
 
     if(uacpi_unlikely_error(status)) {
         kprintf(KP_WARNING, "hpet: ACPI HPET table not found");
-
         return ENODEV;
     }
 
@@ -68,42 +64,40 @@ static int init_hpet(void)
 
     if(hpet->address.address_space_id) {
         kprintf(KP_WARNING, "hpet: non-memory address space, skipping");
-
         uacpi_table_unref(&table);
-
         return ENODEV;
     }
 
-    virt = phys_to_virt(hpet->address.address);
+    mmio = phys_to_virt(hpet->address.address);
 
-    if(vmm_map(&sys_pagemap, (uintptr_t)(virt), hpet->address.address, VPROT_RW | VPROT_NOCACHE)) {
+    if(vmm_map(&sys_pagemap, (uintptr_t)(mmio), hpet->address.address, VPROT_RW | VPROT_NOCACHE)) {
         kprintf(KP_WARNING, "hpet: failed to map MMIO at %p", (const void*)((uintptr_t)(hpet->address.address)));
-
         uacpi_table_unref(&table);
-
         return ENODEV;
     }
+
+    hpet_clocksource.privdata = (void*)(mmio); // this removes the volatile qualifier without a warning
 
     uacpi_table_unref(&table);
 
-    hpet_mmio = (volatile uint64_t*)(virt);
+    hpet_period_fsec = hpet_read_reg(mmio, HPET_REG_CAPS);
+    hpet_period_fsec >>= HPET_CAPS_PERIOD_SHIFT;
 
-    uint64_t period_fs = hpet_read_reg(HPET_REG_CAPS);
-    period_fs >>= HPET_CAPS_PERIOD_SHIFT;
-
-    if(period_fs == 0 || period_fs > HPET_PERIOD_MAX) {
-        kprintf(KP_WARNING, "hpet: invalid counter period %llu fs", (unsigned long long)(period_fs));
-
+    if(hpet_period_fsec == 0 || hpet_period_fsec > HPET_PERIOD_MAX) {
+        kprintf(KP_WARNING, "hpet: invalid counter period %llu fs", (unsigned long long)(hpet_period_fsec));
         return ENODEV;
     }
 
-    hpet_write_reg(HPET_REG_CONFIG, hpet_read_reg(HPET_REG_CONFIG) | HPET_CONFIG_ENABLE);
+    hpet_config_reg = hpet_read_reg(mmio, HPET_REG_CONFIG);
+    hpet_config_reg |= HPET_CONFIG_ENABLE;
 
-    hpet_clocksource.read_shift = 32;
-    hpet_clocksource.read_mult = period_fs << 32;
-    hpet_clocksource.read_mult /= HPET_FEMTO_PER_NANO;
+    hpet_write_reg(mmio, HPET_REG_CONFIG, hpet_config_reg);
+
+    hpet_clocksource.tc.calc_mask = UINT64_MAX;
+
+    timecounter_init(&hpet_clocksource.tc, hpet_period_fsec, hpet_read_reg(mmio, HPET_REG_MAIN));
 
     return register_clocksource(&hpet_clocksource);
 }
 
-DEFINE_INITFN(init_hpet, INITFN_STAGE_TIMER, INITFN_ORDER_FIRST);
+DEFINE_INITFN(AMD64_init_hpet, INITFN_STAGE_TIMER, INITFN_ORDER_FIRST);

@@ -32,7 +32,7 @@ static struct console_driver bxconsole_driver = {
     .privdata = nullptr,
 };
 
-static int init_bxconsole(void)
+static int AMD64_init_bxconsole(void)
 {
     if(BXCONSOLE_RESP == pmread8(BXCONSOLE_PORT)) {
         return register_console_driver(&bxconsole_driver);
@@ -41,4 +41,4 @@ static int init_bxconsole(void)
     return ENODEV;
 }
 
-DEFINE_INITFN(init_bxconsole, INITFN_STAGE_EARLY, INITFN_ORDER_FIRST);
+DEFINE_INITFN(AMD64_init_bxconsole, INITFN_STAGE_EARLY, INITFN_ORDER_FIRST);

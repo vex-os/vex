@@ -12,4 +12,5 @@ arch/amd64/arch/vmm.c
 arch/amd64/bus/acpi_glue.c
 arch/amd64/bus/pci_legacy.c
 
+arch/amd64/time/acpi_pm.c
 arch/amd64/time/hpet.c
