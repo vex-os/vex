@@ -5,25 +5,25 @@
 
 #include <core/cdefs.h>
 #include <stdint.h>
+#include <time/timecounter.h>
 
 struct clocksource;
 struct clocksource_ops {
-    uint64_t (*read)(const struct clocksource* restrict clock);
+    uint64_t (*read_nsec)(struct clocksource* restrict clock);
 };
 
 struct clocksource {
     struct clocksource* next;
     const struct clocksource_ops* ops;
-    char identity[64];
+    struct timecounter tc;
     unsigned int rating;
-    uint64_t read_mask;
-    uint64_t read_shift;
-    uint64_t read_mult;
+    char identity[64];
+    void* privdata;
 };
 
 extern int register_clocksource(struct clocksource* restrict clock);
 extern int unregister_clocksource(struct clocksource* restrict clock);
-extern const struct clocksource* active_clocksource(void) __nodiscard;
-extern uint64_t clocksource_read_ns(void) __nodiscard;
+extern struct clocksource* active_clocksource(void) __nodiscard;
+extern uint64_t clocksource_read_nsec(void) __nodiscard;
 
 #endif /* B793DFAA_5257_48C9_A9BD_66862A0F1555 */

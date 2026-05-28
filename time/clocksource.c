@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: BSD-3-Clause
-
 #include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
@@ -80,23 +79,16 @@ int unregister_clocksource(struct clocksource* restrict clock)
     return 0;
 }
 
-const struct clocksource* active_clocksource(void)
+struct clocksource* active_clocksource(void)
 {
     return clocksource_active;
 }
 
-uint64_t clocksource_read_ns(void)
+uint64_t clocksource_read_nsec(void)
 {
-    __uint128_t timestamp;
-
-    if(clocksource_active == nullptr || clocksource_active->read_mult == 0) {
-        return UINT64_C(0); // no active clocksource - assume zero
+    if(clocksource_active == nullptr) {
+        return UINT64_C(0);
     }
 
-    timestamp = clocksource_active->ops->read(clocksource_active);
-    timestamp &= clocksource_active->read_mask;
-    timestamp *= clocksource_active->read_mult;
-    timestamp >>= clocksource_active->read_shift;
-
-    return (uint64_t)(timestamp);
+    return clocksource_active->ops->read_nsec(clocksource_active);
 }

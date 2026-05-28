@@ -53,3 +53,4 @@ mm/slab.c
 mm/vmm.c
 
 time/clocksource.c
+time/timecounter.c

@@ -62,7 +62,7 @@ void kvprintf(unsigned int sv, const char* restrict fmt, va_list ap)
     kassert(fmt && "invalid format string pointer");
 
     if(sv <= loglevel) {
-        timestamp = clocksource_read_ns();
+        timestamp = clocksource_read_nsec();
         timestamp_s = timestamp / UINT64_C(1000000000);
         timestamp_msx = (timestamp / UINT64_C(100000)) % UINT64_C(10000);
 
