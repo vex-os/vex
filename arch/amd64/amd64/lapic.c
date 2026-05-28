@@ -53,7 +53,7 @@ static int AMD64_init_lapic(void)
 
     lapic_write(LAPIC_REG_SVR, lapic_svr_value);
 
-    kprintf(KP_INFORM, "lapic: id=%u, base=%p", (unsigned int)(lapic_query_id()), (const void*)(lapic_phys));
+    kprintf(KP_INFORM, "lapic: id=%u, base=%p", (unsigned)(lapic_query_id()), (const void*)(lapic_phys));
 
     return 0;
 }

@@ -33,14 +33,14 @@
 typedef uint64_t vmm_entry_type;
 
 struct vmm_pagemap {
-    unsigned int levels;
+    unsigned levels;
     struct {
         uintptr_t cr3_phys;
         vmm_entry_type* cr3_virt;
     } amd64;
 };
 
-extern unsigned int vmm_detect_levels(void);
+extern unsigned vmm_detect_levels(void);
 
 extern int vmm_pagemap_alloc(struct vmm_pagemap* restrict vm) __nodiscard;
 extern void vmm_pagemap_free(struct vmm_pagemap* restrict vm);
@@ -62,9 +62,9 @@ static __always_inline __nodiscard inline uintptr_t vmm_entry_address(vmm_entry_
     return (uintptr_t)(entry & AMD64_VMM_ADDRESS_MASK);
 }
 
-static __always_inline __nodiscard inline unsigned int vmm_entry_vprot(vmm_entry_type entry)
+static __always_inline __nodiscard inline unsigned vmm_entry_vprot(vmm_entry_type entry)
 {
-    unsigned int vprot = VPROT_READ;
+    unsigned vprot = VPROT_READ;
     if(entry & AMD64_VMM_PML_WRITE)
         vprot |= VPROT_WRITE;
     if(entry & AMD64_VMM_PML_USER)
@@ -76,7 +76,7 @@ static __always_inline __nodiscard inline unsigned int vmm_entry_vprot(vmm_entry
     return vprot;
 }
 
-static __always_inline __nodiscard inline vmm_entry_type vmm_entry_init(uintptr_t address, unsigned int vprot)
+static __always_inline __nodiscard inline vmm_entry_type vmm_entry_init(uintptr_t address, unsigned vprot)
 {
     vmm_entry_type result = VMM_ENTRY_NULL;
 

@@ -88,7 +88,7 @@ static vmm_entry_type* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr
     return &table[index];
 }
 
-static void vmm_table_collapse(vmm_entry_type* restrict table, size_t begin, size_t end, unsigned int depth)
+static void vmm_table_collapse(vmm_entry_type* restrict table, size_t begin, size_t end, unsigned depth)
 {
     size_t i;
     vmm_entry_type* child;
@@ -124,13 +124,13 @@ struct vmm_pagemap* vmm_create(void)
     return nullptr;
 }
 
-static int vmm_fork_table(vmm_entry_type* restrict dest, vmm_entry_type* restrict stem, size_t begin, size_t end, unsigned int depth)
+static int vmm_fork_table(vmm_entry_type* restrict dest, vmm_entry_type* restrict stem, size_t begin, size_t end, unsigned depth)
 {
     size_t i;
     uintptr_t dest_child_phys;
     vmm_entry_type* dest_child;
     vmm_entry_type* stem_child;
-    unsigned int stem_vprot;
+    unsigned stem_vprot;
     int retval;
 
     for(i = begin; i < end; ++i) {
@@ -167,13 +167,13 @@ static int vmm_fork_table(vmm_entry_type* restrict dest, vmm_entry_type* restric
     return 0;
 }
 
-static int vmm_clone_table(vmm_entry_type* restrict dest, vmm_entry_type* restrict stem, size_t begin, size_t end, unsigned int depth)
+static int vmm_clone_table(vmm_entry_type* restrict dest, vmm_entry_type* restrict stem, size_t begin, size_t end, unsigned depth)
 {
     size_t i;
     uintptr_t dest_child_phys;
     vmm_entry_type* dest_child;
     vmm_entry_type* stem_child;
-    unsigned int stem_vprot;
+    unsigned stem_vprot;
     int retval;
 
     for(i = begin; i < end; ++i) {
@@ -270,7 +270,7 @@ void vmm_destroy(struct vmm_pagemap* restrict vm)
     slab_free(vm);
 }
 
-int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigned int vprot)
+int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigned vprot)
 {
     vmm_entry_type* entry;
 
@@ -293,7 +293,7 @@ int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, uns
     return 0;
 }
 
-int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned int vprot)
+int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned vprot)
 {
     vmm_entry_type* entry;
 
@@ -353,7 +353,7 @@ uintptr_t vmm_resolve(const struct vmm_pagemap* restrict vm, uintptr_t virt)
     return 0;
 }
 
-static int vmm_map_sys_section(const void* restrict start, const void* restrict end, unsigned int vprot)
+static int vmm_map_sys_section(const void* restrict start, const void* restrict end, unsigned vprot)
 {
     int retval;
     uintptr_t virt = page_align((uintptr_t)start);

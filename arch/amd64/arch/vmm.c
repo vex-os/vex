@@ -16,7 +16,7 @@ static volatile __used __section(".limine_requests") struct limine_paging_mode_r
     .revision = 2,
 };
 
-unsigned int vmm_detect_levels(void)
+unsigned vmm_detect_levels(void)
 {
     if(paging_mode.response == nullptr) {
         panic("vmm: bootloader did not negotiate paging mode");

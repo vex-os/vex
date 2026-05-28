@@ -16,9 +16,9 @@ struct ireq_entry {
 
 static struct ireq_entry ireq_table[IREQ_TABLE_SIZE] = { 0 };
 
-unsigned int register_ireq_handler(unsigned int desired_number, ireq_handler_type handler, void* restrict privdata)
+unsigned register_ireq_handler(unsigned desired_number, ireq_handler_type handler, void* restrict privdata)
 {
-    unsigned int number;
+    unsigned number;
 
     if(desired_number < IREQ_TABLE_SIZE && ireq_table[desired_number].handler == nullptr) {
         ireq_table[desired_number].handler = handler;
@@ -37,7 +37,7 @@ unsigned int register_ireq_handler(unsigned int desired_number, ireq_handler_typ
     return UINT_MAX;
 }
 
-void unregister_ireq_handler(unsigned int number)
+void unregister_ireq_handler(unsigned number)
 {
     kassert(number < IREQ_TABLE_SIZE && "invalid ireq number");
 
@@ -45,7 +45,7 @@ void unregister_ireq_handler(unsigned int number)
     ireq_table[number].privdata = nullptr;
 }
 
-void dispatch_ireq(unsigned int number, struct interrupt_frame* restrict frame)
+void dispatch_ireq(unsigned number, struct interrupt_frame* restrict frame)
 {
     ireq_handler_type handler;
 

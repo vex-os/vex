@@ -37,7 +37,7 @@ void __used amd64_spur_handler(struct interrupt_frame* restrict frame, uint64_t 
 
 static int AMD64_init_picstub(void)
 {
-    unsigned int vector;
+    unsigned vector;
 
     disable_interrupts();
 

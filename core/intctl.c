@@ -59,9 +59,9 @@ void intctl_unmask(struct intctl* restrict controller, uint32_t gsi)
     controller->ops->unmask(controller, gsi);
 }
 
-void intctl_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t cpu_id, bool level, bool active_low)
+void intctl_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger, unsigned polarity)
 {
     kassert(controller && "invalid interrupt controller pointer");
 
-    controller->ops->route(controller, gsi, vector, cpu_id, level, active_low);
+    controller->ops->route(controller, gsi, vector, hart, trigger, polarity);
 }
