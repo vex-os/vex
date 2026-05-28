@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
+#include <arch/hart.h>
 #include <arch/ireq.h>
 #include <bus/acpi_rsdp.h>
 #include <bus/pci.h>
@@ -14,6 +15,7 @@
 #include <mm/vmm.h>
 #include <mm/vprot.h>
 #include <stdint.h>
+#include <time/clocksource.h>
 #include <uacpi/kernel_api.h>
 
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out)
@@ -137,23 +139,27 @@ void uacpi_kernel_reset_event(uacpi_handle handle)
     // empty
 }
 
-// ---------------------------------------------------------------------------
-// Timing (stub — no hardware timer yet)
-// ---------------------------------------------------------------------------
-
 uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void)
 {
-    return 0; // TODO: clocksource
+    return clocksource_read_nsec();
 }
 
 void uacpi_kernel_stall(uacpi_u8 usec)
 {
-    // empty
+    uacpi_u64 deadline = clocksource_read_nsec() + ((uacpi_u64)(usec)) * UINT64_C(1000);
+
+    while(clocksource_read_nsec() < deadline) {
+        yield_hart();
+    }
 }
 
 void uacpi_kernel_sleep(uacpi_u64 msec)
 {
-    // empty
+    uacpi_u64 deadline = clocksource_read_nsec() + msec * UINT64_C(1000000);
+
+    while(clocksource_read_nsec() < deadline) {
+        yield_hart();
+    }
 }
 
 uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handle* out_handle)
@@ -191,6 +197,7 @@ uacpi_status uacpi_kernel_pci_read16(uacpi_handle handle, uacpi_size off, uacpi_
 uacpi_status uacpi_kernel_pci_read32(uacpi_handle handle, uacpi_size off, uacpi_u32* val)
 {
     val[0] = pci_read32(handle, off);
+
     return UACPI_STATUS_OK;
 }
 
