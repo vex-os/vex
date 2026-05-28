@@ -8,9 +8,31 @@
 #include <init/initfn.h>
 #include <lib/string.h>
 
-static void ps2kbd_irq_handler(unsigned number, struct interrupt_frame* restrict frame, void* restrict ctx)
+static void i8042_wait_write(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio)
 {
-    struct isa_device* device = ctx;
+    unsigned long i;
+
+    for(i = 0; i < 65536; ++i) {
+        if(0 == (isa_read8(device, pmio, 0) & 0x02)) {
+            return;
+        }
+    }
+}
+
+static void i8042_wait_read(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio)
+{
+    unsigned long i;
+
+    for(i = 0; i < 65536; ++i) {
+        if(isa_read8(device, pmio, 0) & 0x01) {
+            return;
+        }
+    }
+}
+
+static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame, void* restrict privdata)
+{
+    struct isa_device* device = privdata;
     struct isa_resource* data_res;
     struct isa_resource* cmd_res;
     uint8_t scancode;
@@ -18,38 +40,21 @@ static void ps2kbd_irq_handler(unsigned number, struct interrupt_frame* restrict
     data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
     cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
 
-    if(data_res == nullptr || cmd_res == nullptr)
+    if(data_res == nullptr || cmd_res == nullptr) {
         return;
+    }
 
-    // Don't read if the output buffer is empty (spurious interrupt)
-    if(!(isa_read8(device, &cmd_res->pmio, 0) & 0x01))
-        return;
+    if(0 == (isa_read8(device, &cmd_res->pmio, 0) & 0x01)) {
+        return; // Spurious interrupt, output buffer is empty
+    }
 
     scancode = isa_read8(device, &data_res->pmio, 0);
 
     if(scancode & 0x80) {
-        kprintf(KP_DEBUG, "ps2kbd: key up   scancode=0x%02x", (unsigned)(scancode & 0x7F));
+        kprintf(KP_DEBUG, "ps2kbd: key up   scancode=0x%02X", (unsigned)(scancode & 0x7F));
     }
     else {
-        kprintf(KP_DEBUG, "ps2kbd: key down scancode=0x%02x", (unsigned)scancode);
-    }
-}
-
-static void i8042_wait_write(struct isa_device* restrict device, struct isa_resource_pmio* restrict cmd)
-{
-    unsigned i;
-    for(i = 0; i < 65536; ++i) {
-        if(!(isa_read8(device, cmd, 0) & 0x02))
-            return;
-    }
-}
-
-static void i8042_wait_read(struct isa_device* restrict device, struct isa_resource_pmio* restrict cmd)
-{
-    unsigned i;
-    for(i = 0; i < 65536; ++i) {
-        if(isa_read8(device, cmd, 0) & 0x01)
-            return;
+        kprintf(KP_DEBUG, "ps2kbd: key down scancode=0x%02X", (unsigned)(scancode));
     }
 }
 
@@ -68,16 +73,15 @@ static int ps2kbd_probe(struct isa_device* restrict device)
     data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
     cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
 
-    if(data_res == nullptr || cmd_res == nullptr)
+    if(data_res == nullptr || cmd_res == nullptr) {
         return ENODEV;
+    }
 
-    // Read current command byte and enable keyboard IRQ (bit 0)
     i8042_wait_write(device, &cmd_res->pmio);
     isa_write8(device, &cmd_res->pmio, 0, 0x20);
 
     i8042_wait_read(device, &cmd_res->pmio);
     command_byte = isa_read8(device, &data_res->pmio, 0);
-
     command_byte |= 0x01;   // enable keyboard interrupt
     command_byte &= ~0x10U; // clear "disable keyboard" bit
 
@@ -87,24 +91,27 @@ static int ps2kbd_probe(struct isa_device* restrict device)
     i8042_wait_write(device, &cmd_res->pmio);
     isa_write8(device, &data_res->pmio, 0, command_byte);
 
-    // Flush the output buffer: if the UEFI/firmware left stale data in
-    // the i8042 output buffer, IRQ1 is already asserted HIGH. Registering
-    // an edge-triggered IOAPIC entry at that point means no new rising
-    // edge will ever fire — all subsequent keypresses are silently lost.
-    while(isa_read8(device, &cmd_res->pmio, 0) & 0x01)
+    // Flush the output buffer; if the UEFI/firmware left stale
+    // data in the buffer, its IRQ line is already asserted HIGH
+    // and registering an edge-triggered IOAPIC entry at that point
+    // means no new rising edge will ever fire, all subsequent
+    // key presses will be silently lost
+    while(isa_read8(device, &cmd_res->pmio, 0) & 0x01) {
         isa_read8(device, &data_res->pmio, 0);
+    }
 
-    // Enable keyboard scanning: UEFI or the bootloader may leave the
-    // keyboard in "scanning disabled" state (0xF5). Send 0xF4 to re-enable.
+    // Enable keyboard scanning; UEFI or a bootloader may leave
+    // the keyboard in a scanning-disabled state;
     i8042_wait_write(device, &cmd_res->pmio);
     isa_write8(device, &data_res->pmio, 0, 0xF4);
     i8042_wait_read(device, &cmd_res->pmio);
-    isa_read8(device, &data_res->pmio, 0); // discard ACK (0xFA)
+    isa_read8(device, &data_res->pmio, 0); // discard ACK
 
-    retval = isa_request_irq(device, 0, &ps2kbd_irq_handler, device);
+    retval = isa_request_irq(device, 0, &ps2kbd_ireq, device);
 
-    if(retval)
+    if(retval) {
         return retval;
+    }
 
     kprintf(KP_INFORM, "ps2kbd: probed %s, command_byte=0x%02x", device->identifier, (unsigned)command_byte);
 
