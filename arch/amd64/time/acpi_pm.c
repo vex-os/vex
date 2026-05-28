@@ -51,7 +51,7 @@ static int AMD64_init_acpi_pm(void)
     status = uacpi_table_find_by_signature(ACPI_FADT_SIGNATURE, &table);
 
     if(uacpi_unlikely_error(status)) {
-        kprintf(KP_WARNING, "acpi_pm: ACPI FADT is not present");
+        kprintf(KP_WARNING, "acpi_pm: acpi fadt is not present");
         return ENODEV;
     }
 

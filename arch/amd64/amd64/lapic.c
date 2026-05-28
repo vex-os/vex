@@ -37,14 +37,14 @@ static int AMD64_init_lapic(void)
     lapic_base_msr = msr_read(MSR_IA32_APIC_BASE);
 
     if(UINT64_C(0) == (lapic_base_msr & MSR_APIC_BASE_ENABLE)) {
-        panic("local APIC is globally disabled");
+        panic("lapic: local apic is globally disabled");
     }
 
     lapic_phys = lapic_base_msr & MSR_APIC_BASE_PHYSMASK;
     lapic_virtual_base = phys_to_virt(lapic_phys);
 
     if(vmm_map(&sys_pagemap, (uintptr_t)(lapic_virtual_base), lapic_phys, VPROT_RW | VPROT_NOCACHE)) {
-        panic("failed to map local APIC MMIO");
+        panic("lapic: failed to map local apic mmio");
     }
 
     lapic_svr_value = lapic_read(LAPIC_REG_SVR);
