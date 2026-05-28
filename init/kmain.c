@@ -57,7 +57,7 @@ static uacpi_iteration_decision acpi_device_dump(void* ctx, uacpi_namespace_node
         return UACPI_ITERATION_DECISION_CONTINUE;
 
     if(info->flags & UACPI_NS_NODE_INFO_HAS_HID) {
-        kprintf(KP_INFORM, "acpi: device %4s hid=%s%s", info->name.text, info->hid.value,
+        kprintf(KP_INFORM, "acpi: device %.4s hid=%s%s", info->name.text, info->hid.value,
             (info->flags & UACPI_NS_NODE_INFO_HAS_UID) ? "" : "");
 
         if(info->flags & UACPI_NS_NODE_INFO_HAS_UID)
