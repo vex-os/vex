@@ -245,6 +245,10 @@ int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_han
         return ENOMEM;
     }
 
+    kprintf(KP_INFORM, "isa: routing IRQ line %u (GSI %u) to ireq 0x%02X (trigger=%s, polarity=%s)", res->irq.line, res->irq.gsi,
+        ireq_number + ARCH_IREQ_BASE, res->irq.trigger == TRIGGER_EDGE ? "edge" : "level",
+        res->irq.polarity == ACTIVE_HIGH ? "active-high" : "active-low");
+
     res->irq.ireq_number = ireq_number;
 
     intctl_route(controller, res->irq.gsi, (uint8_t)(ireq_number + ARCH_IREQ_BASE), 0, res->irq.trigger, res->irq.polarity);
@@ -296,7 +300,7 @@ uint8_t isa_read8(struct isa_device* restrict device, struct isa_resource_pmio* 
     kassert(device && "invalid ISA device pointer");
     kassert(pmio && "invalid PMIO resource pointer");
 
-    return device->pmio_ops->read8(pmio, device->pmio_privdata, port);
+    return arch_isa_read8(pmio, device->pmio_privdata, port);
 }
 
 uint16_t isa_read16(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port)
@@ -304,7 +308,7 @@ uint16_t isa_read16(struct isa_device* restrict device, struct isa_resource_pmio
     kassert(device && "invalid ISA device pointer");
     kassert(pmio && "invalid PMIO resource pointer");
 
-    return device->pmio_ops->read16(pmio, device->pmio_privdata, port);
+    return arch_isa_read16(pmio, device->pmio_privdata, port);
 }
 
 void isa_write8(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port, uint8_t value)
@@ -312,7 +316,7 @@ void isa_write8(struct isa_device* restrict device, struct isa_resource_pmio* re
     kassert(device && "invalid ISA device pointer");
     kassert(pmio && "invalid PMIO resource pointer");
 
-    device->pmio_ops->write8(pmio, device->pmio_privdata, port, value);
+    arch_isa_write8(pmio, device->pmio_privdata, port, value);
 }
 
 void isa_write16(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port, uint16_t value)
@@ -320,7 +324,7 @@ void isa_write16(struct isa_device* restrict device, struct isa_resource_pmio* r
     kassert(device && "invalid ISA device pointer");
     kassert(pmio && "invalid PMIO resource pointer");
 
-    device->pmio_ops->write16(pmio, device->pmio_privdata, port, value);
+    arch_isa_write16(pmio, device->pmio_privdata, port, value);
 }
 
 static int init_isa(void)
@@ -348,4 +352,4 @@ static int init_isa(void)
     return 0;
 }
 
-DEFINE_INITFN(init_isa, INITFN_STAGE_BUS, INITFN_ORDER_DEFAULT);
+DEFINE_INITFN(init_isa, INITFN_STAGE_BUS, INITFN_ORDER_MIDDLE);

@@ -158,7 +158,7 @@ void uacpi_kernel_sleep(uacpi_u64 msec)
 
 uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handle* out_handle)
 {
-    struct pci_device* dev = pci_open(address.segment, address.bus, address.device, address.function);
+    struct pci_device* dev = pci_find_raw(address.segment, address.bus, address.device, address.function);
 
     if(dev == nullptr) {
         return UACPI_STATUS_NOT_FOUND;
@@ -171,7 +171,7 @@ uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handl
 
 void uacpi_kernel_pci_device_close(uacpi_handle handle)
 {
-    pci_close(handle);
+    // empty
 }
 
 uacpi_status uacpi_kernel_pci_read8(uacpi_handle handle, uacpi_size off, uacpi_u8* val)

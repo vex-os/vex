@@ -1,5 +1,6 @@
 bus/acpi.c
 bus/acpi_glue.c
+bus/acpi_isa.c
 bus/acpi_rsdp.c
 bus/isa.c
 bus/pci.c
@@ -12,6 +13,8 @@ core/ireq.c
 core/kprintf.c
 core/panic.c
 core/version.c
+
+dev/ps2kbd.c
 
 ext/uacpi/default_handlers.c
 ext/uacpi/event.c
