@@ -189,7 +189,6 @@ static int AMD64_init_ioapic(void)
 {
     uacpi_table madt;
     uacpi_status status;
-    uint8_t i;
 
     status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);
 

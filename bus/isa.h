@@ -93,7 +93,7 @@ extern void isa_release_irq(struct isa_device* restrict device, unsigned index);
 /// Resolves an ISA IRQ number to a GSI and trigger/polarity characteristics.
 /// Applies any ACPI MADT interrupt source overrides; defaults to identity
 /// mapping (gsi == irq), edge-triggered, active-high if no override exists
-extern void isa_irq_route(uint8_t irq, uint32_t* out_gsi, unsigned* out_trigger, unsigned* out_active);
+extern void isa_irq_route(uint8_t irq, uint32_t* out_gsi, unsigned* out_trigger, unsigned* out_polarity);
 
 static __always_inline inline uint8_t isa_read8(struct isa_device* restrict device, uintptr_t port)
 {
