@@ -1,10 +1,8 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <bus/isa.h>
 #include <core/errno.h>
 #include <core/intctl.h>
 #include <core/kprintf.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <lib/string.h>
 #include <limits.h>
 #include <mm/malloc.h>
@@ -159,19 +157,15 @@ static uacpi_iteration_decision enumerate_device(void* privdata, uacpi_namespace
     return UACPI_ITERATION_DECISION_CONTINUE;
 }
 
-static int init_acpi_isa(void)
+define_initcall(init_acpi_isa, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_LATE)
 {
     uacpi_status status;
+    uacpi_namespace_node* node;
 
-    status = uacpi_namespace_for_each_child(uacpi_namespace_get_predefined(UACPI_PREDEFINED_NAMESPACE_SB), enumerate_device, nullptr,
-        UACPI_OBJECT_DEVICE_BIT, UACPI_MAX_DEPTH_ANY, nullptr);
+    node = uacpi_namespace_get_predefined(UACPI_PREDEFINED_NAMESPACE_SB);
+    status = uacpi_namespace_for_each_child(node, &enumerate_device, nullptr, UACPI_OBJECT_DEVICE_BIT, UACPI_MAX_DEPTH_ANY, nullptr);
 
     if(uacpi_unlikely_error(status)) {
-        kprintf(KP_WARNING, "acpi_isa: %s", uacpi_status_to_string(status));
-        return ENODEV;
+        pr_warning("acpi_isa: %s", uacpi_status_to_string(status));
     }
-
-    return 0;
 }
-
-DEFINE_INITFN_BSP(init_acpi_isa, INITFN_STAGE_BSP_BUS, INITFN_ORDER_LATE);

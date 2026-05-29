@@ -2,7 +2,7 @@
 
 #include <amd64/pmio.h>
 #include <bus/pci.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <stdint.h>
 
 // PCI configuration space access via legacy CF8/CFC I/O ports.
@@ -74,9 +74,7 @@ static struct pci_bus legacy_bus = {
     .index = 0,
 };
 
-static int AMD64_init_legacy_pci(void)
+define_initcall(amd64_pci_legacy, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_FIRST)
 {
-    return register_pci_bus(&legacy_bus);
+    register_pci_bus(&legacy_bus);
 }
-
-DEFINE_INITFN_BSP(AMD64_init_legacy_pci, INITFN_STAGE_BSP_BUS, INITFN_ORDER_FIRST);

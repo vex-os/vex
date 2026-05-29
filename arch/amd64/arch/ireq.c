@@ -5,7 +5,7 @@
 #include <arch/interrupts.h>
 #include <arch/ireq.h>
 #include <core/ireq.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 
 extern void amd64_ireq_30(void);
 extern void amd64_ireq_31(void);
@@ -223,7 +223,7 @@ void __used amd64_ireq_handler(struct interrupt_frame* restrict frame, uint64_t 
     lapic_write(LAPIC_REG_EOI, UINT32_C(0));
 }
 
-static int AMD64_init_ireq(void)
+define_initcall(amd64_ireq, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_MIDDLE)
 {
     set_idt_entry_kern(0x30, false, &amd64_ireq_30);
     set_idt_entry_kern(0x31, false, &amd64_ireq_31);
@@ -433,8 +433,4 @@ static int AMD64_init_ireq(void)
     set_idt_entry_kern(0xFD, false, &amd64_ireq_FD);
     set_idt_entry_kern(0xFE, false, &amd64_ireq_FE);
     set_idt_entry_kern(0xFF, false, &amd64_ireq_FF);
-
-    return 0;
 }
-
-DEFINE_INITFN_MP(AMD64_init_ireq, INITFN_STAGE_MP_ARCH, INITFN_ORDER_MIDDLE);

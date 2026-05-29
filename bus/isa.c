@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <arch/ireq.h>
 #include <bus/isa.h>
 #include <core/assert.h>
@@ -8,7 +6,7 @@
 #include <core/ireq.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <lib/string.h>
 #include <limits.h>
 #include <uacpi/acpi.h>
@@ -75,15 +73,11 @@ int register_isa_device(struct isa_device* restrict device)
     struct isa_device* it;
     struct isa_driver* driver;
 
-    kassert(device && "invalid ISA device pointer");
-
     for(it = device_head; it; it = it->next) {
         if(it == device)
             return EEXIST;
         continue;
     }
-
-    kprintf(KP_INFORM, "isa: adding device: %s", device->identifier);
 
     device->next = device_head;
     device_head = device;
@@ -99,8 +93,6 @@ int unregister_isa_device(struct isa_device* restrict device)
 {
     struct isa_device* it;
     struct isa_device* prev = nullptr;
-
-    kassert(device && "invalid ISA device pointer");
 
     if(device_head == device) {
         device_head = device_head->next;
@@ -126,7 +118,7 @@ int unregister_isa_device(struct isa_device* restrict device)
         device->driver = nullptr;
     }
 
-    kprintf(KP_INFORM, "isa: removing device: %s", device->identifier);
+    pr_inform("isa: removing device: %s", device->identifier);
 
     return 0;
 }
@@ -136,9 +128,6 @@ int register_isa_driver(struct isa_driver* restrict driver)
     struct isa_driver* it;
     struct isa_device* device;
 
-    kassert(driver && "invalid ISA driver pointer");
-    kassert(driver->ops && "invalid ISA driver ops pointer");
-
     for(it = driver_head; it; it = it->next) {
         if(it == driver)
             return EEXIST;
@@ -146,7 +135,7 @@ int register_isa_driver(struct isa_driver* restrict driver)
     }
 
     if(driver->identifier[0]) {
-        kprintf(KP_INFORM, "isa: adding driver: %s", driver->identifier);
+        pr_inform("isa: adding driver: %s", driver->identifier);
     }
 
     driver->next = driver_head;
@@ -164,8 +153,6 @@ int unregister_isa_driver(struct isa_driver* restrict driver)
     struct isa_driver* it;
     struct isa_driver* prev = nullptr;
     struct isa_device* device;
-
-    kassert(driver && "invalid ISA driver pointer");
 
     if(driver_head == driver) {
         driver_head = driver_head->next;
@@ -193,7 +180,7 @@ int unregister_isa_driver(struct isa_driver* restrict driver)
         }
     }
 
-    kprintf(KP_INFORM, "isa: removing driver: %s", driver->identifier);
+    pr_inform("isa: removing driver: %s", driver->identifier);
 
     return 0;
 }
@@ -202,8 +189,6 @@ struct isa_resource* isa_get_resource(struct isa_device* restrict device, unsign
 {
     size_t i;
     unsigned found = 0;
-
-    kassert(device && "invalid ISA device pointer");
 
     for(i = 0; i < device->num_resources; ++i) {
         if(device->resources[i].type == type) {
@@ -221,9 +206,6 @@ int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_han
     struct isa_resource* res;
     struct intctl* controller;
     unsigned ireq_number;
-
-    kassert(device && "invalid ISA device pointer");
-    kassert(handler && "invalid IRQ handler pointer");
 
     res = isa_get_resource(device, ISA_RESOURCE_IRQ, index);
 
@@ -258,8 +240,6 @@ void isa_release_irq(struct isa_device* restrict device, unsigned index)
     struct isa_resource* res;
     struct intctl* controller;
 
-    kassert(device && "invalid ISA device pointer");
-
     res = isa_get_resource(device, ISA_RESOURCE_IRQ, index);
 
     if(res == nullptr) {
@@ -293,37 +273,25 @@ void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsig
 
 uint8_t isa_read8(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port)
 {
-    kassert(device && "invalid ISA device pointer");
-    kassert(pmio && "invalid PMIO resource pointer");
-
     return arch_isa_read8(pmio, device->pmio_privdata, port);
 }
 
 uint16_t isa_read16(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port)
 {
-    kassert(device && "invalid ISA device pointer");
-    kassert(pmio && "invalid PMIO resource pointer");
-
     return arch_isa_read16(pmio, device->pmio_privdata, port);
 }
 
 void isa_write8(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port, uint8_t value)
 {
-    kassert(device && "invalid ISA device pointer");
-    kassert(pmio && "invalid PMIO resource pointer");
-
     arch_isa_write8(pmio, device->pmio_privdata, port, value);
 }
 
 void isa_write16(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port, uint16_t value)
 {
-    kassert(device && "invalid ISA device pointer");
-    kassert(pmio && "invalid PMIO resource pointer");
-
     arch_isa_write16(pmio, device->pmio_privdata, port, value);
 }
 
-static int init_isa(void)
+define_initcall(isa, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_MIDDLE)
 {
     uacpi_table madt;
     uacpi_status status;
@@ -337,15 +305,8 @@ static int init_isa(void)
 
     status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);
 
-    if(uacpi_unlikely_error(status)) {
-        kprintf(KP_WARNING, "isa: madt not found, IRQs are identity mapped");
-        return 0;
+    if(uacpi_likely_success(status)) {
+        uacpi_for_each_subtable(madt.hdr, sizeof(struct acpi_madt), &isa_iso_madt_callback, nullptr);
+        uacpi_table_unref(&madt);
     }
-
-    uacpi_for_each_subtable(madt.hdr, sizeof(struct acpi_madt), &isa_iso_madt_callback, nullptr);
-    uacpi_table_unref(&madt);
-
-    return 0;
 }
-
-DEFINE_INITFN_BSP(init_isa, INITFN_STAGE_BSP_BUS, INITFN_ORDER_MIDDLE);

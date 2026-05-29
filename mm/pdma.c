@@ -1,11 +1,9 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <arch/limits.h>
 #include <core/assert.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <core/spinlock.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <lib/bitmap.h>
 #include <lib/hrsize.h>
 #include <mm/hhdm.h>
@@ -47,7 +45,7 @@ static void add_region(uintptr_t start, size_t length)
 
     bitmap_range_set(pdma_bitmap, page, page + npages - 1U);
 
-    kprintf(KP_NOTICE, "pdma: adding region: [%p..%p]", (const void*)start, (const void*)(start + length - 1U));
+    pr_notice("pdma: adding region: [%p..%p]", (const void*)start, (const void*)(start + length - 1U));
 }
 
 uintptr_t pdma_alloc(size_t numpages)
@@ -100,9 +98,6 @@ void pdma_free(uintptr_t physaddr, size_t numpages)
 {
     size_t page = physaddr / PAGE_SIZE;
 
-    kassert(physaddr < PDMA_APPROX_END);
-    kassert((page + numpages) < pdma_numpages);
-
     spinlock_acquire(&pdma_lock);
 
     if(physaddr) {
@@ -129,7 +124,7 @@ void pdma_get_stats(struct pdma_stats* stats)
     stats->used_pages = pdma_numused;
 }
 
-static int init_pdma(void)
+define_initcall(pdma, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_FIRST)
 {
     size_t i;
     const struct limine_memmap_entry* entry;
@@ -182,10 +177,7 @@ static int init_pdma(void)
         }
     }
 
-    if(pdma_bitmap == nullptr) {
-        panic("pdma: out of memory");
-        unreachable();
-    }
+    strict_kassert_text(pdma_bitmap, "out of memory");
 
     bitmap_range_clear(pdma_bitmap, 0U, pdma_numpages - 1U);
 
@@ -217,9 +209,5 @@ static int init_pdma(void)
     pdma_get_stats(&stats);
 
     hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), stats.total_bytes);
-    kprintf(KP_NOTICE, "pdma: tracking %s in %zu pages", hrsize_buffer, stats.total_pages);
-
-    return 0;
+    pr_notice("pdma: tracking %s in %zu pages", hrsize_buffer, stats.total_pages);
 }
-
-DEFINE_INITFN_BSP(init_pdma, INITFN_STAGE_BSP_PMM, INITFN_ORDER_FIRST);

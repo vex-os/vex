@@ -1,7 +1,5 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <core/panic.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <limine.h>
 #include <mm/kbase.h>
 
@@ -13,7 +11,7 @@ static volatile __used __section(".limine_requests") struct limine_executable_ad
     .revision = 0,
 };
 
-static int init_kbase(void)
+define_initcall(kbase, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_FIRST)
 {
     if(kbase_request.response == nullptr) {
         panic("bootloader did not provide executable address information");
@@ -22,8 +20,4 @@ static int init_kbase(void)
 
     kbase_phys = kbase_request.response->physical_base;
     kbase_virt = kbase_request.response->virtual_base;
-
-    return 0;
 }
-
-DEFINE_INITFN_BSP(init_kbase, INITFN_STAGE_BSP_BOOTINFO, INITFN_ORDER_FIRST);

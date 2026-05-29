@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
-#ifndef FAFBFAA8_6AED_442B_BE3D_AB2AC0D2C60F
-#define FAFBFAA8_6AED_442B_BE3D_AB2AC0D2C60F
+
+#ifndef C0E501A6_2C96_4C65_8667_EC228CA1B283
+#define C0E501A6_2C96_4C65_8667_EC228CA1B283
 #pragma once
 
 #include <core/cdefs.h>
@@ -20,11 +21,11 @@
 
 struct amd64_gdt;
 
-extern void amd64_gdt_install_tss(struct amd64_gdt* restrict gdt, void* restrict tss, size_t tss_size);
+extern void gdt_install_tss(struct amd64_gdt* restrict gdt, uintptr_t tss_base, size_t tss_size);
 
 static __always_inline __nodiscard inline uint16_t gdt_selector(uint16_t index, uint16_t ldt, uint16_t ring)
 {
     return ((ring & 4) | ((ldt & 1) << 2) | (index << 3));
 }
 
-#endif /* FAFBFAA8_6AED_442B_BE3D_AB2AC0D2C60F */
+#endif /* C0E501A6_2C96_4C65_8667_EC228CA1B283 */

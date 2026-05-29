@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
 #include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
@@ -11,16 +10,13 @@ int register_clocksource(struct clocksource* restrict clock)
 {
     struct clocksource* it;
 
-    kassert(clock && "invalid clocksource pointer");
-    kassert(clock->ops && "invalid clocksource ops pointer");
-
     for(it = clocksource_head; it; it = it->next) {
         if(it == clock)
             return EEXIST;
         continue;
     }
 
-    kprintf(KP_INFORM, "clocksource: adding %s: rating=%u", clock->identifier, clock->rating);
+    pr_inform("clocksource: adding %s: rating=%u", clock->identifier, clock->rating);
 
     clock->next = clocksource_head;
     clocksource_head = clock;
@@ -28,7 +24,7 @@ int register_clocksource(struct clocksource* restrict clock)
     if(clocksource_active == nullptr || clock->rating > clocksource_active->rating) {
         clocksource_active = clock;
 
-        kprintf(KP_INFORM, "clocksource: %s is now active", clock->identifier);
+        pr_inform("clocksource: %s is now active", clock->identifier);
     }
 
     return 0;
@@ -38,8 +34,6 @@ int unregister_clocksource(struct clocksource* restrict clock)
 {
     struct clocksource* it;
     struct clocksource* prev = nullptr;
-
-    kassert(clock && "invalid clocksource pointer");
 
     if(clocksource_head == clock) {
         clocksource_head = clock->next;
@@ -69,10 +63,10 @@ int unregister_clocksource(struct clocksource* restrict clock)
         }
 
         if(clocksource_active) {
-            kprintf(KP_INFORM, "clocksource: %s is now active", clocksource_active->identifier);
+            pr_inform("clocksource: %s is now active", clocksource_active->identifier);
         }
         else {
-            kprintf(KP_INFORM, "clocksource: no active clocksources");
+            pr_inform("clocksource: no active clocksources");
         }
     }
 

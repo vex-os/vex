@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <core/errno.h>
 #include <lib/sprintf.h>
 #include <lib/string.h>

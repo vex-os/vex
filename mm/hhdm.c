@@ -1,7 +1,5 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <core/panic.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <limine.h>
 #include <mm/hhdm.h>
 
@@ -12,7 +10,7 @@ static volatile __used __section(".limine_requests") struct limine_hhdm_request 
     .revision = 0,
 };
 
-static int init_hhdm(void)
+define_initcall(hhdm, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_FIRST)
 {
     if(hhdm_request.response == nullptr) {
         panic("bootloader did not provide HHDM information");
@@ -20,8 +18,4 @@ static int init_hhdm(void)
     }
 
     hhdm_base = hhdm_request.response->offset;
-
-    return 0;
 }
-
-DEFINE_INITFN_BSP(init_hhdm, INITFN_STAGE_BSP_BOOTINFO, INITFN_ORDER_FIRST);

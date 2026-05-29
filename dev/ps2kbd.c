@@ -1,11 +1,9 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <arch/interrupts.h>
 #include <arch/ireq.h>
 #include <bus/isa.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <lib/string.h>
 
 static void i8042_wait_write(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio)
@@ -51,10 +49,10 @@ static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame,
     scancode = isa_read8(device, &data_res->pmio, 0);
 
     if(scancode & 0x80) {
-        kprintf(KP_DEBUG, "ps2kbd: key up   scancode=0x%02X", (unsigned)(scancode & 0x7F));
+        pr_debug("ps2kbd: key up   scancode=0x%02X", (unsigned)(scancode & 0x7F));
     }
     else {
-        kprintf(KP_DEBUG, "ps2kbd: key down scancode=0x%02X", (unsigned)(scancode));
+        pr_debug("ps2kbd: key down scancode=0x%02X", (unsigned)(scancode));
     }
 }
 
@@ -113,7 +111,7 @@ static int ps2kbd_probe(struct isa_device* restrict device)
         return retval;
     }
 
-    kprintf(KP_INFORM, "ps2kbd: probed %s, command_byte=0x%02x", device->identifier, (unsigned)command_byte);
+    pr_inform("ps2kbd: probed %s, command_byte=0x%02x", device->identifier, (unsigned)command_byte);
 
     return 0;
 }
@@ -134,9 +132,7 @@ static struct isa_driver ps2kbd_driver = {
     .type = ISA_DRIVER_GENERIC,
 };
 
-static int init_ps2kbd(void)
+define_initcall(ps2kbd, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_EARLY)
 {
-    return register_isa_driver(&ps2kbd_driver);
+    register_isa_driver(&ps2kbd_driver);
 }
-
-DEFINE_INITFN_BSP(init_ps2kbd, INITFN_STAGE_BSP_DEV, INITFN_ORDER_EARLY);

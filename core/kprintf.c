@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <core/assert.h>
 #include <core/console.h>
 #include <core/kprintf.h>
@@ -47,8 +45,6 @@ static void kprintf_format_func(int chr, void* restrict arg)
 
 void kprintf(unsigned sv, const char* restrict fmt, ...)
 {
-    kassert(fmt && "invalid format string pointer");
-
     va_list ap;
     va_start(ap, fmt);
     kvprintf(sv, fmt, ap);
@@ -61,8 +57,6 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
     uint64_t timestamp = 0;
     uint64_t timestamp_s = 0;
     uint64_t timestamp_msx = 0;
-
-    kassert(fmt && "invalid format string pointer");
 
     spinlock_acquire(&kprintf_lock);
 

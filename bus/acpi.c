@@ -1,15 +1,13 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <arch/limits.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <mm/pslab.h>
 #include <stdint.h>
 #include <uacpi/uacpi.h>
 
-static int init_acpi_tables(void)
+define_initcall(acpi_tables, INITCALL_STAGE_BSP_VMM, INITCALL_ORDER_LAST)
 {
     void* temporary_buffer = pslab_alloc_virt();
 
@@ -26,13 +24,9 @@ static int init_acpi_tables(void)
         panic("acpi: early table access: %s", uacpi_status_to_string(status));
         unreachable();
     }
-
-    return 0;
 }
 
-DEFINE_INITFN_BSP(init_acpi_tables, INITFN_STAGE_BSP_VMM, INITFN_ORDER_LAST);
-
-static int init_acpi(void)
+define_initcall(init_acpi, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_MIDDLE)
 {
     uacpi_status status;
 
@@ -56,8 +50,4 @@ static int init_acpi(void)
         panic("acpi: uacpi_namespace_initialize: %s", uacpi_status_to_string(status));
         unreachable();
     }
-
-    return 0;
 }
-
-DEFINE_INITFN_BSP(init_acpi, INITFN_STAGE_BSP_BUS, INITFN_ORDER_MIDDLE);

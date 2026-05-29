@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
 #ifndef FF32ABB5_460B_4345_9EE3_A2925175426A
 #define FF32ABB5_460B_4345_9EE3_A2925175426A
 #pragma once

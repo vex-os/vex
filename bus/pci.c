@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <bus/pci.h>
 #include <core/assert.h>
 #include <core/errno.h>
@@ -78,7 +76,7 @@ static void rescan_bus(struct pci_bus* restrict bus)
             device->next = bus->devices;
             bus->devices = device;
 
-            kprintf(KP_INFORM, "pci: found %04x:%04x at %s:%u:%u", vendor_id, device_id, bus->identifier, device_idx, function_idx);
+            pr_inform("pci: found %04x:%04x at %s:%u:%u", vendor_id, device_id, bus->identifier, device_idx, function_idx);
 
             for(driver = driver_head; driver; driver = driver->next) {
                 try_bind_device(device, driver);
@@ -91,16 +89,13 @@ int register_pci_bus(struct pci_bus* restrict bus)
 {
     struct pci_bus* it;
 
-    kassert(bus && "invalid PCI bus pointer");
-    kassert(bus->ops && "invalid PCI bus ops pointer");
-
     for(it = bus_head; it; it = it->next) {
         if(it == bus)
             return EEXIST;
         continue;
     }
 
-    kprintf(KP_INFORM, "pci: adding %s: segment=%u, bus_index=%u", bus->identifier, bus->segment, bus->index);
+    pr_inform("pci: adding %s: segment=%u, bus_index=%u", bus->identifier, bus->segment, bus->index);
 
     bus->devices = nullptr;
     bus->next = bus_head;
@@ -117,8 +112,6 @@ int unregister_pci_bus(struct pci_bus* restrict bus)
     struct pci_bus* prev = nullptr;
     struct pci_device* device;
     struct pci_device* next;
-
-    kassert(bus && "invalid pci_bus pointer");
 
     if(bus_head == bus) {
         bus_head = bus->next;
@@ -148,7 +141,7 @@ int unregister_pci_bus(struct pci_bus* restrict bus)
         kfree(device);
     }
 
-    kprintf(KP_INFORM, "pci: removing %s", bus->identifier);
+    pr_inform("pci: removing %s", bus->identifier);
 
     return 0;
 }
@@ -158,10 +151,6 @@ int register_pci_driver(struct pci_driver* restrict driver)
     struct pci_driver* it;
     struct pci_bus* bus;
     struct pci_device* device;
-
-    kassert(driver && "invalid PCI driver pointer");
-    kassert(driver->ops && "invalid PCI driver ops pointer");
-    kassert(driver->ids && "invalid PCI driver ids pointer");
 
     for(it = driver_head; it; it = it->next) {
         if(it == driver)
@@ -187,8 +176,6 @@ int unregister_pci_driver(struct pci_driver* restrict driver)
     struct pci_driver* prev = nullptr;
     struct pci_bus* bus;
     struct pci_device* device;
-
-    kassert(driver && "invalid PCI driver pointer");
 
     if(driver_head == driver) {
         driver_head = driver->next;
@@ -261,42 +248,30 @@ struct pci_device* pci_find_raw(unsigned segment, unsigned bus, unsigned device,
 
 uint8_t pci_read8(struct pci_device* restrict device, uintptr_t offset)
 {
-    kassert(device && "invalid PCI device pointer");
-
     return device->bus->ops->read8(device->bus, device->index, device->function, offset);
 }
 
 uint16_t pci_read16(struct pci_device* restrict device, uintptr_t offset)
 {
-    kassert(device && "invalid PCI device pointer");
-
     return device->bus->ops->read16(device->bus, device->index, device->function, offset);
 }
 
 uint32_t pci_read32(struct pci_device* restrict device, uintptr_t offset)
 {
-    kassert(device && "invalid PCI device pointer");
-
     return device->bus->ops->read32(device->bus, device->index, device->function, offset);
 }
 
 void pci_write8(struct pci_device* restrict device, uintptr_t offset, uint8_t value)
 {
-    kassert(device && "invalid PCI device pointer");
-
     device->bus->ops->write8(device->bus, device->index, device->function, offset, value);
 }
 
 void pci_write16(struct pci_device* restrict device, uintptr_t offset, uint16_t value)
 {
-    kassert(device && "invalid PCI device pointer");
-
     device->bus->ops->write16(device->bus, device->index, device->function, offset, value);
 }
 
 void pci_write32(struct pci_device* restrict device, uintptr_t offset, uint32_t value)
 {
-    kassert(device && "invalid PCI device pointer");
-
     device->bus->ops->write32(device->bus, device->index, device->function, offset, value);
 }

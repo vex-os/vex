@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: BSD-3-Clause
+
 #ifndef B15F19F4_C7E1_479A_A8B7_3E8843A71BA6
 #define B15F19F4_C7E1_479A_A8B7_3E8843A71BA6
 #pragma once
@@ -23,8 +24,6 @@ struct hart_local {
         uintptr_t ist_stacks[AMD64_IST_COUNT];
     } amd64;
 };
-
-extern struct hart_local* hart_alloc(void);
 
 static __always_inline __nodiscard inline struct hart_local* this_hart(void)
 {

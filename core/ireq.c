@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <arch/ireq.h>
 #include <core/assert.h>
 #include <core/errno.h>
@@ -39,8 +37,6 @@ unsigned register_ireq_handler(unsigned desired_number, ireq_handler_type handle
 
 void unregister_ireq_handler(unsigned number)
 {
-    kassert(number < IREQ_TABLE_SIZE && "invalid ireq number");
-
     ireq_table[number].handler = nullptr;
     ireq_table[number].privdata = nullptr;
 }
@@ -50,7 +46,7 @@ void dispatch_ireq(unsigned number, struct interrupt_frame* restrict frame)
     ireq_handler_type handler;
 
     if(number >= IREQ_TABLE_SIZE) {
-        kprintf(KP_WARNING, "ireq: spurious IRQ 0x%02X out of range", number);
+        pr_warning("ireq: spurious IRQ 0x%02X out of range", number);
         return;
     }
 
@@ -61,5 +57,5 @@ void dispatch_ireq(unsigned number, struct interrupt_frame* restrict frame)
         return;
     }
 
-    kprintf(KP_WARNING, "ireq: unhandled IRQ 0x%02X", number);
+    pr_warning("ireq: unhandled IRQ 0x%02X", number);
 }

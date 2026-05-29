@@ -1,10 +1,8 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <core/assert.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <core/spinlock.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <lib/string.h>
 #include <mm/page.h>
 #include <mm/pdma.h>
@@ -48,8 +46,8 @@ static bool expand_slab(struct slab* restrict sl)
     size_t header;
     size_t count, gap;
 
-    kassert((sl->blocksize / sizeof(void*)) >= 1U);
-    kassert((sl->blocksize % sizeof(void*)) == 0U);
+    weak_kassert((sl->blocksize / sizeof(void*)) >= 1U);
+    weak_kassert((sl->blocksize % sizeof(void*)) == 0U);
 
     sl->head = pslab_alloc_virt();
 
@@ -156,10 +154,11 @@ void slab_free(void* restrict ptr)
     spinlock_release(&slab_lock);
 }
 
-static int init_slab(void)
+define_initcall(slab, INITCALL_STAGE_BSP_SLAB, INITCALL_ORDER_MIDDLE)
 {
     size_t i;
     size_t npages;
+    bool result;
 
     slabs_count = 0U;
 
@@ -168,26 +167,17 @@ static int init_slab(void)
     }
 
     npages = page_count(slabs_count * sizeof(struct slab));
-    slabs = pdma_alloc_virt(npages);
 
-    if(slabs == nullptr) {
-        panic("slab: out of memory: pdma_alloc: %zu", npages);
-        unreachable();
-    }
+    slabs = pdma_alloc_virt(npages);
+    strict_kassert_text(slabs, "out of memory");
 
     for(i = 0U; i < slabs_count; ++i) {
         slabs[i].blocksize = SLAB_BLOCKSIZE(i);
         slabs[i].head = nullptr;
 
-        if(!expand_slab(&slabs[i])) {
-            panic("slab: out of memory: expand_slab: %zu %zu", i, slabs[i].blocksize);
-            unreachable();
-        }
+        result = expand_slab(&slabs[i]);
+        strict_kassert_text(result, "out of memory");
 
-        kprintf(KP_NOTICE, "slab: slab[%zu] head=%p blocksize=%zu", i, slabs[i].head, slabs[i].blocksize);
+        pr_notice("slab: slab[%zu] head=%p blocksize=%zu", i, slabs[i].head, slabs[i].blocksize);
     }
-
-    return 0;
 }
-
-DEFINE_INITFN_BSP(init_slab, INITFN_STAGE_BSP_SLAB, INITFN_ORDER_MIDDLE);

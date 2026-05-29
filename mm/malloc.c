@@ -1,11 +1,9 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <core/assert.h>
 #include <core/errno.h>
 #include <core/linker.h>
 #include <core/panic.h>
 #include <core/spinlock.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <lib/string.h>
 #include <mm/malloc.h>
 #include <mm/page.h>
@@ -304,11 +302,7 @@ void kfree(void* restrict ptr)
     spinlock_release(&heap_lock);
 }
 
-static int init_malloc(void)
+define_initcall(init_malloc, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_FIRST)
 {
-    // skip a guard page between kernel image and heap
     heap_end = PAGE_SIZE + page_align_up((uintptr_t)(kernel_end));
-    return 0;
 }
-
-DEFINE_INITFN_BSP(init_malloc, INITFN_STAGE_BSP_HEAP, INITFN_ORDER_FIRST);

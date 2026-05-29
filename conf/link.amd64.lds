@@ -36,13 +36,14 @@ SECTIONS
         *(.rodata.*)
     } :rodata
 
-    .initfn : {
-        initfns_bsp_start = .;
-        *(SORT(.initfn.bsp.*))
-        initfns_bsp_end = .;
-        initfns_mp_start = .;
-        *(SORT(.initfn.mp.*))
-        initfns_mp_end = .;
+    .initcalls : {
+        initcalls_bsp_start = .;
+        *(SORT(.initcall.bsp.*))
+        initcalls_bsp_end = .;
+
+        initcalls_smp_start = .;
+        *(SORT(.initcall.smp.*))
+        initcalls_smp_end = .;
     } :rodata
 
     rodata_end = .;

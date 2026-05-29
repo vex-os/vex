@@ -4,7 +4,7 @@
 #include <amd64/pmio.h>
 #include <arch/interrupts.h>
 #include <core/kprintf.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 
 #define PIC1_COMMAND 0x0020
 #define PIC1_DATA    0x0021
@@ -32,10 +32,10 @@ void __used amd64_spur_handler(struct interrupt_frame* restrict frame, uint64_t 
 {
     // <<  Because it's a shit chip >>
     //                  - streaksu
-    kprintf(KP_WARNING, "picstub: spurious interrupt 0x%02zX", (size_t)intvec);
+    pr_warning("picstub: spurious interrupt 0x%02zX", (size_t)intvec);
 }
 
-static int AMD64_init_picstub(void)
+define_initcall(amd64_picstub_bsp, INTICALL_STAGE_BSP_ARCH, INITCALL_ORDER_MIDDLE)
 {
     unsigned vector;
 
@@ -74,13 +74,9 @@ static int AMD64_init_picstub(void)
             pmwrite8(PIC2_COMMAND, 0x20);
         pmwrite8(PIC1_COMMAND, 0x20);
     }
-
-    return 0;
 }
 
-DEFINE_INITFN_BSP(AMD64_init_picstub, INITFN_STAGE_BSP_ARCH, INITFN_ORDER_MIDDLE);
-
-static int AMD64_init_picstub_mp(void)
+define_initcall(amd64_picstub_smp, INITCALL_STAGE_SMP_IREQ, INITCALL_ORDER_EARLY)
 {
     set_idt_entry_kern(0x20, false, &amd64_spur_20);
     set_idt_entry_kern(0x21, false, &amd64_spur_21);
@@ -98,8 +94,4 @@ static int AMD64_init_picstub_mp(void)
     set_idt_entry_kern(0x2D, false, &amd64_spur_2D);
     set_idt_entry_kern(0x2E, false, &amd64_spur_2E);
     set_idt_entry_kern(0x2F, false, &amd64_spur_2F);
-
-    return 0;
 }
-
-DEFINE_INITFN_MP(AMD64_init_picstub_mp, INITFN_STAGE_MP_IREQ, INITFN_ORDER_EARLY);

@@ -7,12 +7,12 @@ bus/pci.c
 
 core/assert.c
 core/console.c
-core/fbconsole.c optional fbconsole
+core/fbcons.c optional fbcons
 core/intctl.c
 core/ireq.c
 core/kprintf.c
-core/mp.c
 core/panic.c
+core/smp.c
 core/version.c
 
 dev/ps2kbd.c
@@ -37,7 +37,7 @@ ext/uacpi/types.c
 ext/uacpi/uacpi.c
 ext/uacpi/utilities.c
 
-init/initfn.c
+init/initcall.c
 init/kmain.c
 
 lib/bitmap.c

@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
 #ifndef F63D6B62_92FB_4609_8F6A_7D3FE9C20BB1
 #define F63D6B62_92FB_4609_8F6A_7D3FE9C20BB1
 #pragma once

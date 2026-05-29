@@ -3,7 +3,7 @@
 #include <core/intctl.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <lib/sprintf.h>
 #include <lib/string.h>
 #include <mm/hhdm.h>
@@ -185,7 +185,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
     return UACPI_ITERATION_DECISION_CONTINUE;
 }
 
-static int AMD64_init_ioapic(void)
+define_initcall(amd64_ioapic, INITCALL_STAGE_BSP_IREQ, INITCALL_ORDER_FIRST)
 {
     uacpi_table madt;
     uacpi_status status;
@@ -198,8 +198,4 @@ static int AMD64_init_ioapic(void)
 
     uacpi_for_each_subtable(madt.hdr, sizeof(struct acpi_madt), &ioapic_madt_callback, nullptr);
     uacpi_table_unref(&madt);
-
-    return 0;
 }
-
-DEFINE_INITFN_BSP(AMD64_init_ioapic, INITFN_STAGE_BSP_IREQ, INITFN_ORDER_FIRST);

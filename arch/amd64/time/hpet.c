@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: BSD-3-Clause
+
+#include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <mm/hhdm.h>
 #include <mm/vmm.h>
 #include <mm/vprot.h>
@@ -44,8 +46,9 @@ static struct clocksource hpet_clocksource = {
     .rating = 200,
 };
 
-static int AMD64_init_hpet(void)
+define_initcall(amd64_hpet_clocksource, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
 {
+    int retval;
     uacpi_table table;
     uacpi_status status;
     struct acpi_hpet* hpet;
@@ -55,49 +58,37 @@ static int AMD64_init_hpet(void)
 
     status = uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &table);
 
-    if(uacpi_unlikely_error(status)) {
-        kprintf(KP_WARNING, "hpet: acpi hpet table not found");
-        return ENODEV;
+    if(uacpi_likely_success(status)) {
+        hpet = (struct acpi_hpet*)(table.hdr);
+
+        if(hpet->address.address) {
+            mmio = phys_to_virt(hpet->address.address);
+
+            retval = vmm_map(&sys_pagemap, (uintptr_t)(mmio), hpet->address.address, VPROT_RW | VPROT_NOCACHE);
+            strict_kassert_text(retval == 0 || retval == EEXIST, "mmio map failed");
+
+            hpet_clocksource.privdata = (void*)(mmio); // this removes the volatile qualifier without a warning
+
+            uacpi_table_unref(&table);
+
+            hpet_period_fsec = hpet_read_reg(mmio, HPET_REG_CAPS);
+            hpet_period_fsec >>= HPET_CAPS_PERIOD_SHIFT;
+
+            if(hpet_period_fsec == 0 || hpet_period_fsec > HPET_PERIOD_MAX) {
+                pr_warning("hpet: invalid counter period %llu fs", (unsigned long long)(hpet_period_fsec));
+                return;
+            }
+
+            hpet_config_reg = hpet_read_reg(mmio, HPET_REG_CONFIG);
+            hpet_config_reg |= HPET_CONFIG_ENABLE;
+
+            hpet_write_reg(mmio, HPET_REG_CONFIG, hpet_config_reg);
+
+            hpet_clocksource.tc.calc_mask = UINT64_MAX;
+
+            timecounter_init(&hpet_clocksource.tc, hpet_period_fsec, hpet_read_reg(mmio, HPET_REG_MAIN));
+
+            register_clocksource(&hpet_clocksource);
+        }
     }
-
-    hpet = (struct acpi_hpet*)(table.hdr);
-
-    if(hpet->address.address_space_id) {
-        kprintf(KP_WARNING, "hpet: non-memory address space, skipping");
-        uacpi_table_unref(&table);
-        return ENODEV;
-    }
-
-    mmio = phys_to_virt(hpet->address.address);
-
-    if(vmm_map(&sys_pagemap, (uintptr_t)(mmio), hpet->address.address, VPROT_RW | VPROT_NOCACHE)) {
-        kprintf(KP_WARNING, "hpet: failed to map mmio at %p", (const void*)((uintptr_t)(hpet->address.address)));
-        uacpi_table_unref(&table);
-        return ENODEV;
-    }
-
-    hpet_clocksource.privdata = (void*)(mmio); // this removes the volatile qualifier without a warning
-
-    uacpi_table_unref(&table);
-
-    hpet_period_fsec = hpet_read_reg(mmio, HPET_REG_CAPS);
-    hpet_period_fsec >>= HPET_CAPS_PERIOD_SHIFT;
-
-    if(hpet_period_fsec == 0 || hpet_period_fsec > HPET_PERIOD_MAX) {
-        kprintf(KP_WARNING, "hpet: invalid counter period %llu fs", (unsigned long long)(hpet_period_fsec));
-        return ENODEV;
-    }
-
-    hpet_config_reg = hpet_read_reg(mmio, HPET_REG_CONFIG);
-    hpet_config_reg |= HPET_CONFIG_ENABLE;
-
-    hpet_write_reg(mmio, HPET_REG_CONFIG, hpet_config_reg);
-
-    hpet_clocksource.tc.calc_mask = UINT64_MAX;
-
-    timecounter_init(&hpet_clocksource.tc, hpet_period_fsec, hpet_read_reg(mmio, HPET_REG_MAIN));
-
-    return register_clocksource(&hpet_clocksource);
 }
-
-DEFINE_INITFN_BSP(AMD64_init_hpet, INITFN_STAGE_BSP_TIMER, INITFN_ORDER_FIRST);
