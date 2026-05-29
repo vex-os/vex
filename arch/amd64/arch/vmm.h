@@ -4,6 +4,7 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <core/spinlock.h>
 #include <mm/vprot.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -33,6 +34,7 @@
 typedef uint64_t vmm_entry_type;
 
 struct vmm_pagemap {
+    spinlock_type lock;
     unsigned levels;
     struct {
         uintptr_t cr3_phys;

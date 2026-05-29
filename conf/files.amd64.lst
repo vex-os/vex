@@ -1,12 +1,14 @@
 arch/amd64/amd64/bxconsole.c optional bxconsole
 arch/amd64/amd64/gdt.c
 arch/amd64/amd64/idt.c
+arch/amd64/amd64/tss.c
 arch/amd64/amd64/idts.S
 arch/amd64/amd64/ioapic.c
 arch/amd64/amd64/lapic.c
 arch/amd64/amd64/picstub.c
 
 arch/amd64/arch/ireq.c
+arch/amd64/arch/hart.c
 arch/amd64/arch/vmm.c
 
 arch/amd64/bus/acpi_glue.c

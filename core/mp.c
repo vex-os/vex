@@ -8,6 +8,7 @@
 #include <core/kprintf.h>
 #include <init/initfn.h>
 #include <limine.h>
+#include <mm/vmm.h>
 
 static volatile __used __section(".limine_requests") struct limine_mp_request mp_request = {
     .id = LIMINE_MP_REQUEST_ID,
@@ -18,7 +19,11 @@ static void __noreturn mp_entry(struct limine_mp_info* info)
 {
     UNUSED_ARG(info);
 
+    vmm_switch(&sys_pagemap);
+
     call_initfns(initfns_mp_start, initfns_mp_end);
+
+    kprintf(KP_INFORM, "mp: hart %u ready", this_hart()->index);
 
     enable_interrupts();
 
@@ -39,6 +44,8 @@ static int init_mp(void)
     }
 
     call_initfns(initfns_mp_start, initfns_mp_end);
+
+    kprintf(KP_INFORM, "mp: hart %u ready", this_hart()->index);
 
     for(i = 0; i < response->cpu_count; ++i) {
         atomic_store_n(&response->cpus[i]->goto_address, &mp_entry, ATOMIC_RELEASE);
