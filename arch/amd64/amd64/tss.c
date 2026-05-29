@@ -34,7 +34,7 @@ static int AMD64_init_tss(void)
 
     for(i = 0; i < AMD64_IST_COUNT; ++i) {
         if(hart->amd64.ist_stacks[i])
-            tss->ist[i] = (uint64_t)hart->amd64.ist_stacks[i];
+            tss->ist[i] = hart->amd64.ist_stacks[i];
     }
 
     hart->amd64.tss = tss;
