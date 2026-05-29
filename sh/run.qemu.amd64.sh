@@ -19,7 +19,7 @@ qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -machine type=q35"
 qargs="${qargs} -vga std"
 qargs="${qargs} -m 512M"
-qargs="${qargs} -smp 2"
+qargs="${qargs} -smp 4"
 
 # only log stuff if argv[1] is verbose
 if test "${1}" = "verbose"; then
