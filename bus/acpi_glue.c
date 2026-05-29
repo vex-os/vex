@@ -11,7 +11,6 @@
 #include <mm/hhdm.h>
 #include <mm/malloc.h>
 #include <mm/page.h>
-#include <mm/slab.h>
 #include <mm/vmm.h>
 #include <mm/vprot.h>
 #include <stdint.h>
@@ -257,7 +256,7 @@ static void acpi_irq_dispatch(unsigned number, struct interrupt_frame* restrict 
 uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interrupt_handler handler, uacpi_handle ctx,
     uacpi_handle* out_handle)
 {
-    struct acpi_irq_trampoline* trampoline = slab_alloc(sizeof(struct acpi_irq_trampoline));
+    struct acpi_irq_trampoline* trampoline = kmalloc(sizeof(struct acpi_irq_trampoline));
     struct intctl* controller;
     unsigned ireq_number;
 
@@ -268,7 +267,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
     controller = find_intctl(gsi);
 
     if(controller == nullptr) {
-        slab_free(trampoline);
+        kfree(trampoline);
 
         return UACPI_STATUS_NOT_FOUND;
     }
@@ -280,7 +279,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
     ireq_number = register_ireq_handler(UINT_MAX, &acpi_irq_dispatch, trampoline);
 
     if(ireq_number == UINT_MAX) {
-        slab_free(trampoline);
+        kfree(trampoline);
 
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
@@ -307,7 +306,7 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler ha
     }
 
     unregister_ireq_handler(trampoline->ireq_number);
-    slab_free(trampoline);
+    kfree(trampoline);
 
     return UACPI_STATUS_OK;
 }

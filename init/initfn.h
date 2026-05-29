@@ -61,4 +61,6 @@ extern const struct initfn_entry initfns_bsp_end[];
 extern const struct initfn_entry initfns_mp_start[];
 extern const struct initfn_entry initfns_mp_end[];
 
+extern void call_initfns(const struct initfn_entry* restrict start, const struct initfn_entry* restrict end);
+
 #endif /* D6DE57CA_EA06_4C53_BB52_6B8E263AC6DF */

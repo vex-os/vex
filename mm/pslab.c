@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include <core/kprintf.h>
+#include <core/spinlock.h>
 #include <init/initfn.h>
 #include <lib/hrsize.h>
 #include <mm/hhdm.h>
@@ -12,6 +13,7 @@
 static void** pslab_list = nullptr;
 static size_t pslab_numpages = 0U;
 static size_t pslab_numused = 0U;
+static spinlock_type pslab_lock = SPINLOCK_INIT;
 
 static void add_region(uintptr_t start, size_t length)
 {
@@ -40,12 +42,19 @@ void* pslab_alloc_virt(void)
 {
     void** head_ptr;
 
+    spinlock_acquire(&pslab_lock);
+
     if(pslab_list) {
         head_ptr = pslab_list;
         pslab_list = pslab_list[0];
         pslab_numused += 1U;
+
+        spinlock_release(&pslab_lock);
+
         return head_ptr;
     }
+
+    spinlock_release(&pslab_lock);
 
     return nullptr;
 }
@@ -61,12 +70,16 @@ void pslab_free_virt(void* restrict virtaddr)
 {
     void** head_ptr;
 
+    spinlock_acquire(&pslab_lock);
+
     if(virtaddr) {
         head_ptr = virtaddr;
         head_ptr[0] = pslab_list;
         pslab_list = head_ptr;
         pslab_numused -= 1U;
     }
+
+    spinlock_release(&pslab_lock);
 }
 
 void pslab_get_stats(struct pslab_stats* stats)

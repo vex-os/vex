@@ -4,6 +4,7 @@
 #include <core/assert.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
+#include <core/spinlock.h>
 #include <init/initfn.h>
 #include <lib/bitmap.h>
 #include <lib/hrsize.h>
@@ -16,6 +17,7 @@ static bitmap_t* pdma_bitmap = nullptr;
 static size_t pdma_numpages = 0U;
 static size_t pdma_numused = 0U;
 static size_t pdma_lastpage = 0U;
+static spinlock_type pdma_lock = SPINLOCK_INIT;
 
 struct memmap_info {
     uintptr_t start;
@@ -53,12 +55,17 @@ uintptr_t pdma_alloc(size_t numpages)
     size_t page;
     size_t maxpage;
 
+    spinlock_acquire(&pdma_lock);
+
     maxpage = pdma_numpages - numpages;
     for(page = pdma_lastpage; page < maxpage; page += 1U) {
         if(bitmap_range_isset(pdma_bitmap, page, page + numpages - 1U)) {
             bitmap_range_clear(pdma_bitmap, page, page + numpages - 1U);
             pdma_lastpage = page + numpages;
             pdma_numused += numpages;
+
+            spinlock_release(&pdma_lock);
+
             return page * PAGE_SIZE;
         }
     }
@@ -69,9 +76,14 @@ uintptr_t pdma_alloc(size_t numpages)
             bitmap_range_clear(pdma_bitmap, page, page + numpages - 1U);
             pdma_lastpage = page + numpages;
             pdma_numused += numpages;
+
+            spinlock_release(&pdma_lock);
+
             return page * PAGE_SIZE;
         }
     }
+
+    spinlock_release(&pdma_lock);
 
     return 0U;
 }
@@ -91,11 +103,15 @@ void pdma_free(uintptr_t physaddr, size_t numpages)
     kassert(physaddr < PDMA_APPROX_END);
     kassert((page + numpages) < pdma_numpages);
 
+    spinlock_acquire(&pdma_lock);
+
     if(physaddr) {
         bitmap_range_set(pdma_bitmap, page, page + numpages - 1U);
         pdma_numused -= numpages;
         pdma_lastpage = page;
     }
+
+    spinlock_release(&pdma_lock);
 }
 
 void pdma_free_virt(void* restrict virtaddr, size_t numpages)

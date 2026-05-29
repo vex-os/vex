@@ -4,7 +4,7 @@
 #include <arch/interrupts.h>
 #include <limine.h>
 #include <mm/hhdm.h>
-#include <mm/slab.h>
+#include <mm/malloc.h>
 #include <uacpi/kernel_api.h>
 
 struct pmio_range {
@@ -14,7 +14,7 @@ struct pmio_range {
 
 uacpi_status uacpi_kernel_io_map(uacpi_io_addr base, uacpi_size len, uacpi_handle* out_handle)
 {
-    struct pmio_range* range = slab_alloc(sizeof(struct pmio_range));
+    struct pmio_range* range = kmalloc(sizeof(struct pmio_range));
 
     if(range == nullptr) {
         return UACPI_STATUS_OUT_OF_MEMORY;
@@ -30,7 +30,7 @@ uacpi_status uacpi_kernel_io_map(uacpi_io_addr base, uacpi_size len, uacpi_handl
 
 void uacpi_kernel_io_unmap(uacpi_handle handle)
 {
-    slab_free(handle);
+    kfree(handle);
 }
 
 uacpi_status uacpi_kernel_io_read8(uacpi_handle handle, uacpi_size off, uacpi_u8* val)

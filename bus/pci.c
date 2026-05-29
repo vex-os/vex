@@ -4,7 +4,7 @@
 #include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
-#include <mm/slab.h>
+#include <mm/malloc.h>
 
 #define PCI_MAX_BUS_DEVICES 32
 
@@ -61,7 +61,7 @@ static void rescan_bus(struct pci_bus* restrict bus)
             }
 
             device_id = bus->ops->read16(bus, device_idx, function_idx, PCI_CFG_DEVICE_ID);
-            device = slab_alloc(sizeof(struct pci_device));
+            device = kmalloc(sizeof(struct pci_device));
 
             if(device == nullptr) {
                 continue; // allocation failed
@@ -145,7 +145,7 @@ int unregister_pci_bus(struct pci_bus* restrict bus)
             device->driver->ops->remove(device);
         }
 
-        slab_free(device);
+        kfree(device);
     }
 
     kprintf(KP_INFORM, "pci: removing %s", bus->identifier);

@@ -4,6 +4,7 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define GDT_NULL_SEGMENT 0x00

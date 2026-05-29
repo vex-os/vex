@@ -25,10 +25,10 @@ struct hart_local* hart_alloc(void)
 
     memset(hart, 0, sizeof(*hart));
 
-    hart->self  = hart;
+    hart->self = hart;
     hart->index = atomic_fetch_add(&hart_count, 1, ATOMIC_RELAXED);
 
-    msr_write(MSR_GS_BASE, (uint64_t)hart);
+    msr_write(MSR_GS_BASE, (uint64_t)(hart));
 
     return hart;
 }

@@ -13,8 +13,10 @@
 
 #define atomic_thread_fence(order) __atomic_thread_fence(order)
 
-#define atomic_load(ptr, order)         __atomic_load_n((ptr), (order))
-#define atomic_store(ptr, value, order) __atomic_store_n((ptr), (value), (order))
+#define atomic_load(ptr, order)           __atomic_load_n((ptr), (order))
+#define atomic_load_n(ptr, order)         __atomic_load_n((ptr), (order))
+#define atomic_store(ptr, value, order)   __atomic_store_n((ptr), (value), (order))
+#define atomic_store_n(ptr, value, order) __atomic_store_n((ptr), (value), (order))
 
 #define atomic_fetch_add(ptr, value, order) __atomic_fetch_add((ptr), (value), (order))
 #define atomic_fetch_sub(ptr, value, order) __atomic_fetch_sub((ptr), (value), (order))

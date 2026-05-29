@@ -2,10 +2,10 @@
 
 #include <arch/hart.h>
 #include <arch/interrupts.h>
+#include <core/atomic.h>
 #include <core/cdefs.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
-#include <core/mp.h>
 #include <init/initfn.h>
 #include <limine.h>
 
@@ -18,7 +18,8 @@ static void __noreturn mp_entry(struct limine_mp_info* info)
 {
     UNUSED_ARG(info);
 
-    call_mp_initfns();
+    call_initfns(initfns_mp_start, initfns_mp_end);
+
     enable_interrupts();
 
     for(;;) {
@@ -31,23 +32,16 @@ static void __noreturn mp_entry(struct limine_mp_info* info)
 static int init_mp(void)
 {
     struct limine_mp_response* response = mp_request.response;
-    struct limine_mp_info* info;
     uint64_t i;
 
     if(response == nullptr) {
         return ENODEV;
     }
 
-    call_mp_initfns();
+    call_initfns(initfns_mp_start, initfns_mp_end);
 
     for(i = 0; i < response->cpu_count; ++i) {
-        info = response->cpus[i];
-
-        if(info->lapic_id == response->bsp_lapic_id) {
-            continue;
-        }
-
-        __atomic_store_n(&info->goto_address, mp_entry, __ATOMIC_RELEASE);
+        atomic_store_n(&response->cpus[i]->goto_address, &mp_entry, ATOMIC_RELEASE);
     }
 
     return 0;

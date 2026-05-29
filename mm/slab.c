@@ -3,6 +3,7 @@
 #include <core/assert.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
+#include <core/spinlock.h>
 #include <init/initfn.h>
 #include <lib/string.h>
 #include <mm/page.h>
@@ -18,6 +19,7 @@ struct slab {
 
 static size_t slabs_count = 0U;
 static struct slab* slabs = nullptr;
+static spinlock_type slab_lock = SPINLOCK_INIT;
 
 static struct slab* find_slab(size_t sz)
 {
@@ -73,25 +75,35 @@ static bool expand_slab(struct slab* restrict sl)
     return false;
 }
 
-void* __nodiscard slab_alloc(size_t sz)
+void* slab_alloc(size_t sz)
 {
     void** head_ptr;
-    struct slab* sl = find_slab(sz);
+    struct slab* sl;
+
+    spinlock_acquire(&slab_lock);
+
+    sl = find_slab(sz);
 
     if(sl) {
         if(!sl->head && !expand_slab(sl)) {
+            spinlock_release(&slab_lock);
             return nullptr;
         }
 
         head_ptr = sl->head;
         sl->head = head_ptr[0];
+
+        spinlock_release(&slab_lock);
+
         return head_ptr;
     }
+
+    spinlock_release(&slab_lock);
 
     return nullptr;
 }
 
-void* __nodiscard slab_calloc(size_t count, size_t sz)
+void* slab_calloc(size_t count, size_t sz)
 {
     void* ptr = slab_alloc(count * sz);
     if(ptr == nullptr)
@@ -99,7 +111,7 @@ void* __nodiscard slab_calloc(size_t count, size_t sz)
     return memset(ptr, 0, count * sz);
 }
 
-void* __nodiscard slab_realloc(void* restrict ptr, size_t sz)
+void* slab_realloc(void* restrict ptr, size_t sz)
 {
     struct slab* sl;
     void** head_ptr;
@@ -115,9 +127,13 @@ void* __nodiscard slab_realloc(void* restrict ptr, size_t sz)
 
     memcpy(new_ptr, ptr, sl->blocksize);
 
+    spinlock_acquire(&slab_lock);
+
     head_ptr = ptr;
     head_ptr[0] = sl->head;
     sl->head = new_ptr;
+
+    spinlock_release(&slab_lock);
 
     return new_ptr;
 }
@@ -127,6 +143,8 @@ void slab_free(void* restrict ptr)
     struct slab* sl;
     void** head_ptr;
 
+    spinlock_acquire(&slab_lock);
+
     if(ptr) {
         sl = ((struct slab**)(page_align_ptr(ptr)))[0];
 
@@ -134,6 +152,8 @@ void slab_free(void* restrict ptr)
         head_ptr[0] = sl->head;
         sl->head = head_ptr;
     }
+
+    spinlock_release(&slab_lock);
 }
 
 static int init_slab(void)
