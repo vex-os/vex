@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <lib/bitmap.h>
 
 static __always_inline __nodiscard inline bitmap_t make_bitmask(size_t bitmod)

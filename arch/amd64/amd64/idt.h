@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-3-Clause
-#ifndef A9515567_5D7D_43CC_B819_83FC461E4E97
-#define A9515567_5D7D_43CC_B819_83FC461E4E97
+
+#ifndef F048353F_6938_4881_A52F_EED94B9358DB
+#define F048353F_6938_4881_A52F_EED94B9358DB
 #pragma once
 
 #include <core/cdefs.h>
@@ -12,4 +13,4 @@ extern void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict 
 extern void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn);
 extern void unset_idt_entry(unsigned vector);
 
-#endif /* A9515567_5D7D_43CC_B819_83FC461E4E97 */
+#endif /* F048353F_6938_4881_A52F_EED94B9358DB */

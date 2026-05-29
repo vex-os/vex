@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
 #ifndef CF91645C_FD7B_4867_ACAF_DFEFD227B222
 #define CF91645C_FD7B_4867_ACAF_DFEFD227B222
 #pragma once
@@ -31,5 +30,14 @@ extern unsigned loglevel;
 
 extern void kprintf(unsigned sv, const char* restrict fmt, ...) __printflike(2, 3);
 extern void kvprintf(unsigned sv, const char* restrict fmt, va_list ap) __printflike(2, 0);
+
+#define pr_emerg(fmt, ...)    kprintf(KP_EMERG, (fmt), ##__VA_ARGS__)
+#define pr_alert(fmt, ...)    kprintf(KP_ALERT, (fmt), ##__VA_ARGS__)
+#define pr_critical(fmt, ...) kprintf(KP_CRITICAL, (fmt), ##__VA_ARGS__)
+#define pr_error(fmt, ...)    kprintf(KP_ERROR, (fmt), ##__VA_ARGS__)
+#define pr_warning(fmt, ...)  kprintf(KP_WARNING, (fmt), ##__VA_ARGS__)
+#define pr_notice(fmt, ...)   kprintf(KP_NOTICE, (fmt), ##__VA_ARGS__)
+#define pr_inform(fmt, ...)   kprintf(KP_INFORM, (fmt), ##__VA_ARGS__)
+#define pr_debug(fmt, ...)    kprintf(KP_DEBUG, (fmt), ##__VA_ARGS__)
 
 #endif /* CF91645C_FD7B_4867_ACAF_DFEFD227B222 */

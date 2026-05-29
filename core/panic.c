@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <arch/hart.h>
 #include <arch/interrupts.h>
 #include <core/console.h>
@@ -20,7 +18,8 @@ void __noreturn fvpanic(const char* restrict file, unsigned long line, const cha
 
     console_unblank_all();
 
-    kprintf(KP_EMERG, "kernel panic at %s:%lu", file, line);
+    pr_emerg("kernel panic at %s:%lu", file, line);
+
     kvprintf(KP_EMERG, fmt, ap);
 
     for(;;) {

@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <lib/ctype.h>
 
 #define CT_CT (1 << 0)

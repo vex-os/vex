@@ -5,10 +5,9 @@
 #include <arch/hart.h>
 #include <arch/interrupts.h>
 #include <core/assert.h>
-#include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <lib/string.h>
 #include <mm/malloc.h>
 
@@ -79,6 +78,7 @@ void __used amd64_isr_handler(struct interrupt_frame* restrict frame, uint64_t i
 static void set_entry(struct idt_entry* restrict entry, bool trap, uint16_t selector, const void* restrict pfn)
 {
     memset(entry, 0, sizeof(*entry));
+
     entry->offset_0 = ((uintptr_t)pfn & 0x000000000000FFFF);
     entry->offset_1 = ((uintptr_t)pfn & 0x00000000FFFF0000) >> 16;
     entry->offset_2 = ((uintptr_t)pfn & 0xFFFFFFFF00000000) >> 32;
@@ -98,9 +98,6 @@ void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn)
     struct hart_local* hart = this_hart();
     struct amd64_idt* idt = hart->amd64.idt;
 
-    kassert(pfn && "invalid IDT handler function pointer");
-    kassert(idt && "IDT not initialized for this hart");
-
     if(vector < IDT_SIZE) {
         set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
         idt->entries[vector].flags |= IDT_RING_0;
@@ -111,9 +108,6 @@ void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn)
 {
     struct hart_local* hart = this_hart();
     struct amd64_idt* idt = hart->amd64.idt;
-
-    kassert(pfn && "invalid IDT handler function pointer");
-    kassert(idt && "IDT not initialized for this hart");
 
     if(vector < IDT_SIZE) {
         set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
@@ -126,23 +120,18 @@ void unset_idt_entry(unsigned vector)
     struct hart_local* hart = this_hart();
     struct amd64_idt* idt = hart->amd64.idt;
 
-    kassert(idt && "IDT not initialized for this hart");
-
     if(vector < IDT_SIZE) {
         memset(&idt->entries[vector], 0, sizeof(struct idt_entry));
     }
 }
 
-static int AMD64_init_idt(void)
+define_initcall(amd64_idt, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_EARLY)
 {
     struct hart_local* hart = this_hart();
     struct amd64_idt* idt;
 
     idt = kmalloc(sizeof(struct amd64_idt));
-
-    if(idt == nullptr) {
-        return ENOMEM;
-    }
+    strict_kassert_text(idt, "out of memory");
 
     memset(idt, 0, sizeof(*idt));
 
@@ -186,9 +175,5 @@ static int AMD64_init_idt(void)
 
     asm volatile("lidtq %0" ::"m"(idt->idtr));
 
-    kprintf(KP_INFORM, "idt: hart=%u idtr.size=%zu idtr.offset=%p", hart->index, (size_t)(idt->idtr.size), (const void*)(idt->idtr.offset));
-
-    return 0;
+    pr_inform("idt: hart=%u idtr.size=%zu idtr.offset=%p", hart->index, (size_t)(idt->idtr.size), (const void*)(idt->idtr.offset));
 }
-
-DEFINE_INITFN_MP(AMD64_init_idt, INITFN_STAGE_MP_ARCH, INITFN_ORDER_EARLY);

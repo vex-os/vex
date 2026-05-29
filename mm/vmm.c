@@ -1,12 +1,10 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/linker.h>
 #include <core/panic.h>
 #include <core/spinlock.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <lib/string.h>
 #include <mm/hhdm.h>
 #include <mm/kbase.h>
@@ -218,8 +216,6 @@ struct vmm_pagemap* vmm_fork(const struct vmm_pagemap* restrict stem)
     vmm_entry_type* dest_table;
     int retval;
 
-    kassert(stem && "invalid stem pagemap pointer");
-
     vm = vmm_create();
 
     if(vm) {
@@ -244,8 +240,6 @@ struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem)
     vmm_entry_type* dest_table;
     int retval;
 
-    kassert(stem && "invalid stem pagemap pointer");
-
     vm = vmm_create();
 
     if(vm) {
@@ -265,8 +259,6 @@ struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem)
 
 void vmm_destroy(struct vmm_pagemap* restrict vm)
 {
-    kassert(vm && "invalid pagemap pointer");
-
     vmm_table_collapse(vmm_pagemap_root(vm, 0), 0, VMM_TABLE_SIZE / 2, vm->levels - 1);
     vmm_pagemap_free(vm);
     slab_free(vm);
@@ -276,10 +268,6 @@ int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, uns
 {
     vmm_entry_type* entry;
     int retval;
-
-    kassert(vm && "invalid pagemap pointer");
-    kassert(phys % PAGE_SIZE == 0 && "physical address must be page-aligned");
-    kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
 
     spinlock_acquire(&vm->lock);
 
@@ -306,9 +294,6 @@ int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned vprot)
     vmm_entry_type* entry;
     int retval;
 
-    kassert(vm && "invalid pagemap pointer");
-    kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
-
     spinlock_acquire(&vm->lock);
 
     entry = vmm_entry_lookup(vm, virt, false);
@@ -334,9 +319,6 @@ int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
     vmm_entry_type* entry;
     int retval;
 
-    kassert(vm && "invalid pagemap pointer");
-    kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
-
     spinlock_acquire(&vm->lock);
 
     entry = vmm_entry_lookup(vm, virt, false);
@@ -360,9 +342,6 @@ int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
 uintptr_t vmm_resolve(const struct vmm_pagemap* restrict vm, uintptr_t virt)
 {
     vmm_entry_type* entry;
-
-    kassert(vm && "invalid pagemap pointer");
-    kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
 
     entry = vmm_entry_lookup((struct vmm_pagemap*)vm, virt, false);
 
@@ -417,65 +396,36 @@ static int vmm_map_sys_memmap(const struct limine_memmap_entry* restrict entry)
     return 0;
 }
 
-static int init_vmm(void)
+define_initcall(init_vmm, INITCALL_STAGE_BSP_VMM, INITCALL_ORDER_MIDDLE)
 {
     size_t i;
     int retval;
 
-    kprintf(KP_INFORM, "vmm: initializing");
+    pr_inform("vmm: initializing");
 
     sys_pagemap.lock = SPINLOCK_INIT;
     sys_pagemap.levels = vmm_detect_levels();
 
-    kprintf(KP_INFORM, "vmm: allocating sys_pagemap");
+    pr_inform("vmm: allocating sys_pagemap");
 
-    if(vmm_pagemap_alloc(&sys_pagemap)) {
-        panic("vmm: out of memory: sys_pagemap");
-    }
-
-    kprintf(KP_INFORM, "vmm: mapping kernel sections");
+    retval = vmm_pagemap_alloc(&sys_pagemap);
+    strict_kassert_text(retval == 0, "out of memory");
 
     vmm_pagemap_zero(&sys_pagemap);
 
-    kprintf(KP_INFORM, "vmm: mapping text");
-
     retval = vmm_map_sys_section(&text_start, &text_end, VPROT_RX);
-
-    if(retval) {
-        panic("vmm: failed to map .text: %s", strerror(retval));
-    }
-
-    kprintf(KP_INFORM, "vmm: mapping rodata");
+    strict_kassert_text(retval == 0, "failed to map kernel.text");
 
     retval = vmm_map_sys_section(&rodata_start, &rodata_end, VPROT_READ);
-
-    if(retval) {
-        panic("vmm: failed to map .rodata: %s", strerror(retval));
-    }
-
-    kprintf(KP_INFORM, "vmm: mapping data");
+    strict_kassert_text(retval == 0, "failed to map kernel.rodata");
 
     retval = vmm_map_sys_section(&data_start, &data_end, VPROT_RW);
-
-    if(retval) {
-        panic("vmm: failed to map .data: %s", strerror(retval));
-    }
-
-    kprintf(KP_INFORM, "vmm: mapping memmap");
+    strict_kassert_text(retval == 0, "failed to map kernel.data");
 
     for(i = 0; i < memmap->entry_count; ++i) {
         retval = vmm_map_sys_memmap(memmap->entries[i]);
-
-        if(retval) {
-            panic("vmm: failed to map memmap entry[%zu]: %s", i, strerror(retval));
-        }
+        strict_kassert_text(retval == 0, "failed to map memmap entry");
     }
 
     vmm_switch(&sys_pagemap);
-
-    kprintf(KP_INFORM, "vmm: sys_pagemap=%p", sys_pagemap.amd64.cr3_virt);
-
-    return 0;
 }
-
-DEFINE_INITFN_BSP(init_vmm, INITFN_STAGE_BSP_VMM, INITFN_ORDER_MIDDLE);

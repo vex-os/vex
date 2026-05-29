@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <time/timecounter.h>
 
 #define FEMTO_PER_NANO UINT64_C(1000000)

@@ -1,8 +1,7 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
+#include <core/assert.h>
 #include <core/kprintf.h>
 #include <core/spinlock.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <lib/hrsize.h>
 #include <mm/hhdm.h>
 #include <mm/memmap.h>
@@ -27,7 +26,7 @@ static void add_region(uintptr_t start, size_t length)
         pslab_numpages += 1U;
     }
 
-    kprintf(KP_NOTICE, "pslab: adding region: [%p..%p]", (const void*)start, (const void*)(start + length - 1U));
+    pr_notice("pslab: adding region: [%p..%p]", (const void*)start, (const void*)(start + length - 1U));
 }
 
 uintptr_t pslab_alloc(void)
@@ -90,7 +89,7 @@ void pslab_get_stats(struct pslab_stats* stats)
     stats->used_pages = pslab_numused;
 }
 
-static int init_pslab(void)
+define_initcall(pslab, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_EARLY)
 {
     size_t i;
     const struct limine_memmap_entry* entry;
@@ -103,38 +102,32 @@ static int init_pslab(void)
     for(i = 0U; i < memmap->entry_count; ++i) {
         entry = memmap->entries[i];
 
-        if(entry->type != LIMINE_MEMMAP_USABLE)
-            continue;
+        if(entry->type == LIMINE_MEMMAP_USABLE) {
+            start = page_align_up(entry->base);
+            length = align_floor(entry->length, PAGE_SIZE);
 
-        start = page_align_up(entry->base);
-        length = align_floor(entry->length, PAGE_SIZE);
+            if(start == 0U) {
+                start += PAGE_SIZE;
+                length -= PAGE_SIZE;
+            }
 
-        if(start == 0U) {
-            start += PAGE_SIZE;
-            length -= PAGE_SIZE;
-        }
+            if(start + length <= PDMA_APPROX_END) {
+                continue; // pslab only manages memory above the DMA zone
+            }
 
-        // pslab only manages memory above the DMA zone
-        if(start + length <= PDMA_APPROX_END) {
-            continue;
-        }
+            if(start < PDMA_APPROX_END) {
+                length -= PDMA_APPROX_END + 1U - start;
+                start = PDMA_APPROX_END + 1U;
+            }
 
-        if(start < PDMA_APPROX_END) {
-            length -= PDMA_APPROX_END + 1U - start;
-            start = PDMA_APPROX_END + 1U;
-        }
-
-        if(length > 0U) {
-            add_region(start, length);
+            if(length > 0U) {
+                add_region(start, length);
+            }
         }
     }
 
     pslab_get_stats(&stats);
 
     hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), stats.total_bytes);
-    kprintf(KP_NOTICE, "pslab: tracking %s in %zu pages", hrsize_buffer, stats.total_pages);
-
-    return 0;
+    pr_notice("pslab: tracking %s in %zu pages", hrsize_buffer, stats.total_pages);
 }
-
-DEFINE_INITFN_BSP(init_pslab, INITFN_STAGE_BSP_PMM, INITFN_ORDER_EARLY);

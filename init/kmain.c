@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <arch/hart.h>
 #include <arch/interrupts.h>
 #include <core/cdefs.h>
@@ -7,7 +5,7 @@
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <core/version.h>
-#include <init/initfn.h>
+#include <init/initcall.h>
 #include <lib/string.h>
 #include <limine.h>
 
@@ -17,13 +15,13 @@ static volatile __used __section(".limine_requests_end") uint64_t limine_request
 
 void __noreturn kmain(void)
 {
-    kprintf(KP_INFORM, "%s %s %s", k_sysname, k_release, k_version);
+    pr_inform("%s %s %s", k_sysname, k_release, k_version);
 
-    call_initfns(initfns_bsp_start, initfns_bsp_end);
+    invoke_initcalls(initcalls_bsp_start, initcalls_bsp_end);
 
     enable_interrupts();
 
-    kprintf(KP_INFORM, "hanging around...");
+    pr_inform("hanging around...");
 
     for(;;) {
         stop_hart();

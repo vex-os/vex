@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <core/assert.h>
 #include <core/console.h>
 #include <core/errno.h>
@@ -14,9 +12,6 @@ int register_console_driver(struct console_driver* restrict driver)
 {
     struct console_driver* it;
 
-    kassert(driver && "invalid console driver pointer");
-    kassert(driver->ops && "invalid console driver ops pointer");
-
     spinlock_acquire(&console_lock);
 
     for(it = console_head; it; it = it->next) {
@@ -28,7 +23,7 @@ int register_console_driver(struct console_driver* restrict driver)
 
     spinlock_release(&console_lock);
 
-    kprintf(KP_INFORM, "console: adding %s", driver->identifier);
+    pr_inform("console: adding %s", driver->identifier);
 
     if(driver->ops->init) {
         driver->ops->init(driver);
@@ -66,8 +61,6 @@ int unregister_console_driver(struct console_driver* restrict driver)
     struct console_driver* it;
     struct console_driver* prev = nullptr;
 
-    kassert(driver && "invalid console driver pointer");
-
     spinlock_acquire(&console_lock);
 
     if(console_head == driver) {
@@ -75,7 +68,7 @@ int unregister_console_driver(struct console_driver* restrict driver)
 
         spinlock_release(&console_lock);
 
-        kprintf(KP_INFORM, "console: removing %s", driver->identifier);
+        pr_inform("console: removing %s", driver->identifier);
 
         return 0;
     }
@@ -88,7 +81,7 @@ int unregister_console_driver(struct console_driver* restrict driver)
 
             spinlock_release(&console_lock);
 
-            kprintf(KP_INFORM, "console: removing %s", driver->identifier);
+            pr_inform("console: removing %s", driver->identifier);
 
             return 0;
         }
@@ -104,8 +97,6 @@ int unregister_console_driver(struct console_driver* restrict driver)
 void console_write(const void* restrict data, size_t size)
 {
     struct console_driver* it;
-
-    kassert(data && "invalid console write data pointer");
 
     spinlock_acquire(&console_lock);
 
