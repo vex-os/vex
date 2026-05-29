@@ -75,6 +75,13 @@ static int AMD64_init_picstub(void)
         pmwrite8(PIC1_COMMAND, 0x20);
     }
 
+    return 0;
+}
+
+DEFINE_INITFN_BSP(AMD64_init_picstub, INITFN_STAGE_BSP_ARCH, INITFN_ORDER_MIDDLE);
+
+static int AMD64_init_picstub_mp(void)
+{
     set_idt_entry_kern(0x20, false, &amd64_spur_20);
     set_idt_entry_kern(0x21, false, &amd64_spur_21);
     set_idt_entry_kern(0x22, false, &amd64_spur_22);
@@ -95,4 +102,4 @@ static int AMD64_init_picstub(void)
     return 0;
 }
 
-DEFINE_INITFN_BSP(AMD64_init_picstub, INITFN_STAGE_BSP_ARCH, INITFN_ORDER_MIDDLE);
+DEFINE_INITFN_MP(AMD64_init_picstub_mp, INITFN_STAGE_MP_IREQ, INITFN_ORDER_EARLY);

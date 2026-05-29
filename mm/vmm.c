@@ -5,6 +5,7 @@
 #include <core/kprintf.h>
 #include <core/linker.h>
 #include <core/panic.h>
+#include <core/spinlock.h>
 #include <init/initfn.h>
 #include <lib/string.h>
 #include <mm/hhdm.h>
@@ -111,6 +112,7 @@ struct vmm_pagemap* vmm_create(void)
     vm = slab_alloc(sizeof(struct vmm_pagemap));
 
     if(vm) {
+        vm->lock = SPINLOCK_INIT;
         vm->levels = sys_pagemap.levels;
 
         if(vmm_pagemap_alloc(vm) == 0) {
@@ -273,68 +275,86 @@ void vmm_destroy(struct vmm_pagemap* restrict vm)
 int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigned vprot)
 {
     vmm_entry_type* entry;
+    int retval;
 
     kassert(vm && "invalid pagemap pointer");
     kassert(phys % PAGE_SIZE == 0 && "physical address must be page-aligned");
     kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
 
+    spinlock_acquire(&vm->lock);
+
     entry = vmm_entry_lookup(vm, virt, true);
 
     if(entry == nullptr) {
-        return ENOMEM;
+        retval = ENOMEM;
+    }
+    else if(vmm_entry_valid(entry[0])) {
+        retval = EEXIST;
+    }
+    else {
+        entry[0] = vmm_entry_init(page_align(phys), vprot);
+        retval = 0;
     }
 
-    if(vmm_entry_valid(entry[0])) {
-        return EEXIST;
-    }
+    spinlock_release(&vm->lock);
 
-    entry[0] = vmm_entry_init(page_align(phys), vprot);
-
-    return 0;
+    return retval;
 }
 
 int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned vprot)
 {
     vmm_entry_type* entry;
+    int retval;
 
     kassert(vm && "invalid pagemap pointer");
     kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
 
+    spinlock_acquire(&vm->lock);
+
     entry = vmm_entry_lookup(vm, virt, false);
 
     if(entry == nullptr) {
-        return ENOMEM;
+        retval = ENOMEM;
+    }
+    else if(!vmm_entry_valid(*entry)) {
+        retval = EINVAL;
+    }
+    else {
+        *entry = vmm_entry_init(vmm_entry_address(*entry), vprot);
+        retval = 0;
     }
 
-    if(!vmm_entry_valid(*entry)) {
-        return EINVAL;
-    }
+    spinlock_release(&vm->lock);
 
-    *entry = vmm_entry_init(vmm_entry_address(*entry), vprot);
-
-    return 0;
+    return retval;
 }
 
 int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
 {
     vmm_entry_type* entry;
+    int retval;
 
     kassert(vm && "invalid pagemap pointer");
     kassert(virt % PAGE_SIZE == 0 && "virtual address must be page-aligned");
 
+    spinlock_acquire(&vm->lock);
+
     entry = vmm_entry_lookup(vm, virt, false);
 
     if(entry == nullptr) {
-        return ENOMEM;
+        retval = ENOMEM;
+    }
+    else if(!vmm_entry_valid(*entry)) {
+        retval = EINVAL;
+    }
+    else {
+        *entry = VMM_ENTRY_NULL;
+        retval = 0;
     }
 
-    if(!vmm_entry_valid(*entry)) {
-        return EINVAL;
-    }
+    spinlock_release(&vm->lock);
 
-    *entry = VMM_ENTRY_NULL;
-
-    return 0;
+    return retval;
 }
 
 uintptr_t vmm_resolve(const struct vmm_pagemap* restrict vm, uintptr_t virt)
@@ -402,13 +422,22 @@ static int init_vmm(void)
     size_t i;
     int retval;
 
+    kprintf(KP_INFORM, "vmm: initializing");
+
+    sys_pagemap.lock = SPINLOCK_INIT;
     sys_pagemap.levels = vmm_detect_levels();
+
+    kprintf(KP_INFORM, "vmm: allocating sys_pagemap");
 
     if(vmm_pagemap_alloc(&sys_pagemap)) {
         panic("vmm: out of memory: sys_pagemap");
     }
 
+    kprintf(KP_INFORM, "vmm: mapping kernel sections");
+
     vmm_pagemap_zero(&sys_pagemap);
+
+    kprintf(KP_INFORM, "vmm: mapping text");
 
     retval = vmm_map_sys_section(&text_start, &text_end, VPROT_RX);
 
@@ -416,17 +445,23 @@ static int init_vmm(void)
         panic("vmm: failed to map .text: %s", strerror(retval));
     }
 
+    kprintf(KP_INFORM, "vmm: mapping rodata");
+
     retval = vmm_map_sys_section(&rodata_start, &rodata_end, VPROT_READ);
 
     if(retval) {
         panic("vmm: failed to map .rodata: %s", strerror(retval));
     }
 
+    kprintf(KP_INFORM, "vmm: mapping data");
+
     retval = vmm_map_sys_section(&data_start, &data_end, VPROT_RW);
 
     if(retval) {
         panic("vmm: failed to map .data: %s", strerror(retval));
     }
+
+    kprintf(KP_INFORM, "vmm: mapping memmap");
 
     for(i = 0; i < memmap->entry_count; ++i) {
         retval = vmm_map_sys_memmap(memmap->entries[i]);

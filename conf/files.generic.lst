@@ -11,6 +11,7 @@ core/fbconsole.c optional fbconsole
 core/intctl.c
 core/ireq.c
 core/kprintf.c
+core/mp.c
 core/panic.c
 core/version.c
 

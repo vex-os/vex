@@ -2,6 +2,7 @@
 
 #include <amd64/lapic.h>
 #include <amd64/msr.h>
+#include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <init/initfn.h>
@@ -43,8 +44,11 @@ static int AMD64_init_lapic(void)
     lapic_phys = lapic_base_msr & MSR_APIC_BASE_PHYSMASK;
     lapic_virtual_base = phys_to_virt(lapic_phys);
 
-    if(vmm_map(&sys_pagemap, (uintptr_t)(lapic_virtual_base), lapic_phys, VPROT_RW | VPROT_NOCACHE)) {
-        panic("lapic: failed to map local apic mmio");
+    {
+        int retval = vmm_map(&sys_pagemap, (uintptr_t)(lapic_virtual_base), lapic_phys, VPROT_RW | VPROT_NOCACHE);
+        if(retval && retval != EEXIST) {
+            panic("lapic: failed to map local apic mmio");
+        }
     }
 
     lapic_svr_value = lapic_read(LAPIC_REG_SVR);
