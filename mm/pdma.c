@@ -206,4 +206,4 @@ static int init_pdma(void)
     return 0;
 }
 
-DEFINE_INITFN(init_pdma, INITFN_STAGE_PMM, INITFN_ORDER_FIRST);
+DEFINE_INITFN_BSP(init_pdma, INITFN_STAGE_BSP_PMM, INITFN_ORDER_FIRST);

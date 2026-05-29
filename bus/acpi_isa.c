@@ -175,4 +175,4 @@ static int init_acpi_isa(void)
     return 0;
 }
 
-DEFINE_INITFN(init_acpi_isa, INITFN_STAGE_BUS, INITFN_ORDER_LATE);
+DEFINE_INITFN_BSP(init_acpi_isa, INITFN_STAGE_BSP_BUS, INITFN_ORDER_LATE);

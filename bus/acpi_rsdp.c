@@ -23,4 +23,4 @@ static int init_rsdp(void)
     return 0;
 }
 
-DEFINE_INITFN(init_rsdp, INITFN_STAGE_BOOTINFO, INITFN_ORDER_LAST);
+DEFINE_INITFN_BSP(init_rsdp, INITFN_STAGE_BSP_BOOTINFO, INITFN_ORDER_LAST);

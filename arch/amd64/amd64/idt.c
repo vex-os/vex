@@ -2,12 +2,15 @@
 
 #include <amd64/gdt.h>
 #include <amd64/idt.h>
+#include <arch/hart.h>
 #include <arch/interrupts.h>
 #include <core/assert.h>
+#include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <init/initfn.h>
 #include <lib/string.h>
+#include <mm/malloc.h>
 
 #define IDT_TRAP    (0x0F << 0)
 #define IDT_INTR    (0x0E << 0)
@@ -25,13 +28,13 @@ struct idt_entry {
     uint32_t reserved;
 } __packed;
 
-struct idt_register {
-    uint16_t size;
-    uintptr_t offset;
-} __packed;
-
-static struct idt_entry idt[IDT_SIZE];
-static struct idt_register idtr;
+struct amd64_idt {
+    struct idt_entry entries[IDT_SIZE];
+    struct {
+        uint16_t size;
+        uintptr_t offset;
+    } __packed idtr;
+};
 
 extern void amd64_isr_00(void);
 extern void amd64_isr_01(void);
@@ -73,62 +76,77 @@ void __used amd64_isr_handler(struct interrupt_frame* restrict frame, uint64_t i
     unreachable();
 }
 
+static void set_entry(struct idt_entry* restrict entry, bool trap, uint16_t selector, const void* restrict pfn)
+{
+    memset(entry, 0, sizeof(*entry));
+    entry->offset_0 = ((uintptr_t)pfn & 0x000000000000FFFF);
+    entry->offset_1 = ((uintptr_t)pfn & 0x00000000FFFF0000) >> 16;
+    entry->offset_2 = ((uintptr_t)pfn & 0xFFFFFFFF00000000) >> 32;
+    entry->selector = selector;
+    entry->flags = IDT_PRESENT;
+
+    if(trap) {
+        entry->flags |= IDT_TRAP;
+    }
+    else {
+        entry->flags |= IDT_INTR;
+    }
+}
+
 void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn)
 {
-    struct idt_entry* entry;
+    struct hart_local* hart = this_hart();
+    struct amd64_idt* idt = hart->amd64.idt;
 
     kassert(pfn && "invalid IDT handler function pointer");
+    kassert(idt && "IDT not initialized for this hart");
 
     if(vector < IDT_SIZE) {
-        entry = &idt[vector];
-
-        memset(entry, 0, sizeof(struct idt_entry));
-
-        entry->offset_0 = ((uintptr_t)pfn & 0x000000000000FFFF);
-        entry->offset_1 = ((uintptr_t)pfn & 0x00000000FFFF0000) >> 16;
-        entry->offset_2 = ((uintptr_t)pfn & 0xFFFFFFFF00000000) >> 32;
-        entry->selector = gdt_selector(GDT_KERN_CODE_64, 0, 0);
-
-        entry->flags = trap ? IDT_TRAP : IDT_INTR;
-
-        entry->flags |= IDT_RING_0;
-        entry->flags |= IDT_PRESENT;
+        set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
+        idt->entries[vector].flags |= IDT_RING_0;
     }
 }
 
 void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn)
 {
-    struct idt_entry* entry;
+    struct hart_local* hart = this_hart();
+    struct amd64_idt* idt = hart->amd64.idt;
 
     kassert(pfn && "invalid IDT handler function pointer");
+    kassert(idt && "IDT not initialized for this hart");
 
     if(vector < IDT_SIZE) {
-        entry = &idt[vector];
-
-        memset(entry, 0, sizeof(struct idt_entry));
-
-        entry->offset_0 = ((uintptr_t)pfn & 0x000000000000FFFF);
-        entry->offset_1 = ((uintptr_t)pfn & 0x00000000FFFF0000) >> 16;
-        entry->offset_2 = ((uintptr_t)pfn & 0xFFFFFFFF00000000) >> 32;
-        entry->selector = gdt_selector(GDT_KERN_CODE_64, 3, 0);
-
-        entry->flags = trap ? IDT_TRAP : IDT_INTR;
-
-        entry->flags |= IDT_RING_3;
-        entry->flags |= IDT_PRESENT;
+        set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
+        idt->entries[vector].flags |= IDT_RING_3;
     }
 }
 
 void unset_idt_entry(unsigned vector)
 {
-    if(vector >= IDT_SIZE)
-        return;
-    memset(&idt[vector], 0, sizeof(struct idt_entry));
+    struct hart_local* hart = this_hart();
+    struct amd64_idt* idt = hart->amd64.idt;
+
+    kassert(idt && "IDT not initialized for this hart");
+
+    if(vector < IDT_SIZE) {
+        memset(&idt->entries[vector], 0, sizeof(struct idt_entry));
+    }
 }
 
 static int AMD64_init_idt(void)
 {
-    memset(idt, 0, sizeof(idt));
+    struct hart_local* hart = this_hart();
+    struct amd64_idt* idt;
+
+    idt = kmalloc(sizeof(struct amd64_idt));
+
+    if(idt == nullptr) {
+        return ENOMEM;
+    }
+
+    memset(idt, 0, sizeof(*idt));
+
+    hart->amd64.idt = idt;
 
     set_idt_entry_kern(0x00, true, &amd64_isr_00);
     set_idt_entry_kern(0x01, true, &amd64_isr_01);
@@ -163,14 +181,14 @@ static int AMD64_init_idt(void)
     set_idt_entry_kern(0x1E, true, &amd64_isr_1E);
     set_idt_entry_kern(0x1F, true, &amd64_isr_1F);
 
-    idtr.size = (uint16_t)(sizeof(idt) - 1);
-    idtr.offset = (uintptr_t)(&idt[0]);
+    idt->idtr.size = (uint16_t)(sizeof(idt->entries) - 1);
+    idt->idtr.offset = (uintptr_t)(&idt->entries[0]);
 
-    asm volatile("lidtq %0" ::"m"(idtr));
+    asm volatile("lidtq %0" ::"m"(idt->idtr));
 
-    kprintf(KP_INFORM, "idt: idtr.size=%zu idtr.offset=%p", (size_t)(idtr.size), (const void*)(idtr.offset));
+    kprintf(KP_INFORM, "idt: hart=%u idtr.size=%zu idtr.offset=%p", hart->index, (size_t)(idt->idtr.size), (const void*)(idt->idtr.offset));
 
     return 0;
 }
 
-DEFINE_INITFN(AMD64_init_idt, INITFN_STAGE_ARCH, INITFN_ORDER_EARLY);
+DEFINE_INITFN_MP(AMD64_init_idt, INITFN_STAGE_MP_ARCH, INITFN_ORDER_EARLY);

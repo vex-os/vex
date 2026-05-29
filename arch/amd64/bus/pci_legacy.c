@@ -79,4 +79,4 @@ static int AMD64_init_legacy_pci(void)
     return register_pci_bus(&legacy_bus);
 }
 
-DEFINE_INITFN(AMD64_init_legacy_pci, INITFN_STAGE_BUS, INITFN_ORDER_FIRST);
+DEFINE_INITFN_BSP(AMD64_init_legacy_pci, INITFN_STAGE_BSP_BUS, INITFN_ORDER_FIRST);

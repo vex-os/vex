@@ -15,21 +15,21 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-static void call_all_initfns(void)
+static void call_initfns(const struct initfn_entry* start, const struct initfn_entry* end)
 {
-    size_t i;
+    const struct initfn_entry* it;
     int error;
 
-    for(i = 0; &initfns_start[i] < initfns_end; ++i) {
-        kprintf(KP_DEBUG, "kmain: calling initfn: %s <%p>", initfns_start[i].name, initfns_start[i].pfn);
+    for(it = start; it < end; ++it) {
+        kprintf(KP_DEBUG, "kmain: calling initfn: %s <%p>", it->name, it->pfn);
 
-        error = initfns_start[i].pfn();
+        error = it->pfn();
 
         if(error == 0 || error == ENODEV) {
             continue;
         }
 
-        panic("kmain: initfn: %s: %s", initfns_start[i].name, strerror(error));
+        panic("kmain: initfn: %s: %s", it->name, strerror(error));
         unreachable();
     }
 }
@@ -38,7 +38,7 @@ void __noreturn kmain(void)
 {
     kprintf(KP_INFORM, "%s %s %s", k_sysname, k_release, k_version);
 
-    call_all_initfns();
+    call_initfns(initfns_bsp_start, initfns_bsp_end);
 
     enable_interrupts();
 
