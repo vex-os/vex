@@ -23,6 +23,8 @@ struct hart_local {
     } amd64;
 };
 
+extern struct hart_local* hart_alloc(void);
+
 static __always_inline __nodiscard inline struct hart_local* this_hart(void)
 {
     struct hart_local* hart;
