@@ -3,6 +3,7 @@
 #include <core/assert.h>
 #include <core/console.h>
 #include <core/kprintf.h>
+#include <core/spinlock.h>
 #include <lib/format.h>
 #include <lib/string.h>
 #include <time/clocksource.h>
@@ -25,6 +26,8 @@ struct stagebuf {
 size_t kp_writepos = 0;
 char kp_buffer[KP_BUFSIZE];
 unsigned loglevel = KP_DEFAULT_LOGLEVEL;
+
+static spinlock_type kprintf_lock = SPINLOCK_INIT;
 
 static void kprintf_format_func(int chr, void* restrict arg)
 {
@@ -61,6 +64,8 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 
     kassert(fmt && "invalid format string pointer");
 
+    spinlock_acquire(&kprintf_lock);
+
     if(sv <= loglevel) {
         timestamp = clocksource_read_nsec();
         timestamp_s = timestamp / UINT64_C(1000000000);
@@ -78,4 +83,6 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
     if(st.size) {
         console_write(st.data, st.size);
     }
+
+    spinlock_release(&kprintf_lock);
 }

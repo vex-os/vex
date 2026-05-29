@@ -36,6 +36,7 @@ ext/uacpi/types.c
 ext/uacpi/uacpi.c
 ext/uacpi/utilities.c
 
+init/initfn.c
 init/kmain.c
 
 lib/bitmap.c

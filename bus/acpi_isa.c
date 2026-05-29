@@ -8,7 +8,6 @@
 #include <lib/string.h>
 #include <limits.h>
 #include <mm/malloc.h>
-#include <mm/slab.h>
 #include <uacpi/namespace.h>
 #include <uacpi/resources.h>
 #include <uacpi/utilities.h>
@@ -119,7 +118,7 @@ static uacpi_iteration_decision enumerate_device(void* privdata, uacpi_namespace
         return UACPI_ITERATION_DECISION_CONTINUE;
     }
 
-    device = slab_alloc(sizeof(struct isa_device));
+    device = kmalloc(sizeof(struct isa_device));
 
     if(device == nullptr) {
         uacpi_free_namespace_node_info(info);

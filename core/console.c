@@ -4,8 +4,10 @@
 #include <core/console.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
+#include <core/spinlock.h>
 #include <lib/string.h>
 
+static spinlock_type console_lock = SPINLOCK_INIT;
 static struct console_driver* console_head = nullptr;
 
 int register_console_driver(struct console_driver* restrict driver)
@@ -15,11 +17,16 @@ int register_console_driver(struct console_driver* restrict driver)
     kassert(driver && "invalid console driver pointer");
     kassert(driver->ops && "invalid console driver ops pointer");
 
+    spinlock_acquire(&console_lock);
+
     for(it = console_head; it; it = it->next) {
-        if(it == driver)
+        if(it == driver) {
+            spinlock_release(&console_lock);
             return EEXIST;
-        continue;
+        }
     }
+
+    spinlock_release(&console_lock);
 
     kprintf(KP_INFORM, "console: adding %s", driver->identifier);
 
@@ -44,8 +51,12 @@ int register_console_driver(struct console_driver* restrict driver)
         driver->ops->write(driver, kptr, ksz);
     }
 
+    spinlock_acquire(&console_lock);
+
     driver->next = console_head;
     console_head = driver;
+
+    spinlock_release(&console_lock);
 
     return 0;
 }
@@ -57,9 +68,15 @@ int unregister_console_driver(struct console_driver* restrict driver)
 
     kassert(driver && "invalid console driver pointer");
 
+    spinlock_acquire(&console_lock);
+
     if(console_head == driver) {
         console_head = console_head->next;
+
+        spinlock_release(&console_lock);
+
         kprintf(KP_INFORM, "console: removing %s", driver->identifier);
+
         return 0;
     }
 
@@ -69,6 +86,8 @@ int unregister_console_driver(struct console_driver* restrict driver)
                 prev->next = it->next;
             }
 
+            spinlock_release(&console_lock);
+
             kprintf(KP_INFORM, "console: removing %s", driver->identifier);
 
             return 0;
@@ -76,6 +95,8 @@ int unregister_console_driver(struct console_driver* restrict driver)
 
         prev = it;
     }
+
+    spinlock_release(&console_lock);
 
     return EINVAL;
 }
@@ -86,6 +107,8 @@ void console_write(const void* restrict data, size_t size)
 
     kassert(data && "invalid console write data pointer");
 
+    spinlock_acquire(&console_lock);
+
     for(it = console_head; it; it = it->next) {
         if(it->ops->write == nullptr)
             continue;
@@ -93,15 +116,21 @@ void console_write(const void* restrict data, size_t size)
             continue;
         it->ops->write(it, data, size);
     }
+
+    spinlock_release(&console_lock);
 }
 
 void console_unblank_all(void)
 {
     struct console_driver* it;
 
+    spinlock_acquire(&console_lock);
+
     for(it = console_head; it; it = it->next) {
         if(it->ops->unblank)
             it->ops->unblank(it);
         it->consflags &= ~CONSF_BLANKED;
     }
+
+    spinlock_release(&console_lock);
 }

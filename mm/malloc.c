@@ -4,6 +4,7 @@
 #include <core/errno.h>
 #include <core/linker.h>
 #include <core/panic.h>
+#include <core/spinlock.h>
 #include <init/initfn.h>
 #include <lib/string.h>
 #include <mm/malloc.h>
@@ -29,6 +30,7 @@ struct memblock {
 static struct memblock* head = nullptr;
 static struct memblock* tail = nullptr;
 static uintptr_t heap_end = 0;
+static spinlock_type heap_lock = SPINLOCK_INIT;
 
 static struct memblock* find_free_block(size_t sz)
 {
@@ -202,6 +204,8 @@ void* kmalloc(size_t sz)
         return nullptr;
     }
 
+    spinlock_acquire(&heap_lock);
+
     aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
     block = find_free_block(aligned_sz);
 
@@ -209,6 +213,8 @@ void* kmalloc(size_t sz)
         block = extend_heap(aligned_sz);
 
         if(block == nullptr) {
+            spinlock_release(&heap_lock);
+
             return nullptr;
         }
     }
@@ -216,6 +222,8 @@ void* kmalloc(size_t sz)
     split_block(block, aligned_sz);
 
     block->type = BLOCK_TYPE_USED;
+
+    spinlock_release(&heap_lock);
 
     return (void*)(block->address);
 }
@@ -244,6 +252,7 @@ void* krealloc(void* restrict ptr, size_t sz)
 
     if(sz == 0) {
         kfree(ptr);
+
         return nullptr;
     }
 
@@ -288,7 +297,11 @@ void kfree(void* restrict ptr)
 
     block->type = BLOCK_TYPE_FREE;
 
+    spinlock_acquire(&heap_lock);
+
     coalesce(block);
+
+    spinlock_release(&heap_lock);
 }
 
 static int init_malloc(void)

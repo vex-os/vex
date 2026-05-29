@@ -4,7 +4,7 @@
 #include <core/kprintf.h>
 #include <init/initfn.h>
 #include <mm/hhdm.h>
-#include <mm/slab.h>
+#include <mm/malloc.h>
 #include <mm/vmm.h>
 #include <mm/vprot.h>
 #include <time/clocksource.h>
@@ -57,7 +57,7 @@ static int AMD64_init_acpi_pm(void)
 
     fadt = (struct acpi_fadt*)(table.hdr);
 
-    priv = slab_alloc(sizeof(struct acpi_pm_privdata));
+    priv = kmalloc(sizeof(struct acpi_pm_privdata));
 
     if(priv == nullptr) {
         uacpi_table_unref(&table);
@@ -74,7 +74,7 @@ static int AMD64_init_acpi_pm(void)
             if(vmm_map(&sys_pagemap, (uintptr_t)(virt), fadt->x_pm_tmr_blk.address, VPROT_RW | VPROT_NOCACHE)) {
                 kprintf(KP_WARNING, "acpi_pm: failed to map mmio at %p", (const void*)((uintptr_t)(fadt->x_pm_tmr_blk.address)));
                 uacpi_table_unref(&table);
-                slab_free(priv);
+                kfree(priv);
                 return ENODEV;
             }
 
@@ -90,7 +90,7 @@ static int AMD64_init_acpi_pm(void)
     else {
         kprintf(KP_WARNING, "acpi_pm: acpi pm timer not present");
         uacpi_table_unref(&table);
-        slab_free(priv);
+        kfree(priv);
         return ENODEV;
     }
 

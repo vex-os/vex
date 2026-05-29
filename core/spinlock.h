@@ -28,7 +28,7 @@ static __always_inline void spinlock_acquire(spinlock_type* restrict lock)
     }
 }
 
-static __always_inline __nodiscard bool spinlock_try_acquire(spinlock_type* restrict lock)
+static __always_inline __nodiscard __used bool spinlock_try_acquire(spinlock_type* restrict lock)
 {
     spinlock_type expected = SPINLOCK_FREE;
     return atomic_cmpxchg(lock, &expected, SPINLOCK_LOCK, ATOMIC_ACQUIRE, ATOMIC_RELAXED);

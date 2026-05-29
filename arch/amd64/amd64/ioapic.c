@@ -7,7 +7,7 @@
 #include <lib/sprintf.h>
 #include <lib/string.h>
 #include <mm/hhdm.h>
-#include <mm/slab.h>
+#include <mm/malloc.h>
 #include <mm/vmm.h>
 #include <mm/vprot.h>
 #include <uacpi/acpi.h>
@@ -148,8 +148,8 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
     if(entry->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
         ioapic = (struct acpi_madt_ioapic*)(entry);
 
-        data = slab_alloc(sizeof(struct ioapic_data));
-        controller = slab_alloc(sizeof(struct intctl));
+        data = kmalloc(sizeof(struct ioapic_data));
+        controller = kmalloc(sizeof(struct intctl));
 
         if(data == nullptr || controller == nullptr) {
             panic("ioapic: out of memory");
