@@ -129,6 +129,4 @@ define_initcall(amd64_gdt, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_EARLY)
     gdt->gdtr.offset = (uintptr_t)(&gdt->entries[0]);
 
     asm volatile("lgdtq %0" ::"m"(gdt->gdtr));
-
-    pr_inform("gdt: hart=%u gdtr.size=%zu gdtr.offset=%p", hart->index, (size_t)(gdt->gdtr.size), (const void*)(gdt->gdtr.offset));
 }

@@ -16,6 +16,7 @@
 
 extern uint32_t lapic_read(uint32_t reg);
 extern void lapic_write(uint32_t reg, uint32_t value);
+extern void lapic_send_broadcast_ipi(uint8_t vector);
 
 static __always_inline __nodiscard inline uint32_t lapic_query_id(void)
 {

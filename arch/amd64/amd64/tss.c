@@ -42,6 +42,4 @@ define_initcall(amd64_tss, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_MIDDLE)
     gdt_install_tss(hart->amd64.gdt, (uintptr_t)(tss), sizeof(struct amd64_tss));
 
     asm volatile("ltr %0" ::"r"((uint16_t)(gdt_selector(GDT_TSS, 0, 0))));
-
-    pr_inform("tss: hart=%u base=%p", hart->index, (const void*)(tss));
 }

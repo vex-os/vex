@@ -14,6 +14,8 @@ void __noreturn fpanic(const char* restrict file, unsigned long line, const char
 
 void __noreturn fvpanic(const char* restrict file, unsigned long line, const char* restrict fmt, va_list ap)
 {
+    halt_other_harts();
+
     disable_interrupts();
 
     console_unblank_all();
