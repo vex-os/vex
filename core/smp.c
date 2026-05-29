@@ -14,13 +14,23 @@ static volatile __used __section(".limine_requests") struct limine_mp_request mp
     .revision = 0,
 };
 
-static void __noreturn mp_entry(struct limine_mp_info* info)
+static uint64_t smp_cpu_count = 0;
+static volatile uint64_t smp_ready_count = 0;
+
+static void __noreturn smp_entry(struct limine_mp_info* info)
 {
+    (void)info;
+
     vmm_switch(&sys_pagemap);
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
     pr_inform("smp: hart %u ready", this_hart()->index);
+
+    // if(this_hart()->index != 0)
+    //     panic("test panic from hart %u", this_hart()->index);
+
+    atomic_fetch_add(&smp_ready_count, UINT64_C(1), ATOMIC_RELEASE);
 
     enable_interrupts();
 
@@ -40,11 +50,21 @@ define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_FIRST)
         unreachable();
     }
 
+    smp_cpu_count = mp_request.response->cpu_count;
+
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
     pr_inform("smp: hart %u ready", this_hart()->index);
 
-    for(i = 0; i < mp_request.response->cpu_count; ++i) {
-        atomic_store_n(&mp_request.response->cpus[i]->goto_address, &mp_entry, ATOMIC_RELEASE);
+    atomic_store_n(&smp_ready_count, UINT64_C(1), ATOMIC_RELAXED);
+
+    for(i = 0; i < smp_cpu_count; ++i) {
+        atomic_store_n(&mp_request.response->cpus[i]->goto_address, &smp_entry, ATOMIC_RELEASE);
+    }
+
+    enable_interrupts();
+
+    while(atomic_load_n(&smp_ready_count, ATOMIC_ACQUIRE) < smp_cpu_count) {
+        yield_hart();
     }
 }

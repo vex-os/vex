@@ -2,6 +2,7 @@
 
 #include <amd64/lapic.h>
 #include <amd64/msr.h>
+#include <arch/hart.h>
 #include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
@@ -30,6 +31,18 @@ void lapic_write(uint32_t reg, uint32_t value)
     lapic_virtual_base[reg] = value;
 }
 
+void lapic_send_broadcast_ipi(uint8_t vector)
+{
+    if(lapic_virtual_base) {
+        while(lapic_read(LAPIC_REG_ICR_LO) & UINT32_C(0x00001000)) {
+            yield_hart();
+        }
+
+        lapic_write(LAPIC_REG_ICR_HI, UINT32_C(0));
+        lapic_write(LAPIC_REG_ICR_LO, (uint32_t)(vector) | UINT32_C(0x000C4000));
+    }
+}
+
 define_initcall(amd64_lapic, INITCALL_STAGE_SMP_IREQ, INITCALL_ORDER_FIRST)
 {
     int retval;
@@ -51,6 +64,4 @@ define_initcall(amd64_lapic, INITCALL_STAGE_SMP_IREQ, INITCALL_ORDER_FIRST)
     lapic_svr_value |= LAPIC_SPURIOUS_VECTOR;
 
     lapic_write(LAPIC_REG_SVR, lapic_svr_value);
-
-    pr_inform("lapic: id=%u, base=%p", (unsigned)(lapic_query_id()), (const void*)(lapic_phys));
 }

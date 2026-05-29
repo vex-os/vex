@@ -174,6 +174,4 @@ define_initcall(amd64_idt, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_EARLY)
     idt->idtr.offset = (uintptr_t)(&idt->entries[0]);
 
     asm volatile("lidtq %0" ::"m"(idt->idtr));
-
-    pr_inform("idt: hart=%u idtr.size=%zu idtr.offset=%p", hart->index, (size_t)(idt->idtr.size), (const void*)(idt->idtr.offset));
 }
