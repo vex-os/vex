@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <core/intctl.h>
 #include <core/kprintf.h>
 #include <core/panic.h>

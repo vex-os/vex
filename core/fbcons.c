@@ -1,5 +1,4 @@
 #include <core/console.h>
-#include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <init/initcall.h>
