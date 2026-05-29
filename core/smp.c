@@ -17,18 +17,17 @@ static volatile __used __section(".limine_requests") struct limine_mp_request mp
 static uint64_t smp_cpu_count = 0;
 static volatile uint64_t smp_ready_count = 0;
 
-static void __noreturn smp_entry(struct limine_mp_info* info)
+static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 {
-    (void)info;
-
     vmm_switch(&sys_pagemap);
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
     pr_inform("smp: hart %u ready", this_hart()->index);
 
-    // if(this_hart()->index != 0)
+    // if(this_hart()->index == 1) {
     //     panic("test panic from hart %u", this_hart()->index);
+    // }
 
     atomic_fetch_add(&smp_ready_count, UINT64_C(1), ATOMIC_RELEASE);
 
