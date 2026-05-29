@@ -298,4 +298,4 @@ static int init_malloc(void)
     return 0;
 }
 
-DEFINE_INITFN(init_malloc, INITFN_STAGE_HEAP, INITFN_ORDER_FIRST);
+DEFINE_INITFN_BSP(init_malloc, INITFN_STAGE_BSP_HEAP, INITFN_ORDER_FIRST);

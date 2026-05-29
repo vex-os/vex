@@ -170,4 +170,4 @@ static int init_slab(void)
     return 0;
 }
 
-DEFINE_INITFN(init_slab, INITFN_STAGE_SLAB, INITFN_ORDER_MIDDLE);
+DEFINE_INITFN_BSP(init_slab, INITFN_STAGE_BSP_SLAB, INITFN_ORDER_MIDDLE);

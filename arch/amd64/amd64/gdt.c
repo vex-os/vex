@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: BSD-3-Clause
 
 #include <amd64/gdt.h>
+#include <arch/hart.h>
+#include <core/errno.h>
 #include <core/kprintf.h>
 #include <init/initfn.h>
 #include <lib/string.h>
+#include <mm/malloc.h>
 
 #define GDT_READWRITE  (1 << 1)
 #define GDT_CONFORMING (1 << 2)
@@ -16,6 +19,8 @@
 #define GDT_32BIT      (1 << 2)
 #define GDT_64BIT      (1 << 1)
 
+#define GDT_ENTRY_COUNT 16
+
 struct gdt_entry {
     uint16_t limit_0;
     uint16_t base_0;
@@ -26,15 +31,27 @@ struct gdt_entry {
     uint8_t base_2;
 } __packed;
 
-struct gdt_register {
-    uint16_t size;
-    uintptr_t offset;
+struct tss_descriptor {
+    uint16_t limit_0;
+    uint16_t base_0;
+    uint8_t base_1;
+    uint8_t flags;
+    uint8_t limit_1 : 4;
+    uint8_t flags_1 : 4;
+    uint8_t base_2;
+    uint32_t base_3;
+    uint32_t reserved;
 } __packed;
 
-static struct gdt_entry gdt[16] = { 0 };
-static struct gdt_register gdtr = { 0 };
+struct amd64_gdt {
+    struct gdt_entry entries[GDT_ENTRY_COUNT];
+    struct {
+        uint16_t size;
+        uintptr_t offset;
+    } __packed gdtr;
+};
 
-static void set_entry_16(uint8_t id, uint32_t base, uint16_t limit, uint8_t flags)
+static void set_entry_16(struct amd64_gdt* restrict gdt, uint8_t id, uint32_t base, uint16_t limit, uint8_t flags)
 {
     struct gdt_entry entry = { 0 };
     entry.limit_0 = limit;
@@ -42,10 +59,10 @@ static void set_entry_16(uint8_t id, uint32_t base, uint16_t limit, uint8_t flag
     entry.base_1 = (base >> 16) & 0xFF;
     entry.base_2 = (base >> 24) & 0xFF;
     entry.flags_0 = flags | GDT_PRESENT;
-    memcpy(gdt + id, &entry, sizeof(entry));
+    memcpy(gdt->entries + id, &entry, sizeof(entry));
 }
 
-static void set_entry_32(uint8_t id, uint32_t base, uint32_t limit, uint8_t flags)
+static void set_entry_32(struct amd64_gdt* restrict gdt, uint8_t id, uint32_t base, uint32_t limit, uint8_t flags)
 {
     struct gdt_entry entry = { 0 };
     entry.limit_0 = limit & 0xFFFF;
@@ -55,41 +72,67 @@ static void set_entry_32(uint8_t id, uint32_t base, uint32_t limit, uint8_t flag
     entry.base_2 = (base >> 24) & 0xFF;
     entry.flags_0 = flags | GDT_PRESENT;
     entry.flags_1 = GDT_4KIB_UNITS | GDT_32BIT;
-    memcpy(gdt + id, &entry, sizeof(entry));
+    memcpy(gdt->entries + id, &entry, sizeof(entry));
 }
 
-static void set_entry_64(uint8_t id, uint8_t flags)
+static void set_entry_64(struct amd64_gdt* restrict gdt, uint8_t id, uint8_t flags)
 {
     struct gdt_entry entry = { 0 };
     entry.flags_0 = flags | GDT_PRESENT;
     entry.flags_1 = GDT_64BIT;
-    memcpy(gdt + id, &entry, sizeof(entry));
+    memcpy(gdt->entries + id, &entry, sizeof(entry));
+}
+
+void amd64_gdt_install_tss(struct amd64_gdt* restrict gdt, void* restrict tss, size_t tss_size)
+{
+    uintptr_t base = (uintptr_t)(tss);
+    struct tss_descriptor descriptor = { 0 };
+
+    descriptor.limit_0 = (tss_size - 1) & 0xFFFF;
+    descriptor.limit_1 = ((tss_size - 1) >> 16) & 0x0F;
+    descriptor.base_0 = base & 0xFFFF;
+    descriptor.base_1 = (base >> 16) & 0xFF;
+    descriptor.base_2 = (base >> 24) & 0xFF;
+    descriptor.base_3 = (base >> 32) & 0xFFFFFFFF;
+    descriptor.flags = 0x09 | (1 << 7);
+
+    memcpy(gdt->entries + GDT_TSS, &descriptor, sizeof(descriptor));
 }
 
 static int AMD64_init_gdt(void)
 {
     uint8_t code_flags = GDT_READWRITE | GDT_NONSYSTEM | GDT_EXECUTABLE;
     uint8_t data_flags = GDT_READWRITE | GDT_NONSYSTEM;
+    struct hart_local* hart = this_hart();
+    struct amd64_gdt* gdt;
 
-    memset(gdt, 0, sizeof(gdt));
+    gdt = kmalloc(sizeof(struct amd64_gdt));
 
-    set_entry_16(GDT_KERN_CODE_16, 0x00000000, 0xFFFF, code_flags | GDT_RING_0);
-    set_entry_16(GDT_KERN_DATA_16, 0x00000000, 0xFFFF, data_flags | GDT_RING_0);
-    set_entry_32(GDT_KERN_CODE_32, 0x00000000, 0xFFFFF, code_flags | GDT_RING_0);
-    set_entry_32(GDT_KERN_DATA_32, 0x00000000, 0xFFFFF, data_flags | GDT_RING_0);
-    set_entry_64(GDT_KERN_CODE_64, code_flags | GDT_RING_0);
-    set_entry_64(GDT_KERN_DATA_64, data_flags | GDT_RING_0);
-    set_entry_64(GDT_USER_CODE_64, code_flags | GDT_RING_3);
-    set_entry_64(GDT_USER_DATA_64, data_flags | GDT_RING_3);
+    if(gdt == nullptr) {
+        return ENOMEM;
+    }
 
-    gdtr.size = (uint16_t)(sizeof(gdt) - 1);
-    gdtr.offset = (uintptr_t)(&gdt[0]);
+    memset(gdt, 0, sizeof(*gdt));
 
-    asm volatile("lgdtq %0" ::"m"(gdtr));
+    set_entry_16(gdt, GDT_KERN_CODE_16, 0x00000000, 0xFFFF, code_flags | GDT_RING_0);
+    set_entry_16(gdt, GDT_KERN_DATA_16, 0x00000000, 0xFFFF, data_flags | GDT_RING_0);
+    set_entry_32(gdt, GDT_KERN_CODE_32, 0x00000000, 0xFFFFF, code_flags | GDT_RING_0);
+    set_entry_32(gdt, GDT_KERN_DATA_32, 0x00000000, 0xFFFFF, data_flags | GDT_RING_0);
+    set_entry_64(gdt, GDT_KERN_CODE_64, code_flags | GDT_RING_0);
+    set_entry_64(gdt, GDT_KERN_DATA_64, data_flags | GDT_RING_0);
+    set_entry_64(gdt, GDT_USER_CODE_64, code_flags | GDT_RING_3);
+    set_entry_64(gdt, GDT_USER_DATA_64, data_flags | GDT_RING_3);
 
-    kprintf(KP_INFORM, "gdt: gdtr.size=%zu gdtr.offset=%p", (size_t)(gdtr.size), (const void*)(gdtr.offset));
+    gdt->gdtr.size = (uint16_t)(sizeof(gdt->entries) - 1);
+    gdt->gdtr.offset = (uintptr_t)(&gdt->entries[0]);
+
+    asm volatile("lgdtq %0" ::"m"(gdt->gdtr));
+
+    hart->amd64.gdt = gdt;
+
+    kprintf(KP_INFORM, "gdt: hart=%u gdtr.size=%zu gdtr.offset=%p", hart->index, (size_t)(gdt->gdtr.size), (const void*)(gdt->gdtr.offset));
 
     return 0;
 }
 
-DEFINE_INITFN(AMD64_init_gdt, INITFN_STAGE_ARCH, INITFN_ORDER_FIRST);
+DEFINE_INITFN_MP(AMD64_init_gdt, INITFN_STAGE_MP_ARCH, INITFN_ORDER_FIRST);

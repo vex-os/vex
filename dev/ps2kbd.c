@@ -139,4 +139,4 @@ static int init_ps2kbd(void)
     return register_isa_driver(&ps2kbd_driver);
 }
 
-DEFINE_INITFN(init_ps2kbd, INITFN_STAGE_DEV, INITFN_ORDER_EARLY);
+DEFINE_INITFN_BSP(init_ps2kbd, INITFN_STAGE_BSP_DEV, INITFN_ORDER_EARLY);

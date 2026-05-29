@@ -30,7 +30,7 @@ static int init_acpi_tables(void)
     return 0;
 }
 
-DEFINE_INITFN(init_acpi_tables, INITFN_STAGE_VMM, INITFN_ORDER_LAST);
+DEFINE_INITFN_BSP(init_acpi_tables, INITFN_STAGE_BSP_VMM, INITFN_ORDER_LAST);
 
 static int init_acpi(void)
 {
@@ -60,4 +60,4 @@ static int init_acpi(void)
     return 0;
 }
 
-DEFINE_INITFN(init_acpi, INITFN_STAGE_BUS, INITFN_ORDER_MIDDLE);
+DEFINE_INITFN_BSP(init_acpi, INITFN_STAGE_BSP_BUS, INITFN_ORDER_MIDDLE);

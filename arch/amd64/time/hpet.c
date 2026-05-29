@@ -100,4 +100,4 @@ static int AMD64_init_hpet(void)
     return register_clocksource(&hpet_clocksource);
 }
 
-DEFINE_INITFN(AMD64_init_hpet, INITFN_STAGE_TIMER, INITFN_ORDER_FIRST);
+DEFINE_INITFN_BSP(AMD64_init_hpet, INITFN_STAGE_BSP_TIMER, INITFN_ORDER_FIRST);

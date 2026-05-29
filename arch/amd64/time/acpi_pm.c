@@ -115,4 +115,4 @@ static int AMD64_init_acpi_pm(void)
     return register_clocksource(&acpi_pm_clocksource);
 }
 
-DEFINE_INITFN(AMD64_init_acpi_pm, INITFN_STAGE_TIMER, INITFN_ORDER_FIRST);
+DEFINE_INITFN_BSP(AMD64_init_acpi_pm, INITFN_STAGE_BSP_TIMER, INITFN_ORDER_FIRST);

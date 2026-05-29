@@ -348,4 +348,4 @@ static int init_isa(void)
     return 0;
 }
 
-DEFINE_INITFN(init_isa, INITFN_STAGE_BUS, INITFN_ORDER_MIDDLE);
+DEFINE_INITFN_BSP(init_isa, INITFN_STAGE_BSP_BUS, INITFN_ORDER_MIDDLE);

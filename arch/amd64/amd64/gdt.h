@@ -15,6 +15,11 @@
 #define GDT_KERN_DATA_64 0x06
 #define GDT_USER_CODE_64 0x07
 #define GDT_USER_DATA_64 0x08
+#define GDT_TSS          0x09
+
+struct amd64_gdt;
+
+extern void amd64_gdt_install_tss(struct amd64_gdt* restrict gdt, void* restrict tss, size_t tss_size);
 
 static __always_inline __nodiscard inline uint16_t gdt_selector(uint16_t index, uint16_t ldt, uint16_t ring)
 {

@@ -124,4 +124,4 @@ static int init_pslab(void)
     return 0;
 }
 
-DEFINE_INITFN(init_pslab, INITFN_STAGE_PMM, INITFN_ORDER_EARLY);
+DEFINE_INITFN_BSP(init_pslab, INITFN_STAGE_BSP_PMM, INITFN_ORDER_EARLY);

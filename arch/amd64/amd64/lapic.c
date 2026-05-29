@@ -58,4 +58,4 @@ static int AMD64_init_lapic(void)
     return 0;
 }
 
-DEFINE_INITFN(AMD64_init_lapic, INITFN_STAGE_HART, INITFN_ORDER_FIRST);
+DEFINE_INITFN_MP(AMD64_init_lapic, INITFN_STAGE_MP_IREQ, INITFN_ORDER_FIRST);

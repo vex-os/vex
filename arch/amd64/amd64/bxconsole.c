@@ -41,4 +41,4 @@ static int AMD64_init_bxconsole(void)
     return ENODEV;
 }
 
-DEFINE_INITFN(AMD64_init_bxconsole, INITFN_STAGE_EARLY, INITFN_ORDER_FIRST);
+DEFINE_INITFN_BSP(AMD64_init_bxconsole, INITFN_STAGE_BSP_EARLY, INITFN_ORDER_FIRST);

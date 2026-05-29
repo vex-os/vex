@@ -507,4 +507,4 @@ static int init_fbconsole(void)
     return ENODEV;
 }
 
-DEFINE_INITFN(init_fbconsole, INITFN_STAGE_HEAP, INITFN_ORDER_LAST);
+DEFINE_INITFN_BSP(init_fbconsole, INITFN_STAGE_BSP_HEAP, INITFN_ORDER_LAST);
