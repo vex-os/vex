@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <amd64/pmio.h>
 #include <core/assert.h>
 #include <core/errno.h>

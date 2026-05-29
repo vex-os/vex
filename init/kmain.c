@@ -1,12 +1,9 @@
 #include <arch/hart.h>
 #include <arch/interrupts.h>
 #include <core/cdefs.h>
-#include <core/errno.h>
 #include <core/kprintf.h>
-#include <core/panic.h>
 #include <core/version.h>
 #include <init/initcall.h>
-#include <lib/string.h>
 #include <limine.h>
 
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);

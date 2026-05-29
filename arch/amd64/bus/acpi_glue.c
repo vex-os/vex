@@ -1,5 +1,3 @@
-// SPDX-License-Identifier: BSD-3-Clause
-
 #include <amd64/pmio.h>
 #include <arch/interrupts.h>
 #include <limine.h>
