@@ -10,27 +10,28 @@
 #include <init/initcall.h>
 #include <ireq/dispatch.h>
 #include <lib/string.h>
+#include <limits.h>
 #include <mm/malloc.h>
-
-#define PANIC_HALT_VECTOR 0xFF
-#define PANIC_HALT_IREQ   (PANIC_HALT_VECTOR - ARCH_IREQ_BASE)
 
 #define MSR_GS_BASE 0xC0000101
 
 static unsigned int hart_count = 0;
+static unsigned int panic_ipi_vector = 0;
 
 static void panic_halt_handler(unsigned number, struct interrupt_frame* restrict frame, void* restrict ctxdata)
 {
     disable_interrupts();
+
+    pr_emerg("stopping hart %u", this_hart()->index);
 
     for(;;) {
         stop_hart();
     }
 }
 
-void halt_other_harts(void)
+void broadcast_panic_ipi(void)
 {
-    lapic_send_broadcast_ipi(PANIC_HALT_VECTOR);
+    lapic_send_broadcast_ipi(panic_ipi_vector);
 }
 
 define_initcall(amd64_hart, INITCALL_STAGE_SMP_HART, INITCALL_ORDER_FIRST)
@@ -48,7 +49,8 @@ define_initcall(amd64_hart, INITCALL_STAGE_SMP_HART, INITCALL_ORDER_FIRST)
     msr_write(MSR_GS_BASE, (uint64_t)(hart));
 }
 
-define_initcall(amd64_panic_halt, INITCALL_STAGE_SMP_IREQ, INITCALL_ORDER_LATE)
+define_initcall(amd64_panic_halt, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_MIDDLE)
 {
-    register_ireq_handler(PANIC_HALT_IREQ, &panic_halt_handler, nullptr);
+    panic_ipi_vector = register_ireq_handler(UINT_MAX, &panic_halt_handler, nullptr);
+    panic_ipi_vector += ARCH_IREQ_BASE;
 }

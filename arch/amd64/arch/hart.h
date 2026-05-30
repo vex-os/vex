@@ -40,6 +40,6 @@ static __always_inline inline void stop_hart(void)
     asm volatile("hlt");
 }
 
-extern void halt_other_harts(void);
+extern void broadcast_panic_ipi(void);
 
 #endif /* B15F19F4_C7E1_479A_A8B7_3E8843A71BA6 */

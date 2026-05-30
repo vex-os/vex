@@ -40,7 +40,7 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
     unreachable();
 }
 
-define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_FIRST)
+define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_LAST)
 {
     uint64_t i;
 
