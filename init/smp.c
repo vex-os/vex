@@ -27,6 +27,7 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 
     // if(this_hart()->index == 1) {
     //     panic("test panic from hart %u", this_hart()->index);
+    //     unreachable();
     // }
 
     atomic_fetch_add(&smp_ready_count, UINT64_C(1), ATOMIC_RELEASE);
