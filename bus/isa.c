@@ -2,11 +2,10 @@
 #include <bus/isa.h>
 #include <core/assert.h>
 #include <core/errno.h>
-#include <core/intctl.h>
-#include <core/ireq.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <init/initcall.h>
+#include <ireq/intctl.h>
 #include <lib/string.h>
 #include <limits.h>
 #include <uacpi/acpi.h>

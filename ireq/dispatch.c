@@ -1,8 +1,8 @@
 #include <arch/ireq.h>
 #include <core/assert.h>
 #include <core/errno.h>
-#include <core/ireq.h>
 #include <core/kprintf.h>
+#include <ireq/dispatch.h>
 #include <limits.h>
 
 #define IREQ_TABLE_SIZE (ARCH_IREQ_MAX - ARCH_IREQ_BASE + 1)

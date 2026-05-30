@@ -1,8 +1,8 @@
 #include <bus/isa.h>
 #include <core/errno.h>
-#include <core/intctl.h>
 #include <core/kprintf.h>
 #include <init/initcall.h>
+#include <ireq/intctl.h>
 #include <lib/string.h>
 #include <limits.h>
 #include <mm/malloc.h>
