@@ -8,11 +8,8 @@ bus/pci.c
 core/assert.c
 core/console.c
 core/fbcons.c optional fbcons
-core/intctl.c
-core/ireq.c
 core/kprintf.c
 core/panic.c
-core/smp.c
 core/version.c
 
 dev/ps2kbd.c
@@ -39,6 +36,10 @@ ext/uacpi/utilities.c
 
 init/initcall.c
 init/kmain.c
+init/smp.c
+
+ireq/intctl.c
+ireq/dispatch.c
 
 lib/bitmap.c
 lib/ctype.c

@@ -1,7 +1,7 @@
 #include <core/assert.h>
 #include <core/errno.h>
-#include <core/intctl.h>
 #include <core/kprintf.h>
+#include <ireq/intctl.h>
 
 static struct intctl* intctl_head = nullptr;
 

@@ -2,8 +2,8 @@
 #include <amd64/lapic.h>
 #include <arch/interrupts.h>
 #include <arch/ireq.h>
-#include <core/ireq.h>
 #include <init/initcall.h>
+#include <ireq/dispatch.h>
 
 extern void amd64_ireq_30(void);
 extern void amd64_ireq_31(void);

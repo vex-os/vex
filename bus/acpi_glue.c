@@ -2,9 +2,9 @@
 #include <arch/ireq.h>
 #include <bus/acpi_rsdp.h>
 #include <bus/pci.h>
-#include <core/intctl.h>
-#include <core/ireq.h>
 #include <core/kprintf.h>
+#include <ireq/dispatch.h>
+#include <ireq/intctl.h>
 #include <limits.h>
 #include <mm/hhdm.h>
 #include <mm/malloc.h>

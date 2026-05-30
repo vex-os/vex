@@ -6,9 +6,9 @@
 #include <core/assert.h>
 #include <core/atomic.h>
 #include <core/errno.h>
-#include <core/ireq.h>
 #include <core/kprintf.h>
 #include <init/initcall.h>
+#include <ireq/dispatch.h>
 #include <lib/string.h>
 #include <mm/malloc.h>
 

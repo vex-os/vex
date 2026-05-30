@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <core/ireq.h>
+#include <ireq/dispatch.h>
 #include <stddef.h>
 #include <stdint.h>
 
