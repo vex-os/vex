@@ -11,7 +11,7 @@ int register_intctl(struct intctl* restrict controller)
     size_t gsi_count;
     struct intctl* it;
 
-    for(it = intctl_head; it; it = it->next) {
+    for(it = intctl_head; it; it = it->priv.next) {
         if(it == controller)
             return EEXIST;
         continue;
@@ -21,7 +21,7 @@ int register_intctl(struct intctl* restrict controller)
     gsi_count = controller->gsi_count;
     pr_inform("intctl: adding %s: gsi_base=%zu, gsi_count=%zu", controller->identifier, gsi_base, gsi_count);
 
-    controller->next = intctl_head;
+    controller->priv.next = intctl_head;
     intctl_head = controller;
 
     return 0;
@@ -31,7 +31,7 @@ struct intctl* find_intctl(uint32_t gsi)
 {
     struct intctl* it;
 
-    for(it = intctl_head; it; it = it->next) {
+    for(it = intctl_head; it; it = it->priv.next) {
         if(gsi >= it->gsi_base && gsi < (it->gsi_base + it->gsi_count)) {
             return it;
         }

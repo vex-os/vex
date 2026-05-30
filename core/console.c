@@ -14,7 +14,7 @@ int register_console_driver(struct console_driver* restrict driver)
 
     spinlock_acquire(&console_lock);
 
-    for(it = console_head; it; it = it->next) {
+    for(it = console_head; it; it = it->priv.next) {
         if(it == driver) {
             spinlock_release(&console_lock);
             return EEXIST;
@@ -48,7 +48,7 @@ int register_console_driver(struct console_driver* restrict driver)
 
     spinlock_acquire(&console_lock);
 
-    driver->next = console_head;
+    driver->priv.next = console_head;
     console_head = driver;
 
     spinlock_release(&console_lock);
@@ -64,7 +64,7 @@ int unregister_console_driver(struct console_driver* restrict driver)
     spinlock_acquire(&console_lock);
 
     if(console_head == driver) {
-        console_head = console_head->next;
+        console_head = console_head->priv.next;
 
         spinlock_release(&console_lock);
 
@@ -73,10 +73,10 @@ int unregister_console_driver(struct console_driver* restrict driver)
         return 0;
     }
 
-    for(it = console_head; it; it = it->next) {
+    for(it = console_head; it; it = it->priv.next) {
         if(it == driver) {
             if(prev) {
-                prev->next = it->next;
+                prev->priv.next = it->priv.next;
             }
 
             spinlock_release(&console_lock);
@@ -100,7 +100,7 @@ void console_write(const void* restrict data, size_t size)
 
     spinlock_acquire(&console_lock);
 
-    for(it = console_head; it; it = it->next) {
+    for(it = console_head; it; it = it->priv.next) {
         if(it->ops->write == nullptr)
             continue;
         if(it->consflags & CONSF_BLANKED)
@@ -117,7 +117,7 @@ void console_unblank_all(void)
 
     spinlock_acquire(&console_lock);
 
-    for(it = console_head; it; it = it->next) {
+    for(it = console_head; it; it = it->priv.next) {
         if(it->ops->unblank)
             it->ops->unblank(it);
         it->consflags &= ~CONSF_BLANKED;

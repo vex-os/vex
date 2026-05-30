@@ -24,7 +24,7 @@ struct clocksrc {
     char identifier[64];
     unsigned rating;
     uint64_t mask;
-    void* privdata;
+    void* ctxdata;
 };
 
 #define CLOCKSRC_MASK_1  UINT64_C(0x0000000000000001)
