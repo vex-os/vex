@@ -11,16 +11,16 @@
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
 
-#define ACPI_PM_FREQ_HZ UINT64_C(3579545)
+#define ACPI_CLOCKSRC_FREQ_HZ UINT64_C(3579545)
 
-struct acpipm_privdata {
+struct acpi_clocksrc_privdata {
     volatile uint32_t* mmio;
     uintptr_t pmio;
 };
 
-static uint64_t acpipm_op_read(struct clocksrc* restrict src)
+static uint64_t acpi_clocksrc_op_read(struct clocksrc* restrict src)
 {
-    struct acpipm_privdata* priv = src->ctxdata;
+    struct acpi_clocksrc_privdata* priv = src->ctxdata;
 
     if(priv->mmio) {
         return priv->mmio[0];
@@ -30,23 +30,23 @@ static uint64_t acpipm_op_read(struct clocksrc* restrict src)
     }
 }
 
-static const struct clocksrc_ops acpipm_ops = {
-    .read = &acpipm_op_read,
+static const struct clocksrc_ops acpi_clocksrc_ops = {
+    .read = &acpi_clocksrc_op_read,
 };
 
-static struct clocksrc acpipm_clocksrc = {
-    .ops = &acpipm_ops,
-    .identifier = "acpipm",
+static struct clocksrc acpi_clocksrc = {
+    .ops = &acpi_clocksrc_ops,
+    .identifier = "acpi_pm_timer",
     .rating = 100,
 };
 
-define_initcall(amd64_acpipm_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
+define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
 {
     int retval;
     uacpi_table table;
     uacpi_status status;
     struct acpi_fadt* fadt;
-    struct acpipm_privdata* priv;
+    struct acpi_clocksrc_privdata* priv;
     void* virt;
 
     status = uacpi_table_find_by_signature(ACPI_FADT_SIGNATURE, &table);
@@ -54,7 +54,7 @@ define_initcall(amd64_acpipm_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_
     if(uacpi_likely_success(status)) {
         fadt = (struct acpi_fadt*)(table.hdr);
 
-        priv = kmalloc(sizeof(struct acpipm_privdata));
+        priv = kmalloc(sizeof(struct acpi_clocksrc_privdata));
         strict_kassert_text(priv, "out of memory");
 
         priv->mmio = nullptr;
@@ -83,15 +83,15 @@ define_initcall(amd64_acpipm_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_
         }
 
         if(fadt->flags & ACPI_TMR_VAL_EXT) {
-            acpipm_clocksrc.mask = UINT32_MAX;
+            acpi_clocksrc.mask = CLOCKSRC_MASK_32;
         }
         else {
-            acpipm_clocksrc.mask = UINT64_C(0x00FFFFFF);
+            acpi_clocksrc.mask = CLOCKSRC_MASK_24;
         }
 
-        acpipm_clocksrc.ctxdata = priv;
+        acpi_clocksrc.ctxdata = priv;
 
-        register_clocksrc_hz(&acpipm_clocksrc, ACPI_PM_FREQ_HZ);
+        register_clocksrc_hz(&acpi_clocksrc, ACPI_CLOCKSRC_FREQ_HZ);
 
         uacpi_table_unref(&table);
     }
