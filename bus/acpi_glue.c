@@ -12,7 +12,7 @@
 #include <mm/vmm.h>
 #include <mm/vprot.h>
 #include <stdint.h>
-#include <time/clocksource.h>
+#include <time/clocksrc.h>
 #include <uacpi/kernel_api.h>
 
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out)
@@ -138,23 +138,23 @@ void uacpi_kernel_reset_event(uacpi_handle handle)
 
 uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void)
 {
-    return clocksource_read_nsec();
+    return clocksrc_read_nsec();
 }
 
 void uacpi_kernel_stall(uacpi_u8 usec)
 {
-    uacpi_u64 deadline = clocksource_read_nsec() + ((uacpi_u64)(usec)) * UINT64_C(1000);
+    uacpi_u64 deadline = clocksrc_read_nsec() + ((uacpi_u64)(usec)) * UINT64_C(1000);
 
-    while(clocksource_read_nsec() < deadline) {
+    while(clocksrc_read_nsec() < deadline) {
         yield_hart();
     }
 }
 
 void uacpi_kernel_sleep(uacpi_u64 msec)
 {
-    uacpi_u64 deadline = clocksource_read_nsec() + msec * UINT64_C(1000000);
+    uacpi_u64 deadline = clocksrc_read_nsec() + msec * UINT64_C(1000000);
 
-    while(clocksource_read_nsec() < deadline) {
+    while(clocksrc_read_nsec() < deadline) {
         yield_hart();
     }
 }
@@ -244,9 +244,9 @@ struct acpi_irq_trampoline {
     uint32_t gsi;
 };
 
-static void acpi_irq_dispatch(unsigned number, struct interrupt_frame* restrict frame, void* restrict privdata)
+static void acpi_irq_dispatch(unsigned number, struct interrupt_frame* restrict frame, void* restrict ctxdata)
 {
-    struct acpi_irq_trampoline* trampoline = privdata;
+    struct acpi_irq_trampoline* trampoline = ctxdata;
 
     trampoline->handler(trampoline->ctx);
 }

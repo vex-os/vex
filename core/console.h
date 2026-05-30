@@ -16,12 +16,16 @@ struct console_driver_ops {
     void (*unblank)(struct console_driver* restrict driver);
 };
 
-struct console_driver {
+struct console_driver_private {
     struct console_driver* next;
+};
+
+struct console_driver {
+    struct console_driver_private priv;
     const struct console_driver_ops* ops;
     char identifier[64];
     unsigned consflags;
-    void* privdata;
+    void* ctxdata;
 };
 
 extern int register_console_driver(struct console_driver* restrict driver);

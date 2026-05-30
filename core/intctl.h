@@ -19,13 +19,17 @@ struct intctl_ops {
     void (*route)(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger, unsigned polarity);
 };
 
-struct intctl {
+struct intctl_private {
     struct intctl* next;
+};
+
+struct intctl {
+    struct intctl_private priv;
     const struct intctl_ops* ops;
     char identifier[64];
     uint32_t gsi_base;
     uint32_t gsi_count;
-    void* privdata;
+    void* ctxdata;
 };
 
 extern int register_intctl(struct intctl* restrict controller);

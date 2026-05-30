@@ -28,9 +28,9 @@ static void i8042_wait_read(struct isa_device* restrict device, struct isa_resou
     }
 }
 
-static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame, void* restrict privdata)
+static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame, void* restrict ctxdata)
 {
-    struct isa_device* device = privdata;
+    struct isa_device* device = ctxdata;
     struct isa_resource* data_res;
     struct isa_resource* cmd_res;
     uint8_t scancode;

@@ -17,9 +17,9 @@ struct parse_context {
     unsigned num_resources;
 };
 
-static uacpi_iteration_decision parse_resource(void* privdata, uacpi_resource* acpi_resource)
+static uacpi_iteration_decision parse_resource(void* ctxdata, uacpi_resource* acpi_resource)
 {
-    struct parse_context* context = privdata;
+    struct parse_context* context = ctxdata;
     struct isa_resource* resource;
 
     if(context->num_resources < ACPI_MAX_ISA_RESOURCES) {
@@ -97,7 +97,7 @@ static uacpi_iteration_decision parse_resource(void* privdata, uacpi_resource* a
     return UACPI_ITERATION_DECISION_CONTINUE;
 }
 
-static uacpi_iteration_decision enumerate_device(void* privdata, uacpi_namespace_node* node, uacpi_u32 depth)
+static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_node* node, uacpi_u32 depth)
 {
     uacpi_status status;
     uacpi_namespace_node_info* info;
@@ -142,13 +142,13 @@ static uacpi_iteration_decision enumerate_device(void* privdata, uacpi_namespace
         }
     }
 
-    device->next = nullptr;
-    device->driver = nullptr;
-    device->resources = resources;
-    device->num_resources = context.num_resources;
-    device->pmio_privdata = nullptr;
-    device->acpi_node = node;
-    device->privdata = nullptr;
+    device->priv.next = nullptr;
+    device->priv.driver = nullptr;
+    device->priv.resources = resources;
+    device->priv.num_resources = context.num_resources;
+    device->priv.pmio_ctxdata = nullptr;
+    device->priv.acpi_node = node;
+    device->ctxdata = nullptr;
 
     register_isa_device(device);
 

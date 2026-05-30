@@ -4,7 +4,7 @@
 #include <core/spinlock.h>
 #include <lib/format.h>
 #include <lib/string.h>
-#include <time/clocksource.h>
+#include <time/clocksrc.h>
 
 #ifndef KP_DEFAULT_LOGLEVEL
 #define KP_DEFAULT_LOGLEVEL KP_DEBUG
@@ -61,7 +61,7 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
     spinlock_acquire(&kprintf_lock);
 
     if(sv <= loglevel) {
-        timestamp = clocksource_read_nsec();
+        timestamp = clocksrc_read_nsec();
         timestamp_s = timestamp / UINT64_C(1000000000);
         timestamp_msx = (timestamp / UINT64_C(100000)) % UINT64_C(10000);
 

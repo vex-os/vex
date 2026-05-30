@@ -59,12 +59,12 @@ static void try_bind_device(struct isa_device* restrict device, struct isa_drive
         return; // driver is probe-only
     }
 
-    if(device->driver) {
+    if(device->priv.driver) {
         return; // already bound to a driver
     }
 
     if(0 == driver->ops->probe(device)) {
-        device->driver = driver;
+        device->priv.driver = driver;
     }
 }
 
@@ -73,16 +73,16 @@ int register_isa_device(struct isa_device* restrict device)
     struct isa_device* it;
     struct isa_driver* driver;
 
-    for(it = device_head; it; it = it->next) {
+    for(it = device_head; it; it = it->priv.next) {
         if(it == device)
             return EEXIST;
         continue;
     }
 
-    device->next = device_head;
+    device->priv.next = device_head;
     device_head = device;
 
-    for(driver = driver_head; driver; driver = driver->next) {
+    for(driver = driver_head; driver; driver = driver->priv.next) {
         try_bind_device(device, driver);
     }
 
@@ -95,12 +95,12 @@ int unregister_isa_device(struct isa_device* restrict device)
     struct isa_device* prev = nullptr;
 
     if(device_head == device) {
-        device_head = device_head->next;
+        device_head = device_head->priv.next;
     }
     else {
-        for(it = device_head; it; it = it->next) {
+        for(it = device_head; it; it = it->priv.next) {
             if(it == device) {
-                prev->next = it->next;
+                prev->priv.next = it->priv.next;
                 break;
             }
 
@@ -112,10 +112,10 @@ int unregister_isa_device(struct isa_device* restrict device)
         }
     }
 
-    if(device->driver && device->driver->ops->remove) {
-        if(device->driver->ops->remove)
-            device->driver->ops->remove(device);
-        device->driver = nullptr;
+    if(device->priv.driver && device->priv.driver->ops->remove) {
+        if(device->priv.driver->ops->remove)
+            device->priv.driver->ops->remove(device);
+        device->priv.driver = nullptr;
     }
 
     pr_inform("isa: removing device: %s", device->identifier);
@@ -128,7 +128,7 @@ int register_isa_driver(struct isa_driver* restrict driver)
     struct isa_driver* it;
     struct isa_device* device;
 
-    for(it = driver_head; it; it = it->next) {
+    for(it = driver_head; it; it = it->priv.next) {
         if(it == driver)
             return EEXIST;
         continue;
@@ -138,10 +138,10 @@ int register_isa_driver(struct isa_driver* restrict driver)
         pr_inform("isa: adding driver: %s", driver->identifier);
     }
 
-    driver->next = driver_head;
+    driver->priv.next = driver_head;
     driver_head = driver;
 
-    for(device = device_head; device; device = device->next) {
+    for(device = device_head; device; device = device->priv.next) {
         try_bind_device(device, driver);
     }
 
@@ -155,12 +155,12 @@ int unregister_isa_driver(struct isa_driver* restrict driver)
     struct isa_device* device;
 
     if(driver_head == driver) {
-        driver_head = driver_head->next;
+        driver_head = driver_head->priv.next;
     }
     else {
-        for(it = driver_head; it; it = it->next) {
+        for(it = driver_head; it; it = it->priv.next) {
             if(it == driver) {
-                prev->next = it->next;
+                prev->priv.next = it->priv.next;
                 break;
             }
             prev = it;
@@ -171,11 +171,11 @@ int unregister_isa_driver(struct isa_driver* restrict driver)
     }
 
     if(driver->ops->remove) {
-        for(device = device_head; device; device = device->next) {
-            if(device->driver == driver) {
-                if(device->driver->ops->remove)
-                    device->driver->ops->remove(device);
-                device->driver = nullptr;
+        for(device = device_head; device; device = device->priv.next) {
+            if(device->priv.driver == driver) {
+                if(device->priv.driver->ops->remove)
+                    device->priv.driver->ops->remove(device);
+                device->priv.driver = nullptr;
             }
         }
     }
@@ -190,10 +190,10 @@ struct isa_resource* isa_get_resource(struct isa_device* restrict device, unsign
     size_t i;
     unsigned found = 0;
 
-    for(i = 0; i < device->num_resources; ++i) {
-        if(device->resources[i].type == type) {
+    for(i = 0; i < device->priv.num_resources; ++i) {
+        if(device->priv.resources[i].type == type) {
             if(found == index)
-                return &device->resources[i];
+                return &device->priv.resources[i];
             found += 1;
         }
     }
@@ -201,7 +201,7 @@ struct isa_resource* isa_get_resource(struct isa_device* restrict device, unsign
     return nullptr;
 }
 
-int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_handler_type handler, void* privdata)
+int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_handler_type handler, void* ctxdata)
 {
     struct isa_resource* res;
     struct intctl* controller;
@@ -221,7 +221,7 @@ int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_han
         return ENODEV;
     }
 
-    ireq_number = register_ireq_handler(UINT_MAX, handler, privdata);
+    ireq_number = register_ireq_handler(UINT_MAX, handler, ctxdata);
 
     if(ireq_number == UINT_MAX) {
         return ENOMEM;
@@ -273,22 +273,22 @@ void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsig
 
 uint8_t isa_read8(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port)
 {
-    return arch_isa_read8(pmio, device->pmio_privdata, port);
+    return arch_isa_read8(pmio, device->priv.pmio_ctxdata, port);
 }
 
 uint16_t isa_read16(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port)
 {
-    return arch_isa_read16(pmio, device->pmio_privdata, port);
+    return arch_isa_read16(pmio, device->priv.pmio_ctxdata, port);
 }
 
 void isa_write8(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port, uint8_t value)
 {
-    arch_isa_write8(pmio, device->pmio_privdata, port, value);
+    arch_isa_write8(pmio, device->priv.pmio_ctxdata, port, value);
 }
 
 void isa_write16(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port, uint16_t value)
 {
-    arch_isa_write16(pmio, device->pmio_privdata, port, value);
+    arch_isa_write16(pmio, device->priv.pmio_ctxdata, port, value);
 }
 
 define_initcall(isa, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_MIDDLE)
