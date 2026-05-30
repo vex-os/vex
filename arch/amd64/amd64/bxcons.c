@@ -19,11 +19,9 @@ static const struct console_driver_ops bxcons_ops = {
 };
 
 static struct console_driver bxcons_driver = {
-    .next = nullptr,
     .ops = &bxcons_ops,
-    .consflags = CONSF_RECALL,
     .identifier = "bxcons",
-    .privdata = nullptr,
+    .consflags = CONSF_RECALL,
 };
 
 define_initcall(amd64_bxcons, INITCALL_STAGE_BSP_EARLY, INITCALL_ORDER_FIRST)

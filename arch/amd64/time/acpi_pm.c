@@ -7,7 +7,7 @@
 #include <mm/malloc.h>
 #include <mm/vmm.h>
 #include <mm/vprot.h>
-#include <time/clocksource.h>
+#include <time/clocksrc.h>
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
 
@@ -18,29 +18,29 @@ struct acpi_pm_privdata {
     uintptr_t pmio;
 };
 
-static uint64_t acpi_pm_op_read_nsec(struct clocksource* restrict clock)
+static uint64_t acpi_pm_op_read(struct clocksrc* restrict src)
 {
-    struct acpi_pm_privdata* priv = clock->privdata;
+    struct acpi_pm_privdata* priv = src->ctxdata;
 
     if(priv->mmio) {
-        return timecounter_update(&clock->tc, priv->mmio[0]);
+        return priv->mmio[0];
     }
     else {
-        return timecounter_update(&clock->tc, pmread32(priv->pmio));
+        return pmread32(priv->pmio);
     }
 }
 
-static const struct clocksource_ops acpi_pm_ops = {
-    .read_nsec = &acpi_pm_op_read_nsec,
+static const struct clocksrc_ops acpi_pm_ops = {
+    .read = &acpi_pm_op_read,
 };
 
-static struct clocksource acpi_pm_clocksource = {
+static struct clocksrc acpi_pm_clocksrc = {
     .ops = &acpi_pm_ops,
     .identifier = "acpi_pm",
     .rating = 100,
 };
 
-define_initcall(amd64_acpi_pm_clocksource, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
+define_initcall(amd64_acpi_pm_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
 {
     int retval;
     uacpi_table table;
@@ -83,23 +83,21 @@ define_initcall(amd64_acpi_pm_clocksource, INITCALL_STAGE_BSP_TIMER, INITCALL_OR
         }
 
         if(fadt->flags & ACPI_TMR_VAL_EXT) {
-            acpi_pm_clocksource.tc.calc_mask = UINT32_MAX;
+            acpi_pm_clocksrc.calc_mask = UINT32_MAX;
         }
         else {
-            acpi_pm_clocksource.tc.calc_mask = UINT64_C(0x00FFFFFF);
+            acpi_pm_clocksrc.calc_mask = UINT64_C(0x00FFFFFF);
         }
 
-        acpi_pm_clocksource.privdata = priv;
+        acpi_pm_clocksrc.privdata = priv;
 
         if(priv->mmio) {
-            timecounter_init(&acpi_pm_clocksource.tc, ACPI_PM_PERIOD_FS, priv->mmio[0]);
+            register_clocksrc(&acpi_pm_clocksrc, ACPI_PM_PERIOD_FS, priv->mmio[0]);
         }
         else {
-            timecounter_init(&acpi_pm_clocksource.tc, ACPI_PM_PERIOD_FS, pmread32(priv->pmio));
+            register_clocksrc(&acpi_pm_clocksrc, ACPI_PM_PERIOD_FS, pmread32(priv->pmio));
         }
 
         uacpi_table_unref(&table);
-
-        register_clocksource(&acpi_pm_clocksource);
     }
 }

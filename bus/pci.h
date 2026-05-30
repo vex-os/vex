@@ -66,26 +66,34 @@ struct pci_bus_ops {
 };
 
 struct pci_device;
-struct pci_bus {
+struct pci_bus_private {
     struct pci_bus* next;
     struct pci_device* devices;
+};
+
+struct pci_bus {
+    struct pci_bus_private priv;
     const struct pci_bus_ops* ops;
     char identifier[64];
     unsigned segment;
     unsigned index;
-    void* privdata;
+    void* ctxdata;
+};
+
+struct pci_device_private {
+    struct pci_device* next;
+    struct pci_driver* driver;
 };
 
 struct pci_driver;
 struct pci_device {
-    struct pci_device* next;
-    struct pci_driver* driver;
+    struct pci_device_private priv;
     struct pci_bus* bus;
     unsigned index;
     unsigned function;
     unsigned vendor_id;
     unsigned device_id;
-    void* privdata;
+    void* ctxdata;
 };
 
 struct pci_driver_id {
@@ -98,8 +106,12 @@ struct pci_driver_ops {
     void (*remove)(struct pci_device* restrict device);
 };
 
-struct pci_driver {
+struct pci_driver_private {
     struct pci_driver* next;
+};
+
+struct pci_driver {
+    struct pci_driver_private priv;
     const struct pci_driver_ops* ops;
     const struct pci_driver_id* ids;
 };

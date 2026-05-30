@@ -55,15 +55,19 @@ struct isa_resource {
     };
 };
 
-struct isa_device {
+struct isa_device_private {
     struct isa_device* next;
     struct isa_driver* driver;
-    char identifier[64];
     struct isa_resource* resources;
     size_t num_resources;
-    void* pmio_privdata;
+    void* pmio_ctxdata;
     void* acpi_node;
-    void* privdata;
+};
+
+struct isa_device {
+    struct isa_device_private priv;
+    char identifier[64];
+    void* ctxdata;
 };
 
 struct isa_driver_ops {
@@ -71,17 +75,21 @@ struct isa_driver_ops {
     void (*remove)(struct isa_device* restrict device);
 };
 
-struct isa_driver {
+struct isa_driver_private {
     struct isa_driver* next;
+};
+
+struct isa_driver {
+    struct isa_driver_private priv;
     const struct isa_driver_ops* ops;
     char identifier[64];
     unsigned type;
 };
 
-extern uint8_t arch_isa_read8(struct isa_resource_pmio* restrict pmio, void* privdata, uintptr_t port);
-extern uint16_t arch_isa_read16(struct isa_resource_pmio* restrict pmio, void* privdata, uintptr_t port);
-extern void arch_isa_write8(struct isa_resource_pmio* restrict pmio, void* privdata, uintptr_t port, uint8_t value);
-extern void arch_isa_write16(struct isa_resource_pmio* restrict pmio, void* privdata, uintptr_t port, uint16_t value);
+extern uint8_t arch_isa_read8(struct isa_resource_pmio* restrict pmio, void* ctxdata, uintptr_t port);
+extern uint16_t arch_isa_read16(struct isa_resource_pmio* restrict pmio, void* ctxdata, uintptr_t port);
+extern void arch_isa_write8(struct isa_resource_pmio* restrict pmio, void* ctxdata, uintptr_t port, uint8_t value);
+extern void arch_isa_write16(struct isa_resource_pmio* restrict pmio, void* ctxdata, uintptr_t port, uint16_t value);
 
 extern int register_isa_device(struct isa_device* restrict device);
 extern int unregister_isa_device(struct isa_device* restrict device);
@@ -91,7 +99,7 @@ extern int unregister_isa_driver(struct isa_driver* restrict driver);
 
 extern struct isa_resource* isa_get_resource(struct isa_device* restrict device, unsigned type, unsigned index) __nodiscard;
 
-extern int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_handler_type handler, void* privdata);
+extern int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_handler_type handler, void* ctxdata);
 extern void isa_release_irq(struct isa_device* restrict device, unsigned index);
 
 /// Resolves an ISA IRQ number to a GSI and trigger/polarity characteristics;

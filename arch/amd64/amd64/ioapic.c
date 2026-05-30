@@ -87,7 +87,7 @@ static void ioapic_write_rte(struct ioapic_data* data, uint8_t irq, struct rte_e
 
 static void ioapic_op_mask(struct intctl* restrict controller, uint32_t gsi)
 {
-    struct ioapic_data* data = controller->privdata;
+    struct ioapic_data* data = controller->ctxdata;
 
     uint8_t irq = (uint8_t)(gsi - controller->gsi_base);
 
@@ -99,7 +99,7 @@ static void ioapic_op_mask(struct intctl* restrict controller, uint32_t gsi)
 
 static void ioapic_op_unmask(struct intctl* restrict controller, uint32_t gsi)
 {
-    struct ioapic_data* data = controller->privdata;
+    struct ioapic_data* data = controller->ctxdata;
 
     uint8_t irq = (uint8_t)(gsi - controller->gsi_base);
 
@@ -112,7 +112,7 @@ static void ioapic_op_unmask(struct intctl* restrict controller, uint32_t gsi)
 static void ioapic_op_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
     unsigned polarity)
 {
-    struct ioapic_data* data = controller->privdata;
+    struct ioapic_data* data = controller->ctxdata;
 
     uint8_t irq = (uint8_t)(gsi - controller->gsi_base);
 
@@ -167,7 +167,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         controller->ops = &ioapic_ops;
         controller->gsi_base = ioapic->gsi_base;
         controller->gsi_count = ((ver >> IOAPIC_VER_MAXREDIR_SHIFT) & IOAPIC_VER_MAXREDIR_MASK) + 1;
-        controller->privdata = data;
+        controller->ctxdata = data;
 
         snprintf(controller->identifier, sizeof(controller->identifier), "ioapic-%u", (unsigned)(id));
 

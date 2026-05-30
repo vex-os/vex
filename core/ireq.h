@@ -7,9 +7,9 @@
 
 struct interrupt_frame;
 
-typedef void (*ireq_handler_type)(unsigned number, struct interrupt_frame* restrict frame, void* restrict privdata);
+typedef void (*ireq_handler_type)(unsigned number, struct interrupt_frame* restrict frame, void* restrict ctxdata);
 
-extern unsigned register_ireq_handler(unsigned desired_number, ireq_handler_type handler, void* restrict privdata);
+extern unsigned register_ireq_handler(unsigned desired_number, ireq_handler_type handler, void* restrict ctxdata);
 extern void unregister_ireq_handler(unsigned number);
 extern void dispatch_ireq(unsigned number, struct interrupt_frame* restrict frame);
 

@@ -58,5 +58,4 @@ mm/pslab.c
 mm/slab.c
 mm/vmm.c
 
-time/clocksource.c
-time/timecounter.c
+time/clocksrc.c

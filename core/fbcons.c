@@ -451,7 +451,7 @@ static const struct console_driver_ops fbcons_ops = {
 };
 
 static struct console_driver fbcons_driver = {
-    .identifier = "framebuffer",
+    .identifier = "fbcons",
     .consflags = CONSF_RECALL,
     .ops = &fbcons_ops,
 };
