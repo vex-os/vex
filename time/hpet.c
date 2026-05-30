@@ -82,7 +82,7 @@ define_initcall(hpet_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
 
             hpet_write_reg(mmio, HPET_REG_CONFIG, hpet_config_reg);
 
-            hpet_clocksrc.mask = UINT64_MAX;
+            hpet_clocksrc.mask = CLOCKSRC_MASK_64;
 
             register_clocksrc_internal(&hpet_clocksrc, UINT64_C(1), UINT64_C(1000000000000000) / hpet_period_fsec);
         }
