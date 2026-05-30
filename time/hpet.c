@@ -29,7 +29,7 @@ static inline void hpet_write_reg(volatile uint64_t* restrict mmio, uint32_t off
 
 static uint64_t hpet_op_read(struct clocksrc* restrict src)
 {
-    volatile uint64_t* mmio = src->privdata;
+    volatile uint64_t* mmio = src->ctxdata;
 
     return hpet_read_reg(mmio, HPET_REG_MAIN);
 }
@@ -44,7 +44,7 @@ static struct clocksrc hpet_clocksrc = {
     .rating = 200,
 };
 
-define_initcall(amd64_hpet_clocksource, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
+define_initcall(hpet_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
 {
     int retval;
     uacpi_table table;
@@ -65,7 +65,7 @@ define_initcall(amd64_hpet_clocksource, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER
             retval = vmm_map(&sys_pagemap, (uintptr_t)(mmio), hpet->address.address, VPROT_RW | VPROT_NOCACHE);
             strict_kassert_text(retval == 0 || retval == EEXIST, "mmio map failed");
 
-            hpet_clocksrc.privdata = (void*)(mmio); // this removes the volatile qualifier without a warning
+            hpet_clocksrc.ctxdata = (void*)(mmio); // this removes the volatile qualifier without a warning
 
             uacpi_table_unref(&table);
 
@@ -82,9 +82,9 @@ define_initcall(amd64_hpet_clocksource, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER
 
             hpet_write_reg(mmio, HPET_REG_CONFIG, hpet_config_reg);
 
-            hpet_clocksrc.calc_mask = UINT64_MAX;
+            hpet_clocksrc.mask = UINT64_MAX;
 
-            register_clocksrc(&hpet_clocksrc, hpet_period_fsec, hpet_read_reg(mmio, HPET_REG_MAIN));
+            register_clocksrc_internal(&hpet_clocksrc, UINT64_C(1), UINT64_C(1000000000000000) / hpet_period_fsec);
         }
     }
 }
