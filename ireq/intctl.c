@@ -19,7 +19,7 @@ int register_intctl(struct intctl* restrict controller)
 
     gsi_base = controller->gsi_base;
     gsi_count = controller->gsi_count;
-    pr_inform("intctl: adding %s: gsi_base=%zu, gsi_count=%zu", controller->identifier, gsi_base, gsi_count);
+    pr_debug("intctl: adding %s: gsi_base=%zu, gsi_count=%zu", controller->identifier, gsi_base, gsi_count);
 
     controller->priv.next = intctl_head;
     intctl_head = controller;

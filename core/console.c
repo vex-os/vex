@@ -23,7 +23,7 @@ int register_console_driver(struct console_driver* restrict driver)
 
     spinlock_release(&console_lock);
 
-    pr_inform("console: adding %s", driver->identifier);
+    pr_debug("console: adding %s", driver->identifier);
 
     if(driver->ops->init) {
         driver->ops->init(driver);
@@ -68,7 +68,7 @@ int unregister_console_driver(struct console_driver* restrict driver)
 
         spinlock_release(&console_lock);
 
-        pr_inform("console: removing %s", driver->identifier);
+        pr_debug("console: removing %s", driver->identifier);
 
         return 0;
     }
@@ -81,7 +81,7 @@ int unregister_console_driver(struct console_driver* restrict driver)
 
             spinlock_release(&console_lock);
 
-            pr_inform("console: removing %s", driver->identifier);
+            pr_debug("console: removing %s", driver->identifier);
 
             return 0;
         }

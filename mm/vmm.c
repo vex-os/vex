@@ -401,12 +401,8 @@ define_initcall(init_vmm, INITCALL_STAGE_BSP_VMM, INITCALL_ORDER_MIDDLE)
     size_t i;
     int retval;
 
-    pr_inform("vmm: initializing");
-
     sys_pagemap.lock = SPINLOCK_INIT;
     sys_pagemap.levels = vmm_detect_levels();
-
-    pr_inform("vmm: allocating sys_pagemap");
 
     retval = vmm_pagemap_alloc(&sys_pagemap);
     strict_kassert_text(retval == 0, "out of memory");

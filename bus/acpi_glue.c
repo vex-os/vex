@@ -224,13 +224,13 @@ uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* reques
     unsigned long long arg;
 
     if(request->type == UACPI_FIRMWARE_REQUEST_TYPE_BREAKPOINT) {
-        pr_warning("uacpi: AML breakpoint hit");
+        pr_debug("uacpi: AML breakpoint hit");
         return UACPI_STATUS_OK;
     }
 
     if(request->type == UACPI_FIRMWARE_REQUEST_TYPE_FATAL) {
         arg = request->fatal.arg;
-        pr_error("uacpi: AML fatal: type=0x%x code=0x%x arg=0x%llx", request->fatal.type, request->fatal.code, arg);
+        pr_debug("uacpi: AML fatal: type=0x%x code=0x%x arg=0x%llx", request->fatal.type, request->fatal.code, arg);
         return UACPI_STATUS_OK;
     }
 

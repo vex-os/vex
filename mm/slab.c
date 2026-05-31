@@ -178,6 +178,6 @@ define_initcall(slab, INITCALL_STAGE_BSP_SLAB, INITCALL_ORDER_MIDDLE)
         result = expand_slab(&slabs[i]);
         strict_kassert_text(result, "out of memory");
 
-        pr_notice("slab: slab[%zu] head=%p blocksize=%zu", i, slabs[i].head, slabs[i].blocksize);
+        pr_debug("slab: slab[%zu]: head=%p, blocksize=%zu", i, slabs[i].head, slabs[i].blocksize);
     }
 }

@@ -46,7 +46,7 @@ void dispatch_ireq(unsigned number, struct interrupt_frame* restrict frame)
     ireq_handler_type handler;
 
     if(number >= IREQ_TABLE_SIZE) {
-        pr_warning("ireq: spurious IRQ 0x%02X out of range", number);
+        pr_debug("ireq: spurious IRQ 0x%02X out of range", number);
         return;
     }
 
@@ -57,5 +57,5 @@ void dispatch_ireq(unsigned number, struct interrupt_frame* restrict frame)
         return;
     }
 
-    pr_warning("ireq: unhandled IRQ 0x%02X", number);
+    pr_debug("ireq: unhandled IRQ 0x%02X", number);
 }
