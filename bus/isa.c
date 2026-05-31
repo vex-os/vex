@@ -117,7 +117,7 @@ int unregister_isa_device(struct isa_device* restrict device)
         device->priv.driver = nullptr;
     }
 
-    pr_inform("isa: removing device: %s", device->identifier);
+    pr_debug("isa: removing device: %s", device->identifier);
 
     return 0;
 }
@@ -134,7 +134,7 @@ int register_isa_driver(struct isa_driver* restrict driver)
     }
 
     if(driver->identifier[0]) {
-        pr_inform("isa: adding driver: %s", driver->identifier);
+        pr_debug("isa: adding driver: %s", driver->identifier);
     }
 
     driver->priv.next = driver_head;
@@ -179,7 +179,7 @@ int unregister_isa_driver(struct isa_driver* restrict driver)
         }
     }
 
-    pr_inform("isa: removing driver: %s", driver->identifier);
+    pr_debug("isa: removing driver: %s", driver->identifier);
 
     return 0;
 }

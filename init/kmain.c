@@ -18,7 +18,7 @@ void __noreturn kmain(void)
 
     enable_interrupts();
 
-    pr_inform("hanging around...");
+    pr_debug("hanging around...");
 
     for(;;) {
         stop_hart();

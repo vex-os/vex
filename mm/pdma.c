@@ -45,7 +45,7 @@ static void add_region(uintptr_t start, size_t length)
 
     bitmap_range_set(pdma_bitmap, page, page + npages - 1U);
 
-    pr_notice("pdma: adding region: [%p..%p]", (const void*)start, (const void*)(start + length - 1U));
+    pr_debug("pdma: adding region: [%p..%p]", (const void*)start, (const void*)(start + length - 1U));
 }
 
 uintptr_t pdma_alloc(size_t numpages)
@@ -209,5 +209,5 @@ define_initcall(pdma, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_FIRST)
     pdma_get_stats(&stats);
 
     hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), stats.total_bytes);
-    pr_notice("pdma: tracking %s in %zu pages", hrsize_buffer, stats.total_pages);
+    pr_debug("pdma: tracking %s in %zu pages", hrsize_buffer, stats.total_pages);
 }

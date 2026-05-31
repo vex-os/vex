@@ -166,6 +166,6 @@ define_initcall(init_acpi_isa, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_LATE)
     status = uacpi_namespace_for_each_child(node, &enumerate_device, nullptr, UACPI_OBJECT_DEVICE_BIT, UACPI_MAX_DEPTH_ANY, nullptr);
 
     if(uacpi_unlikely_error(status)) {
-        pr_warning("acpi_isa: %s", uacpi_status_to_string(status));
+        pr_debug("acpi_isa: %s", uacpi_status_to_string(status));
     }
 }

@@ -77,7 +77,7 @@ static void rescan_bus(struct pci_bus* restrict bus)
             device->priv.next = bus->priv.devices;
             bus->priv.devices = device;
 
-            pr_inform("pci: found %04x:%04x at %s:%u:%u", vendor_id, device_id, bus->identifier, device_idx, function_idx);
+            pr_debug("pci: found %04x:%04x at %s:%u:%u", vendor_id, device_id, bus->identifier, device_idx, function_idx);
 
             for(driver = driver_head; driver; driver = driver->priv.next) {
                 try_bind_device(device, driver);
@@ -96,7 +96,7 @@ int register_pci_bus(struct pci_bus* restrict bus)
         continue;
     }
 
-    pr_inform("pci: adding %s: segment=%u, bus_index=%u", bus->identifier, bus->segment, bus->index);
+    pr_debug("pci: adding %s: segment=%u, bus_index=%u", bus->identifier, bus->segment, bus->index);
 
     bus->priv.devices = nullptr;
     bus->priv.next = bus_head;
@@ -142,7 +142,7 @@ int unregister_pci_bus(struct pci_bus* restrict bus)
         kfree(device);
     }
 
-    pr_inform("pci: removing %s", bus->identifier);
+    pr_debug("pci: removing %s", bus->identifier);
 
     return 0;
 }

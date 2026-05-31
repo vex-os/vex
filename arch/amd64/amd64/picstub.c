@@ -30,7 +30,7 @@ void __used amd64_spur_handler(struct interrupt_frame* restrict frame, uint64_t 
 {
     // <<  Because it's a shit chip >>
     //                  - streaksu
-    pr_warning("picstub: spurious interrupt 0x%02zX", (size_t)intvec);
+    pr_debug("picstub: spurious interrupt 0x%02zX", (size_t)intvec);
 }
 
 define_initcall(amd64_picstub_bsp, INTICALL_STAGE_BSP_ARCH, INITCALL_ORDER_MIDDLE)

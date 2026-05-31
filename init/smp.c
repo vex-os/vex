@@ -23,7 +23,7 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
-    pr_inform("smp: hart %u ready", this_hart()->index);
+    pr_debug("smp: hart %u ready", this_hart()->index);
 
     // if(this_hart()->index == 1) {
     //     panic("test panic from hart %u", this_hart()->index);
@@ -54,7 +54,7 @@ define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_LAST)
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
-    pr_inform("smp: hart %u ready", this_hart()->index);
+    pr_debug("smp: hart %u ready", this_hart()->index);
 
     atomic_store_n(&smp_ready_count, UINT64_C(1), ATOMIC_RELAXED);
 

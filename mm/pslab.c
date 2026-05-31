@@ -26,7 +26,7 @@ static void add_region(uintptr_t start, size_t length)
         pslab_numpages += 1U;
     }
 
-    pr_notice("pslab: adding region: [%p..%p]", (const void*)start, (const void*)(start + length - 1U));
+    pr_debug("pslab: adding region: [%p..%p]", (const void*)start, (const void*)(start + length - 1U));
 }
 
 uintptr_t pslab_alloc(void)
@@ -129,5 +129,5 @@ define_initcall(pslab, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_EARLY)
     pslab_get_stats(&stats);
 
     hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), stats.total_bytes);
-    pr_notice("pslab: tracking %s in %zu pages", hrsize_buffer, stats.total_pages);
+    pr_debug("pslab: tracking %s in %zu pages", hrsize_buffer, stats.total_pages);
 }
