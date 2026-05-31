@@ -6,11 +6,15 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define TRIGGER_LEVEL 0U
-#define TRIGGER_EDGE  1U
+enum {
+    TRIGGER_LEVEL,
+    TRIGGER_EDGE,
+};
 
-#define ACTIVE_LOW  0U
-#define ACTIVE_HIGH 1U
+enum {
+    ACTIVE_LOW,
+    ACTIVE_HIGH,
+};
 
 struct intctl;
 struct intctl_ops {
