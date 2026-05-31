@@ -63,4 +63,5 @@ mm/slab.c
 mm/vmm.c
 
 time/clocksrc.c
+time/delay.c
 time/hpet.c
