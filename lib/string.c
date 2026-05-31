@@ -2,6 +2,7 @@
 #include <lib/sprintf.h>
 #include <lib/string.h>
 #include <lib/strings.h>
+#include <stdint.h>
 
 const void* memchr(const void* restrict buf, int chr, size_t sz)
 {
@@ -514,9 +515,13 @@ char* strncat(char* restrict dst, const char* restrict src, size_t sz)
 
 int strncmp(const char* restrict sa, const char* restrict sb, size_t sz)
 {
-    while(*sa && *sa == *sb && sz--) {
+    while(sz-- && *sa && *sa == *sb) {
         sa++;
         sb++;
+    }
+
+    if(sz == SIZE_MAX) {
+        return 0;
     }
 
     return *sa - *sb;
