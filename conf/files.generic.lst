@@ -6,6 +6,7 @@ bus/isa.c
 bus/pci.c
 
 core/assert.c
+core/cmdline.c
 core/console.c
 core/fbcons.c optional fbcons
 core/kprintf.c

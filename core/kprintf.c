@@ -1,13 +1,16 @@
 #include <core/assert.h>
+#include <core/cmdline.h>
 #include <core/console.h>
 #include <core/kprintf.h>
 #include <core/spinlock.h>
+#include <init/initcall.h>
 #include <lib/format.h>
 #include <lib/string.h>
+#include <lib/strings.h>
 #include <time/clocksrc.h>
 
 #ifndef KP_DEFAULT_LOGLEVEL
-#define KP_DEFAULT_LOGLEVEL KP_DEBUG
+#define KP_DEFAULT_LOGLEVEL KP_INFORM
 #endif
 
 #define LF 0x0A
@@ -79,4 +82,33 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
     }
 
     spinlock_release(&kprintf_lock);
+}
+
+define_initcall(kprintf_cmdline, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_LAST)
+{
+    const char* argument = cmdline_argument(&sys_cmdline, "loglevel");
+
+    if(argument) {
+        if(0 == strcasecmp(argument, "debug")) {
+            loglevel = KP_DEBUG;
+        }
+        else if(0 == strcasecmp(argument, "inform")) {
+            loglevel = KP_INFORM;
+        }
+        else if(0 == strcasecmp(argument, "notice")) {
+            loglevel = KP_NOTICE;
+        }
+        else if(0 == strcasecmp(argument, "warning")) {
+            loglevel = KP_WARNING;
+        }
+        else if(0 == strcasecmp(argument, "error")) {
+            loglevel = KP_ERROR;
+        }
+        else if(0 == strcasecmp(argument, "critical")) {
+            loglevel = KP_CRITICAL;
+        }
+        else if(0 == strcasecmp(argument, "alert")) {
+            loglevel = KP_ALERT;
+        }
+    }
 }

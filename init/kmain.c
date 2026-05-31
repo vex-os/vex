@@ -1,6 +1,7 @@
 #include <arch/hart.h>
 #include <arch/interrupts.h>
 #include <core/cdefs.h>
+#include <core/cmdline.h>
 #include <core/kprintf.h>
 #include <core/version.h>
 #include <init/initcall.h>
@@ -12,13 +13,13 @@ static volatile __used __section(".limine_requests_end") uint64_t limine_request
 
 void __noreturn kmain(void)
 {
-    pr_inform("%s %s %s", k_sysname, k_release, k_version);
+    pr_emerg("%s %s %s", k_sysname, k_release, k_version);
 
     invoke_initcalls(initcalls_bsp_start, initcalls_bsp_end);
 
     enable_interrupts();
 
-    pr_debug("hanging around...");
+    pr_inform("hanging around...");
 
     for(;;) {
         stop_hart();

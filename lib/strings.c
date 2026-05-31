@@ -1,6 +1,7 @@
 #include <lib/ctype.h>
 #include <lib/string.h>
 #include <lib/strings.h>
+#include <stdint.h>
 
 char* kstrncat(char* restrict dst, const char* restrict src, size_t sz)
 {
@@ -42,15 +43,19 @@ int strcasecmp(const char* restrict sa, const char* restrict sb)
         sb++;
     }
 
-    return *sa - *sb;
+    return tolower((unsigned char)*sa) - tolower((unsigned char)*sb);
 }
 
 int strncasecmp(const char* restrict sa, const char* restrict sb, size_t sz)
 {
-    while(*sa && tolower(*sa) == tolower(*sb) && sz--) {
+    while(sz-- && *sa && tolower(*sa) == tolower(*sb)) {
         sa++;
         sb++;
     }
 
-    return *sa - *sb;
+    if(sz == SIZE_MAX) {
+        return 0;
+    }
+
+    return tolower(*sa) - tolower(*sb);
 }
