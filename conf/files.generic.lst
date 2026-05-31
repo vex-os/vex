@@ -13,6 +13,7 @@ core/kprintf.c
 core/panic.c
 core/version.c
 
+dev/ahci.c
 dev/blkdev.c
 dev/ps2kbd.c
 
