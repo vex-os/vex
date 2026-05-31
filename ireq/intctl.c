@@ -12,9 +12,9 @@ int register_intctl(struct intctl* restrict controller)
     struct intctl* it;
 
     for(it = intctl_head; it; it = it->priv.next) {
-        if(it == controller)
+        if(it == controller) {
             return EEXIST;
-        continue;
+        }
     }
 
     gsi_base = controller->gsi_base;

@@ -3,6 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <ireq/dispatch.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -55,6 +56,15 @@
 #define PCI_BAR_ADDR_MASK_IO  (~((uintptr_t)(0x03)))
 #define PCI_BAR_ADDR_MASK_MEM (~((uintptr_t)(0x0F)))
 
+#define PCI_CAP_PM   0x01 ///< Power Management
+#define PCI_CAP_AGP  0x02 ///< AGP
+#define PCI_CAP_MSI  0x05 ///< Message Signalled Interrupts
+#define PCI_CAP_PCIX 0x07 ///< PCI-X
+#define PCI_CAP_MSIX 0x11 ///< MSI-X
+#define PCI_CAP_PCIE 0x10 ///< PCI Express
+
+#define PCI_STS_CAP_LIST 0x0010 ///< PCI status register bit indicating the capability list is present
+
 struct pci_bus;
 struct pci_bus_ops {
     uint8_t (*read8)(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset);
@@ -83,6 +93,7 @@ struct pci_bus {
 struct pci_device_private {
     struct pci_device* next;
     struct pci_driver* driver;
+    unsigned ireq_number;
 };
 
 struct pci_driver;
@@ -135,5 +146,21 @@ extern uint32_t pci_read32(struct pci_device* restrict device, uintptr_t offset)
 extern void pci_write8(struct pci_device* restrict device, uintptr_t offset, uint8_t value);
 extern void pci_write16(struct pci_device* restrict device, uintptr_t offset, uint16_t value);
 extern void pci_write32(struct pci_device* restrict device, uintptr_t offset, uint32_t value);
+
+extern uintptr_t pci_bar_address(struct pci_device* restrict device, unsigned bar_index) __nodiscard;
+extern size_t pci_bar_size(struct pci_device* restrict device, unsigned bar_index) __nodiscard;
+extern bool pci_bar_is_io(struct pci_device* restrict device, unsigned bar_index) __nodiscard;
+extern void* pci_bar_map(struct pci_device* restrict device, unsigned bar_index) __nodiscard;
+extern void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index);
+
+/// Returns the config space offset of the capability with the given ID,
+/// or 0 if not found. Requires PCI_STS_CAP_LIST set in status register;
+extern uint8_t pci_find_cap(struct pci_device* restrict device, uint8_t cap_id) __nodiscard;
+
+extern void pci_enable_busmaster(struct pci_device* restrict device);
+extern void pci_disable_busmaster(struct pci_device* restrict device);
+
+extern int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handler, void* restrict ctxdata);
+extern void pci_release_irq(struct pci_device* restrict device);
 
 #endif /* DE230BAC_AA17_4780_B3C2_71F7DA67E522 */

@@ -67,7 +67,7 @@ static const struct pci_bus_ops cf8_ops = {
 
 static struct pci_bus cf8_bus = {
     .ops = &cf8_ops,
-    .identifier = "CF8/CFC",
+    .identifier = "CF8",
     .segment = 0,
     .index = 0,
 };

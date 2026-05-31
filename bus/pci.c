@@ -1,8 +1,15 @@
+#include <arch/ireq.h>
 #include <bus/pci.h>
 #include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
+#include <ireq/intctl.h>
+#include <limits.h>
+#include <mm/hhdm.h>
 #include <mm/malloc.h>
+#include <mm/page.h>
+#include <mm/vmm.h>
+#include <mm/vprot.h>
 
 #define PCI_MAX_BUS_DEVICES 32
 
@@ -67,6 +74,7 @@ static void rescan_bus(struct pci_bus* restrict bus)
 
             device->priv.next = nullptr;
             device->priv.driver = nullptr;
+            device->priv.ireq_number = UINT_MAX;
             device->bus = bus;
             device->index = device_idx;
             device->function = function_idx;
@@ -91,9 +99,9 @@ int register_pci_bus(struct pci_bus* restrict bus)
     struct pci_bus* it;
 
     for(it = bus_head; it; it = it->priv.next) {
-        if(it == bus)
+        if(it == bus) {
             return EEXIST;
-        continue;
+        }
     }
 
     pr_debug("pci: adding %s: segment=%u, bus_index=%u", bus->identifier, bus->segment, bus->index);
@@ -154,9 +162,9 @@ int register_pci_driver(struct pci_driver* restrict driver)
     struct pci_device* device;
 
     for(it = driver_head; it; it = it->priv.next) {
-        if(it == driver)
+        if(it == driver) {
             return EEXIST;
-        continue;
+        }
     }
 
     driver->priv.next = driver_head;
@@ -275,4 +283,179 @@ void pci_write16(struct pci_device* restrict device, uintptr_t offset, uint16_t 
 void pci_write32(struct pci_device* restrict device, uintptr_t offset, uint32_t value)
 {
     device->bus->ops->write32(device->bus, device->index, device->function, offset, value);
+}
+
+bool pci_bar_is_io(struct pci_device* restrict device, unsigned bar_index)
+{
+    uint32_t raw = pci_read32(device, PCI_CFG_BAR0 + bar_index * 4);
+    return (raw & PCI_BAR_IO) != 0;
+}
+
+uintptr_t pci_bar_address(struct pci_device* restrict device, unsigned bar_index)
+{
+    uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
+    uint32_t raw = pci_read32(device, offset);
+    uint64_t raw_higher;
+
+    if(raw & PCI_BAR_IO) {
+        return (uintptr_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_IO));
+    }
+
+    if((raw & PCI_BAR_MEM_TYPE_MASK) == PCI_BAR_MEM_64BIT) {
+        raw_higher = pci_read32(device, offset + 4);
+
+        return (uintptr_t)((raw_higher << 32) | (uint64_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_MEM)));
+    }
+
+    return (uintptr_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_MEM));
+}
+
+size_t pci_bar_size(struct pci_device* restrict device, unsigned bar_index)
+{
+    uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
+    uint32_t raw = pci_read32(device, offset);
+    uint32_t mask;
+
+    pci_write32(device, offset, UINT32_C(0xFFFFFFFF));
+    mask = pci_read32(device, offset);
+    pci_write32(device, offset, raw);
+
+    if(raw & PCI_BAR_IO) {
+        mask &= (uint32_t)(PCI_BAR_ADDR_MASK_IO);
+    }
+    else {
+        mask &= (uint32_t)(PCI_BAR_ADDR_MASK_MEM);
+    }
+
+    return (size_t)(~mask) + 1;
+}
+
+void* pci_bar_map(struct pci_device* restrict device, unsigned bar_index)
+{
+    uintptr_t phys, i;
+    size_t size;
+
+    if(pci_bar_is_io(device, bar_index)) {
+        return nullptr;
+    }
+
+    phys = pci_bar_address(device, bar_index);
+    size = pci_bar_size(device, bar_index);
+
+    for(i = 0; i < size; i += PAGE_SIZE) {
+        vmm_map(&sys_pagemap, (uintptr_t)(phys_to_virt(phys + i)), phys + i, VPROT_RW | VPROT_NOCACHE);
+    }
+
+    return phys_to_virt(phys);
+}
+
+void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index)
+{
+    uintptr_t phys, i;
+    size_t size;
+
+    if(pci_bar_is_io(device, bar_index)) {
+        return;
+    }
+
+    phys = pci_bar_address(device, bar_index);
+    size = pci_bar_size(device, bar_index);
+
+    for(i = 0; i < size; i += PAGE_SIZE) {
+        vmm_unmap(&sys_pagemap, (uintptr_t)(phys_to_virt(phys + i)));
+    }
+}
+
+uint8_t pci_find_cap(struct pci_device* restrict device, uint8_t cap_id)
+{
+    uint16_t status;
+    uint8_t offset;
+
+    status = pci_read16(device, PCI_CFG_STATUS);
+
+    if(0 == (status & PCI_STS_CAP_LIST)) {
+        return 0;
+    }
+
+    offset = pci_read8(device, PCI_CFG_CAP_PTR) & 0xFC;
+
+    while(offset) {
+        if(pci_read8(device, offset) == cap_id)
+            return offset;
+        offset = pci_read8(device, offset + 1) & 0xFC;
+    }
+
+    return 0;
+}
+
+void pci_enable_busmaster(struct pci_device* restrict device)
+{
+    uint16_t cmd = pci_read16(device, PCI_CFG_COMMAND);
+    pci_write16(device, PCI_CFG_COMMAND, cmd | PCI_CMD_BUS_MASTER);
+}
+
+void pci_disable_busmaster(struct pci_device* restrict device)
+{
+    uint16_t cmd = pci_read16(device, PCI_CFG_COMMAND);
+    pci_write16(device, PCI_CFG_COMMAND, cmd & ~(uint16_t)(PCI_CMD_BUS_MASTER));
+}
+
+int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handler, void* restrict ctxdata)
+{
+    struct intctl* controller;
+    uint8_t int_pin, int_line;
+    unsigned ireq_number;
+
+    int_pin = pci_read8(device, PCI_CFG_INT_PIN);
+
+    if(int_pin == 0) {
+        return ENODEV; // device does not use INTx
+    }
+
+    int_line = pci_read8(device, PCI_CFG_INT_LINE);
+
+    if(int_line == 0xFF) {
+        return ENODEV; // not routed by BIOS
+    }
+
+    controller = find_intctl(int_line);
+
+    if(controller == nullptr) {
+        return ENODEV;
+    }
+
+    ireq_number = register_ireq_handler(UINT_MAX, handler, ctxdata);
+
+    if(ireq_number == UINT_MAX) {
+        return ENOMEM;
+    }
+
+    device->priv.ireq_number = ireq_number;
+
+    // PCI INTx is always level-triggered, active-low per PCI spec
+    intctl_route(controller, int_line, (uint8_t)(ireq_number + ARCH_IREQ_BASE), 0, TRIGGER_LEVEL, ACTIVE_LOW);
+    intctl_unmask(controller, int_line);
+
+    return 0;
+}
+
+void pci_release_irq(struct pci_device* restrict device)
+{
+    struct intctl* controller;
+    uint8_t int_line;
+
+    if(device->priv.ireq_number == UINT_MAX) {
+        return;
+    }
+
+    int_line = pci_read8(device, PCI_CFG_INT_LINE);
+    controller = find_intctl(int_line);
+
+    if(controller) {
+        intctl_mask(controller, int_line);
+    }
+
+    unregister_ireq_handler(device->priv.ireq_number);
+
+    device->priv.ireq_number = UINT_MAX;
 }

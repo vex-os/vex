@@ -13,6 +13,7 @@ core/kprintf.c
 core/panic.c
 core/version.c
 
+dev/blkdev.c
 dev/ps2kbd.c
 
 ext/uacpi/default_handlers.c

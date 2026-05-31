@@ -22,9 +22,9 @@ int register_clocksrc_internal(struct clocksrc* restrict src, uint64_t scale, ui
     struct clocksrc* it;
 
     for(it = clocksrc_head; it; it = it->priv.next) {
-        if(it == src)
+        if(it == src) {
             return EEXIST;
-        continue;
+        }
     }
 
     pr_debug("clocksrc: adding %s: rating=%u", src->identifier, src->rating);

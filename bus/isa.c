@@ -73,9 +73,9 @@ int register_isa_device(struct isa_device* restrict device)
     struct isa_driver* driver;
 
     for(it = device_head; it; it = it->priv.next) {
-        if(it == device)
+        if(it == device) {
             return EEXIST;
-        continue;
+        }
     }
 
     device->priv.next = device_head;
@@ -128,9 +128,9 @@ int register_isa_driver(struct isa_driver* restrict driver)
     struct isa_device* device;
 
     for(it = driver_head; it; it = it->priv.next) {
-        if(it == driver)
+        if(it == driver) {
             return EEXIST;
-        continue;
+        }
     }
 
     if(driver->identifier[0]) {
