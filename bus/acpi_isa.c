@@ -142,7 +142,6 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
     device->priv.driver = nullptr;
     device->priv.resources = resources;
     device->priv.num_resources = context.num_resources;
-    device->priv.pmio_ctxdata = nullptr;
     device->priv.acpi_node = node;
     device->ctxdata = nullptr;
 

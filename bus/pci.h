@@ -79,7 +79,6 @@ struct pci_bar {
         struct mmio_region mmio;
         struct pmio_region pmio;
     };
-    void* pmio_ctxdata;
 };
 
 struct pci_bus;
@@ -198,10 +197,20 @@ extern uint16_t pci_bar_read16(struct pci_bar* restrict bar, uintptr_t offset);
 extern uint32_t pci_bar_read32(struct pci_bar* restrict bar, uintptr_t offset);
 extern uint64_t pci_bar_read64(struct pci_bar* restrict bar, uintptr_t offset);
 
+extern void pci_bar_read8_string(struct pci_bar* restrict bar, uintptr_t offset, uint8_t* restrict data, size_t count);
+extern void pci_bar_read16_string(struct pci_bar* restrict bar, uintptr_t offset, uint16_t* restrict data, size_t count);
+extern void pci_bar_read32_string(struct pci_bar* restrict bar, uintptr_t offset, uint32_t* restrict data, size_t count);
+extern void pci_bar_read64_string(struct pci_bar* restrict bar, uintptr_t offset, uint64_t* restrict data, size_t count);
+
 extern void pci_bar_write8(struct pci_bar* restrict bar, uintptr_t offset, uint8_t value);
 extern void pci_bar_write16(struct pci_bar* restrict bar, uintptr_t offset, uint16_t value);
 extern void pci_bar_write32(struct pci_bar* restrict bar, uintptr_t offset, uint32_t value);
 extern void pci_bar_write64(struct pci_bar* restrict bar, uintptr_t offset, uint64_t value);
+
+extern void pci_bar_write8_string(struct pci_bar* restrict bar, uintptr_t offset, const uint8_t* restrict data, size_t count);
+extern void pci_bar_write16_string(struct pci_bar* restrict bar, uintptr_t offset, const uint16_t* restrict data, size_t count);
+extern void pci_bar_write32_string(struct pci_bar* restrict bar, uintptr_t offset, const uint32_t* restrict data, size_t count);
+extern void pci_bar_write64_string(struct pci_bar* restrict bar, uintptr_t offset, const uint64_t* restrict data, size_t count);
 
 /// Returns the config space offset of the capability with the given ID,
 /// or 0 if not found. Requires PCI_STS_CAP_LIST set in status register;

@@ -48,7 +48,6 @@ struct isa_device_private {
     struct isa_driver* driver;
     struct isa_resource* resources;
     size_t num_resources;
-    void* pmio_ctxdata;
     void* acpi_node;
 };
 
@@ -89,12 +88,5 @@ extern void isa_release_irq(struct isa_device* restrict device, unsigned index);
 /// Applies any ACPI MADT interrupt source overrides; defaults to identity
 /// mapping GSI numbers to IRQ lines edge-triggered, active-high if no override exists.
 extern void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsigned* out_polarity);
-
-extern uint8_t isa_read8(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset);
-extern uint16_t isa_read16(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset);
-extern uint32_t isa_read32(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset);
-extern void isa_write8(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset, uint8_t value);
-extern void isa_write16(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset, uint16_t value);
-extern void isa_write32(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset, uint32_t value);
 
 #endif /* BAF7322B_9BD5_4ECE_B20C_153EF98E138C */
