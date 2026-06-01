@@ -51,19 +51,20 @@
 #define MEM_DATABUF  0x600 ///< [0x600..0x7FF] data buffer
 
 struct ahci_port {
-    volatile uint8_t* regs;
+    struct pci_bar* bar;
+    uintptr_t port_base;
     uintptr_t dma_phys;
     uint8_t* dma_virt;
 };
 
 static __always_inline uint32_t ahci_register_read(struct ahci_port* restrict port, uint32_t offset)
 {
-    return ((volatile uint32_t*)(port->regs + offset))[0];
+    return pci_bar_read32(port->bar, port->port_base + offset);
 }
 
 static __always_inline void ahci_register_write(struct ahci_port* restrict port, uint32_t offset, uint32_t value)
 {
-    ((volatile uint32_t*)(port->regs + offset))[0] = value;
+    pci_bar_write32(port->bar, port->port_base + offset, value);
 }
 
 static void ahci_stop(struct ahci_port* restrict port)
@@ -247,11 +248,10 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
 {
     struct ahci_port* port;
     struct blkdev* device;
-    volatile uint8_t* abar;
-    volatile uint8_t* regs;
+    struct pci_bar* abar;
     uint32_t pi, ghc, ssts;
     unsigned port_num;
-    uintptr_t dma_phys;
+    uintptr_t port_base, dma_phys;
     uint8_t* dma_virt;
 
     abar = pci_bar_map(pci_dev, 5);
@@ -261,21 +261,21 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         return ENOMEM;
     }
 
-    ghc = ((volatile uint32_t*)(abar + HBA_GHC))[0];
+    ghc = pci_bar_read32(abar, HBA_GHC);
 
     if(0 == (ghc & HBA_GHC_AE)) {
-        ((volatile uint32_t*)(abar + HBA_GHC))[0] = ghc | HBA_GHC_AE; // Ensure AHCI mode is enabled
+        pci_bar_write32(abar, HBA_GHC, ghc | HBA_GHC_AE); // Ensure AHCI mode is enabled
     }
 
-    pi = ((volatile uint32_t*)(abar + HBA_PI))[0];
+    pi = pci_bar_read32(abar, HBA_PI);
 
     for(port_num = 0; port_num < 32; port_num += 1) {
         if(0 == (pi & (UINT32_C(1) << port_num))) {
             continue; // Port not implemented
         }
 
-        regs = abar + 0x100 + port_num * 0x80;
-        ssts = ((volatile uint32_t*)(regs + PORT_SSTS))[0];
+        port_base = 0x100 + port_num * 0x80;
+        ssts = pci_bar_read32(abar, port_base + PORT_SSTS);
 
         if((ssts & 0x0F) != 3) {
             continue; // No device detected
@@ -285,7 +285,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
             continue; // Interface not active
         }
 
-        if(((volatile uint32_t*)(regs + PORT_SIG))[0] != ATA_SIG_ATA) {
+        if(pci_bar_read32(abar, port_base + PORT_SIG) != ATA_SIG_ATA) {
             continue; // Not an ATA drive
         }
 
@@ -306,19 +306,20 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
 
         memset(port, 0, sizeof(struct ahci_port));
 
-        port->regs = regs;
+        port->bar = abar;
+        port->port_base = port_base;
         port->dma_phys = dma_phys;
         port->dma_virt = dma_virt;
 
         ahci_stop(port);
 
-        ((volatile uint32_t*)(regs + PORT_CLB))[0] = (uint32_t)(dma_phys + MEM_CMDLIST);
-        ((volatile uint32_t*)(regs + PORT_CLBU))[0] = (uint32_t)((dma_phys + MEM_CMDLIST) >> 32);
-        ((volatile uint32_t*)(regs + PORT_FB))[0] = (uint32_t)(dma_phys + MEM_FIS);
-        ((volatile uint32_t*)(regs + PORT_FBU))[0] = (uint32_t)((dma_phys + MEM_FIS) >> 32);
+        pci_bar_write32(abar, port_base + PORT_CLB, (uint32_t)(dma_phys + MEM_CMDLIST));
+        pci_bar_write32(abar, port_base + PORT_CLBU, (uint32_t)((dma_phys + MEM_CMDLIST) >> 32));
+        pci_bar_write32(abar, port_base + PORT_FB, (uint32_t)(dma_phys + MEM_FIS));
+        pci_bar_write32(abar, port_base + PORT_FBU, (uint32_t)((dma_phys + MEM_FIS) >> 32));
 
-        ((volatile uint32_t*)(regs + PORT_SERR))[0] = 0xFFFFFFFF;
-        ((volatile uint32_t*)(regs + PORT_IS))[0] = 0xFFFFFFFF;
+        pci_bar_write32(abar, port_base + PORT_SERR, 0xFFFFFFFF);
+        pci_bar_write32(abar, port_base + PORT_IS, 0xFFFFFFFF);
 
         ahci_start(port);
 
@@ -356,7 +357,7 @@ static const struct pci_driver_ops ahci_driver_ops = {
 };
 
 static const struct pci_driver_id ahci_ids[] = {
-    PCI_DEVICE(0x8086, 0x2922), // Intel ICH9 AHCI
+    PCI_DEVICE_SPECIFIC(0x8086, 0x2922), // Intel ICH9 AHCI
     PCI_DEVICE_END(),
 };
 

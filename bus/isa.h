@@ -3,6 +3,8 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <core/mmio.h>
+#include <core/pmio.h>
 #include <ireq/dispatch.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -17,20 +19,6 @@ enum {
 enum {
     ISA_DRIVER_GENERIC,
     ISA_DRIVER_PROBING, // probe-only driver
-};
-
-struct isa_resource_mmio {
-    volatile uint8_t* virt8;
-    volatile uint16_t* virt16;
-    volatile uint32_t* virt32;
-    size_t length;
-};
-
-struct isa_resource_pmio {
-    volatile uint8_t* virt8;
-    volatile uint16_t* virt16;
-    uintptr_t pmio;
-    size_t length;
 };
 
 struct isa_resource_dma {
@@ -48,8 +36,8 @@ struct isa_resource_irq {
 struct isa_resource {
     unsigned type;
     union {
-        struct isa_resource_mmio mmio;
-        struct isa_resource_pmio pmio;
+        struct mmio_region mmio;
+        struct pmio_region pmio;
         struct isa_resource_dma dma;
         struct isa_resource_irq irq;
     };
@@ -86,11 +74,6 @@ struct isa_driver {
     unsigned type;
 };
 
-extern uint8_t arch_isa_read8(struct isa_resource_pmio* restrict pmio, void* ctxdata, uintptr_t port);
-extern uint16_t arch_isa_read16(struct isa_resource_pmio* restrict pmio, void* ctxdata, uintptr_t port);
-extern void arch_isa_write8(struct isa_resource_pmio* restrict pmio, void* ctxdata, uintptr_t port, uint8_t value);
-extern void arch_isa_write16(struct isa_resource_pmio* restrict pmio, void* ctxdata, uintptr_t port, uint16_t value);
-
 extern int register_isa_device(struct isa_device* restrict device);
 extern int unregister_isa_device(struct isa_device* restrict device);
 
@@ -102,14 +85,16 @@ extern struct isa_resource* isa_get_resource(struct isa_device* restrict device,
 extern int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_handler_type handler, void* ctxdata);
 extern void isa_release_irq(struct isa_device* restrict device, unsigned index);
 
-/// Resolves an ISA IRQ number to a GSI and trigger/polarity characteristics;
+/// Resolves an ISA IRQ number to a GSI and trigger/polarity characteristics.
 /// Applies any ACPI MADT interrupt source overrides; defaults to identity
-/// mapping GSI numbers to IRQ lines edge-triggered, active-high if no override exists
+/// mapping GSI numbers to IRQ lines edge-triggered, active-high if no override exists.
 extern void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsigned* out_polarity);
 
-extern uint8_t isa_read8(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port);
-extern uint16_t isa_read16(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port);
-extern void isa_write8(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port, uint8_t value);
-extern void isa_write16(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port, uint16_t value);
+extern uint8_t isa_read8(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset);
+extern uint16_t isa_read16(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset);
+extern uint32_t isa_read32(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset);
+extern void isa_write8(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset, uint8_t value);
+extern void isa_write16(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset, uint16_t value);
+extern void isa_write32(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset, uint32_t value);
 
 #endif /* BAF7322B_9BD5_4ECE_B20C_153EF98E138C */

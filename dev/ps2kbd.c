@@ -6,23 +6,23 @@
 #include <init/initcall.h>
 #include <lib/string.h>
 
-static void i8042_wait_write(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio)
+static void i8042_wait_write(struct isa_device* restrict device, struct pmio_region* restrict region)
 {
     unsigned long i;
 
     for(i = 0; i < 65536; ++i) {
-        if(0 == (isa_read8(device, pmio, 0) & 0x02)) {
+        if(0 == (isa_read8(device, region, 0) & 0x02)) {
             return;
         }
     }
 }
 
-static void i8042_wait_read(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio)
+static void i8042_wait_read(struct isa_device* restrict device, struct pmio_region* restrict region)
 {
     unsigned long i;
 
     for(i = 0; i < 65536; ++i) {
-        if(isa_read8(device, pmio, 0) & 0x01) {
+        if(isa_read8(device, region, 0) & 0x01) {
             return;
         }
     }
