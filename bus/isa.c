@@ -4,6 +4,7 @@
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
+#include <core/pmio.h>
 #include <init/initcall.h>
 #include <ireq/intctl.h>
 #include <lib/string.h>
@@ -270,24 +271,34 @@ void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsig
     }
 }
 
-uint8_t isa_read8(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port)
+uint8_t isa_read8(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset)
 {
-    return arch_isa_read8(pmio, device->priv.pmio_ctxdata, port);
+    return arch_pmio_read8(region, device->priv.pmio_ctxdata, offset);
 }
 
-uint16_t isa_read16(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port)
+uint16_t isa_read16(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset)
 {
-    return arch_isa_read16(pmio, device->priv.pmio_ctxdata, port);
+    return arch_pmio_read16(region, device->priv.pmio_ctxdata, offset);
 }
 
-void isa_write8(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port, uint8_t value)
+uint32_t isa_read32(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset)
 {
-    arch_isa_write8(pmio, device->priv.pmio_ctxdata, port, value);
+    return arch_pmio_read32(region, device->priv.pmio_ctxdata, offset);
 }
 
-void isa_write16(struct isa_device* restrict device, struct isa_resource_pmio* restrict pmio, uintptr_t port, uint16_t value)
+void isa_write8(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset, uint8_t value)
 {
-    arch_isa_write16(pmio, device->priv.pmio_ctxdata, port, value);
+    arch_pmio_write8(region, device->priv.pmio_ctxdata, offset, value);
+}
+
+void isa_write16(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset, uint16_t value)
+{
+    arch_pmio_write16(region, device->priv.pmio_ctxdata, offset, value);
+}
+
+void isa_write32(struct isa_device* restrict device, struct pmio_region* restrict region, uintptr_t offset, uint32_t value)
+{
+    arch_pmio_write32(region, device->priv.pmio_ctxdata, offset, value);
 }
 
 define_initcall(isa, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_MIDDLE)

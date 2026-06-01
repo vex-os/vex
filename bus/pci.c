@@ -25,10 +25,20 @@ static void try_bind_device(struct pci_device* restrict device, struct pci_drive
     }
 
     for(id = driver->ids; id->vendor_id < 0xFFFF || id->device_id < 0xFFFF; id += 1) {
-        if(id->vendor_id == device->vendor_id && id->device_id == device->device_id) {
+        bool match;
+
+        if(id->vendor_id == 0) {
+            match = id->class_id == device->class_id && id->subclass_id == device->subclass_id;
+        }
+        else {
+            match = id->vendor_id == device->vendor_id && id->device_id == device->device_id;
+        }
+
+        if(match) {
             if(0 == driver->ops->probe(device, id)) {
                 device->priv.driver = driver;
             }
+            return;
         }
     }
 }
@@ -39,6 +49,7 @@ static void rescan_bus(struct pci_bus* restrict bus)
     unsigned function_idx, function_max;
     unsigned vendor_id, device_id;
     unsigned header_value;
+    unsigned class_id, subclass_id;
     struct pci_device* device;
     struct pci_driver* driver;
 
@@ -72,14 +83,20 @@ static void rescan_bus(struct pci_bus* restrict bus)
                 continue; // allocation failed
             }
 
+            class_id = bus->ops->read8(bus, device_idx, function_idx, PCI_CFG_CLASS);
+            subclass_id = bus->ops->read8(bus, device_idx, function_idx, PCI_CFG_SUBCLASS);
+
             device->priv.next = nullptr;
             device->priv.driver = nullptr;
             device->priv.ireq_number = UINT_MAX;
+            device->priv.bars_mapped = 0;
             device->bus = bus;
             device->index = device_idx;
             device->function = function_idx;
             device->vendor_id = vendor_id;
             device->device_id = device_id;
+            device->class_id = class_id;
+            device->subclass_id = subclass_id;
             device->ctxdata = nullptr;
 
             device->priv.next = bus->priv.devices;
@@ -91,6 +108,73 @@ static void rescan_bus(struct pci_bus* restrict bus)
                 try_bind_device(device, driver);
             }
         }
+    }
+}
+
+static uintptr_t get_bar_address(struct pci_device* restrict device, unsigned bar_index)
+{
+    uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
+    uint32_t raw = pci_cfg_read32(device, offset);
+    uint64_t raw_higher;
+
+    if(raw & PCI_BAR_IO) {
+        return (uintptr_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_IO));
+    }
+
+    if((raw & PCI_BAR_MEM_TYPE_MASK) == PCI_BAR_MEM_64BIT) {
+        raw_higher = pci_cfg_read32(device, offset + 4);
+
+        return (uintptr_t)((raw_higher << 32) | (uint64_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_MEM)));
+    }
+
+    return (uintptr_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_MEM));
+}
+
+static size_t get_bar_length(struct pci_device* restrict device, unsigned bar_index)
+{
+    uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
+    uint32_t raw = pci_cfg_read32(device, offset);
+    uint32_t mask;
+
+    pci_cfg_write32(device, offset, UINT32_C(0xFFFFFFFF));
+    mask = pci_cfg_read32(device, offset);
+    pci_cfg_write32(device, offset, raw);
+
+    if(raw & PCI_BAR_IO) {
+        mask &= (uint32_t)(PCI_BAR_ADDR_MASK_IO);
+    }
+    else {
+        mask &= (uint32_t)(PCI_BAR_ADDR_MASK_MEM);
+    }
+
+    return (size_t)(~mask) + 1;
+}
+
+static void* bar_map_mmio(struct pci_device* restrict device, unsigned bar_index)
+{
+    uintptr_t phys, i;
+    size_t size;
+
+    phys = get_bar_address(device, bar_index);
+    size = get_bar_length(device, bar_index);
+
+    for(i = 0; i < size; i += PAGE_SIZE) {
+        vmm_map(&sys_pagemap, (uintptr_t)(phys_to_virt(phys + i)), phys + i, VPROT_RW | VPROT_NOCACHE);
+    }
+
+    return phys_to_virt(phys);
+}
+
+static void bar_unmap_mmio(struct pci_device* restrict device, unsigned bar_index)
+{
+    uintptr_t phys, i;
+    size_t size;
+
+    phys = get_bar_address(device, bar_index);
+    size = get_bar_length(device, bar_index);
+
+    for(i = 0; i < size; i += PAGE_SIZE) {
+        vmm_unmap(&sys_pagemap, (uintptr_t)(phys_to_virt(phys + i)));
     }
 }
 
@@ -218,26 +302,7 @@ int unregister_pci_driver(struct pci_driver* restrict driver)
     return 0;
 }
 
-struct pci_device* pci_find(unsigned vendor_id, unsigned device_id, unsigned index)
-{
-    struct pci_bus* bus;
-    struct pci_device* device;
-    unsigned found = 0;
-
-    for(bus = bus_head; bus; bus = bus->priv.next) {
-        for(device = bus->priv.devices; device; device = device->priv.next) {
-            if(device->vendor_id == vendor_id && device->device_id == device_id) {
-                if(found == index)
-                    return device;
-                found += 1;
-            }
-        }
-    }
-
-    return nullptr;
-}
-
-struct pci_device* pci_find_raw(unsigned segment, unsigned bus, unsigned device, unsigned function)
+struct pci_device* pci_find(unsigned segment, unsigned bus, unsigned device, unsigned function)
 {
     struct pci_bus* it;
     struct pci_device* dev;
@@ -255,134 +320,171 @@ struct pci_device* pci_find_raw(unsigned segment, unsigned bus, unsigned device,
     return nullptr;
 }
 
-uint8_t pci_read8(struct pci_device* restrict device, uintptr_t offset)
+uint8_t pci_cfg_read8(struct pci_device* restrict device, uintptr_t offset)
 {
     return device->bus->ops->read8(device->bus, device->index, device->function, offset);
 }
 
-uint16_t pci_read16(struct pci_device* restrict device, uintptr_t offset)
+uint16_t pci_cfg_read16(struct pci_device* restrict device, uintptr_t offset)
 {
     return device->bus->ops->read16(device->bus, device->index, device->function, offset);
 }
 
-uint32_t pci_read32(struct pci_device* restrict device, uintptr_t offset)
+uint32_t pci_cfg_read32(struct pci_device* restrict device, uintptr_t offset)
 {
     return device->bus->ops->read32(device->bus, device->index, device->function, offset);
 }
 
-void pci_write8(struct pci_device* restrict device, uintptr_t offset, uint8_t value)
+void pci_cfg_write8(struct pci_device* restrict device, uintptr_t offset, uint8_t value)
 {
     device->bus->ops->write8(device->bus, device->index, device->function, offset, value);
 }
 
-void pci_write16(struct pci_device* restrict device, uintptr_t offset, uint16_t value)
+void pci_cfg_write16(struct pci_device* restrict device, uintptr_t offset, uint16_t value)
 {
     device->bus->ops->write16(device->bus, device->index, device->function, offset, value);
 }
 
-void pci_write32(struct pci_device* restrict device, uintptr_t offset, uint32_t value)
+void pci_cfg_write32(struct pci_device* restrict device, uintptr_t offset, uint32_t value)
 {
     device->bus->ops->write32(device->bus, device->index, device->function, offset, value);
 }
 
-bool pci_bar_is_io(struct pci_device* restrict device, unsigned bar_index)
+struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_index)
 {
-    uint32_t raw = pci_read32(device, PCI_CFG_BAR0 + bar_index * 4);
-    return (raw & PCI_BAR_IO) != 0;
-}
+    struct pci_bar* bar;
+    size_t size;
+    uint32_t raw;
+    void* virt;
 
-uintptr_t pci_bar_address(struct pci_device* restrict device, unsigned bar_index)
-{
-    uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
-    uint32_t raw = pci_read32(device, offset);
-    uint64_t raw_higher;
+    weak_kassert(bar_index < 6);
 
-    if(raw & PCI_BAR_IO) {
-        return (uintptr_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_IO));
+    if(device->priv.bars_mapped & (1U << bar_index)) {
+        return &device->priv.bars[bar_index];
     }
 
-    if((raw & PCI_BAR_MEM_TYPE_MASK) == PCI_BAR_MEM_64BIT) {
-        raw_higher = pci_read32(device, offset + 4);
-
-        return (uintptr_t)((raw_higher << 32) | (uint64_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_MEM)));
-    }
-
-    return (uintptr_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_MEM));
-}
-
-size_t pci_bar_size(struct pci_device* restrict device, unsigned bar_index)
-{
-    uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
-    uint32_t raw = pci_read32(device, offset);
-    uint32_t mask;
-
-    pci_write32(device, offset, UINT32_C(0xFFFFFFFF));
-    mask = pci_read32(device, offset);
-    pci_write32(device, offset, raw);
+    bar = &device->priv.bars[bar_index];
+    raw = pci_cfg_read32(device, PCI_CFG_BAR0 + bar_index * 4);
 
     if(raw & PCI_BAR_IO) {
-        mask &= (uint32_t)(PCI_BAR_ADDR_MASK_IO);
+        bar->type = PCI_BAR_TYPE_PMIO;
+        bar->pmio.base = raw & (uint32_t)(PCI_BAR_ADDR_MASK_IO);
+        bar->pmio.length = get_bar_length(device, bar_index);
+        bar->pmio_ctxdata = nullptr;
     }
     else {
-        mask &= (uint32_t)(PCI_BAR_ADDR_MASK_MEM);
+        bar->type = PCI_BAR_TYPE_MMIO;
+        size = get_bar_length(device, bar_index);
+        virt = bar_map_mmio(device, bar_index);
+        bar->mmio.virt8 = (volatile uint8_t*)(virt);
+        bar->mmio.virt16 = (volatile uint16_t*)(virt);
+        bar->mmio.virt32 = (volatile uint32_t*)(virt);
+        bar->mmio.virt64 = (volatile uint64_t*)(virt);
+        bar->mmio.length = size;
     }
 
-    return (size_t)(~mask) + 1;
-}
+    device->priv.bars_mapped |= (1U << bar_index);
 
-void* pci_bar_map(struct pci_device* restrict device, unsigned bar_index)
-{
-    uintptr_t phys, i;
-    size_t size;
-
-    if(pci_bar_is_io(device, bar_index)) {
-        return nullptr;
-    }
-
-    phys = pci_bar_address(device, bar_index);
-    size = pci_bar_size(device, bar_index);
-
-    for(i = 0; i < size; i += PAGE_SIZE) {
-        vmm_map(&sys_pagemap, (uintptr_t)(phys_to_virt(phys + i)), phys + i, VPROT_RW | VPROT_NOCACHE);
-    }
-
-    return phys_to_virt(phys);
+    return bar;
 }
 
 void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index)
 {
-    uintptr_t phys, i;
-    size_t size;
+    struct pci_bar* bar;
 
-    if(pci_bar_is_io(device, bar_index)) {
-        return;
-    }
+    weak_kassert(bar_index < 6);
 
-    phys = pci_bar_address(device, bar_index);
-    size = pci_bar_size(device, bar_index);
+    if(device->priv.bars_mapped && (1U << bar_index)) {
+        bar = &device->priv.bars[bar_index];
 
-    for(i = 0; i < size; i += PAGE_SIZE) {
-        vmm_unmap(&sys_pagemap, (uintptr_t)(phys_to_virt(phys + i)));
+        if(bar->type == PCI_BAR_TYPE_MMIO) {
+            bar_unmap_mmio(device, bar_index);
+        }
+
+        device->priv.bars_mapped &= ~(1U << bar_index);
     }
 }
 
-uint8_t pci_find_cap(struct pci_device* restrict device, uint8_t cap_id)
+uint8_t pci_bar_read8(struct pci_bar* restrict bar, uintptr_t offset)
+{
+    if(bar->type == PCI_BAR_TYPE_PMIO)
+        return arch_pmio_read8(&bar->pmio, bar->pmio_ctxdata, offset);
+    return bar->mmio.virt8[offset];
+}
+
+uint16_t pci_bar_read16(struct pci_bar* restrict bar, uintptr_t offset)
+{
+    if(bar->type == PCI_BAR_TYPE_PMIO)
+        return arch_pmio_read16(&bar->pmio, bar->pmio_ctxdata, offset);
+    return bar->mmio.virt16[offset / 2];
+}
+
+uint32_t pci_bar_read32(struct pci_bar* restrict bar, uintptr_t offset)
+{
+    if(bar->type == PCI_BAR_TYPE_PMIO)
+        return arch_pmio_read32(&bar->pmio, bar->pmio_ctxdata, offset);
+    return bar->mmio.virt32[offset / 4];
+}
+
+uint64_t pci_bar_read64(struct pci_bar* restrict bar, uintptr_t offset)
+{
+    return bar->mmio.virt64[offset / 8];
+}
+
+void pci_bar_write8(struct pci_bar* restrict bar, uintptr_t offset, uint8_t value)
+{
+    if(bar->type == PCI_BAR_TYPE_PMIO) {
+        arch_pmio_write8(&bar->pmio, bar->pmio_ctxdata, offset, value);
+    }
+    else {
+        bar->mmio.virt8[offset] = value;
+    }
+}
+
+void pci_bar_write16(struct pci_bar* restrict bar, uintptr_t offset, uint16_t value)
+{
+    if(bar->type == PCI_BAR_TYPE_PMIO) {
+        arch_pmio_write16(&bar->pmio, bar->pmio_ctxdata, offset, value);
+    }
+    else {
+        bar->mmio.virt16[offset / 2] = value;
+    }
+}
+
+void pci_bar_write32(struct pci_bar* restrict bar, uintptr_t offset, uint32_t value)
+{
+    if(bar->type == PCI_BAR_TYPE_PMIO) {
+        arch_pmio_write32(&bar->pmio, bar->pmio_ctxdata, offset, value);
+    }
+    else {
+        bar->mmio.virt32[offset / 4] = value;
+    }
+}
+
+void pci_bar_write64(struct pci_bar* restrict bar, uintptr_t offset, uint64_t value)
+{
+    weak_kassert(bar->type == PCI_BAR_TYPE_MMIO);
+
+    bar->mmio.virt64[offset / 8] = value;
+}
+
+uint8_t pci_get_cap(struct pci_device* restrict device, uint8_t cap_id)
 {
     uint16_t status;
     uint8_t offset;
 
-    status = pci_read16(device, PCI_CFG_STATUS);
+    status = pci_cfg_read16(device, PCI_CFG_STATUS);
 
     if(0 == (status & PCI_STS_CAP_LIST)) {
         return 0;
     }
 
-    offset = pci_read8(device, PCI_CFG_CAP_PTR) & 0xFC;
+    offset = pci_cfg_read8(device, PCI_CFG_CAP_PTR) & 0xFC;
 
     while(offset) {
-        if(pci_read8(device, offset) == cap_id)
+        if(pci_cfg_read8(device, offset) == cap_id)
             return offset;
-        offset = pci_read8(device, offset + 1) & 0xFC;
+        offset = pci_cfg_read8(device, offset + 1) & 0xFC;
     }
 
     return 0;
@@ -390,14 +492,14 @@ uint8_t pci_find_cap(struct pci_device* restrict device, uint8_t cap_id)
 
 void pci_enable_busmaster(struct pci_device* restrict device)
 {
-    uint16_t cmd = pci_read16(device, PCI_CFG_COMMAND);
-    pci_write16(device, PCI_CFG_COMMAND, cmd | PCI_CMD_BUS_MASTER);
+    uint16_t cmd = pci_cfg_read16(device, PCI_CFG_COMMAND);
+    pci_cfg_write16(device, PCI_CFG_COMMAND, cmd | PCI_CMD_BUS_MASTER);
 }
 
 void pci_disable_busmaster(struct pci_device* restrict device)
 {
-    uint16_t cmd = pci_read16(device, PCI_CFG_COMMAND);
-    pci_write16(device, PCI_CFG_COMMAND, cmd & ~(uint16_t)(PCI_CMD_BUS_MASTER));
+    uint16_t cmd = pci_cfg_read16(device, PCI_CFG_COMMAND);
+    pci_cfg_write16(device, PCI_CFG_COMMAND, cmd & ~(uint16_t)(PCI_CMD_BUS_MASTER));
 }
 
 int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handler, void* restrict ctxdata)
@@ -406,13 +508,13 @@ int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handle
     uint8_t int_pin, int_line;
     unsigned ireq_number;
 
-    int_pin = pci_read8(device, PCI_CFG_INT_PIN);
+    int_pin = pci_cfg_read8(device, PCI_CFG_INT_PIN);
 
     if(int_pin == 0) {
         return ENODEV; // device does not use INTx
     }
 
-    int_line = pci_read8(device, PCI_CFG_INT_LINE);
+    int_line = pci_cfg_read8(device, PCI_CFG_INT_LINE);
 
     if(int_line == 0xFF) {
         return ENODEV; // not routed by BIOS
@@ -448,7 +550,7 @@ void pci_release_irq(struct pci_device* restrict device)
         return;
     }
 
-    int_line = pci_read8(device, PCI_CFG_INT_LINE);
+    int_line = pci_cfg_read8(device, PCI_CFG_INT_LINE);
     controller = find_intctl(int_line);
 
     if(controller) {

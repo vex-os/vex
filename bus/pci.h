@@ -3,7 +3,10 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <core/mmio.h>
+#include <core/pmio.h>
 #include <ireq/dispatch.h>
+#include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -65,6 +68,20 @@
 
 #define PCI_STS_CAP_LIST 0x0010 ///< PCI status register bit indicating the capability list is present
 
+enum {
+    PCI_BAR_TYPE_MMIO,
+    PCI_BAR_TYPE_PMIO,
+};
+
+struct pci_bar {
+    unsigned type;
+    union {
+        struct mmio_region mmio;
+        struct pmio_region pmio;
+    };
+    void* pmio_ctxdata;
+};
+
 struct pci_bus;
 struct pci_bus_ops {
     uint8_t (*read8)(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset);
@@ -94,6 +111,8 @@ struct pci_device_private {
     struct pci_device* next;
     struct pci_driver* driver;
     unsigned ireq_number;
+    struct pci_bar bars[6];
+    unsigned bars_mapped; // bitmask, bit N set = bars[N] initialized
 };
 
 struct pci_driver;
@@ -104,12 +123,16 @@ struct pci_device {
     unsigned function;
     unsigned vendor_id;
     unsigned device_id;
+    unsigned class_id;
+    unsigned subclass_id;
     void* ctxdata;
 };
 
 struct pci_driver_id {
-    unsigned vendor_id;
+    unsigned vendor_id; ///< 0 = match by class/subclass instead of vendor+device
     unsigned device_id;
+    unsigned class_id;
+    unsigned subclass_id;
 };
 
 struct pci_driver_ops {
@@ -127,8 +150,29 @@ struct pci_driver {
     const struct pci_driver_id* ids;
 };
 
-#define PCI_DEVICE(vendor, device) ((struct pci_driver_id) { .vendor_id = (vendor), .device_id = (device) })
-#define PCI_DEVICE_END()           ((struct pci_driver_id) { .vendor_id = 0xFFFF, .device_id = 0xFFFF })
+#define PCI_DEVICE_CLASS(class_val, subclass_val) \
+    ((struct pci_driver_id) {                     \
+        .vendor_id = 0,                           \
+        .device_id = 0,                           \
+        .class_id = (class_val),                  \
+        .subclass_id = (subclass_val),            \
+    })
+
+#define PCI_DEVICE_SPECIFIC(vendor_val, device_val) \
+    ((struct pci_driver_id) {                       \
+        .vendor_id = (vendor_val),                  \
+        .device_id = (device_val),                  \
+        .class_id = 0,                              \
+        .subclass_id = 0,                           \
+    })
+
+#define PCI_DEVICE_END()         \
+    ((struct pci_driver_id) {    \
+        .vendor_id = UINT_MAX,   \
+        .device_id = UINT_MAX,   \
+        .class_id = UINT_MAX,    \
+        .subclass_id = UINT_MAX, \
+    })
 
 extern int register_pci_bus(struct pci_bus* restrict bus);
 extern int unregister_pci_bus(struct pci_bus* restrict bus);
@@ -136,26 +180,32 @@ extern int unregister_pci_bus(struct pci_bus* restrict bus);
 extern int register_pci_driver(struct pci_driver* restrict driver);
 extern int unregister_pci_driver(struct pci_driver* restrict driver);
 
-extern struct pci_device* pci_find(unsigned vendor_id, unsigned device_id, unsigned index) __nodiscard;
-extern struct pci_device* pci_find_raw(unsigned segment, unsigned bus, unsigned device, unsigned function) __nodiscard;
+extern struct pci_device* pci_find(unsigned segment, unsigned bus, unsigned device, unsigned function) __nodiscard;
 
-extern uint8_t pci_read8(struct pci_device* restrict device, uintptr_t offset);
-extern uint16_t pci_read16(struct pci_device* restrict device, uintptr_t offset);
-extern uint32_t pci_read32(struct pci_device* restrict device, uintptr_t offset);
+extern uint8_t pci_cfg_read8(struct pci_device* restrict device, uintptr_t offset);
+extern uint16_t pci_cfg_read16(struct pci_device* restrict device, uintptr_t offset);
+extern uint32_t pci_cfg_read32(struct pci_device* restrict device, uintptr_t offset);
 
-extern void pci_write8(struct pci_device* restrict device, uintptr_t offset, uint8_t value);
-extern void pci_write16(struct pci_device* restrict device, uintptr_t offset, uint16_t value);
-extern void pci_write32(struct pci_device* restrict device, uintptr_t offset, uint32_t value);
+extern void pci_cfg_write8(struct pci_device* restrict device, uintptr_t offset, uint8_t value);
+extern void pci_cfg_write16(struct pci_device* restrict device, uintptr_t offset, uint16_t value);
+extern void pci_cfg_write32(struct pci_device* restrict device, uintptr_t offset, uint32_t value);
 
-extern uintptr_t pci_bar_address(struct pci_device* restrict device, unsigned bar_index) __nodiscard;
-extern size_t pci_bar_size(struct pci_device* restrict device, unsigned bar_index) __nodiscard;
-extern bool pci_bar_is_io(struct pci_device* restrict device, unsigned bar_index) __nodiscard;
-extern void* pci_bar_map(struct pci_device* restrict device, unsigned bar_index) __nodiscard;
+extern struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_index) __nodiscard;
 extern void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index);
+
+extern uint8_t pci_bar_read8(struct pci_bar* restrict bar, uintptr_t offset);
+extern uint16_t pci_bar_read16(struct pci_bar* restrict bar, uintptr_t offset);
+extern uint32_t pci_bar_read32(struct pci_bar* restrict bar, uintptr_t offset);
+extern uint64_t pci_bar_read64(struct pci_bar* restrict bar, uintptr_t offset);
+
+extern void pci_bar_write8(struct pci_bar* restrict bar, uintptr_t offset, uint8_t value);
+extern void pci_bar_write16(struct pci_bar* restrict bar, uintptr_t offset, uint16_t value);
+extern void pci_bar_write32(struct pci_bar* restrict bar, uintptr_t offset, uint32_t value);
+extern void pci_bar_write64(struct pci_bar* restrict bar, uintptr_t offset, uint64_t value);
 
 /// Returns the config space offset of the capability with the given ID,
 /// or 0 if not found. Requires PCI_STS_CAP_LIST set in status register;
-extern uint8_t pci_find_cap(struct pci_device* restrict device, uint8_t cap_id) __nodiscard;
+extern uint8_t pci_get_cap(struct pci_device* restrict device, uint8_t cap_id) __nodiscard;
 
 extern void pci_enable_busmaster(struct pci_device* restrict device);
 extern void pci_disable_busmaster(struct pci_device* restrict device);

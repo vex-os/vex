@@ -5,7 +5,7 @@ arch/amd64/amd64/gdt.c
 arch/amd64/amd64/idt.c
 arch/amd64/amd64/idts.S
 arch/amd64/amd64/ioapic.c
-arch/amd64/amd64/isa.c
+arch/amd64/amd64/pmio.c
 arch/amd64/amd64/lapic.c
 arch/amd64/amd64/pci_cf8.c
 arch/amd64/amd64/picstub.c
