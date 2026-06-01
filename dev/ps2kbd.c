@@ -6,23 +6,23 @@
 #include <init/initcall.h>
 #include <lib/string.h>
 
-static void i8042_wait_write(struct isa_device* restrict device, struct pmio_region* restrict region)
+static void i8042_wait_write(struct pmio_region* restrict region)
 {
     unsigned long i;
 
     for(i = 0; i < 65536; ++i) {
-        if(0 == (isa_read8(device, region, 0) & 0x02)) {
+        if(0 == (pmio_read8(region, 0) & 0x02)) {
             return;
         }
     }
 }
 
-static void i8042_wait_read(struct isa_device* restrict device, struct pmio_region* restrict region)
+static void i8042_wait_read(struct pmio_region* restrict region)
 {
     unsigned long i;
 
     for(i = 0; i < 65536; ++i) {
-        if(isa_read8(device, region, 0) & 0x01) {
+        if(pmio_read8(region, 0) & 0x01) {
             return;
         }
     }
@@ -42,11 +42,11 @@ static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame,
         return;
     }
 
-    if(0 == (isa_read8(device, &cmd_res->pmio, 0) & 0x01)) {
+    if(0 == (pmio_read8(&cmd_res->pmio, 0) & 0x01)) {
         return; // Spurious interrupt, output buffer is empty
     }
 
-    scancode = isa_read8(device, &data_res->pmio, 0);
+    scancode = pmio_read8(&data_res->pmio, 0);
 
     if(scancode & 0x80) {
         pr_inform("ps2kbd: key up   scancode=0x%02X", (unsigned)(scancode & 0x7F));
@@ -75,35 +75,35 @@ static int ps2kbd_probe(struct isa_device* restrict device)
         return ENODEV;
     }
 
-    i8042_wait_write(device, &cmd_res->pmio);
-    isa_write8(device, &cmd_res->pmio, 0, 0x20);
+    i8042_wait_write(&cmd_res->pmio);
+    pmio_write8(&cmd_res->pmio, 0, 0x20);
 
-    i8042_wait_read(device, &cmd_res->pmio);
-    command_byte = isa_read8(device, &data_res->pmio, 0);
+    i8042_wait_read(&cmd_res->pmio);
+    command_byte = pmio_read8(&data_res->pmio, 0);
     command_byte |= 0x01;   // enable keyboard interrupt
     command_byte &= ~0x10U; // clear "disable keyboard" bit
 
-    i8042_wait_write(device, &cmd_res->pmio);
-    isa_write8(device, &cmd_res->pmio, 0, 0x60);
+    i8042_wait_write(&cmd_res->pmio);
+    pmio_write8(&cmd_res->pmio, 0, 0x60);
 
-    i8042_wait_write(device, &cmd_res->pmio);
-    isa_write8(device, &data_res->pmio, 0, command_byte);
+    i8042_wait_write(&cmd_res->pmio);
+    pmio_write8(&data_res->pmio, 0, command_byte);
 
     // Flush the output buffer; if the UEFI/firmware left stale
     // data in the buffer, its IRQ line is already asserted HIGH
     // and registering an edge-triggered IOAPIC entry at that point
     // means no new rising edge will ever fire, all subsequent
     // key presses will be silently lost
-    while(isa_read8(device, &cmd_res->pmio, 0) & 0x01) {
-        isa_read8(device, &data_res->pmio, 0);
+    while(pmio_read8(&cmd_res->pmio, 0) & 0x01) {
+        pmio_read8(&data_res->pmio, 0);
     }
 
     // Enable keyboard scanning; UEFI or a bootloader may leave
     // the keyboard in a scanning-disabled state;
-    i8042_wait_write(device, &cmd_res->pmio);
-    isa_write8(device, &data_res->pmio, 0, 0xF4);
-    i8042_wait_read(device, &cmd_res->pmio);
-    isa_read8(device, &data_res->pmio, 0); // discard ACK
+    i8042_wait_write(&cmd_res->pmio);
+    pmio_write8(&data_res->pmio, 0, 0xF4);
+    i8042_wait_read(&cmd_res->pmio);
+    pmio_read8(&data_res->pmio, 0); // discard ACK
 
     retval = isa_request_irq(device, 0, &ps2kbd_ireq, device);
 
