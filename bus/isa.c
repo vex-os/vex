@@ -68,7 +68,7 @@ static void try_bind_device(struct isa_device* restrict device, struct isa_drive
     }
 }
 
-int register_isa_device(struct isa_device* restrict device)
+int isa_device_register(struct isa_device* restrict device)
 {
     struct isa_device* it;
     struct isa_driver* driver;
@@ -89,7 +89,7 @@ int register_isa_device(struct isa_device* restrict device)
     return 0;
 }
 
-int unregister_isa_device(struct isa_device* restrict device)
+int isa_device_unregister(struct isa_device* restrict device)
 {
     struct isa_device* it;
     struct isa_device* prev = nullptr;
@@ -123,7 +123,7 @@ int unregister_isa_device(struct isa_device* restrict device)
     return 0;
 }
 
-int register_isa_driver(struct isa_driver* restrict driver)
+int isa_driver_register(struct isa_driver* restrict driver)
 {
     struct isa_driver* it;
     struct isa_device* device;
@@ -148,7 +148,7 @@ int register_isa_driver(struct isa_driver* restrict driver)
     return 0;
 }
 
-int unregister_isa_driver(struct isa_driver* restrict driver)
+int isa_driver_unregister(struct isa_driver* restrict driver)
 {
     struct isa_driver* it;
     struct isa_driver* prev = nullptr;
@@ -221,7 +221,7 @@ int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_han
         return ENODEV;
     }
 
-    ireq_number = register_ireq_handler(UINT_MAX, handler, ctxdata);
+    ireq_number = ireq_handler_register(UINT_MAX, handler, ctxdata);
 
     if(ireq_number == UINT_MAX) {
         return ENOMEM;
@@ -252,7 +252,7 @@ void isa_release_irq(struct isa_device* restrict device, unsigned index)
         intctl_mask(controller, res->irq.gsi);
     }
 
-    unregister_ireq_handler(res->irq.ireq_number);
+    ireq_handler_unregister(res->irq.ireq_number);
 
     res->irq.ireq_number = UINT_MAX;
 }

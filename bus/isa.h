@@ -73,11 +73,11 @@ struct isa_driver {
     unsigned type;
 };
 
-extern int register_isa_device(struct isa_device* restrict device);
-extern int unregister_isa_device(struct isa_device* restrict device);
+extern int isa_device_register(struct isa_device* restrict device);
+extern int isa_device_unregister(struct isa_device* restrict device);
 
-extern int register_isa_driver(struct isa_driver* restrict driver);
-extern int unregister_isa_driver(struct isa_driver* restrict driver);
+extern int isa_driver_register(struct isa_driver* restrict driver);
+extern int isa_driver_unregister(struct isa_driver* restrict driver);
 
 extern struct isa_resource* isa_get_resource(struct isa_device* restrict device, unsigned type, unsigned index) __nodiscard;
 

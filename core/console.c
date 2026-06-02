@@ -8,7 +8,7 @@
 static spinlock_type console_lock = SPINLOCK_INIT;
 static struct console_driver* console_head = nullptr;
 
-int register_console_driver(struct console_driver* restrict driver)
+int console_driver_register(struct console_driver* restrict driver)
 {
     struct console_driver* it;
 
@@ -56,7 +56,7 @@ int register_console_driver(struct console_driver* restrict driver)
     return 0;
 }
 
-int unregister_console_driver(struct console_driver* restrict driver)
+int console_driver_unregister(struct console_driver* restrict driver)
 {
     struct console_driver* it;
     struct console_driver* prev = nullptr;

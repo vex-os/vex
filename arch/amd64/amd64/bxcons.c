@@ -27,6 +27,6 @@ static struct console_driver bxcons_driver = {
 define_initcall(amd64_bxcons, INITCALL_STAGE_BSP_EARLY, INITCALL_ORDER_FIRST)
 {
     if(0xE9 == pmread8(0xE9)) {
-        register_console_driver(&bxcons_driver);
+        console_driver_register(&bxcons_driver);
     }
 }

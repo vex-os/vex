@@ -175,7 +175,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
             ioapic_write_rte(data, i, (struct rte_entry) { .masked = 1 });
         }
 
-        if(register_intctl(controller)) {
+        if(intctl_register(controller)) {
             panic("ioapic: failed to register interrupt controller");
         }
     }

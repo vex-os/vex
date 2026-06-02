@@ -1,14 +1,16 @@
 #include <arch/hart.h>
 #include <bus/pci.h>
-#include <time/delay.h>
+#include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <dev/ata.h>
-#include <dev/blkdev.h>
+#include <dev/block_device.h>
+#include <dev/block_namespace.h>
 #include <init/initcall.h>
 #include <lib/sprintf.h>
 #include <lib/string.h>
 #include <mm/malloc.h>
+#include <time/delay.h>
 
 // ATA register offsets from CMD base
 #define ATA_REG_DATA    0x00 ///< Data (16-bit)
@@ -43,8 +45,6 @@ struct ide_channel {
     size_t sector_cnt;
     size_t sector_sz;
 };
-
-static unsigned ide_dev_count = 0;
 
 static void ide_400ns(void)
 {
@@ -122,7 +122,7 @@ static void ide_setup_lba(struct ide_channel* restrict ch, uint64_t lba, uint8_t
     pmio_write8(&ch->cmd, ATA_REG_DEVICE, dev);
 }
 
-static int ide_op_read(struct blkdev* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+static int ide_op_read(struct block_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
     struct ide_channel* ch = device->ctxdata;
     uint8_t cmd;
@@ -147,21 +147,18 @@ static int ide_op_read(struct blkdev* restrict device, uintptr_t lba, size_t cou
         retval = ide_wait_drq(ch);
 
         if(retval) {
-            pr_error("ide: DRQ error on read lba=%llu status=0x%02X",
-                (unsigned long long)(lba + sector),
+            pr_error("ide: DRQ error on read lba=%llu status=0x%02X", (unsigned long long)(lba + sector),
                 (unsigned)(pmio_read8(&ch->ctrl, ATA_REG_ALTSTATUS)));
             return retval;
         }
 
-        pmio_read16_string(&ch->cmd, ATA_REG_DATA,
-            (uint16_t*)((uint8_t*)(buffer) + sector * ch->sector_sz),
-            ch->sector_sz / 2);
+        pmio_read16_string(&ch->cmd, ATA_REG_DATA, (uint16_t*)((uint8_t*)(buffer) + sector * ch->sector_sz), ch->sector_sz / 2);
     }
 
     return 0;
 }
 
-static int ide_op_write(struct blkdev* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
+static int ide_op_write(struct block_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
 {
     struct ide_channel* ch = device->ctxdata;
     uint8_t cmd;
@@ -186,14 +183,12 @@ static int ide_op_write(struct blkdev* restrict device, uintptr_t lba, size_t co
         retval = ide_wait_drq(ch);
 
         if(retval) {
-            pr_error("ide: DRQ error on write lba=%llu status=0x%02X",
-                (unsigned long long)(lba + sector),
+            pr_error("ide: DRQ error on write lba=%llu status=0x%02X", (unsigned long long)(lba + sector),
                 (unsigned)(pmio_read8(&ch->ctrl, ATA_REG_ALTSTATUS)));
             return retval;
         }
 
-        pmio_write16_string(&ch->cmd, ATA_REG_DATA,
-            (const uint16_t*)((const uint8_t*)(buffer) + sector * ch->sector_sz),
+        pmio_write16_string(&ch->cmd, ATA_REG_DATA, (const uint16_t*)((const uint8_t*)(buffer) + sector * ch->sector_sz),
             ch->sector_sz / 2);
 
         // flush write buffer to media
@@ -209,7 +204,7 @@ static int ide_op_write(struct blkdev* restrict device, uintptr_t lba, size_t co
     return 0;
 }
 
-static int ide_op_flush(struct blkdev* restrict device)
+static int ide_op_flush(struct block_device* restrict device)
 {
     struct ide_channel* ch = device->ctxdata;
     int retval;
@@ -226,7 +221,7 @@ static int ide_op_flush(struct blkdev* restrict device)
     return ide_wait_bsy(ch);
 }
 
-static const struct blkdev_ops ide_blkdev_ops = {
+static const struct block_device_ops ide_block_device_ops = {
     .read = &ide_op_read,
     .write = &ide_op_write,
     .flush = &ide_op_flush,
@@ -272,14 +267,11 @@ static bool ide_identify(struct ide_channel* restrict ch)
 
     ch->lba48 = ata_identify_has_lba48(identify);
     ch->sector_sz = ata_identify_logical_sector_size(identify);
-    ch->sector_cnt = ch->lba48
-        ? ata_identify_lba48_capacity(identify)
-        : ata_identify_lba28_capacity(identify);
+    ch->sector_cnt = ata_identify_sector_count(identify);
 
-    ata_identify_string(&identify[27], 20, model, sizeof(model));
+    ata_identify_string(&identify[ATA_IDENTIFY_MODEL_FIELD], ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
 
-    pr_inform("ide: found \"%s\" lba48=%d sectors=%zu sector_sz=%zu",
-        model, (int)(ch->lba48), ch->sector_cnt, ch->sector_sz);
+    pr_inform("ide: found \"%s\" lba48=%d sectors=%zu sector_sz=%zu", model, (int)(ch->lba48), ch->sector_cnt, ch->sector_sz);
 
     return true;
 }
@@ -287,7 +279,7 @@ static bool ide_identify(struct ide_channel* restrict ch)
 static void ide_probe_channel(struct pmio_region cmd, struct pmio_region ctrl, unsigned slave)
 {
     struct ide_channel* ch;
-    struct blkdev* device;
+    struct block_device* device;
 
     ch = kmalloc(sizeof(struct ide_channel));
 
@@ -306,23 +298,24 @@ static void ide_probe_channel(struct pmio_region cmd, struct pmio_region ctrl, u
         return;
     }
 
-    device = kmalloc(sizeof(struct blkdev));
+    device = kmalloc(sizeof(struct block_device));
 
     if(device == nullptr) {
         kfree(ch);
         return;
     }
 
-    memset(device, 0, sizeof(struct blkdev));
+    memset(device, 0, sizeof(struct block_device));
 
-    snprintf(device->identifier, sizeof(device->identifier), "ide:%u", ide_dev_count++);
+    snprintf(device->identifier, sizeof(device->identifier), "%s%u", block_namespace_ata->prefix,
+        block_namespace_next_id(block_namespace_ata));
 
-    device->ops = &ide_blkdev_ops;
-    device->sector_cnt = ch->sector_cnt;
-    device->sector_sz = ch->sector_sz;
+    device->ops = &ide_block_device_ops;
+    device->sector_count = ch->sector_cnt;
+    device->sector_size = ch->sector_sz;
     device->ctxdata = ch;
 
-    if(register_blkdev(device) != 0) {
+    if(block_device_register(device)) {
         kfree(ch);
         kfree(device);
     }
@@ -339,7 +332,7 @@ static void ide_probe_pair(struct pmio_region cmd, struct pmio_region ctrl)
 
 static struct pmio_region ide_legacy_region(uintptr_t base)
 {
-    return (struct pmio_region){ .base = base, .length = 8, .ctxdata = nullptr };
+    return (struct pmio_region) { .base = base, .length = 8, .ctxdata = nullptr };
 }
 
 static int ide_probe(struct pci_device* restrict pci_dev, const struct pci_driver_id* restrict id)
@@ -426,5 +419,5 @@ static struct pci_driver ide_driver = {
 
 define_initcall(ide, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_MIDDLE)
 {
-    register_pci_driver(&ide_driver);
+    pci_driver_register(&ide_driver);
 }

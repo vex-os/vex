@@ -15,8 +15,8 @@
 
 #define MSR_GS_BASE 0xC0000101
 
-static unsigned int hart_count = 0;
-static unsigned int panic_ipi_vector = 0;
+static unsigned hart_count = 0;
+static unsigned panic_ipi_vector = 0;
 
 static void panic_halt_handler(unsigned number, struct interrupt_frame* restrict frame, void* restrict ctxdata)
 {
@@ -51,6 +51,6 @@ define_initcall(amd64_hart, INITCALL_STAGE_SMP_HART, INITCALL_ORDER_FIRST)
 
 define_initcall(amd64_panic_halt, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_MIDDLE)
 {
-    panic_ipi_vector = register_ireq_handler(UINT_MAX, &panic_halt_handler, nullptr);
+    panic_ipi_vector = ireq_handler_register(UINT_MAX, &panic_halt_handler, nullptr);
     panic_ipi_vector += ARCH_IREQ_BASE;
 }

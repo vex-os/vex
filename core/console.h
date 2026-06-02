@@ -28,8 +28,8 @@ struct console_driver {
     void* ctxdata;
 };
 
-extern int register_console_driver(struct console_driver* restrict driver);
-extern int unregister_console_driver(struct console_driver* restrict driver);
+extern int console_driver_register(struct console_driver* restrict driver);
+extern int console_driver_unregister(struct console_driver* restrict driver);
 extern void console_write(const void* restrict data, size_t size);
 extern void console_unblank_all(void);
 

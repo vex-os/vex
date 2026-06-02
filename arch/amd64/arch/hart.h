@@ -13,9 +13,9 @@ struct amd64_tss;
 
 struct hart_local {
     struct hart_local* self;
-    unsigned int index;
+    unsigned index;
     struct {
-        unsigned int lapic_id;
+        unsigned lapic_id;
         struct amd64_gdt* gdt;
         struct amd64_idt* idt;
         struct amd64_tss* tss;
