@@ -1,8 +1,11 @@
 #include <arch/hart.h>
 #include <bus/pci.h>
+#include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
-#include <dev/blkdev.h>
+#include <dev/ata.h>
+#include <dev/block_device.h>
+#include <dev/block_namespace.h>
 #include <init/initcall.h>
 #include <lib/sprintf.h>
 #include <lib/string.h>
@@ -37,12 +40,6 @@
 #define PORT_CMD_FR  (UINT32_C(1) << 14) ///< FIS Receive Running
 #define PORT_CMD_CR  (UINT32_C(1) << 15) ///< Command List Running
 #define PORT_TFD_ERR (UINT32_C(1) << 0)  ///< Task File Error
-
-#define FIS_TYPE_H2D          0x27                 ///< Register FIS - host to device
-#define ATA_CMD_READ_DMA_EXT  0x25                 ///< Read DMA Ext
-#define ATA_CMD_WRITE_DMA_EXT 0x35                 ///< Write DMA Ext
-#define ATA_CMD_FLUSH_EXT     0xEA                 ///< Flush Cache Ext
-#define ATA_SIG_ATA           UINT32_C(0x00000101) ///< SATA drive signature in port signature register
 
 #define MEM_CMDLIST  0x000 ///< [0x000..0x3FF] command list
 #define MEM_FIS      0x400 ///< [0x400..0x4FF] received FIS
@@ -128,7 +125,7 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
     cmdlist[6] = 0;
     cmdlist[7] = 0;
 
-    cmdtable[0] = FIS_TYPE_H2D;
+    cmdtable[0] = ATA_FIS_TYPE_H2D;
     cmdtable[1] = 0x80; // PM=1
     cmdtable[2] = cmd;
     cmdtable[3] = 0;
@@ -149,7 +146,7 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
     prdt[3] = 512 - 1; // 512 bytes per sector
 }
 
-static int ahci_op_read(struct blkdev* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+static int ahci_op_read(struct block_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
     struct ahci_port* port = device->ctxdata;
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + MEM_DATABUF);
@@ -183,7 +180,7 @@ static int ahci_op_read(struct blkdev* restrict device, uintptr_t lba, size_t co
     return 0;
 }
 
-static int ahci_op_write(struct blkdev* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
+static int ahci_op_write(struct block_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
 {
     struct ahci_port* port = device->ctxdata;
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + MEM_DATABUF);
@@ -217,7 +214,7 @@ static int ahci_op_write(struct blkdev* restrict device, uintptr_t lba, size_t c
     return 0;
 }
 
-static int ahci_op_flush(struct blkdev* restrict device)
+static int ahci_op_flush(struct block_device* restrict device)
 {
     struct ahci_port* port = device->ctxdata;
 
@@ -235,19 +232,17 @@ static int ahci_op_flush(struct blkdev* restrict device)
     return ahci_poll(port, 0);
 }
 
-static const struct blkdev_ops ahci_blkdev_ops = {
+static const struct block_device_ops ahci_block_device_ops = {
     .read = &ahci_op_read,
     .write = &ahci_op_write,
     .flush = &ahci_op_flush,
     .destroy = nullptr,
 };
 
-static unsigned ahci_dev_count = 0;
-
 static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driver_id* restrict id)
 {
     struct ahci_port* port;
-    struct blkdev* device;
+    struct block_device* device;
     struct pci_bar* abar;
     uint32_t pi, ghc, ssts;
     unsigned port_num;
@@ -285,7 +280,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
             continue; // Interface not active
         }
 
-        if(pci_bar_read32(abar, port_base + PORT_SIG) != ATA_SIG_ATA) {
+        if(pci_bar_read32(abar, port_base + PORT_SIG) != ATA_SIGNATURE_ATA) {
             continue; // Not an ATA drive
         }
 
@@ -323,7 +318,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
 
         ahci_start(port);
 
-        device = kmalloc(sizeof(struct blkdev));
+        device = kmalloc(sizeof(struct block_device));
 
         if(device == nullptr) {
             pdma_free(dma_phys, 1);
@@ -331,16 +326,17 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
             continue;
         }
 
-        memset(device, 0, sizeof(struct blkdev));
+        memset(device, 0, sizeof(struct block_device));
 
-        snprintf(device->identifier, sizeof(device->identifier), "ahci:%u", ahci_dev_count++);
+        snprintf(device->identifier, sizeof(device->identifier), "%s%u", block_namespace_ata->prefix,
+            block_namespace_next_id(block_namespace_ata));
 
-        device->ops = &ahci_blkdev_ops;
-        device->sector_cnt = 0; // unknown without IDENTIFY
-        device->sector_sz = 512;
+        device->ops = &ahci_block_device_ops;
+        device->sector_count = 0; // unknown without IDENTIFY
+        device->sector_size = 512;
         device->ctxdata = port;
 
-        return register_blkdev(device);
+        return block_device_register(device);
     }
 
     return ENODEV;
@@ -368,5 +364,5 @@ static struct pci_driver ahci_driver = {
 
 define_initcall(ahci, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_MIDDLE)
 {
-    register_pci_driver(&ahci_driver);
+    pci_driver_register(&ahci_driver);
 }

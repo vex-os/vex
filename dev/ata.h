@@ -43,6 +43,15 @@
 #define ATA_SIGNATURE_ATA   UINT32_C(0x00000101) ///< ATA disk signature
 #define ATA_SIGNATURE_ATAPI UINT32_C(0xEB140101) ///< ATAPI device signature
 
+#define ATA_FIS_TYPE_H2D UINT8_C(0x27) ///< Register FIS — host to device
+
+#define ATA_IDENTIFY_SERIAL_FIELD    10 ///< Word offset of serial number in IDENTIFY data
+#define ATA_IDENTIFY_SERIAL_NWORDS   10 ///< Serial number field width in words (20 chars)
+#define ATA_IDENTIFY_FIRMWARE_FIELD  23 ///< Word offset of firmware revision in IDENTIFY data
+#define ATA_IDENTIFY_FIRMWARE_NWORDS 4  ///< Firmware revision field width in words (8 chars)
+#define ATA_IDENTIFY_MODEL_FIELD     27 ///< Word offset of model string in IDENTIFY data
+#define ATA_IDENTIFY_MODEL_NWORDS    20 ///< Model string field width in words (40 chars)
+
 typedef uint16_t ata_identify_type[256];
 
 static __always_inline __nodiscard inline bool ata_identify_is_atapi(const ata_identify_type packet)
@@ -71,6 +80,13 @@ static __always_inline __nodiscard inline size_t ata_identify_lba28_capacity(con
     result |= (size_t)(LE16_to_host(packet[60])) << 0;
     result |= (size_t)(LE16_to_host(packet[61])) << 16;
     return result;
+}
+
+static __always_inline __nodiscard inline size_t ata_identify_sector_count(const ata_identify_type packet)
+{
+    if(ata_identify_has_lba48(packet))
+        return ata_identify_lba48_capacity(packet);
+    return ata_identify_lba28_capacity(packet);
 }
 
 static __always_inline __nodiscard inline size_t ata_identify_logical_sector_size(const ata_identify_type packet)

@@ -134,5 +134,5 @@ static struct isa_driver ps2kbd_driver = {
 
 define_initcall(ps2kbd, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_EARLY)
 {
-    register_isa_driver(&ps2kbd_driver);
+    isa_driver_register(&ps2kbd_driver);
 }

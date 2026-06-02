@@ -173,11 +173,11 @@ struct pci_driver {
         .subclass_id = UINT_MAX, \
     })
 
-extern int register_pci_bus(struct pci_bus* restrict bus);
-extern int unregister_pci_bus(struct pci_bus* restrict bus);
+extern int pci_bus_register(struct pci_bus* restrict bus);
+extern int pci_bus_unregister(struct pci_bus* restrict bus);
 
-extern int register_pci_driver(struct pci_driver* restrict driver);
-extern int unregister_pci_driver(struct pci_driver* restrict driver);
+extern int pci_driver_register(struct pci_driver* restrict driver);
+extern int pci_driver_unregister(struct pci_driver* restrict driver);
 
 extern struct pci_device* pci_find(unsigned segment, unsigned bus, unsigned device, unsigned function) __nodiscard;
 

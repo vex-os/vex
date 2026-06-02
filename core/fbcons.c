@@ -494,7 +494,7 @@ define_initcall(fbcons, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_LAST)
 
                 do_clear();
 
-                register_console_driver(&fbcons_driver);
+                console_driver_register(&fbcons_driver);
 
                 return;
             }

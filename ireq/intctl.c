@@ -5,7 +5,7 @@
 
 static struct intctl* intctl_head = nullptr;
 
-int register_intctl(struct intctl* restrict controller)
+int intctl_register(struct intctl* restrict controller)
 {
     size_t gsi_base;
     size_t gsi_count;
