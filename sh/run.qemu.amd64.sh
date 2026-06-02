@@ -12,9 +12,18 @@ else
     QEMU_EXECUTABLE=qemu-system-x86_64
 fi
 
+if test -f "/proc/sys/fs/binfmt_misc/WSLInterop"; then
+    CDROM_PATH=$(wslpath -a -w test.iso)
+else
+    CDROM_PATH=test.iso
+fi
+
 qargs=
 qargs="${qargs} -bios ${UEFI_PATH}"
 qargs="${qargs} -drive format=raw,file=${IMAGE_PATH}"
+qargs="${qargs} -drive format=raw,file=${CDROM_PATH},media=cdrom,if=none,id=cdrom0"
+qargs="${qargs} -device ahci,id=ahci0"
+qargs="${qargs} -device ide-cd,drive=cdrom0,bus=ahci0.1"
 qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -machine type=q35"
 qargs="${qargs} -vga std"
