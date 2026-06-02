@@ -1,11 +1,24 @@
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <dev/block_device.h>
+#include <dev/block_namespace.h>
+#include <lib/sprintf.h>
 #include <lib/string.h>
 
 static struct block_device* block_device_head = nullptr;
 
-int block_device_register(struct block_device* restrict device)
+int block_device_register(struct block_device* restrict device, struct block_namespace* restrict namesp)
+{
+    if(device == nullptr || namesp == nullptr) {
+        return EINVAL;
+    }
+
+    snprintf(device->identifier, sizeof(device->identifier), "%s%u", namesp->prefix, block_namespace_next_id(namesp));
+
+    return block_device_register_custom(device);
+}
+
+int block_device_register_custom(struct block_device* restrict device)
 {
     struct block_device* it;
 
