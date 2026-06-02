@@ -13,12 +13,9 @@ else
 fi
 
 qargs=
-qargs="${qargs} -machine type=pc"
+qargs="${qargs} -machine type=q35,accel=kvm"
 qargs="${qargs} -bios ${UEFI_PATH}"
-qargs="${qargs} -drive id=bootdisk,format=raw,file=${IMAGE_PATH},if=none"
-qargs="${qargs} -device ide-hd,drive=bootdisk,bus=ide.1"
-qargs="${qargs} -drive id=idedisk,format=raw,file=ide_test.img,if=none"
-qargs="${qargs} -device ide-hd,drive=idedisk,bus=ide.0"
+qargs="${qargs} -drive format=raw,file=${IMAGE_PATH},if=none"
 qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -vga std"
 qargs="${qargs} -m 512M"
