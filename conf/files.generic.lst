@@ -15,6 +15,7 @@ core/version.c
 
 dev/ata.c
 dev/ata_ahci.c
+dev/atapi.c
 dev/blk_device.c
 dev/blk_name.c
 dev/ps2kbd.c
