@@ -3,6 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <core/errno.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -22,12 +23,15 @@ struct blk_device_private {
     unsigned name_iterator;
 };
 
+#define BLK_FLAG_PRESENT UINT32_C(0x00000001) ///< Media is present and ready
+
 struct blk_device {
     struct blk_device_private priv;
     const struct blk_device_ops* ops;
     char identifier[64];
     size_t sector_count;
     size_t sector_size;
+    unsigned flags;
     void* ctxdata;
 };
 
@@ -39,17 +43,23 @@ extern const struct blk_device* blk_device_find(const char* name) __nodiscard;
 static __always_inline inline int blk_device_read(const struct blk_device* restrict device, uintptr_t lba, size_t count,
     void* restrict buffer)
 {
+    if(0 == (device->flags & BLK_FLAG_PRESENT))
+        return ENODEV;
     return device->ops->read(device, lba, count, buffer);
 }
 
 static __always_inline inline int blk_device_write(const struct blk_device* restrict device, uintptr_t lba, size_t count,
     const void* restrict buffer)
 {
+    if(0 == (device->flags & BLK_FLAG_PRESENT))
+        return ENODEV;
     return device->ops->write(device, lba, count, buffer);
 }
 
 static __always_inline inline int blk_device_flush(const struct blk_device* restrict device)
 {
+    if(0 == (device->flags & BLK_FLAG_PRESENT))
+        return ENODEV;
     if(device->ops->flush)
         return device->ops->flush(device);
     return 0;

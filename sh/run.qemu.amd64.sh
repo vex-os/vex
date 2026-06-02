@@ -12,27 +12,20 @@ else
     QEMU_EXECUTABLE=qemu-system-x86_64
 fi
 
-if test -f "/proc/sys/fs/binfmt_misc/WSLInterop"; then
-    CDROM_PATH=$(wslpath -a -w test.iso)
-else
-    CDROM_PATH=test.iso
-fi
-
 qargs=
 qargs="${qargs} -bios ${UEFI_PATH}"
 qargs="${qargs} -drive format=raw,file=${IMAGE_PATH}"
-qargs="${qargs} -drive format=raw,file=${CDROM_PATH},media=cdrom,if=none,id=cdrom0"
-qargs="${qargs} -device ahci,id=ahci0"
-qargs="${qargs} -device ide-cd,drive=cdrom0,bus=ahci0.1"
 qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -machine type=q35"
 qargs="${qargs} -vga std"
 qargs="${qargs} -m 512M"
 qargs="${qargs} -smp 4"
 
-# only log stuff if argv[1] is verbose
-if test "${1}" = "verbose"; then
-    qargs="${qargs} -d cpu_reset,int -no-reboot -no-shutdown"
-fi
+for arg in "$@"; do
+    case "${arg}" in
+        slow)    qargs="${qargs} -icount shift=0,sleep=on" ;;
+        verbose) qargs="${qargs} -d cpu_reset,int -no-reboot -no-shutdown" ;;
+    esac
+done
 
 { ${QEMU_EXECUTABLE} ${qargs} 2>&1; printf "\n"; } | tee qemu.log
