@@ -53,15 +53,18 @@ unsigned block_namespace_size(const struct block_namespace* restrict namesp)
 
 define_initcall(block_namespace_predef, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_LATE)
 {
-    block_namespace_ata = block_namespace_query("ata");
-    block_namespace_atapi = block_namespace_query("atapi");
-    block_namespace_nvme = block_namespace_query("nvme");
-    block_namespace_scsi = block_namespace_query("scsi");
-    block_namespace_virtio = block_namespace_query("virtio");
-
+    block_namespace_ata = block_namespace_query("ada");
     strict_kassert_text(block_namespace_ata, "out of memory");
+
+    block_namespace_atapi = block_namespace_query("acd");
     strict_kassert_text(block_namespace_atapi, "out of memory");
+
+    block_namespace_nvme = block_namespace_query("nvd");
     strict_kassert_text(block_namespace_nvme, "out of memory");
+
+    block_namespace_scsi = block_namespace_query("scd");
     strict_kassert_text(block_namespace_scsi, "out of memory");
+
+    block_namespace_virtio = block_namespace_query("vrd");
     strict_kassert_text(block_namespace_virtio, "out of memory");
 }

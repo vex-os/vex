@@ -15,27 +15,11 @@
 #include <mm/pdma.h>
 
 #if 0
-
 // VIBECODE AHEAD VIBECODE AHEAD VIBECODE AHEAD VIBECODE AHEAD
 // SUPERVISED, BUT VIBECODE NONETHELESS
 // TODO: rewrite, make a proper wrapper around ATA commands
 
-#define HBA_GHC    0x04                ///< Global Host Control
-#define HBA_PI     0x0C                ///< Ports Implemented
-#define HBA_GHC_AE (UINT32_C(1) << 31) ///< AHCI Enable
-
 // Port register offsets from port base
-#define PORT_CLB   0x00                ///< Command List Base Address
-#define PORT_CLBU  0x04                ///< Command List Base Address Upper 32 bits
-#define PORT_FB    0x08                ///< FIS Base Address
-#define PORT_FBU   0x0C                ///< FIS Base Address Upper 32 bits
-#define PORT_IS    0x10                ///< Interrupt Status
-#define PORT_CMD   0x18                ///< Command and Status
-#define PORT_TFD   0x20                ///< Task File Data
-#define PORT_SIG   0x24                ///< Signature
-#define PORT_SSTS  0x28                ///< SATA Status (SCR0)
-#define PORT_SERR  0x30                ///< SATA Error (SCR1)
-#define PORT_CI    0x38                ///< Command Issue
 
 #define PORT_CMD_ST  (UINT32_C(1) << 0)  ///< Start
 #define PORT_CMD_FRE (UINT32_C(1) << 4)  ///< FIS Receive Enable
