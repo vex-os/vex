@@ -14,24 +14,50 @@
 #include <mm/page.h>
 #include <mm/pdma.h>
 
-#if 0
-// VIBECODE AHEAD VIBECODE AHEAD VIBECODE AHEAD VIBECODE AHEAD
-// SUPERVISED, BUT VIBECODE NONETHELESS
-// TODO: rewrite, make a proper wrapper around ATA commands
+#define HBA_CAP 0x00 ///< Host Capabilities
+#define HBA_GHC 0x04 ///< Global Host Control
+#define HBA_IS  0x08 ///< Interrupt Status (global)
+#define HBA_PI  0x0C ///< Ports Implemented
 
-// Port register offsets from port base
+#define HBA_GHC_AE UINT32_C(0x80000000) ///< AHCI Enable
+#define HBA_GHC_IE UINT32_C(0x00000002) ///< Interrupt Enable
 
-#define PORT_CMD_ST  (UINT32_C(1) << 0)  ///< Start
-#define PORT_CMD_FRE (UINT32_C(1) << 4)  ///< FIS Receive Enable
-#define PORT_CMD_FR  (UINT32_C(1) << 14) ///< FIS Receive Running
-#define PORT_CMD_CR  (UINT32_C(1) << 15) ///< Command List Running
-#define PORT_TFD_ERR (UINT32_C(1) << 0)  ///< Task File Error
+#define HBA_PORT_BASE 0x100 ///< Offset of port 0 registers
+#define HBA_PORT_SIZE 0x80  ///< Per-port register stride
 
-#define MEM_CMDLIST  0x000 ///< [0x000..0x3FF] command list
-#define MEM_FIS      0x400 ///< [0x400..0x4FF] received FIS
-#define MEM_CMDTABLE 0x500 ///< [0x500..0x57F] command table
-#define MEM_PRDT     0x580 ///< [0x580..0x58F] PRDT entry
-#define MEM_DATABUF  0x600 ///< [0x600..0x7FF] data buffer
+#define PORT_REG_CLB  0x00 ///< Command List Base Address
+#define PORT_REG_CLBU 0x04 ///< Command List Base Address Upper 32 bits
+#define PORT_REG_FB   0x08 ///< FIS Base Address
+#define PORT_REG_FBU  0x0C ///< FIS Base Address Upper 32 bits
+#define PORT_REG_IS   0x10 ///< Interrupt Status
+#define PORT_REG_IE   0x14 ///< Interrupt Enable
+#define PORT_REG_CMD  0x18 ///< Command and Status
+#define PORT_REG_TFD  0x20 ///< Task File Data
+#define PORT_REG_SIG  0x24 ///< Signature
+#define PORT_REG_SSTS 0x28 ///< SATA Status (SCR0)
+#define PORT_REG_SERR 0x30 ///< SATA Error (SCR1)
+#define PORT_REG_SACT 0x34 ///< SATA Active
+#define PORT_REG_CI   0x38 ///< Command Issue
+
+#define PORT_CMD_ST  UINT32_C(0x00000001) ///< Start
+#define PORT_CMD_FRE UINT32_C(0x00000010) ///< FIS Receive Enable
+#define PORT_CMD_FR  UINT32_C(0x00004000) ///< FIS Receive Running
+#define PORT_CMD_CR  UINT32_C(0x00008000) ///< Command List Running
+
+#define PORT_TFD_ERR UINT32_C(0x00000001) ///< Task File Error
+#define PORT_TFD_DRQ UINT32_C(0x00000008) ///< Data Request
+#define PORT_TFD_BSY UINT32_C(0x00000080) ///< Busy
+
+#define PORT_SSTS_DET_PRESENT 3 ///< Device detected, PHY communication established
+#define PORT_SSTS_IPM_ACTIVE  1 ///< Interface in active power state
+
+#define DMA_OFFSET_CMDLIST  0x000 ///< [0x000..0x3FF] command list (32 slots * 32 bytes)
+#define DMA_OFFSET_FIS      0x400 ///< [0x400..0x4FF] received FIS
+#define DMA_OFFSET_CMDTABLE 0x500 ///< [0x500..0x57F] command table
+#define DMA_OFFSET_PRDT     0x580 ///< [0x580..0x58F] PRDT entry
+#define DMA_OFFSET_DATABUF  0x600 ///< [0x600..0x7FF] data buffer (512 bytes)
+
+#define AHCI_POLL_TIMEOUT 1000000
 
 struct ahci_port {
     struct pci_bar* bar;
@@ -52,48 +78,57 @@ static __always_inline void ahci_register_write(struct ahci_port* restrict port,
 
 static void ahci_stop(struct ahci_port* restrict port)
 {
-    ahci_register_write(port, PORT_CMD, ahci_register_read(port, PORT_CMD) & ~PORT_CMD_ST);
+    ahci_register_write(port, PORT_REG_CMD, ahci_register_read(port, PORT_REG_CMD) & ~PORT_CMD_ST);
 
-    while(ahci_register_read(port, PORT_CMD) & PORT_CMD_CR) {
+    while(ahci_register_read(port, PORT_REG_CMD) & PORT_CMD_CR) {
         yield_hart();
     }
 
-    ahci_register_write(port, PORT_CMD, ahci_register_read(port, PORT_CMD) & ~PORT_CMD_FRE);
+    ahci_register_write(port, PORT_REG_CMD, ahci_register_read(port, PORT_REG_CMD) & ~PORT_CMD_FRE);
 
-    while(ahci_register_read(port, PORT_CMD) & PORT_CMD_FR) {
+    while(ahci_register_read(port, PORT_REG_CMD) & PORT_CMD_FR) {
         yield_hart();
     }
 }
 
 static void ahci_start(struct ahci_port* restrict port)
 {
-    ahci_register_write(port, PORT_CMD, ahci_register_read(port, PORT_CMD) | PORT_CMD_FRE);
-    ahci_register_write(port, PORT_CMD, ahci_register_read(port, PORT_CMD) | PORT_CMD_ST);
+    ahci_register_write(port, PORT_REG_CMD, ahci_register_read(port, PORT_REG_CMD) | PORT_CMD_FRE);
+    ahci_register_write(port, PORT_REG_CMD, ahci_register_read(port, PORT_REG_CMD) | PORT_CMD_ST);
 }
 
 static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
 {
-    while(ahci_register_read(port, PORT_CI) & 1) {
-        if(ahci_register_read(port, PORT_TFD) & PORT_TFD_ERR) {
-            pr_error("ahci: error at lba %llu (tfd=%08X)", (unsigned long long)(lba), ahci_register_read(port, PORT_TFD));
+    unsigned timeout = AHCI_POLL_TIMEOUT;
+
+    while(ahci_register_read(port, PORT_REG_CI) & 1) {
+        if(ahci_register_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
+            pr_error("ahci: error at lba %llu (tfd=%08X)", (unsigned long long)(lba), ahci_register_read(port, PORT_REG_TFD));
             return EIO;
         }
+
+        if(0 == timeout--) {
+            pr_error("ahci: timeout at lba %llu", (unsigned long long)(lba));
+            return EIO;
+        }
+
+        yield_hart();
     }
 
     return 0;
 }
 
-static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cmd, bool write)
+static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cmd, uint16_t count, bool write)
 {
-    volatile uint32_t* cmdlist = (volatile uint32_t*)(port->dma_virt + MEM_CMDLIST);
-    volatile uint8_t* cmdtable = (volatile uint8_t*)(port->dma_virt + MEM_CMDTABLE);
-    volatile uint32_t* prdt = (volatile uint32_t*)(port->dma_virt + MEM_PRDT);
-    uintptr_t cmdtable_phys = port->dma_phys + MEM_CMDTABLE;
-    uintptr_t buffer_phys = port->dma_phys + MEM_DATABUF;
+    volatile uint32_t* cmdlist = (volatile uint32_t*)(port->dma_virt + DMA_OFFSET_CMDLIST);
+    volatile uint8_t* cmdtable = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
+    volatile uint32_t* prdt = (volatile uint32_t*)(port->dma_virt + DMA_OFFSET_PRDT);
+    uintptr_t cmdtable_phys = port->dma_phys + DMA_OFFSET_CMDTABLE;
+    uintptr_t buffer_phys = port->dma_phys + DMA_OFFSET_DATABUF;
     size_t i;
 
     for(i = 0; i < 0x90; ++i) {
-        cmdtable[i] = 0; // zero out command table
+        cmdtable[i] = 0;
     }
 
     if(write) {
@@ -103,7 +138,7 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
         cmdlist[0] = (UINT32_C(1) << 16) | 5; // PRDTL=1, W=0, CFL=5
     }
 
-    cmdlist[1] = 0; // no flags
+    cmdlist[1] = 0;
     cmdlist[2] = (uint32_t)(cmdtable_phys);
     cmdlist[3] = (uint32_t)(cmdtable_phys >> 32);
     cmdlist[4] = 0;
@@ -123,19 +158,51 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
     cmdtable[9] = (uint8_t)(lba >> 32);
     cmdtable[10] = (uint8_t)(lba >> 40);
     cmdtable[11] = 0;
-    cmdtable[12] = 1; // sector count
-    cmdtable[13] = 0;
+    cmdtable[12] = (uint8_t)(count >> 0);
+    cmdtable[13] = (uint8_t)(count >> 8);
 
     prdt[0] = (uint32_t)(buffer_phys);
     prdt[1] = (uint32_t)(buffer_phys >> 32);
     prdt[2] = 0;
-    prdt[3] = 512 - 1; // 512 bytes per sector
+    prdt[3] = 512 - 1;
+}
+
+static int ahci_issue(struct ahci_port* restrict port, uintptr_t lba)
+{
+    ahci_register_write(port, PORT_REG_SERR, 0xFFFFFFFF);
+    ahci_register_write(port, PORT_REG_IS, 0xFFFFFFFF);
+
+    while(ahci_register_read(port, PORT_REG_TFD) & (PORT_TFD_BSY | PORT_TFD_DRQ)) {
+        yield_hart();
+    }
+
+    ahci_register_write(port, PORT_REG_CI, 1);
+
+    return ahci_poll(port, lba);
+}
+
+static int ahci_identify(struct ahci_port* restrict port, ata_identify_type identify)
+{
+    volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
+    int retval;
+
+    memset((void*)(databuf), 0, 512);
+    ahci_setup(port, 0, ATA_CMD_IDENTIFY, 0, false);
+
+    retval = ahci_issue(port, 0);
+
+    if(retval) {
+        return retval;
+    }
+
+    memcpy(identify, (const void*)(databuf), sizeof(ata_identify_type));
+    return 0;
 }
 
 static int ahci_op_read(struct block_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
     struct ahci_port* port = device->ctxdata;
-    volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + MEM_DATABUF);
+    volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
     uintptr_t current_lba;
     size_t sector;
     int retval;
@@ -143,18 +210,9 @@ static int ahci_op_read(struct block_device* restrict device, uintptr_t lba, siz
     for(sector = 0; sector < count; sector += 1) {
         current_lba = lba + sector;
 
-        ahci_setup(port, current_lba, ATA_CMD_READ_DMA_EXT, false);
+        ahci_setup(port, current_lba, ATA_CMD_READ_DMA_EXT, 1, false);
 
-        ahci_register_write(port, PORT_SERR, 0xFFFFFFFF);
-        ahci_register_write(port, PORT_IS, 0xFFFFFFFF);
-
-        while(ahci_register_read(port, PORT_TFD) & (UINT32_C(1) << 7 | UINT32_C(1) << 3)) {
-            yield_hart();
-        }
-
-        ahci_register_write(port, PORT_CI, 1);
-
-        retval = ahci_poll(port, current_lba);
+        retval = ahci_issue(port, current_lba);
 
         if(retval) {
             return retval;
@@ -169,7 +227,7 @@ static int ahci_op_read(struct block_device* restrict device, uintptr_t lba, siz
 static int ahci_op_write(struct block_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
 {
     struct ahci_port* port = device->ctxdata;
-    volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + MEM_DATABUF);
+    volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
     uintptr_t current_lba;
     size_t sector;
     int retval;
@@ -179,18 +237,9 @@ static int ahci_op_write(struct block_device* restrict device, uintptr_t lba, si
 
         memcpy((uint8_t*)(databuf), (const uint8_t*)(buffer) + sector * 512, 512);
 
-        ahci_setup(port, current_lba, ATA_CMD_WRITE_DMA_EXT, true);
+        ahci_setup(port, current_lba, ATA_CMD_WRITE_DMA_EXT, 1, true);
 
-        ahci_register_write(port, PORT_SERR, 0xFFFFFFFF);
-        ahci_register_write(port, PORT_IS, 0xFFFFFFFF);
-
-        while(ahci_register_read(port, PORT_TFD) & (UINT32_C(1) << 7 | UINT32_C(1) << 3)) {
-            yield_hart();
-        }
-
-        ahci_register_write(port, PORT_CI, 1);
-
-        retval = ahci_poll(port, current_lba);
+        retval = ahci_issue(port, current_lba);
 
         if(retval) {
             return retval;
@@ -204,18 +253,9 @@ static int ahci_op_flush(struct block_device* restrict device)
 {
     struct ahci_port* port = device->ctxdata;
 
-    ahci_setup(port, 0, ATA_CMD_FLUSH_EXT, false);
+    ahci_setup(port, 0, ATA_CMD_FLUSH_EXT, 0, false);
 
-    ahci_register_write(port, PORT_SERR, 0xFFFFFFFF);
-    ahci_register_write(port, PORT_IS, 0xFFFFFFFF);
-
-    while(ahci_register_read(port, PORT_TFD) & (UINT32_C(1) << 7 | UINT32_C(1) << 3)) {
-        yield_hart();
-    }
-
-    ahci_register_write(port, PORT_CI, 1);
-
-    return ahci_poll(port, 0);
+    return ahci_issue(port, 0);
 }
 
 static const struct block_device_ops ahci_block_device_ops = {
@@ -227,6 +267,7 @@ static const struct block_device_ops ahci_block_device_ops = {
 
 static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driver_id* restrict id)
 {
+    ata_identify_type identify;
     struct ahci_port* port;
     struct block_device* device;
     struct pci_bar* abar;
@@ -234,6 +275,10 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
     unsigned port_num;
     uintptr_t port_base, dma_phys;
     uint8_t* dma_virt;
+    int found = 0;
+    char model[41];
+
+    pci_enable_busmaster(pci_dev);
 
     abar = pci_bar_map(pci_dev, 5);
 
@@ -245,29 +290,34 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
     ghc = pci_bar_read32(abar, HBA_GHC);
 
     if(0 == (ghc & HBA_GHC_AE)) {
-        pci_bar_write32(abar, HBA_GHC, ghc | HBA_GHC_AE); // Ensure AHCI mode is enabled
+        pci_bar_write32(abar, HBA_GHC, ghc | HBA_GHC_AE);
     }
 
     pi = pci_bar_read32(abar, HBA_PI);
 
     for(port_num = 0; port_num < 32; port_num += 1) {
         if(0 == (pi & (UINT32_C(1) << port_num))) {
-            continue; // Port not implemented
+            continue;
         }
 
-        port_base = 0x100 + port_num * 0x80;
-        ssts = pci_bar_read32(abar, port_base + PORT_SSTS);
+        port_base = HBA_PORT_BASE + port_num * HBA_PORT_SIZE;
+        ssts = pci_bar_read32(abar, port_base + PORT_REG_SSTS);
 
-        if((ssts & 0x0F) != 3) {
-            continue; // No device detected
+        if((ssts & 0x0F) != PORT_SSTS_DET_PRESENT) {
+            continue;
         }
 
-        if(((ssts >> 8) & 0x0F) != 1) {
-            continue; // Interface not active
+        if(((ssts >> 8) & 0x0F) != PORT_SSTS_IPM_ACTIVE) {
+            continue;
         }
 
-        if(pci_bar_read32(abar, port_base + PORT_SIG) != ATA_SIGNATURE_ATA) {
-            continue; // Not an ATA drive
+        if(pci_bar_read32(abar, port_base + PORT_REG_SIG) == ATA_SIGNATURE_ATAPI) {
+            pr_info("ahci: port %u is ATAPI, skipping for now", port_num);
+            continue;
+        }
+
+        if(pci_bar_read32(abar, port_base + PORT_REG_SIG) != ATA_SIGNATURE_ATA) {
+            continue;
         }
 
         dma_phys = pdma_alloc(1);
@@ -278,14 +328,14 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         }
 
         dma_virt = phys_to_virt(dma_phys);
+        memset(dma_virt, 0, PAGE_SIZE);
+
         port = kmalloc(sizeof(struct ahci_port));
 
         if(port == nullptr) {
             pdma_free(dma_phys, 1);
             continue;
         }
-
-        memset(port, 0, sizeof(struct ahci_port));
 
         port->bar = abar;
         port->port_base = port_base;
@@ -294,19 +344,36 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
 
         ahci_stop(port);
 
-        pci_bar_write32(abar, port_base + PORT_CLB, (uint32_t)(dma_phys + MEM_CMDLIST));
-        pci_bar_write32(abar, port_base + PORT_CLBU, (uint32_t)((dma_phys + MEM_CMDLIST) >> 32));
-        pci_bar_write32(abar, port_base + PORT_FB, (uint32_t)(dma_phys + MEM_FIS));
-        pci_bar_write32(abar, port_base + PORT_FBU, (uint32_t)((dma_phys + MEM_FIS) >> 32));
+        pci_bar_write32(abar, port_base + PORT_REG_CLB, (uint32_t)(dma_phys + DMA_OFFSET_CMDLIST));
+        pci_bar_write32(abar, port_base + PORT_REG_CLBU, (uint32_t)((dma_phys + DMA_OFFSET_CMDLIST) >> 32));
+        pci_bar_write32(abar, port_base + PORT_REG_FB, (uint32_t)(dma_phys + DMA_OFFSET_FIS));
+        pci_bar_write32(abar, port_base + PORT_REG_FBU, (uint32_t)((dma_phys + DMA_OFFSET_FIS) >> 32));
 
-        pci_bar_write32(abar, port_base + PORT_SERR, 0xFFFFFFFF);
-        pci_bar_write32(abar, port_base + PORT_IS, 0xFFFFFFFF);
+        pci_bar_write32(abar, port_base + PORT_REG_SERR, 0xFFFFFFFF);
+        pci_bar_write32(abar, port_base + PORT_REG_IS, 0xFFFFFFFF);
 
         ahci_start(port);
+
+        if(ahci_identify(port, identify)) {
+            pr_error("ahci: identify failed on port %u", port_num);
+            ahci_stop(port);
+            pdma_free(dma_phys, 1);
+            kfree(port);
+            continue;
+        }
+
+        if(ata_identify_is_atapi(identify)) {
+            pr_info("ahci: port %u is ATAPI (via identify), skipping for now", port_num);
+            ahci_stop(port);
+            pdma_free(dma_phys, 1);
+            kfree(port);
+            continue;
+        }
 
         device = kmalloc(sizeof(struct block_device));
 
         if(device == nullptr) {
+            ahci_stop(port);
             pdma_free(dma_phys, 1);
             kfree(port);
             continue;
@@ -315,19 +382,30 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         memset(device, 0, sizeof(struct block_device));
 
         device->ops = &ahci_block_device_ops;
-        device->sector_count = 0; // unknown without IDENTIFY
-        device->sector_size = 512;
+        device->sector_count = ata_identify_sector_count(identify);
+        device->sector_size = ata_identify_logical_sector_size(identify);
         device->ctxdata = port;
 
-        return block_device_register(device, block_namespace_ata);
+        ata_identify_string(identify + ATA_IDENTIFY_MODEL_FIELD, ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
+        pr_info("ahci: port %u: %s (%zu sectors)", port_num, model, device->sector_count);
+
+        if(block_device_register(device, block_namespace_ata)) {
+            ahci_stop(port);
+            pdma_free(dma_phys, 1);
+            kfree(port);
+            kfree(device);
+            continue;
+        }
+
+        found += 1;
     }
 
-    return ENODEV;
+    return found ? 0 : ENODEV;
 }
 
 static void ahci_remove(struct pci_device* restrict pci_dev)
 {
-    // emoty
+    (void)(pci_dev);
 }
 
 static const struct pci_driver_ops ahci_driver_ops = {
@@ -336,6 +414,7 @@ static const struct pci_driver_ops ahci_driver_ops = {
 };
 
 static const struct pci_driver_id ahci_ids[] = {
+    PCI_DEVICE_CLASS(0x01, 0x06),        // Generic AHCI (class 01h, subclass 06h)
     PCI_DEVICE_SPECIFIC(0x8086, 0x2922), // Intel ICH9 AHCI
     PCI_DEVICE_END(),
 };
@@ -349,4 +428,3 @@ define_initcall(ahci, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_MIDDLE)
 {
     pci_driver_register(&ahci_driver);
 }
-#endif
