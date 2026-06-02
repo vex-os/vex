@@ -1,6 +1,7 @@
 #include <arch/hart.h>
 #include <bus/pci.h>
 #include <core/assert.h>
+#include <core/endian.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <dev/ata.h>
@@ -58,6 +59,42 @@
 #define DMA_OFFSET_DATABUF  0x600 ///< [0x600..0x7FF] data buffer (512 bytes)
 
 #define AHCI_POLL_TIMEOUT 1000000
+
+struct ahci_cmd_header {
+    uint16_t flags; // CFL:5, A:1, W:1, P:1, R:1, B:1, C:1, rsvd:1, PMP:4
+    uint16_t prdtl; // PRDT length in entries
+    uint32_t prdbc; // PRD byte count (filled by HBA after transfer)
+    uint32_t ctba;  // command table base address low
+    uint32_t ctbau; // command table base address upper
+    uint32_t reserved[4];
+} __packed;
+
+struct ata_fis_h2d {
+    uint8_t type;    // ATA_FIS_TYPE_H2D
+    uint8_t pm_port; // bit7 = C (new command), bits3:0 = port multiplier port
+    uint8_t command;
+    uint8_t features;
+    uint8_t lba0;
+    uint8_t lba1;
+    uint8_t lba2;
+    uint8_t device;
+    uint8_t lba3;
+    uint8_t lba4;
+    uint8_t lba5;
+    uint8_t features_ext;
+    uint8_t count_lo;
+    uint8_t count_hi;
+    uint8_t icc;
+    uint8_t control;
+    uint8_t reserved[4];
+} __packed;
+
+struct ahci_prdt_entry {
+    uint32_t dba;  // data base address low
+    uint32_t dbau; // data base address upper
+    uint32_t reserved;
+    uint32_t dbc; // bits30:0 = byte count - 1; bit31 = interrupt on completion
+} __packed;
 
 struct ahci_port {
     struct pci_bar* bar;
@@ -120,51 +157,41 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
 
 static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cmd, uint16_t count, bool write)
 {
-    volatile uint32_t* cmdlist = (volatile uint32_t*)(port->dma_virt + DMA_OFFSET_CMDLIST);
-    volatile uint8_t* cmdtable = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
-    volatile uint32_t* prdt = (volatile uint32_t*)(port->dma_virt + DMA_OFFSET_PRDT);
+    volatile struct ahci_cmd_header* header = (volatile struct ahci_cmd_header*)(port->dma_virt + DMA_OFFSET_CMDLIST);
+    volatile struct ata_fis_h2d* fis = (volatile struct ata_fis_h2d*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
+    volatile struct ahci_prdt_entry* prdt = (volatile struct ahci_prdt_entry*)(port->dma_virt + DMA_OFFSET_PRDT);
     uintptr_t cmdtable_phys = port->dma_phys + DMA_OFFSET_CMDTABLE;
     uintptr_t buffer_phys = port->dma_phys + DMA_OFFSET_DATABUF;
-    size_t i;
 
-    for(i = 0; i < 0x90; ++i) {
-        cmdtable[i] = 0;
-    }
+    memset((void*)(fis), 0, sizeof(struct ata_fis_h2d));
 
-    if(write) {
-        cmdlist[0] = (UINT32_C(1) << 16) | (UINT32_C(1) << 6) | 5; // PRDTL=1, W=1, CFL=5
-    }
-    else {
-        cmdlist[0] = (UINT32_C(1) << 16) | 5; // PRDTL=1, W=0, CFL=5
-    }
+    header->flags = host_to_LE16((write ? (UINT16_C(1) << 6) : 0) | 5); // W, CFL=5
+    header->prdtl = host_to_LE16(1);
+    header->prdbc = 0;
+    header->ctba = host_to_LE32((uint32_t)(cmdtable_phys));
+    header->ctbau = host_to_LE32((uint32_t)(cmdtable_phys >> 32));
+    header->reserved[0] = 0;
+    header->reserved[1] = 0;
+    header->reserved[2] = 0;
+    header->reserved[3] = 0;
 
-    cmdlist[1] = 0;
-    cmdlist[2] = (uint32_t)(cmdtable_phys);
-    cmdlist[3] = (uint32_t)(cmdtable_phys >> 32);
-    cmdlist[4] = 0;
-    cmdlist[5] = 0;
-    cmdlist[6] = 0;
-    cmdlist[7] = 0;
+    fis->type = ATA_FIS_TYPE_H2D;
+    fis->pm_port = 0x80; // C=1, new command
+    fis->command = cmd;
+    fis->device = ATA_DEVICE_LBA;
+    fis->lba0 = (uint8_t)(lba >> 0);
+    fis->lba1 = (uint8_t)(lba >> 8);
+    fis->lba2 = (uint8_t)(lba >> 16);
+    fis->lba3 = (uint8_t)(lba >> 24);
+    fis->lba4 = (uint8_t)(lba >> 32);
+    fis->lba5 = (uint8_t)(lba >> 40);
+    fis->count_lo = (uint8_t)(count >> 0);
+    fis->count_hi = (uint8_t)(count >> 8);
 
-    cmdtable[0] = ATA_FIS_TYPE_H2D;
-    cmdtable[1] = 0x80; // PM=1
-    cmdtable[2] = cmd;
-    cmdtable[3] = 0;
-    cmdtable[4] = (uint8_t)(lba >> 0);
-    cmdtable[5] = (uint8_t)(lba >> 8);
-    cmdtable[6] = (uint8_t)(lba >> 16);
-    cmdtable[7] = 0x40; // LBA mode
-    cmdtable[8] = (uint8_t)(lba >> 24);
-    cmdtable[9] = (uint8_t)(lba >> 32);
-    cmdtable[10] = (uint8_t)(lba >> 40);
-    cmdtable[11] = 0;
-    cmdtable[12] = (uint8_t)(count >> 0);
-    cmdtable[13] = (uint8_t)(count >> 8);
-
-    prdt[0] = (uint32_t)(buffer_phys);
-    prdt[1] = (uint32_t)(buffer_phys >> 32);
-    prdt[2] = 0;
-    prdt[3] = 512 - 1;
+    prdt->dba = host_to_LE32((uint32_t)(buffer_phys));
+    prdt->dbau = host_to_LE32((uint32_t)(buffer_phys >> 32));
+    prdt->reserved = 0;
+    prdt->dbc = host_to_LE32(512 - 1);
 }
 
 static int ahci_issue(struct ahci_port* restrict port, uintptr_t lba)
