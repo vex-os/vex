@@ -22,3 +22,6 @@ __pycache__/*
 ## Ignore stuff that QEMU and other scripts
 ## might emit during debugging sessions
 *.log
+
+## Ignore test disk images
+*.img

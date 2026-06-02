@@ -16,6 +16,7 @@ core/version.c
 dev/ahci.c
 dev/ata.c
 dev/blkdev.c
+dev/ide.c
 dev/ps2kbd.c
 
 ext/uacpi/default_handlers.c
