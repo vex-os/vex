@@ -27,7 +27,10 @@ struct block_device {
     void* ctxdata;
 };
 
-extern int block_device_register(struct block_device* restrict device);
+struct block_namespace;
+
+extern int block_device_register(struct block_device* restrict device, struct block_namespace* restrict namesp);
+extern int block_device_register_custom(struct block_device* restrict device);
 extern int block_device_unregister(struct block_device* restrict device);
 extern struct block_device* block_device_find(const char* name) __nodiscard;
 

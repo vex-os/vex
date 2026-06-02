@@ -22,7 +22,7 @@ extern struct block_namespace* block_namespace_nvme;
 extern struct block_namespace* block_namespace_scsi;
 extern struct block_namespace* block_namespace_virtio;
 
-extern struct block_namespace* block_namespace_init(const char* restrict prefix) __nodiscard;
+extern struct block_namespace* block_namespace_query(const char* restrict prefix) __nodiscard;
 extern unsigned block_namespace_next_id(struct block_namespace* restrict namesp) __nodiscard;
 extern unsigned block_namespace_size(const struct block_namespace* restrict namesp) __nodiscard;
 

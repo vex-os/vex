@@ -307,15 +307,12 @@ static void ide_probe_channel(struct pmio_region cmd, struct pmio_region ctrl, u
 
     memset(device, 0, sizeof(struct block_device));
 
-    snprintf(device->identifier, sizeof(device->identifier), "%s%u", block_namespace_ata->prefix,
-        block_namespace_next_id(block_namespace_ata));
-
     device->ops = &ide_block_device_ops;
     device->sector_count = ch->sector_cnt;
     device->sector_size = ch->sector_sz;
     device->ctxdata = ch;
 
-    if(block_device_register(device)) {
+    if(block_device_register(device, block_namespace_ata)) {
         kfree(ch);
         kfree(device);
     }

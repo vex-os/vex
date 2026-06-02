@@ -328,15 +328,12 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
 
         memset(device, 0, sizeof(struct block_device));
 
-        snprintf(device->identifier, sizeof(device->identifier), "%s%u", block_namespace_ata->prefix,
-            block_namespace_next_id(block_namespace_ata));
-
         device->ops = &ahci_block_device_ops;
         device->sector_count = 0; // unknown without IDENTIFY
         device->sector_size = 512;
         device->ctxdata = port;
 
-        return block_device_register(device);
+        return block_device_register(device, block_namespace_ata);
     }
 
     return ENODEV;
