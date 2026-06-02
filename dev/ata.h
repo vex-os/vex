@@ -21,11 +21,11 @@
 #define ATA_CMD_IDENTIFY_ATAPI 0xA1 ///< Identify Packet Device (ATAPI)
 #define ATA_CMD_PACKET         0xA0 ///< Issue ATAPI SCSI packet
 
-#define ATA_STATUS_ERR UINT8_C(0x01) ///< Error — check error register for details
-#define ATA_STATUS_DRQ UINT8_C(0x08) ///< Data Request — device ready to transfer
-#define ATA_STATUS_DF  UINT8_C(0x20) ///< Device Fault
-#define ATA_STATUS_RDY UINT8_C(0x40) ///< Device Ready
-#define ATA_STATUS_BSY UINT8_C(0x80) ///< Busy — no other bits valid while set
+#define ATA_STATUS_ERR  UINT8_C(0x01) ///< Error — check error register for details
+#define ATA_STATUS_DRQ  UINT8_C(0x08) ///< Data Request — device ready to transfer
+#define ATA_STATUS_DF   UINT8_C(0x20) ///< Device Fault
+#define ATA_STATUS_DRDY UINT8_C(0x40) ///< Device Ready
+#define ATA_STATUS_BSY  UINT8_C(0x80) ///< Busy — no other bits valid while set
 
 #define ATA_ERROR_ABRT UINT8_C(0x04) ///< Command aborted by device
 #define ATA_ERROR_IDNF UINT8_C(0x10) ///< Sector ID not found

@@ -145,6 +145,8 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
     device->priv.acpi_node = node;
     device->ctxdata = nullptr;
 
+    pr_debug("acpi_isa: device hid=%s resources=%u", device->identifier, context.num_resources);
+
     isa_device_register(device);
 
     uacpi_free_namespace_node_info(info);

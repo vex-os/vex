@@ -15,7 +15,7 @@ core/version.c
 
 dev/ata.c
 dev/ata_ahci.c
-dev/ata_pio.c
+dev/ata_ide.c
 dev/block_device.c
 dev/block_namespace.c
 dev/ps2kbd.c

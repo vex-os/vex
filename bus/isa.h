@@ -16,11 +16,6 @@ enum {
     ISA_RESOURCE_IRQ,
 };
 
-enum {
-    ISA_DRIVER_GENERIC,
-    ISA_DRIVER_PROBING, // probe-only driver
-};
-
 struct isa_resource_dma {
     uint8_t channel;
 };
@@ -70,7 +65,6 @@ struct isa_driver {
     struct isa_driver_private priv;
     const struct isa_driver_ops* ops;
     char identifier[64];
-    unsigned type;
 };
 
 extern int isa_device_register(struct isa_device* restrict device);
