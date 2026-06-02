@@ -35,9 +35,8 @@ static void try_bind_device(struct pci_device* restrict device, struct pci_drive
         }
 
         if(match) {
-            if(0 == driver->ops->probe(device, id)) {
+            if(0 == driver->ops->probe(device, id))
                 device->priv.driver = driver;
-            }
             return;
         }
     }

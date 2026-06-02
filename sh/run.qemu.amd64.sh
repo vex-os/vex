@@ -13,13 +13,13 @@ else
 fi
 
 qargs=
+qargs="${qargs} -machine type=pc"
 qargs="${qargs} -bios ${UEFI_PATH}"
-qargs="${qargs} -drive format=raw,file=${IMAGE_PATH}"
-qargs="${qargs} -device piix3-ide,id=ide"
+qargs="${qargs} -drive id=bootdisk,format=raw,file=${IMAGE_PATH},if=none"
+qargs="${qargs} -device ide-hd,drive=bootdisk,bus=ide.1"
 qargs="${qargs} -drive id=idedisk,format=raw,file=ide_test.img,if=none"
 qargs="${qargs} -device ide-hd,drive=idedisk,bus=ide.0"
 qargs="${qargs} -debugcon stdio"
-qargs="${qargs} -machine type=q35"
 qargs="${qargs} -vga std"
 qargs="${qargs} -m 512M"
 qargs="${qargs} -smp 2"

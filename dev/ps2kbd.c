@@ -129,7 +129,6 @@ static const struct isa_driver_ops ps2kbd_ops = {
 static struct isa_driver ps2kbd_driver = {
     .ops = &ps2kbd_ops,
     .identifier = "ps2kbd",
-    .type = ISA_DRIVER_GENERIC,
 };
 
 define_initcall(ps2kbd, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_EARLY)
