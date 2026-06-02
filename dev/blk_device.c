@@ -1,4 +1,3 @@
-#include <core/errno.h>
 #include <core/kprintf.h>
 #include <dev/blk_device.h>
 #include <dev/blk_name.h>
