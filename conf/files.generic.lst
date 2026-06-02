@@ -15,8 +15,8 @@ core/version.c
 
 dev/ata.c
 dev/ata_ahci.c
-dev/block_device.c
-dev/block_namespace.c
+dev/blk_device.c
+dev/blk_name.c
 dev/ps2kbd.c
 
 ext/uacpi/default_handlers.c

@@ -6,11 +6,17 @@
 #include <stddef.h>
 #include <stdint.h>
 
-struct pmio_region {
-    uintptr_t base;
-    size_t length;
+struct pmio_region_private {
     void* ctxdata;
 };
+
+struct pmio_region {
+    struct pmio_region_private priv;
+    uintptr_t base;
+    size_t length;
+};
+
+extern void pmio_region_setup(struct pmio_region* restrict region);
 
 extern uint8_t pmio_read8(const struct pmio_region* restrict pmio, uintptr_t offset);
 extern uint16_t pmio_read16(const struct pmio_region* restrict pmio, uintptr_t offset);

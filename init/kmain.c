@@ -5,7 +5,7 @@
 #include <core/cmdline.h>
 #include <core/kprintf.h>
 #include <core/version.h>
-#include <dev/block_device.h>
+#include <dev/blk_device.h>
 #include <init/initcall.h>
 #include <limine.h>
 #include <mm/malloc.h>
@@ -15,7 +15,7 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-static void dump_lba(struct block_device* restrict device, uintptr_t lba)
+static void dump_lba(const struct blk_device* restrict device, uintptr_t lba)
 {
     uint8_t* sector;
     unsigned i;
@@ -24,7 +24,7 @@ static void dump_lba(struct block_device* restrict device, uintptr_t lba)
         sector = kmalloc(device->sector_size);
         strict_kassert(sector);
 
-        if(0 == block_device_read(device, lba, 1, sector)) {
+        if(0 == blk_device_read(device, lba, 1, sector)) {
             pr_inform("%s LBA%llu:", device->identifier, (unsigned long long)(lba));
             for(i = 0; i < device->sector_size; i += 16) {
                 pr_inform("%03x: %02x %02x %02x %02x %02x %02x %02x %02x  %02x %02x %02x %02x %02x %02x %02x %02x", i, sector[i + 0],
@@ -50,9 +50,7 @@ void __noreturn kmain(void)
 
     pr_inform("hanging around...");
 
-    dump_lba(block_device_find("ada0"), 0);
-    dump_lba(block_device_find("ada0"), 1);
-    dump_lba(block_device_find("ada0"), 0);
+    dump_lba(blk_device_find("ada0n0"), 0);
 
     for(;;) {
         stop_hart();

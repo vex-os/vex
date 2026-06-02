@@ -1,6 +1,11 @@
 #include <amd64/pmio.h>
 #include <core/pmio.h>
 
+void pmio_region_setup(struct pmio_region* restrict region)
+{
+    region->priv.ctxdata = nullptr; // no initialization needed for PMIO on x86
+}
+
 uint8_t pmio_read8(const struct pmio_region* restrict pmio, uintptr_t offset)
 {
     return pmread8(pmio->base + offset);
