@@ -108,6 +108,7 @@ struct ahci_port {
 };
 
 struct ahci_pci_context {
+    struct blk_device devices[32];
     struct ahci_port ports[32];
     uint32_t presence_mask;
 };
@@ -340,8 +341,18 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
     uintptr_t port_base;
     uintptr_t dma_phys;
     uint8_t* dma_virt;
-    int found, retval;
     char model_str[41];
+
+    context = kmalloc(sizeof(struct ahci_pci_context));
+
+    if(context == nullptr) {
+        pr_error("ahci: out of memory for context");
+        return ENOMEM;
+    }
+
+    memset(context, 0, sizeof(struct ahci_pci_context));
+
+    pci_dev->ctxdata = context;
 
     pci_enable_busmaster(pci_dev);
 
@@ -349,6 +360,8 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
 
     if(abar == nullptr) {
         pr_warning("ahci: pci_bar_map failed for ABAR");
+        kfree(context);
+        pci_dev->ctxdata = nullptr;
         return ENOMEM;
     }
 
@@ -359,7 +372,6 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
     }
 
     ahci_pi = pci_bar_read32(abar, HBA_PI);
-    found = 0;
 
     for(port_num = 0; port_num < 32; port_num += 1) {
         if(0 == (ahci_pi & (UINT32_C(1) << port_num))) {
@@ -399,14 +411,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         dma_virt = phys_to_virt(dma_phys);
         memset(dma_virt, 0, PAGE_SIZE);
 
-        port = kmalloc(sizeof(struct ahci_port));
-
-        if(port == nullptr) {
-            pr_error("ahci: out of memory for port %u", port_num);
-            pdma_free(dma_phys, 1);
-            continue;
-        }
-
+        port = &context->ports[port_num];
         port->bar = abar;
         port->port_base = port_base;
         port->dma_phys = dma_phys;
@@ -428,7 +433,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
             pr_error("ahci: identify failed on port %u", port_num);
             ahci_stop(port);
             pdma_free(dma_phys, 1);
-            kfree(port);
+            port->dma_phys = 0;
             continue;
         }
 
@@ -436,20 +441,11 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
             pr_inform("ahci: port %u is ATAPI, skipping", port_num);
             ahci_stop(port);
             pdma_free(dma_phys, 1);
-            kfree(port);
+            port->dma_phys = 0;
             continue;
         }
 
-        device = kmalloc(sizeof(struct blk_device));
-
-        if(device == nullptr) {
-            ahci_stop(port);
-            pdma_free(dma_phys, 1);
-            kfree(port);
-            continue;
-        }
-
-        memset(device, 0, sizeof(struct blk_device));
+        device = &context->devices[port_num];
 
         device->ops = &ahci_blk_device_ops;
         device->sector_count = ata_identify_sector_count(identify);
@@ -462,15 +458,17 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         if(blk_device_register(device, blk_name_ata, port_num)) {
             ahci_stop(port);
             pdma_free(dma_phys, 1);
-            kfree(port);
-            kfree(device);
+            port->dma_phys = 0;
             continue;
         }
 
-        found += 1;
+        context->presence_mask |= (UINT32_C(1) << port_num);
     }
 
-    if(found == 0) {
+    if(context->presence_mask == 0) {
+        pci_bar_unmap(pci_dev, 5);
+        kfree(context);
+        pci_dev->ctxdata = nullptr;
         return ENODEV;
     }
 
@@ -479,6 +477,33 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
 
 static void ahci_remove(struct pci_device* restrict pci_dev)
 {
+    struct ahci_pci_context* context = pci_dev->ctxdata;
+    struct ahci_port* port;
+    unsigned port_num;
+
+    if(context == nullptr) {
+        return;
+    }
+
+    for(port_num = 0; port_num < 32; port_num += 1) {
+        if(0 == (context->presence_mask & (UINT32_C(1) << port_num))) {
+            continue;
+        }
+
+        blk_device_unregister(&context->devices[port_num]);
+
+        port = &context->ports[port_num];
+
+        ahci_stop(port);
+
+        pdma_free(port->dma_phys, 1);
+    }
+
+    pci_bar_unmap(pci_dev, 5);
+
+    kfree(context);
+
+    pci_dev->ctxdata = nullptr;
 }
 
 static const struct pci_driver_ops ahci_driver_ops = {
