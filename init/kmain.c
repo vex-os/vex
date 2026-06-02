@@ -50,7 +50,7 @@ void __noreturn kmain(void)
 
     pr_inform("hanging around...");
 
-    struct blkdev* disk = blkdev_find("ahci:0");
+    struct blkdev* disk = blkdev_find("ide:0");
     dump_lba(disk, 0);
 
     for(;;) {
