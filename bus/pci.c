@@ -369,7 +369,7 @@ struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_ind
         bar->type = PCI_BAR_TYPE_PMIO;
         bar->pmio.base = raw & (uint32_t)(PCI_BAR_ADDR_MASK_IO);
         bar->pmio.length = get_bar_length(device, bar_index);
-        bar->pmio.ctxdata = nullptr;
+        pmio_region_setup(&bar->pmio);
     }
     else {
         bar->type = PCI_BAR_TYPE_MMIO;

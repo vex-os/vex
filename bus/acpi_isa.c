@@ -29,6 +29,7 @@ static uacpi_iteration_decision parse_resource(void* ctxdata, uacpi_resource* ac
             resource->type = ISA_RESOURCE_PMIO;
             resource->pmio.base = acpi_resource->io.minimum;
             resource->pmio.length = acpi_resource->io.length;
+            pmio_region_setup(&resource->pmio);
             context->num_resources += 1;
             return UACPI_ITERATION_DECISION_CONTINUE;
         }
@@ -37,6 +38,7 @@ static uacpi_iteration_decision parse_resource(void* ctxdata, uacpi_resource* ac
             resource->type = ISA_RESOURCE_PMIO;
             resource->pmio.base = acpi_resource->fixed_io.address;
             resource->pmio.length = acpi_resource->fixed_io.length;
+            pmio_region_setup(&resource->pmio);
             context->num_resources += 1;
             return UACPI_ITERATION_DECISION_CONTINUE;
         }
