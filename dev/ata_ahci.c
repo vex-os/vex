@@ -339,7 +339,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         }
 
         if(pci_bar_read32(abar, port_base + PORT_REG_SIG) == ATA_SIGNATURE_ATAPI) {
-            pr_info("ahci: port %u is ATAPI, skipping for now", port_num);
+            pr_inform("ahci: port %u is ATAPI, skipping for now", port_num);
             continue;
         }
 
@@ -390,7 +390,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         }
 
         if(ata_identify_is_atapi(identify)) {
-            pr_info("ahci: port %u is ATAPI (via identify), skipping for now", port_num);
+            pr_inform("ahci: port %u is ATAPI (via identify), skipping for now", port_num);
             ahci_stop(port);
             pdma_free(dma_phys, 1);
             kfree(port);
@@ -414,7 +414,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         device->ctxdata = port;
 
         ata_identify_string(identify + ATA_IDENTIFY_MODEL_FIELD, ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
-        pr_info("ahci: port %u: %s (%zu sectors)", port_num, model, device->sector_count);
+        pr_inform("ahci: port %u: %s (%zu sectors)", port_num, model, device->sector_count);
 
         if(block_device_register(device, block_namespace_ata)) {
             ahci_stop(port);
