@@ -1,4 +1,3 @@
-#include <core/kprintf.h>
 #include <dev/blk_device.h>
 #include <dev/blk_event.h>
 #include <dev/blk_name.h>
@@ -17,8 +16,6 @@ static int blk_device_register_internal(struct blk_device* restrict device)
             return EEXIST;
         }
     }
-
-    pr_debug("blk_device: adding %s: sector_count=%zu, of sector_size=%zu", device->identifier, device->sector_count, device->sector_size);
 
     device->priv.next = blk_device_head;
     blk_device_head = device;
@@ -80,8 +77,6 @@ int blk_device_unregister(struct blk_device* restrict device)
             return ENODEV;
         }
     }
-
-    pr_debug("blk_device: removing %s", device->identifier);
 
     if(device->flags & BLK_FLAG_PRESENT) {
         blk_event_notify(BLK_EVENT_DISCONNECTED, device);

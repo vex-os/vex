@@ -1,4 +1,5 @@
 #include <core/errno.h>
+#include <core/kprintf.h>
 #include <dev/blk_device.h>
 #include <dev/blk_event.h>
 #include <mm/malloc.h>
@@ -64,6 +65,25 @@ int blk_event_unregister_handler(blk_event_handler_type handler, void* restrict 
 void blk_event_notify(unsigned event, const struct blk_device* restrict device)
 {
     struct event_handler* it;
+
+    switch(event) {
+        case BLK_EVENT_REGISTERED:
+            pr_debug("blk_event: registered %s", device->identifier);
+            break;
+
+        case BLK_EVENT_UNREGISTERED:
+            pr_debug("blk_event: unregistered %s", device->identifier);
+            break;
+
+        case BLK_EVENT_CONNECTED:
+            pr_inform("blk_event: connected %s: sector_count=%zu sector_size=%zu", device->identifier, device->sector_count,
+                device->sector_size);
+            break;
+
+        case BLK_EVENT_DISCONNECTED:
+            pr_inform("blk_event: disconnected %s", device->identifier);
+            break;
+    }
 
     for(it = handlers_head; it; it = it->next) {
         it->handler(event, device, it->ctxdata);
