@@ -24,6 +24,7 @@ dev/chr_device.c
 dev/chr_event.c
 dev/chr_name.c
 dev/ps2kbd.c
+dev/ptable_gpt.c
 dev/ptable_mbr.c
 
 ext/uacpi/default_handlers.c
@@ -54,6 +55,9 @@ fs/vfs_file.c
 fs/vfs_mount.c
 fs/vfs_node.c
 fs/vfs_path.c
+
+hash/crc32.c
+hash/crc32_iso3309.c
 
 init/initcall.c
 init/kmain.c

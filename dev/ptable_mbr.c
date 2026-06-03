@@ -6,8 +6,8 @@
 #include <lib/string.h>
 #include <mm/malloc.h>
 
-#define MBR_SIGNATURE_0 0x55U
-#define MBR_SIGNATURE_1 0xAAU
+#define MBR_SIGNATURE_0 UINT8_C(0x55)
+#define MBR_SIGNATURE_1 UINT8_C(0xAA)
 #define MBR_ENTRY_COUNT 4
 
 struct mbr_entry {
@@ -20,10 +20,17 @@ struct mbr_entry {
 } __packed;
 
 struct mbr_sector {
-    uint8_t bootstrap[446];
+    uint8_t bootstrap[440];
+    uint8_t disk_signature[4];
+    uint8_t reserved[2];
     struct mbr_entry entries[MBR_ENTRY_COUNT];
     uint8_t signature[2];
 } __packed;
+
+#ifndef __INTELLISENSE__
+static_assert(16 == sizeof(struct mbr_entry));
+static_assert(512 == sizeof(struct mbr_sector)); // shutcho damn mouth it's not 516
+#endif
 
 static int mbr_detect(const struct blk_device* restrict device, void** restrict ptdata)
 {
