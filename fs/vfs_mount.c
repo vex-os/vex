@@ -82,7 +82,7 @@ int vfs_driver_unregister(struct vfs_driver* restrict driver)
     return -ENOENT;
 }
 
-int vfs_mount(const char* restrict type, const char* restrict path, struct blk_device* restrict device, const char* restrict params)
+int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params)
 {
     struct vfs_node* mountpoint;
     struct vfs_driver* driver;

@@ -51,6 +51,7 @@ fs/devfs.c
 fs/devfs_blk.c
 fs/devfs_chr.c
 fs/devfs_dir.c
+fs/fat.c
 fs/vfs_file.c
 fs/vfs_mount.c
 fs/vfs_node.c
