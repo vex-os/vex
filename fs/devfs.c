@@ -76,7 +76,7 @@ void devfs_remove(const char* restrict name)
     spinlock_release(&state->lock);
 }
 
-static int devfs_mount(struct vfs* restrict fs, struct blk_device* restrict device, const struct cmdline* restrict params)
+static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
 {
     struct devfs_state* state;
     struct vfs_node* root;
@@ -147,6 +147,4 @@ define_initcall(devfs_init, INITCALL_STAGE_BSP_VFS, INITCALL_ORDER_EARLY)
     vfs_driver_register(&devfs_driver);
     blk_event_register_handler(&devfs_blk_event_handler, nullptr);
     chr_event_register_handler(&devfs_chr_event_handler, nullptr);
-
-    vfs_mount("devfs", nullptr, nullptr, nullptr); // FIXME: delete this and let something like fstab handle it
 }

@@ -11,7 +11,7 @@ struct blk_device;
 
 struct vfs;
 struct vfs_ops {
-    int (*mount)(struct vfs* restrict fs, struct blk_device* restrict device, const struct cmdline* restrict params);
+    int (*mount)(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params);
     int (*unmount)(struct vfs* restrict fs);
     int (*sync)(struct vfs* restrict fs);
 };
@@ -38,7 +38,8 @@ struct vfs_driver {
 extern int vfs_driver_register(struct vfs_driver* restrict driver);
 extern int vfs_driver_unregister(struct vfs_driver* restrict driver);
 
-extern int vfs_mount(const char* restrict type, const char* restrict path, struct blk_device* restrict device, const char* restrict params);
+extern int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device,
+    const char* restrict params);
 extern int vfs_unmount(const char* restrict path);
 extern int vfs_get_root(struct vfs_node** restrict out);
 
