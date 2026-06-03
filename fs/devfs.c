@@ -23,73 +23,193 @@ struct devfs_state {
     struct devfs_node* head;
 };
 
+struct devfs_blk_ctx {
+    const struct blk_device* dev;
+    spinlock_type bounce_lock;
+    uint8_t* bounce_buffer; /// sector_size bytes, allocated once at device add
+};
+
 static struct vfs* devfs_instance = nullptr;
 
 static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buffer, size_t sz, off_t offset)
 {
-    const struct blk_device* dev = node->ctxdata;
+    struct devfs_blk_ctx* ctx = node->ctxdata;
+    const struct blk_device* dev = ctx->dev;
 
     size_t sector_size = dev->sector_size;
     uintptr_t lba = (uintptr_t)(offset / sector_size);
     size_t byte_off = (size_t)(offset % sector_size);
-    size_t count = (byte_off + sz + sector_size - 1) / sector_size;
-    uint8_t* temp_buffer;
+    uint8_t* output = buffer;
+    size_t remaining = sz;
+    size_t chunk, full;
+    uintptr_t cur_lba = lba;
     int retval;
 
-    temp_buffer = kmalloc(count * sector_size);
-
-    if(temp_buffer == nullptr) {
-        return -ENOMEM;
+    if(sz == 0) {
+        return 0;
     }
 
-    retval = blk_device_read(dev, lba, count, temp_buffer);
+    // Fast path: sector-aligned read, no bounce needed
+    if(byte_off == 0 && (sz % sector_size) == 0) {
+        retval = blk_device_read(dev, lba, sz / sector_size, buffer);
 
-    if(retval) {
-        kfree(temp_buffer);
-        return -retval;
+        if(retval)
+            return -retval;
+        return (ssize_t)(sz);
     }
 
-    memcpy(buffer, temp_buffer + byte_off, sz);
+    // Head: partial first sector
+    if(byte_off) {
+        chunk = sector_size - byte_off;
 
-    kfree(temp_buffer);
+        if(chunk > remaining) {
+            chunk = remaining;
+        }
+
+        spinlock_acquire(&ctx->bounce_lock);
+        retval = blk_device_read(dev, cur_lba, 1, ctx->bounce_buffer);
+
+        if(retval) {
+            spinlock_release(&ctx->bounce_lock);
+            return -retval;
+        }
+
+        memcpy(output, ctx->bounce_buffer + byte_off, chunk);
+        spinlock_release(&ctx->bounce_lock);
+
+        output += chunk;
+        remaining -= chunk;
+        cur_lba += 1;
+    }
+
+    // Middle: full sectors, read directly into caller's buffer
+    if(remaining >= sector_size) {
+        full = remaining / sector_size;
+        retval = blk_device_read(dev, cur_lba, full, output);
+
+        if(retval) {
+            return -retval;
+        }
+
+        output += full * sector_size;
+        remaining -= full * sector_size;
+        cur_lba += (uintptr_t)(full);
+    }
+
+    // Tail: partial last sector
+    if(remaining > 0) {
+        spinlock_acquire(&ctx->bounce_lock);
+
+        retval = blk_device_read(dev, cur_lba, 1, ctx->bounce_buffer);
+
+        if(retval) {
+            spinlock_release(&ctx->bounce_lock);
+            return -retval;
+        }
+
+        memcpy(output, ctx->bounce_buffer, remaining);
+
+        spinlock_release(&ctx->bounce_lock);
+    }
 
     return (ssize_t)(sz);
 }
 
 static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
-    const struct blk_device* dev = node->ctxdata;
+    struct devfs_blk_ctx* ctx = node->ctxdata;
+    const struct blk_device* dev = ctx->dev;
 
     size_t sector_size = dev->sector_size;
     uintptr_t lba = (uintptr_t)(offset / sector_size);
     size_t byte_off = (size_t)(offset % sector_size);
-    size_t count = (byte_off + sz + sector_size - 1) / sector_size;
-    uint8_t* temp_buffer;
+    const uint8_t* in = buffer;
+    size_t remaining = sz;
+    size_t chunk, full;
+    uintptr_t cur_lba = lba;
     int retval;
 
-    temp_buffer = kmalloc(count * sector_size);
-
-    if(temp_buffer == nullptr) {
-        return -ENOMEM;
+    if(sz == 0) {
+        return 0;
     }
 
-    if(byte_off || (sz % sector_size)) {
-        retval = blk_device_read(dev, lba, count, temp_buffer);
+    // Fast path: sector-aligned write, no bounce needed
+    if(byte_off == 0 && (sz % sector_size) == 0) {
+        retval = blk_device_write(dev, lba, sz / sector_size, buffer);
+
+        if(retval)
+            return -retval;
+        return (ssize_t)(sz);
+    }
+
+    // Head: partial first sector — RMW via bounce
+    if(byte_off) {
+        chunk = sector_size - byte_off;
+
+        if(chunk > remaining) {
+            chunk = remaining;
+        }
+
+        spinlock_acquire(&ctx->bounce_lock);
+
+        retval = blk_device_read(dev, cur_lba, 1, ctx->bounce_buffer);
 
         if(retval) {
-            kfree(temp_buffer);
+            spinlock_release(&ctx->bounce_lock);
+            return -retval;
+        }
+
+        memcpy(ctx->bounce_buffer + byte_off, in, chunk);
+
+        retval = blk_device_write(dev, cur_lba, 1, ctx->bounce_buffer);
+
+        spinlock_release(&ctx->bounce_lock);
+
+        if(retval) {
+            return -retval;
+        }
+
+        in += chunk;
+        remaining -= chunk;
+        cur_lba += 1;
+    }
+
+    // Middle: full sectors, write directly from caller's buffer
+    if(remaining >= sector_size) {
+        full = remaining / sector_size;
+        retval = blk_device_write(dev, cur_lba, full, in);
+
+        if(retval) {
+            return -retval;
+        }
+
+        in += full * sector_size;
+        remaining -= full * sector_size;
+        cur_lba += (uintptr_t)(full);
+    }
+
+    // Tail: partial last sector — RMW via bounce
+    if(remaining > 0) {
+        spinlock_acquire(&ctx->bounce_lock);
+
+        retval = blk_device_read(dev, cur_lba, 1, ctx->bounce_buffer);
+
+        if(retval) {
+            spinlock_release(&ctx->bounce_lock);
+            return -retval;
+        }
+
+        memcpy(ctx->bounce_buffer, in, remaining);
+
+        retval = blk_device_write(dev, cur_lba, 1, ctx->bounce_buffer);
+
+        spinlock_release(&ctx->bounce_lock);
+
+        if(retval) {
             return -retval;
         }
     }
 
-    memcpy(temp_buffer + byte_off, buffer, sz);
-
-    retval = blk_device_write(dev, lba, count, temp_buffer);
-
-    kfree(temp_buffer);
-
-    if(retval)
-        return -retval;
     return (ssize_t)(sz);
 }
 
@@ -100,7 +220,8 @@ static int devfs_blk_ioctl(struct vfs_node* restrict node, unsigned request, voi
 
 static int devfs_blk_stat(struct vfs_node* restrict node, struct vfs_stat* restrict out_stat)
 {
-    const struct blk_device* dev = node->ctxdata;
+    const struct devfs_blk_ctx* ctx = node->ctxdata;
+    const struct blk_device* dev = ctx->dev;
 
     memset(out_stat, 0, sizeof(struct vfs_stat));
 
@@ -112,7 +233,15 @@ static int devfs_blk_stat(struct vfs_node* restrict node, struct vfs_stat* restr
     return 0;
 }
 
+static void devfs_blk_destroy(struct vfs_node* restrict node)
+{
+    struct devfs_blk_ctx* ctx = node->ctxdata;
+    kfree(ctx->bounce_buffer);
+    slab_free(ctx);
+}
+
 static const struct vfs_node_ops devfs_blk_ops = {
+    .destroy = &devfs_blk_destroy,
     .read = &devfs_blk_read,
     .write = &devfs_blk_write,
     .ioctl = &devfs_blk_ioctl,
@@ -226,13 +355,31 @@ static void devfs_remove(const char* restrict name)
 
 static void devfs_blk_handler(unsigned event, const struct blk_device* restrict device, void* restrict ctxdata)
 {
+    struct devfs_blk_ctx* ctx;
     struct vfs_node* vnode;
     int retval;
 
     if(event == BLK_EVENT_MEDIA_CONNECTED || event == BLK_EVENT_PARTITION_ADDED) {
-        vnode = vfs_node_alloc(VFS_NODE_TYPE_BLK_DEVICE, &devfs_blk_ops, (void*)(device));
+        ctx = slab_alloc(sizeof(struct devfs_blk_ctx));
+
+        if(ctx == nullptr) {
+            return;
+        }
+
+        ctx->dev = device;
+        ctx->bounce_lock = SPINLOCK_INIT;
+        ctx->bounce_buffer = kmalloc(device->sector_size);
+
+        if(ctx->bounce_buffer == nullptr) {
+            slab_free(ctx);
+            return;
+        }
+
+        vnode = vfs_node_alloc(VFS_NODE_TYPE_BLK_DEVICE, &devfs_blk_ops, ctx);
 
         if(vnode == nullptr) {
+            kfree(ctx->bounce_buffer);
+            slab_free(ctx);
             return;
         }
 
