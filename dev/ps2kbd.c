@@ -31,8 +31,9 @@ static void i8042_wait_read(struct pmio_region* restrict region)
 static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame, void* restrict ctxdata)
 {
     struct isa_device* device = ctxdata;
-    struct isa_resource* data_res;
+
     struct isa_resource* cmd_res;
+    struct isa_resource* data_res;
     uint8_t scancode;
 
     data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
@@ -58,10 +59,10 @@ static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame,
 
 static int ps2kbd_probe(struct isa_device* restrict device)
 {
-    struct isa_resource* data_res;
-    struct isa_resource* cmd_res;
-    uint8_t command_byte;
     int retval;
+    struct isa_resource* cmd_res;
+    struct isa_resource* data_res;
+    uint8_t command_byte;
 
     if(strcmp(device->identifier, "PNP0303")) {
         return -ENODEV;

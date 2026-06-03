@@ -51,8 +51,8 @@ void crc32_generate_rfi(struct crc32_table* restrict table, uint32_t polynomial,
 uint32_t crc32_get_ext_nro(const struct crc32_table* restrict table, const void* restrict data, size_t sz, uint32_t ext)
 {
     const uint8_t* data_ptr = data;
-    uint32_t crc = ~ext;
     size_t i;
+    uint32_t crc = ~ext;
 
     for(i = 0; i < sz; ++i)
         crc = table->table[(crc ^ data_ptr[i]) & 0xFF] ^ (crc >> 8);

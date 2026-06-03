@@ -47,9 +47,9 @@ static struct clocksrc hpet_clocksrc = {
 define_initcall(hpet_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
 {
     int retval;
-    uacpi_table table;
-    uacpi_status status;
     struct acpi_hpet* hpet;
+    uacpi_status status;
+    uacpi_table table;
     uint32_t hpet_config_reg;
     uint64_t hpet_period_fsec;
     volatile uint64_t* mmio;

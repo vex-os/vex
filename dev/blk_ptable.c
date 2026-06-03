@@ -89,10 +89,10 @@ static void disk_state_remove_parts(struct blk_disk_state* restrict state)
 
 static void probe_device(const struct blk_device* restrict device)
 {
-    struct blk_ptable* it;
     struct blk_disk_state* state;
-    struct blk_ptable_info info;
     struct blk_part_device* part;
+    struct blk_ptable_info info;
+    struct blk_ptable* it;
     unsigned index;
     void* ptdata;
 

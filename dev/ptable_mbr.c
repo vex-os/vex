@@ -35,11 +35,11 @@ static_assert(512 == sizeof(struct mbr_sector)); // shutcho damn mouth it's not 
 
 static int mbr_detect(const struct blk_device* restrict device, void** restrict ptdata)
 {
-    struct mbr_sector sector;
-    struct mbr_sector* sector_copy;
     bool is_protective;
     bool is_valid;
     int retval;
+    struct mbr_sector sector;
+    struct mbr_sector* sector_copy;
 
     retval = blk_device_read(device, 0, 1, &sector);
 
@@ -81,8 +81,10 @@ static int mbr_detect(const struct blk_device* restrict device, void** restrict 
 static int mbr_readpt(const struct blk_device* restrict device, void* restrict ptdata, unsigned index, struct blk_ptable_info* restrict out)
 {
     const struct mbr_sector* mbr = ptdata;
+
     const struct mbr_entry* entry;
-    unsigned found, slot;
+    unsigned found;
+    unsigned slot;
 
     found = 0;
 

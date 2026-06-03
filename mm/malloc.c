@@ -46,12 +46,12 @@ static struct memblock* find_free_block(size_t sz)
 
 static struct memblock* extend_heap(size_t sz)
 {
+    int retval;
     size_t i;
     size_t npages;
-    uintptr_t virt;
-    uintptr_t phys;
     struct memblock* block;
-    int retval;
+    uintptr_t phys;
+    uintptr_t virt;
 
     npages = page_count(sz);
     block = slab_alloc(sizeof(struct memblock));
@@ -109,8 +109,8 @@ error_cleanup:
 
 static void split_block(struct memblock* restrict block, size_t sz)
 {
-    size_t remainder;
     size_t aligned_sz;
+    size_t remainder;
     struct memblock* new_block;
 
     aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);

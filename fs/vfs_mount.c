@@ -84,13 +84,13 @@ int vfs_driver_unregister(struct vfs_driver* restrict driver)
 
 int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params)
 {
-    struct vfs_node* mountpoint;
-    struct vfs_driver* driver;
-    struct mount_entry* entry;
-    struct cmdline cmdl;
     char* params_copy;
-    struct vfs* fs;
     int retval;
+    struct cmdline cmdl;
+    struct mount_entry* entry;
+    struct vfs_driver* driver;
+    struct vfs_node* mountpoint;
+    struct vfs* fs;
 
     if(type == nullptr || type[0] == 0x00) {
         return -EINVAL;
@@ -202,10 +202,10 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
 
 int vfs_unmount(const char* restrict path)
 {
-    struct mount_entry** prev;
-    struct mount_entry* entry;
-    struct vfs* fs;
     int retval;
+    struct mount_entry* entry;
+    struct mount_entry** prev;
+    struct vfs* fs;
 
     if(path == nullptr) {
         return -EINVAL;
