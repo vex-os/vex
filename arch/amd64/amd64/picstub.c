@@ -46,27 +46,23 @@ define_initcall(amd64_picstub_bsp, INTICALL_STAGE_BSP_ARCH, INITCALL_ORDER_MIDDL
     // so we have to remap both controllers to 0x20..0x2F and never touch
     // these vectors again, the system might probably reboot but whatever
 
-    // ICW1: edge-triggered mode, cascade mode, require ICW4
     pmwrite8(PIC1_COMMAND, 0x11);
     pmwrite8(PIC2_COMMAND, 0x11);
 
-    // ICW2: remap to 0x20..0x2F
     pmwrite8(PIC1_DATA, 0x20);
     pmwrite8(PIC2_DATA, 0x28);
 
-    // ICW3: cascade mode, PIC2 at IRQ2
     pmwrite8(PIC1_DATA, 0x04);
     pmwrite8(PIC2_DATA, 0x02);
 
-    // ICW4: 8086 mode
     pmwrite8(PIC1_DATA, 0x01);
     pmwrite8(PIC2_DATA, 0x01);
 
-    // Mask all IRQs
     pmwrite8(PIC1_DATA, 0xFF);
     pmwrite8(PIC2_DATA, 0xFF);
 
-    // Send sixteen EOI messages
+    // <<  Because it's a shit chip >>
+    //                  - streaksu
     for(vector = 0x00; vector <= 0x10; vector += 1U) {
         if(vector >= 0x08)
             pmwrite8(PIC2_COMMAND, 0x20);

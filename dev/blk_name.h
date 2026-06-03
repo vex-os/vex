@@ -21,10 +21,10 @@ struct blk_name {
     char device_prefix[32];
 };
 
-extern struct blk_name* blk_name_ata;    ///< Pre-defined blk_name for ATA devices. Example: ada0n1, ada1n3, etc.
-extern struct blk_name* blk_name_atapi;  ///< Pre-defined blk_name for ATAPI devices. Example: asc0n1, asc1n3, etc.
-extern struct blk_name* blk_name_nvme;   ///< Pre-defined blk_name for NVMe devices. Example: nvd0n1, nvd1n3, etc.
-extern struct blk_name* blk_name_virtio; ///< Pre-defined blk_name for VirtIO block devices. Example: vbd0n1, vbd1n3, etc.
+extern struct blk_name* blk_name_ata;
+extern struct blk_name* blk_name_atapi;
+extern struct blk_name* blk_name_nvme;
+extern struct blk_name* blk_name_virtio;
 
 extern struct blk_name* blk_name_query(const char* restrict prefix) __nodiscard;
 extern unsigned blk_name_increment(struct blk_name* restrict name) __nodiscard;

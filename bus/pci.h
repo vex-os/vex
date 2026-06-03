@@ -66,7 +66,7 @@
 #define PCI_CAP_MSIX 0x11 ///< MSI-X
 #define PCI_CAP_PCIE 0x10 ///< PCI Express
 
-#define PCI_STS_CAP_LIST 0x0010 ///< PCI status register bit indicating the capability list is present
+#define PCI_STS_CAP_LIST 0x0010
 
 enum {
     PCI_BAR_TYPE_MMIO,

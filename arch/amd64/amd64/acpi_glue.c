@@ -117,5 +117,5 @@ void uacpi_kernel_unlock_spinlock(uacpi_handle handle, uacpi_cpu_flags flags)
 
 uacpi_thread_id uacpi_kernel_get_thread_id(void)
 {
-    return ((uacpi_thread_id)(1)); // single-CPU early boot — always 1
+    return ((uacpi_thread_id)(1));
 }
