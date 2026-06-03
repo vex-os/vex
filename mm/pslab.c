@@ -112,7 +112,7 @@ define_initcall(pslab, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_EARLY)
             }
 
             if(start + length <= PDMA_APPROX_END) {
-                continue; // pslab only manages memory above the DMA zone
+                continue;
             }
 
             if(start < PDMA_APPROX_END) {

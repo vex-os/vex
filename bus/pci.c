@@ -21,7 +21,7 @@ static void try_bind_device(struct pci_device* restrict device, struct pci_drive
     const struct pci_driver_id* id;
 
     if(device->priv.driver) {
-        return; // already bound to a driver
+        return;
     }
 
     for(id = driver->ids; id->vendor_id < 0xFFFF || id->device_id < 0xFFFF; id += 1) {
@@ -56,7 +56,7 @@ static void rescan_bus(struct pci_bus* restrict bus)
         vendor_id = bus->ops->read16(bus, device_idx, 0, PCI_CFG_VENDOR_ID);
 
         if(vendor_id == 0xFFFF) {
-            continue; // no device present
+            continue;
         }
 
         header_value = bus->ops->read8(bus, device_idx, 0, PCI_CFG_HEADER_TYPE);
@@ -72,14 +72,14 @@ static void rescan_bus(struct pci_bus* restrict bus)
             vendor_id = bus->ops->read16(bus, device_idx, function_idx, PCI_CFG_VENDOR_ID);
 
             if(vendor_id == 0xFFFF) {
-                continue; // no device present
+                continue;
             }
 
             device_id = bus->ops->read16(bus, device_idx, function_idx, PCI_CFG_DEVICE_ID);
             device = kmalloc(sizeof(struct pci_device));
 
             if(device == nullptr) {
-                continue; // allocation failed
+                continue;
             }
 
             class_id = bus->ops->read8(bus, device_idx, function_idx, PCI_CFG_CLASS);
@@ -136,7 +136,9 @@ static size_t get_bar_length(struct pci_device* restrict device, unsigned bar_in
     uint32_t mask;
 
     pci_cfg_write32(device, offset, UINT32_C(0xFFFFFFFF));
+
     mask = pci_cfg_read32(device, offset);
+
     pci_cfg_write32(device, offset, raw);
 
     if(raw & PCI_BAR_IO) {
@@ -616,13 +618,13 @@ int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handle
     int_pin = pci_cfg_read8(device, PCI_CFG_INT_PIN);
 
     if(int_pin == 0) {
-        return ENODEV; // device does not use INTx
+        return ENODEV;
     }
 
     int_line = pci_cfg_read8(device, PCI_CFG_INT_LINE);
 
     if(int_line == 0xFF) {
-        return ENODEV; // not routed by BIOS
+        return ENODEV;
     }
 
     controller = find_intctl(int_line);
@@ -639,7 +641,6 @@ int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handle
 
     device->priv.ireq_number = ireq_number;
 
-    // PCI INTx is always level-triggered, active-low per PCI spec
     intctl_route(controller, int_line, (uint8_t)(ireq_number + ARCH_IREQ_BASE), 0, TRIGGER_LEVEL, ACTIVE_LOW);
     intctl_unmask(controller, int_line);
 

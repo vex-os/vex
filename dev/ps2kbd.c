@@ -43,7 +43,7 @@ static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame,
     }
 
     if(0 == (pmio_read8(&cmd_res->pmio, 0) & 0x01)) {
-        return; // Spurious interrupt, output buffer is empty
+        return;
     }
 
     scancode = pmio_read8(&data_res->pmio, 0);
@@ -67,7 +67,6 @@ static int ps2kbd_probe(struct isa_device* restrict device)
         return ENODEV;
     }
 
-    // PNP0303 has two IO ranges: data (0x60) and command/status (0x64)
     data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
     cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
 
@@ -80,8 +79,8 @@ static int ps2kbd_probe(struct isa_device* restrict device)
 
     i8042_wait_read(&cmd_res->pmio);
     command_byte = pmio_read8(&data_res->pmio, 0);
-    command_byte |= 0x01;   // enable keyboard interrupt
-    command_byte &= ~0x10U; // clear "disable keyboard" bit
+    command_byte |= 0x01;
+    command_byte &= ~0x10U;
 
     i8042_wait_write(&cmd_res->pmio);
     pmio_write8(&cmd_res->pmio, 0, 0x60);
@@ -89,21 +88,14 @@ static int ps2kbd_probe(struct isa_device* restrict device)
     i8042_wait_write(&cmd_res->pmio);
     pmio_write8(&data_res->pmio, 0, command_byte);
 
-    // Flush the output buffer; if the UEFI/firmware left stale
-    // data in the buffer, its IRQ line is already asserted HIGH
-    // and registering an edge-triggered IOAPIC entry at that point
-    // means no new rising edge will ever fire, all subsequent
-    // key presses will be silently lost
     while(pmio_read8(&cmd_res->pmio, 0) & 0x01) {
         pmio_read8(&data_res->pmio, 0);
     }
 
-    // Enable keyboard scanning; UEFI or a bootloader may leave
-    // the keyboard in a scanning-disabled state;
     i8042_wait_write(&cmd_res->pmio);
     pmio_write8(&data_res->pmio, 0, 0xF4);
     i8042_wait_read(&cmd_res->pmio);
-    pmio_read8(&data_res->pmio, 0); // discard ACK
+    pmio_read8(&data_res->pmio, 0);
 
     retval = isa_request_irq(device, 0, &ps2kbd_ireq, device);
 

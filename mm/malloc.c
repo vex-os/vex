@@ -117,13 +117,13 @@ static void split_block(struct memblock* restrict block, size_t sz)
     remainder = block->length - aligned_sz;
 
     if(remainder < 4 * sizeof(uintptr_t)) {
-        return; // don't bother splitting
+        return;
     }
 
     new_block = slab_alloc(sizeof(struct memblock));
 
     if(new_block == nullptr) {
-        return; // allocation failed, just use the whole block
+        return;
     }
 
     new_block->address = block->address + aligned_sz;

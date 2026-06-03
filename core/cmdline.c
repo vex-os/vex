@@ -70,11 +70,11 @@ bool cmdline_contains(const struct cmdline* restrict cmdl, const char* restrict 
             token_size = strlen(token);
 
             if(token_size == option_size && 0 == strncasecmp(token, option, option_size)) {
-                return true; // found a match
+                return true;
             }
 
             if(token_size > option_size && token[option_size] == '-' && 0 == strncasecmp(token, option, option_size)) {
-                return true; // found a match with an argument
+                return true;
             }
 
             token += token_size + 1;
@@ -104,11 +104,11 @@ const char* cmdline_argument(const struct cmdline* restrict cmdl, const char* re
             token_size = strlen(token);
 
             if(token_size == option_size && 0 == strncasecmp(token, option, option_size)) {
-                return &token[option_size]; // there's an option but the argument is empty
+                return &token[option_size];
             }
 
             if(token_size > option_size && token[option_size] == '=' && 0 == strncasecmp(token, option, option_size)) {
-                return &token[option_size + 1]; // found a match with an argument
+                return &token[option_size + 1];
             }
 
             token += token_size + 1;

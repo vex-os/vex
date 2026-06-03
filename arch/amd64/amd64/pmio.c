@@ -3,7 +3,7 @@
 
 void pmio_region_setup(struct pmio_region* restrict region)
 {
-    region->priv.ctxdata = nullptr; // no initialization needed for PMIO on x86
+    region->priv.ctxdata = nullptr;
 }
 
 uint8_t pmio_read8(const struct pmio_region* restrict pmio, uintptr_t offset)

@@ -56,7 +56,7 @@ static uacpi_iteration_decision isa_iso_madt_callback(uacpi_handle user, struct 
 static void try_bind_device(struct isa_device* restrict device, struct isa_driver* restrict driver)
 {
     if(device->priv.driver) {
-        return; // already bound to a driver
+        return;
     }
 
     if(0 == driver->ops->probe(device)) {

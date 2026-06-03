@@ -23,14 +23,12 @@ static struct slab* find_slab(size_t sz)
 {
     size_t i;
 
-    // Try to find the exact size match
     for(i = 0U; i < slabs_count; ++i) {
         if(slabs[i].blocksize == sz)
             return &slabs[i];
         continue;
     }
 
-    // Give up and find anything that fits
     for(i = 0U; i < slabs_count; ++i) {
         if(slabs[i].blocksize >= sz)
             return &slabs[i];
