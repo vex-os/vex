@@ -351,6 +351,10 @@ static void devfs_blk_handler(unsigned event, const struct blk_device* restrict 
     struct vfs_node* vnode;
     int retval;
 
+    if(device->flags & BLK_FLAG_HIDDEN) {
+        return; // don't even bother with those
+    }
+
     if(event == BLK_EVENT_MEDIA_CONNECTED || event == BLK_EVENT_PARTITION_ADDED) {
         ctx = slab_alloc(sizeof(struct devfs_blk_ctx));
 
