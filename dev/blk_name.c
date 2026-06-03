@@ -50,17 +50,6 @@ unsigned blk_name_count(const struct blk_name* restrict name)
     return name->priv.next_iterator;
 }
 
-int blk_name_format(char* restrict buffer, size_t sz, const struct blk_name* restrict name, unsigned iterator, unsigned index)
-{
-    return snprintf(buffer, sz, "%s%un%u", name->device_prefix, iterator, index);
-}
-
-int blk_name_format_partition(char* restrict buffer, size_t sz, const struct blk_name* restrict name, unsigned iterator, unsigned index,
-    unsigned partition)
-{
-    return snprintf(buffer, sz, "%s%un%up%u", name->device_prefix, iterator, index, partition);
-}
-
 define_initcall(blk_name_predefined, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_LATE)
 {
     blk_name_ata = blk_name_query(BLK_NAME_PREFIX_ATA);

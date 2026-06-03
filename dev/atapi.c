@@ -64,11 +64,11 @@ static const struct blk_device_ops atapi_blk_device_ops = {
     .destroy = nullptr,
 };
 
-int atapi_register(struct atapi_device* restrict device, struct blk_name* restrict name, unsigned index)
+int atapi_register(struct atapi_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index)
 {
     device->base.ops = &atapi_blk_device_ops;
 
-    return blk_device_register_root(&device->base, name, index);
+    return blk_device_register_root(&device->base, name, iterator, index);
 }
 
 void atapi_unregister(struct atapi_device* restrict device)

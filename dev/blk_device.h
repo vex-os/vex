@@ -37,8 +37,8 @@ struct blk_device {
     void* ctxdata;
 };
 
-extern int blk_device_register_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned index);
-extern int blk_device_register_part(struct blk_device* restrict device, struct blk_name* restrict name, unsigned index, unsigned partition);
+extern int blk_device_register_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index);
+extern int blk_device_register_part(struct blk_device* restrict device, const struct blk_device* restrict root, unsigned partition);
 extern int blk_device_register_custom(struct blk_device* restrict device);
 extern int blk_device_unregister(struct blk_device* restrict device);
 extern const struct blk_device* blk_device_find(const char* name) __nodiscard;

@@ -25,24 +25,24 @@ static int blk_device_register_internal(struct blk_device* restrict device)
     return 0;
 }
 
-int blk_device_register_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned index)
+int blk_device_register_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index)
 {
     device->priv.name = name;
-    device->priv.name_iterator = blk_name_increment(name);
+    device->priv.name_iterator = iterator;
     device->partition = UINT_MAX;
 
-    blk_name_format(device->identifier, sizeof(device->identifier), name, device->priv.name_iterator, index);
+    snprintf(device->identifier, sizeof(device->identifier), "%s%un%u", name->device_prefix, device->priv.name_iterator, index + 1);
 
     return blk_device_register_internal(device);
 }
 
-int blk_device_register_part(struct blk_device* restrict device, struct blk_name* restrict name, unsigned index, unsigned partition)
+int blk_device_register_part(struct blk_device* restrict device, const struct blk_device* restrict root, unsigned partition)
 {
-    device->priv.name = name;
-    device->priv.name_iterator = blk_name_increment(name);
+    device->priv.name = root->priv.name;
+    device->priv.name_iterator = root->priv.name_iterator;
     device->partition = partition;
 
-    blk_name_format_partition(device->identifier, sizeof(device->identifier), name, device->priv.name_iterator, index, partition);
+    snprintf(device->identifier, sizeof(device->identifier), "%sp%u", root->identifier, partition + 1);
 
     return blk_device_register_internal(device);
 }

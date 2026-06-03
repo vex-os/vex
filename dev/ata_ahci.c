@@ -520,7 +520,7 @@ static const struct blk_device_ops ahci_blk_device_ops = {
     .destroy = nullptr,
 };
 
-static int ahci_register_ata_port(struct ahci_pci_context* restrict context, unsigned port_num)
+static int ahci_register_ata_port(struct ahci_pci_context* restrict context, unsigned iterator, unsigned port_num)
 {
     struct blk_device* device = &context->devices[port_num];
 
@@ -530,10 +530,10 @@ static int ahci_register_ata_port(struct ahci_pci_context* restrict context, uns
     device->flags = 0;
     device->ctxdata = nullptr;
 
-    return blk_device_register_root(device, blk_name_ata, port_num);
+    return blk_device_register_root(device, blk_name_ata, iterator, port_num);
 }
 
-static int ahci_register_atapi_port(struct ahci_pci_context* restrict context, unsigned port_num)
+static int ahci_register_atapi_port(struct ahci_pci_context* restrict context, unsigned iterator, unsigned port_num)
 {
     struct atapi_device* atapi_dev = &context->atapi_devices[port_num];
 
@@ -544,7 +544,7 @@ static int ahci_register_atapi_port(struct ahci_pci_context* restrict context, u
     atapi_dev->base.sector_size = 0;
     atapi_dev->base.flags = 0;
 
-    return atapi_register(atapi_dev, blk_name_atapi, port_num);
+    return atapi_register(atapi_dev, blk_name_atapi, iterator, port_num);
 }
 
 static void ahci_probe_ata_port(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
@@ -635,6 +635,7 @@ static int ahci_driver_op_probe(struct pci_device* restrict pci_dev, const struc
     uint32_t port_bit;
     uintptr_t port_base;
     unsigned port_num;
+    unsigned iterator;
 
     context = kmalloc(sizeof(struct ahci_pci_context));
 
@@ -666,6 +667,8 @@ static int ahci_driver_op_probe(struct pci_device* restrict pci_dev, const struc
 
     ahci_pi = pci_bar_read32(abar, HBA_PI);
 
+    iterator = blk_name_increment(blk_name_ata);
+
     for(port_num = 0; port_num < 32; port_num += 1) {
         if(0 == (ahci_pi & (UINT32_C(1) << port_num))) {
             continue;
@@ -675,12 +678,12 @@ static int ahci_driver_op_probe(struct pci_device* restrict pci_dev, const struc
         ahci_signature = pci_bar_read32(abar, port_base + PORT_REG_SIG);
 
         if(ahci_signature == ATA_SIGNATURE_ATAPI) {
-            if(0 == ahci_register_atapi_port(context, port_num)) {
+            if(0 == ahci_register_atapi_port(context, iterator, port_num)) {
                 context->atapi_mask |= (UINT32_C(1) << port_num);
             }
         }
         else {
-            if(0 == ahci_register_ata_port(context, port_num)) {
+            if(0 == ahci_register_ata_port(context, iterator, port_num)) {
                 context->ata_mask |= (UINT32_C(1) << port_num);
             }
         }
