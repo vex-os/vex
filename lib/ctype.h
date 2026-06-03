@@ -2,18 +2,18 @@
 #define EF3B2190_ABFB_4621_B0A8_EF49AC4B5C9A
 #pragma once
 
-extern int isalnum(int codepoint);
-extern int isalpha(int codepoint);
-extern int isblank(int codepoint);
-extern int iscntrl(int codepoint);
-extern int isdigit(int codepoint);
-extern int isgraph(int codepoint);
-extern int islower(int codepoint);
-extern int isprint(int codepoint);
-extern int ispunct(int codepoint);
-extern int isspace(int codepoint);
-extern int isupper(int codepoint);
-extern int isxdigit(int codepoint);
+extern bool isalnum(int codepoint);
+extern bool isalpha(int codepoint);
+extern bool isblank(int codepoint);
+extern bool iscntrl(int codepoint);
+extern bool isdigit(int codepoint);
+extern bool isgraph(int codepoint);
+extern bool islower(int codepoint);
+extern bool isprint(int codepoint);
+extern bool ispunct(int codepoint);
+extern bool isspace(int codepoint);
+extern bool isupper(int codepoint);
+extern bool isxdigit(int codepoint);
 
 extern int tolower(int codepoint);
 extern int toupper(int codepoint);

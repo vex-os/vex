@@ -239,109 +239,109 @@ static struct ctype_ent ctype[CTYPE_SIZE] = {
     /*      */ { .lower = 0xD8, .upper = 0xD8, .flags = 0 },
 };
 
-int isalnum(int codepoint)
+bool isalnum(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_UC | CT_LC | CT_DD);
 }
 
-int isalpha(int codepoint)
+bool isalpha(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_UC | CT_LC);
 }
 
-int isblank(int codepoint)
+bool isblank(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_BL);
 }
 
-int iscntrl(int codepoint)
+bool iscntrl(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_CT);
 }
 
-int isdigit(int codepoint)
+bool isdigit(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_DD);
 }
 
-int isgraph(int codepoint)
+bool isgraph(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_GR);
 }
 
-int islower(int codepoint)
+bool islower(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_LC);
 }
 
-int isprint(int codepoint)
+bool isprint(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_CT | CT_WS);
 }
 
-int ispunct(int codepoint)
+bool ispunct(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_PT);
 }
 
-int isspace(int codepoint)
+bool isspace(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_SP);
 }
 
-int isupper(int codepoint)
+bool isupper(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_UC);
 }
 
-int isxdigit(int codepoint)
+bool isxdigit(int codepoint)
 {
     if(codepoint < 0x00) {
-        return 0;
+        return false;
     }
 
     return ctype[codepoint % CTYPE_SIZE].flags & (CT_XD);
