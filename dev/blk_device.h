@@ -31,11 +31,13 @@ struct blk_device {
     char identifier[64];
     size_t sector_count;
     size_t sector_size;
+    unsigned partition;
     unsigned flags;
     void* ctxdata;
 };
 
-extern int blk_device_register(struct blk_device* restrict device, struct blk_name* restrict name, unsigned index);
+extern int blk_device_register_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned index);
+extern int blk_device_register_part(struct blk_device* restrict device, struct blk_name* restrict name, unsigned index, unsigned partition);
 extern int blk_device_register_custom(struct blk_device* restrict device);
 extern int blk_device_unregister(struct blk_device* restrict device);
 extern const struct blk_device* blk_device_find(const char* name) __nodiscard;

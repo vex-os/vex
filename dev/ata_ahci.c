@@ -520,7 +520,34 @@ static const struct blk_device_ops ahci_blk_device_ops = {
     .destroy = nullptr,
 };
 
-static bool ahci_driver_op_probe_ata_port(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
+static int ahci_register_ata_port(struct ahci_pci_context* restrict context, unsigned port_num)
+{
+    struct blk_device* device = &context->devices[port_num];
+
+    device->ops = &ahci_blk_device_ops;
+    device->sector_count = 0;
+    device->sector_size = 0;
+    device->flags = 0;
+    device->ctxdata = nullptr;
+
+    return blk_device_register_root(device, blk_name_ata, port_num);
+}
+
+static int ahci_register_atapi_port(struct ahci_pci_context* restrict context, unsigned port_num)
+{
+    struct atapi_device* atapi_dev = &context->atapi_devices[port_num];
+
+    atapi_dev->ops = &ahci_atapi_ops;
+    atapi_dev->flags = 0;
+    atapi_dev->base.ctxdata = nullptr;
+    atapi_dev->base.sector_count = 0;
+    atapi_dev->base.sector_size = 0;
+    atapi_dev->base.flags = 0;
+
+    return atapi_register(atapi_dev, blk_name_atapi, port_num);
+}
+
+static void ahci_probe_ata_port(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
 {
     ata_identify_type identify;
     struct ahci_port* port;
@@ -529,7 +556,7 @@ static bool ahci_driver_op_probe_ata_port(struct ahci_pci_context* restrict cont
 
     if(ahci_port_init(context, abar, port_num)) {
         pr_debug("ahci: out of DMA memory for port %u", port_num);
-        return false;
+        return;
     }
 
     port = &context->ports[port_num];
@@ -537,88 +564,65 @@ static bool ahci_driver_op_probe_ata_port(struct ahci_pci_context* restrict cont
     if(ahci_identify(port, identify)) {
         pr_debug("ahci: identify failed on port %u", port_num);
         ahci_port_teardown(port);
-        return false;
+        return;
     }
 
     if(ata_identify_is_atapi(identify)) {
         pr_debug("ahci: port %u: ATA signature but ATAPI identify, skipping", port_num);
         ahci_port_teardown(port);
-        return false;
+        return;
     }
 
     device = &context->devices[port_num];
-    device->ops = &ahci_blk_device_ops;
     device->sector_count = ata_identify_sector_count(identify);
     device->sector_size = ata_identify_logical_sector_size(identify);
     device->flags = BLK_FLAG_PRESENT;
     device->ctxdata = port;
 
-    ata_identify_string(identify + ATA_IDENTIFY_MODEL_FIELD, ATA_IDENTIFY_MODEL_NWORDS, model_str, sizeof(model_str));
+    ata_identify_string(&identify[ATA_IDENTIFY_MODEL_FIELD], ATA_IDENTIFY_MODEL_NWORDS, model_str, sizeof(model_str));
     pr_debug("ahci: port %u: %s (%zu sectors)", port_num, model_str, device->sector_count);
 
-    if(blk_device_register(device, blk_name_ata, port_num)) {
-        ahci_port_teardown(port);
-        return false;
-    }
-
     blk_event_notify(BLK_EVENT_CONNECTED, device);
-
-    return true;
 }
 
-static bool ahci_driver_op_probe_atapi_port(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
+static void ahci_probe_atapi_port(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
 {
     ata_identify_type identify;
     struct ahci_port* port;
     struct atapi_device* atapi_dev;
-    size_t sector_count = 0;
-    size_t sector_size = 0;
+    size_t sector_count;
+    size_t sector_size;
     char model_str[41];
 
     if(ahci_port_init(context, abar, port_num)) {
         pr_debug("ahci: out of DMA memory for ATAPI port %u", port_num);
-        return false;
+        return;
     }
 
     port = &context->ports[port_num];
+    atapi_dev = &context->atapi_devices[port_num];
 
-    if(ahci_atapi_identify(port, identify) == 0) {
-        ata_identify_string(identify + ATA_IDENTIFY_MODEL_FIELD, ATA_IDENTIFY_MODEL_NWORDS, model_str, sizeof(model_str));
+    if(0 == ahci_atapi_identify(port, identify)) {
+        ata_identify_string(&identify[ATA_IDENTIFY_MODEL_FIELD], ATA_IDENTIFY_MODEL_NWORDS, model_str, sizeof(model_str));
     }
     else {
         model_str[0] = 0x00;
     }
 
-    atapi_dev = &context->atapi_devices[port_num];
-    atapi_dev->base.ctxdata = port;
-    atapi_dev->ops = &ahci_atapi_ops;
-    atapi_dev->flags = 0;
-    atapi_dev->base.flags = 0;
-
     if(ahci_atapi_read_capacity(port, &sector_count, &sector_size)) {
         pr_debug("ahci: ATAPI port %u: no media or read capacity failed", port_num);
-        sector_count = 0;
-        sector_size = 0;
-    }
-    else {
-        atapi_dev->base.flags = BLK_FLAG_PRESENT;
+        ahci_port_teardown(port);
+        return;
     }
 
     atapi_dev->base.sector_count = sector_count;
     atapi_dev->base.sector_size = sector_size;
+    atapi_dev->base.flags = BLK_FLAG_PRESENT;
+    atapi_dev->base.ctxdata = port;
 
     pr_debug("ahci: port %u ATAPI: %s (%zu sectors of %zu bytes)", port_num, model_str, sector_count, sector_size);
 
-    if(atapi_register(atapi_dev, blk_name_atapi, port_num)) {
-        ahci_port_teardown(port);
-        return false;
-    }
-
-    if(atapi_dev->base.flags & BLK_FLAG_PRESENT) {
-        blk_event_notify(BLK_EVENT_CONNECTED, &atapi_dev->base);
-    }
-
-    return true;
+    blk_event_notify(BLK_EVENT_CONNECTED, &atapi_dev->base);
 }
 
 static int ahci_driver_op_probe(struct pci_device* restrict pci_dev, const struct pci_driver_id* restrict id)
@@ -629,6 +633,7 @@ static int ahci_driver_op_probe(struct pci_device* restrict pci_dev, const struc
     uint32_t ahci_ghc;
     uint32_t ahci_ssts;
     uint32_t ahci_signature;
+    uint32_t port_bit;
     uintptr_t port_base;
     unsigned port_num;
 
@@ -668,6 +673,35 @@ static int ahci_driver_op_probe(struct pci_device* restrict pci_dev, const struc
         }
 
         port_base = HBA_PORT_BASE + port_num * HBA_PORT_SIZE;
+        ahci_signature = pci_bar_read32(abar, port_base + PORT_REG_SIG);
+
+        if(ahci_signature == ATA_SIGNATURE_ATAPI) {
+            if(0 == ahci_register_atapi_port(context, port_num)) {
+                context->atapi_mask |= (UINT32_C(1) << port_num);
+            }
+        }
+        else {
+            if(0 == ahci_register_ata_port(context, port_num)) {
+                context->ata_mask |= (UINT32_C(1) << port_num);
+            }
+        }
+    }
+
+    if(0 == (context->ata_mask | context->atapi_mask)) {
+        pci_bar_unmap(pci_dev, 5);
+        kfree(context);
+        pci_dev->ctxdata = nullptr;
+        return ENODEV;
+    }
+
+    for(port_num = 0; port_num < 32; port_num += 1) {
+        port_bit = UINT32_C(1) << port_num;
+
+        if(0 == ((context->ata_mask | context->atapi_mask) & port_bit)) {
+            continue;
+        }
+
+        port_base = HBA_PORT_BASE + port_num * HBA_PORT_SIZE;
         ahci_ssts = pci_bar_read32(abar, port_base + PORT_REG_SSTS);
 
         if((ahci_ssts & 0x0F) != PORT_SSTS_DET_PRESENT) {
@@ -678,28 +712,12 @@ static int ahci_driver_op_probe(struct pci_device* restrict pci_dev, const struc
             continue;
         }
 
-        ahci_signature = pci_bar_read32(abar, port_base + PORT_REG_SIG);
-
-        if(ahci_signature == ATA_SIGNATURE_ATAPI) {
-            if(ahci_driver_op_probe_atapi_port(context, abar, port_num)) {
-                context->atapi_mask |= (UINT32_C(1) << port_num);
-            }
-        }
-        else if(ahci_signature == ATA_SIGNATURE_ATA) {
-            if(ahci_driver_op_probe_ata_port(context, abar, port_num)) {
-                context->ata_mask |= (UINT32_C(1) << port_num);
-            }
+        if(context->atapi_mask & port_bit) {
+            ahci_probe_atapi_port(context, abar, port_num);
         }
         else {
-            pr_debug("ahci: port %u has unknown signature %08X, skipping", port_num, (unsigned)ahci_signature);
+            ahci_probe_ata_port(context, abar, port_num);
         }
-    }
-
-    if(0 == (context->ata_mask | context->atapi_mask)) {
-        pci_bar_unmap(pci_dev, 5);
-        kfree(context);
-        pci_dev->ctxdata = nullptr;
-        return ENODEV;
     }
 
     return 0;
@@ -728,7 +746,9 @@ static void ahci_driver_remove(struct pci_device* restrict pci_dev)
             continue;
         }
 
-        ahci_port_teardown(&context->ports[port_num]);
+        if(context->ports[port_num].dma_phys) {
+            ahci_port_teardown(&context->ports[port_num]);
+        }
     }
 
     pci_bar_unmap(pci_dev, 5);
