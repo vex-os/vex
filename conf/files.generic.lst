@@ -43,6 +43,11 @@ ext/uacpi/types.c
 ext/uacpi/uacpi.c
 ext/uacpi/utilities.c
 
+fs/vfs_file.c
+fs/vfs_mount.c
+fs/vfs_node.c
+fs/vfs_path.c
+
 init/initcall.c
 init/kmain.c
 init/smp.c
