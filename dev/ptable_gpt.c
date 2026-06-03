@@ -175,7 +175,7 @@ static int gpt_detect(const struct blk_device* restrict device, void** restrict 
 
 static int gpt_readpt(const struct blk_device* restrict device, void* restrict ptdata, unsigned index, struct blk_ptable_info* restrict out)
 {
-    static const uint8_t null_guid[16] = { 0 };
+    static const uint8_t null_guid[16] = { 0 }; // FIXME: a GUID library would be nice
 
     const struct gpt_ptdata* gpt = ptdata;
     const struct gpt_entry* entry;

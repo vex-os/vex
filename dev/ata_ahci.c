@@ -4,7 +4,7 @@
 #include <core/endian.h>
 #include <core/kprintf.h>
 #include <dev/ata.h>
-#include <dev/atapi.h>
+#include <dev/ata_atapi.h>
 #include <dev/blk_device.h>
 #include <dev/blk_event.h>
 #include <dev/blk_name.h>

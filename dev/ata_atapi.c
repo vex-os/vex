@@ -1,5 +1,5 @@
 #include <core/errno.h>
-#include <dev/atapi.h>
+#include <dev/ata_atapi.h>
 #include <dev/blk_device.h>
 #include <dev/blk_name.h>
 #include <lib/string.h>

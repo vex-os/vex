@@ -5,19 +5,16 @@ cd $(dirname $(realpath $(dirname ${0})))
 if test -f "/proc/sys/fs/binfmt_misc/WSLInterop"; then
     UEFI_PATH=$(wslpath -a -w boot/qemu/RELEASEX64_OVMF.fd)
     IMAGE_PATH=$(wslpath -a -w build/vexsys.boot.img)
-    MBR_IMAGE_PATH=$(wslpath -a -w build/vexsys.mbr.img)
     QEMU_EXECUTABLE=qemu-system-x86_64.exe
 else
     UEFI_PATH=boot/qemu/RELEASEX64_OVMF.fd
     IMAGE_PATH=build/vexsys.boot.img
-    MBR_IMAGE_PATH=build/vexsys.mbr.img
     QEMU_EXECUTABLE=qemu-system-x86_64
 fi
 
 qargs=
 qargs="${qargs} -bios ${UEFI_PATH}"
 qargs="${qargs} -drive format=raw,file=${IMAGE_PATH}"
-qargs="${qargs} -drive format=raw,file=${MBR_IMAGE_PATH}"
 qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -machine type=q35"
 qargs="${qargs} -vga std"
