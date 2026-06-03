@@ -6,6 +6,7 @@
 #include <dev/ata.h>
 #include <dev/atapi.h>
 #include <dev/blk_device.h>
+#include <dev/blk_event.h>
 #include <dev/blk_name.h>
 #include <init/initcall.h>
 #include <lib/sprintf.h>
@@ -560,6 +561,8 @@ static bool ahci_driver_op_probe_ata_port(struct ahci_pci_context* restrict cont
         return false;
     }
 
+    blk_event_notify(BLK_EVENT_CONNECTED, device);
+
     return true;
 }
 
@@ -609,6 +612,10 @@ static bool ahci_driver_op_probe_atapi_port(struct ahci_pci_context* restrict co
     if(atapi_register(atapi_dev, blk_name_atapi, port_num)) {
         ahci_port_teardown(port);
         return false;
+    }
+
+    if(atapi_dev->base.flags & BLK_FLAG_PRESENT) {
+        blk_event_notify(BLK_EVENT_CONNECTED, &atapi_dev->base);
     }
 
     return true;

@@ -1,5 +1,6 @@
 #include <core/kprintf.h>
 #include <dev/blk_device.h>
+#include <dev/blk_event.h>
 #include <dev/blk_name.h>
 #include <lib/sprintf.h>
 #include <lib/string.h>
@@ -20,6 +21,8 @@ static int blk_device_register_internal(struct blk_device* restrict device)
 
     device->priv.next = blk_device_head;
     blk_device_head = device;
+
+    blk_event_notify(BLK_EVENT_REGISTERED, device);
 
     return 0;
 }
@@ -63,6 +66,12 @@ int blk_device_unregister(struct blk_device* restrict device)
     }
 
     pr_debug("blk_device: removing %s", device->identifier);
+
+    if(device->flags & BLK_FLAG_PRESENT) {
+        blk_event_notify(BLK_EVENT_DISCONNECTED, device);
+    }
+
+    blk_event_notify(BLK_EVENT_UNREGISTERED, device);
 
     if(device->ops->destroy) {
         device->ops->destroy(device);
