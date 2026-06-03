@@ -124,8 +124,8 @@ void __noreturn kmain(void)
     pr_inform("hanging around...");
 
     test_devfs_listroot();
-    test_devfs_write("/ada0n2p2");
-    test_devfs_read("/ada0n2p2");
+    // test_devfs_write("/ada0n2p2");
+    // test_devfs_read("/ada0n2p2");
 
     for(;;) {
         stop_hart();
