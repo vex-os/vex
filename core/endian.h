@@ -3,7 +3,6 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stdint.h>
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
 #define BE16_to_host(value) __builtin_bswap16(value)

@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stddef.h>
+#include <core/types.h>
 
 extern char* kstrncat(char* restrict dst, const char* restrict src, size_t sz);
 extern char* kstrncpy(char* restrict dst, const char* restrict src, size_t sz);

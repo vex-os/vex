@@ -19,14 +19,14 @@ struct vfs_file* vfs_file_open(const char* restrict path, unsigned flags)
 
     retval = vfs_lookup(path, &node);
 
-    if(retval) {
+    if(retval < 0) {
         return nullptr;
     }
 
     if(node->ops->open) {
         retval = node->ops->open(node, flags);
 
-        if(retval) {
+        if(retval < 0) {
             vfs_node_dec_refcount(node);
             return nullptr;
         }
@@ -141,11 +141,11 @@ ssize_t vfs_file_write(struct vfs_file* restrict file, const void* restrict buff
 int vfs_file_ioctl(struct vfs_file* restrict file, unsigned request, void* restrict arg)
 {
     if(file == nullptr) {
-        return EINVAL;
+        return -EINVAL;
     }
 
     if(file->node->ops->ioctl == nullptr) {
-        return ENOTTY;
+        return -ENOTTY;
     }
 
     return file->node->ops->ioctl(file->node, request, arg);
@@ -157,7 +157,7 @@ int vfs_file_seek(struct vfs_file* restrict file, off_t offset, int whence)
     off_t new_offset;
 
     if(file == nullptr) {
-        return EINVAL;
+        return -EINVAL;
     }
 
     switch(whence) {
@@ -171,22 +171,22 @@ int vfs_file_seek(struct vfs_file* restrict file, off_t offset, int whence)
 
         case VFS_SEEK_END:
             if(file->node->ops->stat == nullptr) {
-                return ENOSYS;
+                return -ENOSYS;
             }
 
             if(file->node->ops->stat(file->node, &st)) {
-                return EIO;
+                return -EIO;
             }
 
             new_offset = st.size + offset;
             break;
 
         default:
-            return EINVAL;
+            return -EINVAL;
     }
 
     if(new_offset < 0) {
-        return EINVAL;
+        return -EINVAL;
     }
 
     file->offset = new_offset;

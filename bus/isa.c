@@ -71,7 +71,7 @@ int isa_device_register(struct isa_device* restrict device)
 
     for(it = device_head; it; it = it->priv.next) {
         if(it == device) {
-            return EEXIST;
+            return -EEXIST;
         }
     }
 
@@ -104,7 +104,7 @@ int isa_device_unregister(struct isa_device* restrict device)
         }
 
         if(it == nullptr) {
-            return ENODEV;
+            return -ENODEV;
         }
     }
 
@@ -126,7 +126,7 @@ int isa_driver_register(struct isa_driver* restrict driver)
 
     for(it = driver_head; it; it = it->priv.next) {
         if(it == driver) {
-            return EEXIST;
+            return -EEXIST;
         }
     }
 
@@ -163,7 +163,7 @@ int isa_driver_unregister(struct isa_driver* restrict driver)
         }
 
         if(!it)
-            return ENODEV;
+            return -ENODEV;
     }
 
     if(driver->ops->remove) {
@@ -206,7 +206,7 @@ int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_han
     res = isa_get_resource(device, ISA_RESOURCE_IRQ, index);
 
     if(res == nullptr) {
-        return ENODEV;
+        return -ENODEV;
     }
 
     isa_irq_route(res->irq.line, &res->irq.gsi, &res->irq.trigger, &res->irq.polarity);
@@ -214,13 +214,13 @@ int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_han
     controller = find_intctl(res->irq.gsi);
 
     if(controller == nullptr) {
-        return ENODEV;
+        return -ENODEV;
     }
 
     ireq_number = ireq_handler_register(UINT_MAX, handler, ctxdata);
 
     if(ireq_number == UINT_MAX) {
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     res->irq.ireq_number = ireq_number;

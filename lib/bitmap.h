@@ -3,9 +3,8 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <core/types.h>
 #include <limits.h>
-#include <stddef.h>
-#include <stdint.h>
 
 #define BITMAP_BIT(bit) (UINT32_C(1) << ((uint32_t)bit))
 

@@ -76,7 +76,7 @@ static struct memblock* extend_heap(size_t sz)
         virt = block->address + i * PAGE_SIZE;
         retval = vmm_map(&sys_pagemap, virt, phys, VPROT_RW);
 
-        if(retval) {
+        if(retval < 0) {
             pslab_free(phys);
             goto error_cleanup;
         }

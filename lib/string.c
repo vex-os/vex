@@ -3,7 +3,6 @@
 #include <lib/stdlib.h>
 #include <lib/string.h>
 #include <lib/strings.h>
-#include <stdint.h>
 
 const void* memchr(const void* restrict buf, int chr, size_t sz)
 {
@@ -480,7 +479,7 @@ int strerror_r(int errnum, char* restrict str, size_t sz)
 
         default:
             snprintf(str, sz, "unknown errnum (%d)", errnum);
-            return EINVAL;
+            return -EINVAL;
     }
 }
 

@@ -4,8 +4,7 @@
 
 #include <core/cdefs.h>
 #include <core/endian.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <core/types.h>
 
 #define ATA_CMD_READ_PIO       0x20 ///< [28-bit LBA] Read Sectors
 #define ATA_CMD_READ_PIO_EXT   0x24 ///< [48-bit LBA] Read Sectors Ext

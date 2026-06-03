@@ -20,6 +20,9 @@ dev/blk_device.c
 dev/blk_event.c
 dev/blk_name.c
 dev/blk_ptable.c
+dev/chr_device.c
+dev/chr_event.c
+dev/chr_name.c
 dev/ps2kbd.c
 dev/ptable_mbr.c
 

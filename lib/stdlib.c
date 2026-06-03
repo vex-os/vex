@@ -2,7 +2,6 @@
 #include <lib/stdlib.h>
 #include <lib/string.h>
 #include <limits.h>
-#include <stdint.h>
 
 #define IMPL_STRTOINT(name, type, max_value, min_value)                            \
     type name(const char* restrict nptr, const char** restrict endptr, int base)   \

@@ -4,9 +4,8 @@
 
 #include <core/cdefs.h>
 #include <core/spinlock.h>
+#include <core/types.h>
 #include <mm/vprot.h>
-#include <stddef.h>
-#include <stdint.h>
 
 #define AMD64_VMM_ADDRESS_MASK UINT64_C(0x000FFFFFFFFFF000)
 

@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stddef.h>
+#include <core/types.h>
 
 extern void* kmalloc(size_t sz) __nodiscard;
 extern void* kcalloc(size_t count, size_t sz) __nodiscard;

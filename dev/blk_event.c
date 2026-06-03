@@ -56,14 +56,14 @@ int blk_event_register_handler(blk_event_handler_type handler, void* restrict ct
 
     for(it = handlers_head; it; it = it->next) {
         if(it->handler == handler && it->ctxdata == ctxdata) {
-            return EEXIST;
+            return -EEXIST;
         }
     }
 
     it = kmalloc(sizeof(struct event_handler));
 
     if(it == nullptr) {
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     it->handler = handler;
@@ -97,7 +97,7 @@ int blk_event_unregister_handler(blk_event_handler_type handler, void* restrict 
         prev = it;
     }
 
-    return ENOENT;
+    return -ENOENT;
 }
 
 void blk_event_notify(unsigned event, const struct blk_device* restrict device)

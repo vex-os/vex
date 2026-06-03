@@ -1,7 +1,6 @@
 #include <core/assert.h>
 #include <dev/blk_name.h>
 #include <init/initcall.h>
-#include <lib/sprintf.h>
 #include <lib/string.h>
 #include <lib/strings.h>
 #include <mm/malloc.h>

@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stddef.h>
+#include <core/types.h>
 
 struct cmdline {
     char* buffer;

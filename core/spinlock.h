@@ -4,7 +4,7 @@
 
 #include <arch/hart.h>
 #include <core/atomic.h>
-#include <stdint.h>
+#include <core/types.h>
 
 typedef uintptr_t spinlock_type;
 #define SPINLOCK_INIT ((spinlock_type)(0))

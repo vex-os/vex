@@ -3,8 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <core/types.h>
 
 struct pmio_region_private {
     void* ctxdata;

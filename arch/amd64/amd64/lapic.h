@@ -3,8 +3,8 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <core/types.h>
 #include <mm/hhdm.h>
-#include <stdint.h>
 
 #define LAPIC_REG_ID     0x008
 #define LAPIC_REG_EOI    0x02C

@@ -64,14 +64,14 @@ static int ps2kbd_probe(struct isa_device* restrict device)
     int retval;
 
     if(strcmp(device->identifier, "PNP0303")) {
-        return ENODEV;
+        return -ENODEV;
     }
 
     data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
     cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
 
     if(data_res == nullptr || cmd_res == nullptr) {
-        return ENODEV;
+        return -ENODEV;
     }
 
     i8042_wait_write(&cmd_res->pmio);
@@ -99,7 +99,7 @@ static int ps2kbd_probe(struct isa_device* restrict device)
 
     retval = isa_request_irq(device, 0, &ps2kbd_ireq, device);
 
-    if(retval) {
+    if(retval < 0) {
         return retval;
     }
 

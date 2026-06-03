@@ -27,7 +27,7 @@ static int part_read(const struct blk_device* restrict device, uintptr_t lba, si
     const struct blk_part_device* part = (const struct blk_part_device*)(device);
 
     if(lba + count > part->lba_count)
-        return EINVAL;
+        return -EINVAL;
     return blk_device_read(part->root, part->lba_start + lba, count, buffer);
 }
 
@@ -36,7 +36,7 @@ static int part_write(const struct blk_device* restrict device, uintptr_t lba, s
     const struct blk_part_device* part = (const struct blk_part_device*)(device);
 
     if(lba + count > part->lba_count)
-        return EINVAL;
+        return -EINVAL;
     return blk_device_write(part->root, part->lba_start + lba, count, buffer);
 }
 
@@ -205,7 +205,7 @@ int blk_ptable_register(struct blk_ptable* restrict ptable)
 
     for(it = ptable_head; it; it = it->priv.next) {
         if(it == ptable) {
-            return EEXIST;
+            return -EEXIST;
         }
     }
 
@@ -234,7 +234,7 @@ int blk_ptable_unregister(struct blk_ptable* restrict ptable)
         prev = it;
     }
 
-    return ENODEV;
+    return -ENODEV;
 }
 
 int blk_ptable_rescan(const struct blk_device* restrict device)
@@ -242,7 +242,7 @@ int blk_ptable_rescan(const struct blk_device* restrict device)
     struct blk_disk_state* state;
 
     if(device->flags & BLK_FLAG_PARTITION) {
-        return EINVAL;
+        return -EINVAL;
     }
 
     state = disk_state_find(device);

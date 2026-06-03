@@ -31,7 +31,7 @@ static int atapi_write(const struct blk_device* restrict device, uintptr_t lba, 
     atapi_cdb_type cdb;
 
     if(0 == (atapi->flags & ATAPI_FLAG_WRITABLE)) {
-        return EROFS;
+        return -EROFS;
     }
 
     memset(cdb, 0, sizeof(atapi_cdb_type));

@@ -5,9 +5,8 @@
 #include <core/cdefs.h>
 #include <core/mmio.h>
 #include <core/pmio.h>
+#include <core/types.h>
 #include <ireq/dispatch.h>
-#include <stddef.h>
-#include <stdint.h>
 
 enum {
     ISA_RESOURCE_MMIO,

@@ -3,8 +3,8 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <core/types.h>
 #include <stdarg.h>
-#include <stddef.h>
 
 #ifndef KP_BUFSIZE
 #define KP_BUFSIZE 4096U

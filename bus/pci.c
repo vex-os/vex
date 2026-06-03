@@ -185,7 +185,7 @@ int pci_bus_register(struct pci_bus* restrict bus)
 
     for(it = bus_head; it; it = it->priv.next) {
         if(it == bus) {
-            return EEXIST;
+            return -EEXIST;
         }
     }
 
@@ -221,7 +221,7 @@ int pci_bus_unregister(struct pci_bus* restrict bus)
         }
 
         if(it == nullptr) {
-            return ENODEV;
+            return -ENODEV;
         }
     }
 
@@ -248,7 +248,7 @@ int pci_driver_register(struct pci_driver* restrict driver)
 
     for(it = driver_head; it; it = it->priv.next) {
         if(it == driver) {
-            return EEXIST;
+            return -EEXIST;
         }
     }
 
@@ -285,7 +285,7 @@ int pci_driver_unregister(struct pci_driver* restrict driver)
         }
 
         if(it == nullptr) {
-            return ENODEV;
+            return -ENODEV;
         }
     }
 
@@ -618,25 +618,25 @@ int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handle
     int_pin = pci_cfg_read8(device, PCI_CFG_INT_PIN);
 
     if(int_pin == 0) {
-        return ENODEV;
+        return -ENODEV;
     }
 
     int_line = pci_cfg_read8(device, PCI_CFG_INT_LINE);
 
     if(int_line == 0xFF) {
-        return ENODEV;
+        return -ENODEV;
     }
 
     controller = find_intctl(int_line);
 
     if(controller == nullptr) {
-        return ENODEV;
+        return -ENODEV;
     }
 
     ireq_number = ireq_handler_register(UINT_MAX, handler, ctxdata);
 
     if(ireq_number == UINT_MAX) {
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     device->priv.ireq_number = ireq_number;

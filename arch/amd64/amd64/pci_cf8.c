@@ -1,7 +1,6 @@
 #include <amd64/pmio.h>
 #include <bus/pci.h>
 #include <init/initcall.h>
-#include <stdint.h>
 
 // PCI configuration space access via cf8 CF8/CFC I/O ports.
 // Covers segment 0 only; other segments require ECAM (MCFG).

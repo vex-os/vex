@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stdint.h>
+#include <core/types.h>
 
 extern uintptr_t kbase_phys;
 extern uintptr_t kbase_virt;

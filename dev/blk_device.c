@@ -13,7 +13,7 @@ static int blk_device_register_internal(struct blk_device* restrict device)
 
     for(it = blk_device_head; it; it = it->priv.next) {
         if(it == device) {
-            return EEXIST;
+            return -EEXIST;
         }
     }
 
@@ -74,7 +74,7 @@ int blk_device_unregister(struct blk_device* restrict device)
         }
 
         if(it == nullptr) {
-            return ENODEV;
+            return -ENODEV;
         }
     }
 
@@ -91,7 +91,7 @@ int blk_device_unregister(struct blk_device* restrict device)
     return 0;
 }
 
-const struct blk_device* blk_device_find(const char* name)
+const struct blk_device* blk_device_find(const char* restrict name)
 {
     struct blk_device* it;
 

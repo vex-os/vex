@@ -3,8 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <core/types.h>
 
 #define GDT_NULL_SEGMENT 0x00
 #define GDT_KERN_CODE_16 0x01

@@ -3,7 +3,6 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stddef.h>
 
 #define BLK_NAME_PREFIX_ATA    "ada"
 #define BLK_NAME_PREFIX_ATAPI  "acd"

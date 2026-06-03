@@ -1,7 +1,6 @@
 #include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
-#include <core/types.h>
 #include <time/clocksrc.h>
 
 #define NSEC_PER_SEC UINT64_C(1000000000)
@@ -23,7 +22,7 @@ int clocksrc_register_internal(struct clocksrc* restrict src, uint64_t scale, ui
 
     for(it = clocksrc_head; it; it = it->priv.next) {
         if(it == src) {
-            return EEXIST;
+            return -EEXIST;
         }
     }
 
@@ -56,7 +55,7 @@ int clocksrc_calibrate_internal(struct clocksrc* restrict src, uint64_t scale, u
         }
     }
 
-    return ENOENT;
+    return -ENOENT;
 }
 
 int clocksrc_unregister(struct clocksrc* restrict src)
@@ -78,7 +77,7 @@ int clocksrc_unregister(struct clocksrc* restrict src)
         }
 
         if(it == nullptr) {
-            return ENOENT;
+            return -ENOENT;
         }
     }
 

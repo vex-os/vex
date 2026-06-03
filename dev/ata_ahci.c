@@ -158,12 +158,12 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
         if(ahci_register_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
             tfd_value = ahci_register_read(port, PORT_REG_TFD);
             pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)(lba), tfd_value);
-            return EIO;
+            return -EIO;
         }
 
         if(counter >= AHCI_POLL_TIMEOUT) {
             pr_debug("ahci: poll timeout at LBA %zu", (size_t)(lba));
-            return EIO;
+            return -EIO;
         }
 
         yield_hart();
@@ -174,7 +174,7 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
     if(ahci_register_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
         tfd_value = ahci_register_read(port, PORT_REG_TFD);
         pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)(lba), tfd_value);
-        return EIO;
+        return -EIO;
     }
 
     return 0;
@@ -252,7 +252,7 @@ static int ahci_identify(struct ahci_port* restrict port, ata_identify_type iden
 
     retval = ahci_issue(port, 0);
 
-    if(retval) {
+    if(retval < 0) {
         return retval;
     }
 
@@ -273,7 +273,7 @@ static int ahci_atapi_identify(struct ahci_port* restrict port, ata_identify_typ
 
     retval = ahci_issue(port, 0);
 
-    if(retval) {
+    if(retval < 0) {
         return retval;
     }
 
@@ -345,7 +345,7 @@ static int ahci_atapi_read_capacity(struct ahci_port* restrict port, size_t* res
 
     retval = ahci_issue(port, 0);
 
-    if(retval) {
+    if(retval < 0) {
         return retval;
     }
 
@@ -382,7 +382,7 @@ static int ahci_atapi_send_packet(const struct atapi_device* restrict device, co
 
     retval = ahci_issue(port, 0);
 
-    if(retval) {
+    if(retval < 0) {
         return retval;
     }
 
@@ -415,7 +415,7 @@ static int ahci_read(const struct blk_device* restrict device, uintptr_t lba, si
 
         retval = ahci_issue(port, current_lba);
 
-        if(retval) {
+        if(retval < 0) {
             return retval;
         }
 
@@ -449,7 +449,7 @@ static int ahci_write(const struct blk_device* restrict device, uintptr_t lba, s
 
         retval = ahci_issue(port, current_lba);
 
-        if(retval) {
+        if(retval < 0) {
             return retval;
         }
     }
@@ -477,7 +477,7 @@ static int ahci_port_init(struct ahci_pci_context* restrict context, struct pci_
     dma_phys = pdma_alloc(DMA_NUM_PAGES);
 
     if(dma_phys == 0) {
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     dma_virt = phys_to_virt(dma_phys);
@@ -641,7 +641,7 @@ static int ahci_driver_probe(struct pci_device* restrict pci_dev, const struct p
 
     if(context == nullptr) {
         pr_debug("ahci: out of memory for context");
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     memset(context, 0, sizeof(struct ahci_pci_context));
@@ -656,7 +656,7 @@ static int ahci_driver_probe(struct pci_device* restrict pci_dev, const struct p
         pr_debug("ahci: pci_bar_map failed for ABAR");
         kfree(context);
         pci_dev->ctxdata = nullptr;
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     ahci_ghc = pci_bar_read32(abar, HBA_GHC);
@@ -693,7 +693,7 @@ static int ahci_driver_probe(struct pci_device* restrict pci_dev, const struct p
         pci_bar_unmap(pci_dev, 5);
         kfree(context);
         pci_dev->ctxdata = nullptr;
-        return ENODEV;
+        return -ENODEV;
     }
 
     for(port_num = 0; port_num < 32; port_num += 1) {

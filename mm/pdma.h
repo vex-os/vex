@@ -3,8 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <core/types.h>
 
 #ifndef PDMA_APPROX_END
 #define PDMA_APPROX_END 0xFFFFFF

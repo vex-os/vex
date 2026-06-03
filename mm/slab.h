@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stddef.h>
+#include <core/types.h>
 
 extern void* slab_alloc(size_t sz) __nodiscard;
 extern void* slab_calloc(size_t count, size_t sz) __nodiscard;

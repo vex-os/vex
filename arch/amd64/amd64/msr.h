@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stdint.h>
+#include <core/types.h>
 
 static __always_inline __nodiscard inline uint64_t msr_read(uint32_t msreg)
 {

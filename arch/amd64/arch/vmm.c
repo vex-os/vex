@@ -36,7 +36,7 @@ int vmm_pagemap_alloc(struct vmm_pagemap* restrict vm)
     vm->amd64.cr3_phys = pslab_alloc();
 
     if(vm->amd64.cr3_phys == 0) {
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     vm->amd64.cr3_virt = phys_to_virt(vm->amd64.cr3_phys);
