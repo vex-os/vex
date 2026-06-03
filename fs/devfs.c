@@ -8,7 +8,9 @@
 #include <init/initcall.h>
 #include <lib/string.h>
 #include <lib/strings.h>
+#include <mm/malloc.h>
 #include <mm/slab.h>
+#include <stdint.h>
 
 struct devfs_node {
     char name[VFS_NAME_SIZE];
@@ -26,21 +28,65 @@ static struct vfs* devfs_instance = nullptr;
 static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buffer, size_t sz, off_t offset)
 {
     const struct blk_device* dev = node->ctxdata;
-    uintptr_t lba = (uintptr_t)(offset / dev->sector_size);
-    size_t count = (sz + dev->sector_size - 1) / dev->sector_size;
-    int retval = blk_device_read(dev, lba, count, buffer);
 
-    if(retval)
+    size_t sector_size = dev->sector_size;
+    uintptr_t lba = (uintptr_t)(offset / sector_size);
+    size_t byte_off = (size_t)(offset % sector_size);
+    size_t count = (byte_off + sz + sector_size - 1) / sector_size;
+    uint8_t* temp_buffer;
+    int retval;
+
+    temp_buffer = kmalloc(count * sector_size);
+
+    if(temp_buffer == nullptr) {
+        return -ENOMEM;
+    }
+
+    retval = blk_device_read(dev, lba, count, temp_buffer);
+
+    if(retval) {
+        kfree(temp_buffer);
         return -retval;
+    }
+
+    memcpy(buffer, temp_buffer + byte_off, sz);
+
+    kfree(temp_buffer);
+
     return (ssize_t)(sz);
 }
 
 static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
     const struct blk_device* dev = node->ctxdata;
-    uintptr_t lba = (uintptr_t)(offset / dev->sector_size);
-    size_t count = (sz + dev->sector_size - 1) / dev->sector_size;
-    int retval = blk_device_write(dev, lba, count, buffer);
+
+    size_t sector_size = dev->sector_size;
+    uintptr_t lba = (uintptr_t)(offset / sector_size);
+    size_t byte_off = (size_t)(offset % sector_size);
+    size_t count = (byte_off + sz + sector_size - 1) / sector_size;
+    uint8_t* temp_buffer;
+    int retval;
+
+    temp_buffer = kmalloc(count * sector_size);
+
+    if(temp_buffer == nullptr) {
+        return -ENOMEM;
+    }
+
+    if(byte_off || (sz % sector_size)) {
+        retval = blk_device_read(dev, lba, count, temp_buffer);
+
+        if(retval) {
+            kfree(temp_buffer);
+            return -retval;
+        }
+    }
+
+    memcpy(temp_buffer + byte_off, buffer, sz);
+
+    retval = blk_device_write(dev, lba, count, temp_buffer);
+
+    kfree(temp_buffer);
 
     if(retval)
         return -retval;
@@ -181,6 +227,7 @@ static void devfs_remove(const char* restrict name)
 static void devfs_blk_handler(unsigned event, const struct blk_device* restrict device, void* restrict ctxdata)
 {
     struct vfs_node* vnode;
+    int retval;
 
     if(event == BLK_EVENT_MEDIA_CONNECTED || event == BLK_EVENT_PARTITION_ADDED) {
         vnode = vfs_node_alloc(VFS_NODE_TYPE_BLK_DEVICE, &devfs_blk_ops, (void*)(device));
@@ -189,7 +236,9 @@ static void devfs_blk_handler(unsigned event, const struct blk_device* restrict 
             return;
         }
 
-        if(devfs_insert(device->identifier, vnode)) {
+        retval = devfs_insert(device->identifier, vnode);
+
+        if(retval) {
             vfs_node_dec_refcount(vnode);
         }
 
@@ -269,5 +318,5 @@ define_initcall(devfs_init, INITCALL_STAGE_BSP_VFS, INITCALL_ORDER_EARLY)
 {
     vfs_driver_register(&devfs_driver);
     blk_event_register_handler(devfs_blk_handler, nullptr);
-    vfs_mount("devfs", nullptr, nullptr, nullptr); // TODO: rootfs instead
+    vfs_mount("devfs", nullptr, nullptr, nullptr);
 }

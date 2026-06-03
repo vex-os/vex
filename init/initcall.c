@@ -6,6 +6,10 @@ void invoke_initcalls(const struct initcall_entry* restrict start, const struct 
     const struct initcall_entry* it;
 
     for(it = start; it < end; it += 1) {
+#if INITCALL_LOGGING
+        pr_debug("initcall: calling %s <%p>", it->name, (const void*)(it->func));
+#endif
+
         it->func();
     }
 }

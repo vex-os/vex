@@ -6,6 +6,10 @@
 #include <core/kprintf.h>
 #include <core/version.h>
 #include <dev/blk_device.h>
+#include <fs/vfs_file.h>
+#include <fs/vfs_node.h>
+#include <fs/vfs_path.h>
+#include <fs/vfs_types.h>
 #include <init/initcall.h>
 #include <limine.h>
 #include <mm/malloc.h>
@@ -15,29 +19,67 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-static void __used dump_lba(const struct blk_device* restrict device, uintptr_t lba)
+static void __used test_devfs_listroot(void)
 {
-    uint8_t* sector;
+    struct vfs_node* root;
+    struct vfs_dirent de;
+    off_t index = 0;
+
+    if(vfs_lookup("/", &root)) {
+        pr_error("devfs: failed to get root");
+        return;
+    }
+
+    pr_inform("devfs root listing:");
+
+    while(root->ops->read_dir && 0 == root->ops->read_dir(root, &de, index)) {
+        pr_inform("  [%u] %s", de.type, de.name);
+        index++;
+    }
+
+    if(index == 0)
+        pr_inform("  (empty)");
+
+    vfs_node_dec_refcount(root);
+}
+
+static void __used test_devfs_read(const char* path)
+{
+    struct vfs_file* file;
+    uint8_t buf[1024];
+    ssize_t result;
     unsigned i;
 
-    if(device) {
-        sector = kmalloc(device->sector_size);
-        strict_kassert(sector);
+    file = vfs_file_open(path, VFS_O_RDONLY);
 
-        if(0 == blk_device_read(device, lba, 1, sector)) {
-            pr_inform("%s LBA%llu:", device->identifier, (unsigned long long)(lba));
-            for(i = 0; i < device->sector_size; i += 16) {
-                pr_inform("%03x: %02x %02x %02x %02x %02x %02x %02x %02x  %02x %02x %02x %02x %02x %02x %02x %02x", i, sector[i + 0],
-                    sector[i + 1], sector[i + 2], sector[i + 3], sector[i + 4], sector[i + 5], sector[i + 6], sector[i + 7], sector[i + 8],
-                    sector[i + 9], sector[i + 10], sector[i + 11], sector[i + 12], sector[i + 13], sector[i + 14], sector[i + 15]);
-            }
-        }
-        else {
-            pr_error("%s: read failed", device->identifier);
-        }
-
-        kfree(sector);
+    if(file == nullptr) {
+        pr_error("devfs: failed to open %s", path);
+        return;
     }
+
+    if(vfs_file_seek(file, 128, VFS_SEEK_SET)) {
+        pr_error("devfs: seek failed on %s", path);
+        vfs_file_close(file);
+        return;
+    }
+
+    result = vfs_file_read(file, buf, sizeof(buf));
+
+    if(result < 0) {
+        pr_error("devfs: read failed on %s: %d", path, (int)(-result));
+        vfs_file_close(file);
+        return;
+    }
+
+    pr_inform("%s @ offset 128, %d bytes:", path, (int)result);
+
+    for(i = 0; i < (unsigned)result; i += 16) {
+        pr_inform("%03x: %02x %02x %02x %02x %02x %02x %02x %02x  %02x %02x %02x %02x %02x %02x %02x %02x", i + 128, buf[i + 0], buf[i + 1],
+            buf[i + 2], buf[i + 3], buf[i + 4], buf[i + 5], buf[i + 6], buf[i + 7], buf[i + 8], buf[i + 9], buf[i + 10], buf[i + 11],
+            buf[i + 12], buf[i + 13], buf[i + 14], buf[i + 15]);
+    }
+
+    vfs_file_close(file);
 }
 
 void __noreturn kmain(void)
@@ -50,10 +92,8 @@ void __noreturn kmain(void)
 
     pr_inform("hanging around...");
 
-    // dump_lba(blk_device_find("ada0n1"), 0);
-    // dump_lba(blk_device_find("ada0n2"), 0);
-    // dump_lba(blk_device_find("ada0n2p1"), 0);
-    // dump_lba(blk_device_find("ada0n2p2"), 0);
+    test_devfs_listroot();
+    test_devfs_read("/ada0n2p2");
 
     for(;;) {
         stop_hart();

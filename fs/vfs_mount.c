@@ -6,14 +6,13 @@
 #include <fs/vfs_node.h>
 #include <fs/vfs_path.h>
 #include <lib/string.h>
-#include <lib/strings.h>
 #include <mm/malloc.h>
 #include <mm/slab.h>
 
 struct mount_entry {
     struct mount_entry* next;
     struct vfs* fs;
-    char path[1024];
+    char* path;
 };
 
 static spinlock_type drivers_lock = SPINLOCK_INIT;
@@ -180,8 +179,17 @@ int vfs_mount(const char* restrict type, const char* restrict path, struct blk_d
 
     memset(entry, 0, sizeof(struct mount_entry));
 
-    if(path)
-        kstrncpy(entry->path, path, sizeof(entry->path));
+    if(path) {
+        entry->path = kstrdup(path);
+
+        if(entry->path == nullptr) {
+            spinlock_release(&mounts_lock);
+            driver->ops->unmount(fs);
+            slab_free(entry);
+            slab_free(fs);
+            return ENOMEM;
+        }
+    }
 
     entry->fs = fs;
     entry->next = mounts_head;
@@ -210,7 +218,7 @@ int vfs_unmount(const char* restrict path)
     while(prev[0]) {
         entry = prev[0];
 
-        if(0 == strcmp(entry->path, path)) {
+        if(entry->path && 0 == strcmp(entry->path, path)) {
             fs = entry->fs;
 
             if(fs->mountpoint) {
@@ -232,6 +240,7 @@ int vfs_unmount(const char* restrict path)
             }
 
             slab_free(fs);
+            kfree(entry->path);
             slab_free(entry);
 
             spinlock_release(&mounts_lock);
