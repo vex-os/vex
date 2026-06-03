@@ -12,6 +12,7 @@
 #include <fs/vfs_path.h>
 #include <fs/vfs_types.h>
 #include <init/initcall.h>
+#include <lib/sprintf.h>
 #include <limine.h>
 #include <mm/malloc.h>
 
@@ -19,26 +20,48 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-static void __used test_devfs_listroot(void)
+static void recurse_list(struct vfs_node* restrict node, const char* restrict path)
 {
-    struct vfs_node* root;
     struct vfs_dirent de;
     off_t index = 0;
+
+    while(node->ops->read_dir && 0 == node->ops->read_dir(node, &de, index)) {
+        if(de.type == VFS_NODE_TYPE_DIRECTORY) {
+            if(de.name[0] == '.' && (de.name[1] == 0 || (de.name[1] == '.' && de.name[2] == 0))) {
+                index += 1;
+                continue;
+            }
+
+            struct vfs_node* child;
+
+            if(0 == vfs_lookup_at(node, de.name, &child)) {
+                char subpath[VFS_NAME_SIZE];
+                snprintf(subpath, sizeof(subpath), "%s<>%s", path, de.name);
+                recurse_list(child, subpath);
+                vfs_node_dec_refcount(child);
+            }
+            else {
+                pr_inform("  [dir] %s/%s (lookup failed)", path, de.name);
+            }
+        }
+        else {
+            pr_inform("  [%u] %s/%s", de.type, path, de.name);
+        }
+
+        index++;
+    }
+}
+
+static void list_root(void)
+{
+    struct vfs_node* root;
 
     if(vfs_lookup("/", &root)) {
         pr_error("failed to get root");
         return;
     }
 
-    while(root->ops->read_dir && 0 == root->ops->read_dir(root, &de, index)) {
-        pr_inform("  [%u] %s", de.type, de.name);
-        index++;
-    }
-
-    if(index == 0) {
-        pr_inform("  (empty)");
-    }
-
+    recurse_list(root, "");
     vfs_node_dec_refcount(root);
 }
 
@@ -54,7 +77,7 @@ void __noreturn kmain(void)
 
     vfs_mount("fat", "/", blk_device_find("ada0n1p1"), nullptr);
 
-    test_devfs_listroot();
+    list_root();
     // test_devfs_write("/ada0n2p2");
     // test_devfs_read("/ada0n2p2");
 
