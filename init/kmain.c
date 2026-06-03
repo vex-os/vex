@@ -43,10 +43,42 @@ static void __used test_devfs_listroot(void)
     vfs_node_dec_refcount(root);
 }
 
+static void __used test_devfs_write(const char* path)
+{
+    static const char sig[] = "***VEX_KERNEL_WRITE***";
+    struct vfs_file* file;
+    ssize_t result;
+
+    file = vfs_file_open(path, VFS_O_WRONLY);
+
+    if(file == nullptr) {
+        pr_error("devfs: failed to open %s for writing", path);
+        return;
+    }
+
+    if(vfs_file_seek(file, 500, VFS_SEEK_SET)) {
+        pr_error("devfs: seek failed on %s", path);
+        vfs_file_close(file);
+        return;
+    }
+
+    /* sizeof includes the null terminator — write only the string itself */
+    result = vfs_file_write(file, sig, sizeof(sig) - 1);
+
+    if(result < 0) {
+        pr_error("devfs: write failed on %s: %d", path, (int)(-result));
+    }
+    else {
+        pr_inform("devfs: wrote %d bytes to %s @ offset 500", (int)result, path);
+    }
+
+    vfs_file_close(file);
+}
+
 static void __used test_devfs_read(const char* path)
 {
     struct vfs_file* file;
-    uint8_t buf[1024];
+    uint8_t buf[512];
     ssize_t result;
     unsigned i;
 
@@ -93,6 +125,7 @@ void __noreturn kmain(void)
     pr_inform("hanging around...");
 
     test_devfs_listroot();
+    test_devfs_write("/ada0n2p2");
     test_devfs_read("/ada0n2p2");
 
     for(;;) {

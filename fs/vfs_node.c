@@ -32,6 +32,8 @@ void vfs_node_dec_refcount(struct vfs_node* restrict node)
     unsigned prev = atomic_fetch_sub(&node->refcount, 1, ATOMIC_ACQ_REL);
 
     if(prev == 1) {
+        if(node->ops && node->ops->destroy)
+            node->ops->destroy(node);
         slab_free(node);
     }
 }

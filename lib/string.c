@@ -1,5 +1,6 @@
 #include <core/errno.h>
 #include <lib/sprintf.h>
+#include <lib/stdlib.h>
 #include <lib/string.h>
 #include <lib/strings.h>
 #include <stdint.h>
@@ -156,7 +157,7 @@ char* strerror(int errnum)
 
 int strerror_r(int errnum, char* restrict str, size_t sz)
 {
-    switch(errnum) {
+    switch(abs(errnum)) {
         case EDOM:
             kstrncpy(str, "argument out of domain of function", sz);
             return 0;

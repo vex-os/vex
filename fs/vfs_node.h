@@ -12,6 +12,7 @@ struct vfs;
 
 struct vfs_node;
 struct vfs_node_ops {
+    void (*destroy)(struct vfs_node* restrict node);
     int (*lookup)(struct vfs_node* restrict dir, const char* restrict name, struct vfs_node** restrict out);
     int (*open)(struct vfs_node* restrict node, int flags);
     int (*close)(struct vfs_node* restrict node);
