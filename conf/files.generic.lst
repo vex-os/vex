@@ -43,6 +43,7 @@ ext/uacpi/types.c
 ext/uacpi/uacpi.c
 ext/uacpi/utilities.c
 
+fs/devfs.c
 fs/vfs_file.c
 fs/vfs_mount.c
 fs/vfs_node.c
