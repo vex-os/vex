@@ -1,4 +1,5 @@
 #include <core/cdefs.h>
+#include <core/endian.h>
 #include <core/errno.h>
 #include <dev/blk_device.h>
 #include <dev/blk_ptable.h>
@@ -95,8 +96,8 @@ static int mbr_readpt(const struct blk_device* restrict device, void* restrict p
         if(found == index) {
             out->part_label[0] = 0x00;
             out->part_index = slot;
-            out->lba_start = entry->lba_start;
-            out->lba_count = entry->lba_count;
+            out->lba_start = LE32_to_host(entry->lba_start);
+            out->lba_count = LE32_to_host(entry->lba_count);
             out->type = entry->type;
             return 0;
         }

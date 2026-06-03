@@ -1,4 +1,5 @@
 #include <core/cdefs.h>
+#include <core/endian.h>
 #include <core/errno.h>
 #include <dev/blk_device.h>
 #include <dev/blk_ptable.h>
@@ -95,15 +96,15 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
     memcpy(&header, sector, sizeof(struct gpt_header));
     kfree(sector);
 
-    checksum = header.header_crc32;
+    checksum = LE32_to_host(header.header_crc32);
     header.header_crc32 = UINT32_C(0);
 
     if(memcmp(header.signature, "EFI PART", 8)) {
         return -EINVAL;
     }
 
-    if(checksum == crc32_iso3309_get(&header, header.header_size)) {
-        entries_size = (size_t)(header.entry_count * header.entry_size);
+    if(checksum == crc32_iso3309_get(&header, LE32_to_host(header.header_size))) {
+        entries_size = (size_t)(LE32_to_host(header.entry_count) * LE32_to_host(header.entry_size));
         gpt = kmalloc(entries_size + sizeof(struct gpt_ptdata));
 
         if(gpt == nullptr) {
@@ -111,14 +112,14 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
         }
 
         entries_lbas = (entries_size + device->sector_size - 1) / device->sector_size;
-        retval = blk_device_read(device, header.entry_start_lba, entries_lbas, gpt->cached_entries);
+        retval = blk_device_read(device, LE64_to_host(header.entry_start_lba), entries_lbas, gpt->cached_entries);
 
         if(retval < 0) {
             kfree(gpt);
             return retval;
         }
 
-        if(header.entry_crc32 != crc32_iso3309_get(gpt->cached_entries, entries_size)) {
+        if(LE32_to_host(header.entry_crc32) != crc32_iso3309_get(gpt->cached_entries, entries_size)) {
             kfree(gpt);
             return -EINVAL;
         }
@@ -158,7 +159,7 @@ static int gpt_detect(const struct blk_device* restrict device, void** restrict 
         return -EINVAL;
     }
 
-    retval = gpt_check_header(device, sector.entries[0].lba_start, &gpt);
+    retval = gpt_check_header(device, LE32_to_host(sector.entries[0].lba_start), &gpt);
 
     if(retval < 0) {
         retval = gpt_check_header(device, device->sector_count - 1, &gpt);
@@ -179,14 +180,16 @@ static int gpt_readpt(const struct blk_device* restrict device, void* restrict p
 
     const struct gpt_ptdata* gpt = ptdata;
     const struct gpt_entry* entry;
+    uint32_t entry_count = LE32_to_host(gpt->header.entry_count);
+    uint32_t entry_size = LE32_to_host(gpt->header.entry_size);
     unsigned found, slot, i;
     const uint16_t* name;
     size_t name_len;
 
     found = 0;
 
-    for(slot = 0; slot < gpt->header.entry_count; slot += 1) {
-        entry = (const struct gpt_entry*)(gpt->cached_entries + (uintptr_t)slot * gpt->header.entry_size);
+    for(slot = 0; slot < entry_count; slot += 1) {
+        entry = (const struct gpt_entry*)(gpt->cached_entries + entry_size * (uint32_t)(slot));
 
         if(0 == memcmp(entry->type_guid, null_guid, 16)) {
             continue;
@@ -194,17 +197,17 @@ static int gpt_readpt(const struct blk_device* restrict device, void* restrict p
 
         if(found == index) {
             name = (const uint16_t*)((const uint8_t*)(entry) + sizeof(struct gpt_entry));
-            name_len = (gpt->header.entry_size - sizeof(struct gpt_entry)) / sizeof(uint16_t);
+            name_len = (entry_size - sizeof(struct gpt_entry)) / sizeof(uint16_t);
 
             for(i = 0; i < name_len && i < 63 && name[i]; i += 1) {
-                out->part_label[i] = (char)(name[i] & 0x7F);
+                out->part_label[i] = (char)(LE16_to_host(name[i]) & 0x7F);
             }
 
             out->part_label[i] = 0x00;
             out->part_index = slot;
-            out->lba_start = entry->lba_start;
-            out->lba_count = entry->lba_end - entry->lba_start + 1;
-            out->type = 0;
+            out->lba_start = LE64_to_host(entry->lba_start);
+            out->lba_count = LE64_to_host(entry->lba_end) - LE64_to_host(entry->lba_start) + 1;
+            out->type = 0; // FIXME: figure out a way to shove a GUID into an uint64_t
 
             return 0;
         }
