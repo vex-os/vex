@@ -8,7 +8,7 @@
 #define ATAPI_CMD_WRITE_10   0x2A
 #define ATAPI_CMD_SYNC_CACHE 0x35
 
-static int atapi_op_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+static int atapi_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
     const struct atapi_device* atapi = ATAPI_DEVICE_FROM_BLK(device);
     atapi_cdb_type cdb;
@@ -25,7 +25,7 @@ static int atapi_op_read(const struct blk_device* restrict device, uintptr_t lba
     return atapi->ops->send_packet(atapi, cdb, buffer, count * device->sector_size);
 }
 
-static int atapi_op_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
+static int atapi_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
 {
     const struct atapi_device* atapi = ATAPI_DEVICE_FROM_BLK(device);
     atapi_cdb_type cdb;
@@ -46,7 +46,7 @@ static int atapi_op_write(const struct blk_device* restrict device, uintptr_t lb
     return atapi->ops->send_packet(atapi, cdb, (void*)(buffer), count * device->sector_size);
 }
 
-static int atapi_op_flush(const struct blk_device* restrict device)
+static int atapi_flush(const struct blk_device* restrict device)
 {
     const struct atapi_device* atapi = ATAPI_DEVICE_FROM_BLK(device);
     atapi_cdb_type cdb;
@@ -58,9 +58,9 @@ static int atapi_op_flush(const struct blk_device* restrict device)
 }
 
 static const struct blk_device_ops atapi_blk_device_ops = {
-    .read = &atapi_op_read,
-    .write = &atapi_op_write,
-    .flush = &atapi_op_flush,
+    .read = &atapi_read,
+    .write = &atapi_write,
+    .flush = &atapi_flush,
     .destroy = nullptr,
 };
 

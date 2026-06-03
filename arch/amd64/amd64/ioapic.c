@@ -85,7 +85,7 @@ static void ioapic_write_rte(struct ioapic_data* data, uint8_t irq, struct rte_e
     ioapic_write(data, index + 1, (uint32_t)(raw >> 32));
 }
 
-static void ioapic_op_mask(struct intctl* restrict controller, uint32_t gsi)
+static void ioapic_mask(struct intctl* restrict controller, uint32_t gsi)
 {
     struct ioapic_data* data = controller->ctxdata;
 
@@ -97,7 +97,7 @@ static void ioapic_op_mask(struct intctl* restrict controller, uint32_t gsi)
     ioapic_write_rte(data, irq, entry);
 }
 
-static void ioapic_op_unmask(struct intctl* restrict controller, uint32_t gsi)
+static void ioapic_unmask(struct intctl* restrict controller, uint32_t gsi)
 {
     struct ioapic_data* data = controller->ctxdata;
 
@@ -109,7 +109,7 @@ static void ioapic_op_unmask(struct intctl* restrict controller, uint32_t gsi)
     ioapic_write_rte(data, irq, entry);
 }
 
-static void ioapic_op_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
+static void ioapic_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
     unsigned polarity)
 {
     struct ioapic_data* data = controller->ctxdata;
@@ -127,9 +127,9 @@ static void ioapic_op_route(struct intctl* restrict controller, uint32_t gsi, ui
 }
 
 static const struct intctl_ops ioapic_ops = {
-    .mask = &ioapic_op_mask,
-    .unmask = &ioapic_op_unmask,
-    .route = &ioapic_op_route,
+    .mask = &ioapic_mask,
+    .unmask = &ioapic_unmask,
+    .route = &ioapic_route,
 };
 
 static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct acpi_entry_hdr* entry)
