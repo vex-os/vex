@@ -4,6 +4,7 @@
 #include <dev/blk_name.h>
 #include <lib/sprintf.h>
 #include <lib/string.h>
+#include <limits.h>
 
 static struct blk_device* blk_device_head = nullptr;
 
@@ -27,11 +28,25 @@ static int blk_device_register_internal(struct blk_device* restrict device)
     return 0;
 }
 
-int blk_device_register(struct blk_device* restrict device, struct blk_name* restrict name, unsigned index)
+int blk_device_register_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned index)
 {
     device->priv.name = name;
     device->priv.name_iterator = blk_name_increment(name);
+    device->partition = UINT_MAX;
+
     blk_name_format(device->identifier, sizeof(device->identifier), name, device->priv.name_iterator, index);
+
+    return blk_device_register_internal(device);
+}
+
+int blk_device_register_part(struct blk_device* restrict device, struct blk_name* restrict name, unsigned index, unsigned partition)
+{
+    device->priv.name = name;
+    device->priv.name_iterator = blk_name_increment(name);
+    device->partition = partition;
+
+    blk_name_format_partition(device->identifier, sizeof(device->identifier), name, device->priv.name_iterator, index, partition);
+
     return blk_device_register_internal(device);
 }
 
@@ -39,6 +54,7 @@ int blk_device_register_custom(struct blk_device* restrict device)
 {
     device->priv.name = nullptr;
     device->priv.name_iterator = 0;
+    device->partition = UINT_MAX;
     return blk_device_register_internal(device);
 }
 

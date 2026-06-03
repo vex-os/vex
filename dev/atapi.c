@@ -68,7 +68,7 @@ int atapi_register(struct atapi_device* restrict device, struct blk_name* restri
 {
     device->base.ops = &atapi_blk_device_ops;
 
-    return blk_device_register(&device->base, name, index);
+    return blk_device_register_root(&device->base, name, index);
 }
 
 void atapi_unregister(struct atapi_device* restrict device)
