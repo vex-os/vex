@@ -9,9 +9,9 @@
 
 struct vfs_file* vfs_file_open(const char* restrict path, unsigned flags)
 {
-    struct vfs_node* node;
-    struct vfs_file* file;
     int retval;
+    struct vfs_file* file;
+    struct vfs_node* node;
 
     if(path == nullptr) {
         return nullptr;
@@ -153,8 +153,8 @@ int vfs_file_ioctl(struct vfs_file* restrict file, unsigned request, void* restr
 
 int vfs_file_seek(struct vfs_file* restrict file, off_t offset, int whence)
 {
-    struct vfs_stat st;
     off_t new_offset;
+    struct vfs_stat stat;
 
     if(file == nullptr) {
         return -EINVAL;
@@ -174,11 +174,11 @@ int vfs_file_seek(struct vfs_file* restrict file, off_t offset, int whence)
                 return -ENOSYS;
             }
 
-            if(file->node->ops->stat(file->node, &st)) {
+            if(file->node->ops->stat(file->node, &stat)) {
                 return -EIO;
             }
 
-            new_offset = st.size + offset;
+            new_offset = stat.size + offset;
             break;
 
         default:

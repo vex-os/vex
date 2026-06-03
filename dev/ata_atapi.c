@@ -28,6 +28,7 @@ static int atapi_read(const struct blk_device* restrict device, uintptr_t lba, s
 static int atapi_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
 {
     const struct atapi_device* atapi = ATAPI_DEVICE_FROM_BLK(device);
+
     atapi_cdb_type cdb;
 
     if(0 == (atapi->flags & ATAPI_FLAG_WRITABLE)) {
@@ -49,6 +50,7 @@ static int atapi_write(const struct blk_device* restrict device, uintptr_t lba, 
 static int atapi_flush(const struct blk_device* restrict device)
 {
     const struct atapi_device* atapi = ATAPI_DEVICE_FROM_BLK(device);
+
     atapi_cdb_type cdb;
 
     memset(cdb, 0, sizeof(atapi_cdb_type));

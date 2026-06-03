@@ -72,13 +72,13 @@ struct gpt_ptdata {
 
 static int gpt_check_header(const struct blk_device* restrict device, uintptr_t header_lba, struct gpt_ptdata** restrict ptdata)
 {
-    struct gpt_header* sector;
-    struct gpt_header header;
-    struct gpt_ptdata* gpt;
-    size_t entries_size;
-    size_t entries_lbas;
-    uint32_t checksum;
     int retval;
+    size_t entries_lbas;
+    size_t entries_size;
+    struct gpt_header header;
+    struct gpt_header* sector;
+    struct gpt_ptdata* gpt;
+    uint32_t checksum;
 
     sector = kmalloc(device->sector_size);
 
@@ -136,10 +136,10 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
 
 static int gpt_detect(const struct blk_device* restrict device, void** restrict ptdata)
 {
-    struct pmbr_sector sector;
-    struct gpt_ptdata* gpt;
     bool is_valid;
     int retval;
+    struct gpt_ptdata* gpt;
+    struct pmbr_sector sector;
 
     retval = blk_device_read(device, 0, 1, &sector);
 
@@ -179,12 +179,15 @@ static int gpt_readpt(const struct blk_device* restrict device, void* restrict p
     static const uint8_t null_guid[16] = { 0 }; // FIXME: a GUID library would be nice
 
     const struct gpt_ptdata* gpt = ptdata;
-    const struct gpt_entry* entry;
     uint32_t entry_count = LE32_to_host(gpt->header.entry_count);
     uint32_t entry_size = LE32_to_host(gpt->header.entry_size);
-    unsigned found, slot, i;
+
+    const struct gpt_entry* entry;
     const uint16_t* name;
     size_t name_len;
+    unsigned found;
+    unsigned i;
+    unsigned slot;
 
     found = 0;
 

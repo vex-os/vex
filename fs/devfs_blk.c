@@ -21,16 +21,16 @@ static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buf
     const struct blk_device* device = context->device;
 
     size_t sector_size = device->sector_size;
-    uintptr_t lba = (uintptr_t)(offset / sector_size);
     size_t byte_offset = (size_t)(offset % sector_size);
+    uintptr_t lba = (uintptr_t)(offset / sector_size);
 
-    uint8_t* buffer_ptr = buffer;
-
-    uintptr_t current = lba;
     size_t remaining = sz;
+    uint8_t* buffer_ptr = buffer;
+    uintptr_t current = lba;
+
+    int retval;
     size_t chunk;
     size_t full;
-    int retval;
 
     if(sz == 0) {
         return 0;
@@ -104,16 +104,16 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
     const struct blk_device* device = context->device;
 
     size_t sector_size = device->sector_size;
-    uintptr_t lba = (uintptr_t)(offset / sector_size);
     size_t byte_offset = (size_t)(offset % sector_size);
+    uintptr_t lba = (uintptr_t)(offset / sector_size);
 
     const uint8_t* buffer_ptr = buffer;
-
-    uintptr_t current = lba;
     size_t remaining = sz;
+    uintptr_t current = lba;
+
+    int retval;
     size_t chunk;
     size_t full;
-    int retval;
 
     if(sz == 0) {
         return 0;
@@ -232,9 +232,9 @@ static const struct vfs_node_ops devfs_blk_ops = {
 
 void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict device, void* restrict ctxdata)
 {
+    int retval;
     struct devfs_blk_context* context;
     struct vfs_node* vnode;
-    int retval;
 
     if(device->flags & BLK_FLAG_HIDDEN) {
         return;

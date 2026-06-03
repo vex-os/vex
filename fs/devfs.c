@@ -15,8 +15,8 @@ struct vfs* devfs_instance = nullptr;
 
 int devfs_insert(const char* restrict name, struct vfs_node* restrict vnode)
 {
-    struct devfs_state* state;
     struct devfs_node* entry;
+    struct devfs_state* state;
 
     if(devfs_instance == nullptr) {
         return -ENODEV;
@@ -47,9 +47,9 @@ int devfs_insert(const char* restrict name, struct vfs_node* restrict vnode)
 
 void devfs_remove(const char* restrict name)
 {
-    struct devfs_state* state;
-    struct devfs_node** prev;
     struct devfs_node* it;
+    struct devfs_node** prev;
+    struct devfs_state* state;
 
     if(devfs_instance == nullptr) {
         return;
@@ -108,6 +108,7 @@ static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 static int devfs_unmount(struct vfs* restrict fs)
 {
     struct devfs_state* state = fs->ctxdata;
+
     struct devfs_node* it;
     struct devfs_node* next;
 

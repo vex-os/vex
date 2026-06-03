@@ -9,13 +9,13 @@
 static int path_walk(struct vfs_node* restrict base, const char* restrict path, struct vfs_node** restrict out)
 {
     char component[VFS_NAME_SIZE];
-    struct vfs_node* mounted_root;
-    struct vfs_node* current = base;
-    struct vfs_node* next;
     const char* ptr = path;
     const char* slash;
-    size_t length;
     int retval;
+    size_t length;
+    struct vfs_node* current = base;
+    struct vfs_node* mounted_root;
+    struct vfs_node* next;
 
     vfs_node_inc_refcount(current);
 
@@ -82,9 +82,9 @@ static int path_walk(struct vfs_node* restrict base, const char* restrict path, 
 
 int vfs_lookup(const char* restrict path, struct vfs_node** restrict out)
 {
-    struct vfs_node* root;
-    struct vfs_node* mounted_root;
     int retval;
+    struct vfs_node* mounted_root;
+    struct vfs_node* root;
 
     if(path == nullptr || out == nullptr) {
         return -EINVAL;

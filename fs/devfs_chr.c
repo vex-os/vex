@@ -54,9 +54,9 @@ static const struct vfs_node_ops devfs_chr_ops = {
 
 void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict device, void* restrict ctxdata)
 {
+    int retval;
     struct devfs_chr_context* context;
     struct vfs_node* vnode;
-    int retval;
 
     if(event == CHR_EVENT_DEVICE_ADDED) {
         context = slab_alloc(sizeof(struct devfs_chr_context));

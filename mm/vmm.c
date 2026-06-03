@@ -126,12 +126,12 @@ struct vmm_pagemap* vmm_create(void)
 
 static int vmm_fork_table(vmm_entry_type* restrict dest, vmm_entry_type* restrict stem, size_t begin, size_t end, unsigned depth)
 {
+    int retval;
     size_t i;
     uintptr_t dest_child_phys;
+    unsigned stem_vprot;
     vmm_entry_type* dest_child;
     vmm_entry_type* stem_child;
-    unsigned stem_vprot;
-    int retval;
 
     for(i = begin; i < end; ++i) {
         if(vmm_entry_valid(stem[i])) {
@@ -169,12 +169,12 @@ static int vmm_fork_table(vmm_entry_type* restrict dest, vmm_entry_type* restric
 
 static int vmm_clone_table(vmm_entry_type* restrict dest, vmm_entry_type* restrict stem, size_t begin, size_t end, unsigned depth)
 {
+    int retval;
     size_t i;
     uintptr_t dest_child_phys;
+    unsigned stem_vprot;
     vmm_entry_type* dest_child;
     vmm_entry_type* stem_child;
-    unsigned stem_vprot;
-    int retval;
 
     for(i = begin; i < end; ++i) {
         if(vmm_entry_valid(stem[i])) {
@@ -211,10 +211,10 @@ static int vmm_clone_table(vmm_entry_type* restrict dest, vmm_entry_type* restri
 
 struct vmm_pagemap* vmm_fork(const struct vmm_pagemap* restrict stem)
 {
-    struct vmm_pagemap* vm;
-    vmm_entry_type* stem_table;
-    vmm_entry_type* dest_table;
     int retval;
+    struct vmm_pagemap* vm;
+    vmm_entry_type* dest_table;
+    vmm_entry_type* stem_table;
 
     vm = vmm_create();
 
@@ -235,10 +235,10 @@ struct vmm_pagemap* vmm_fork(const struct vmm_pagemap* restrict stem)
 
 struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem)
 {
-    struct vmm_pagemap* vm;
-    vmm_entry_type* stem_table;
-    vmm_entry_type* dest_table;
     int retval;
+    struct vmm_pagemap* vm;
+    vmm_entry_type* dest_table;
+    vmm_entry_type* stem_table;
 
     vm = vmm_create();
 
@@ -266,8 +266,8 @@ void vmm_destroy(struct vmm_pagemap* restrict vm)
 
 int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigned vprot)
 {
-    vmm_entry_type* entry;
     int retval;
+    vmm_entry_type* entry;
 
     spinlock_acquire(&vm->lock);
 
@@ -291,8 +291,8 @@ int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, uns
 
 int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned vprot)
 {
-    vmm_entry_type* entry;
     int retval;
+    vmm_entry_type* entry;
 
     spinlock_acquire(&vm->lock);
 
@@ -316,8 +316,8 @@ int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned vprot)
 
 int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
 {
-    vmm_entry_type* entry;
     int retval;
+    vmm_entry_type* entry;
 
     spinlock_acquire(&vm->lock);
 
@@ -398,8 +398,8 @@ static int vmm_map_sys_memmap(const struct limine_memmap_entry* restrict entry)
 
 define_initcall(init_vmm, INITCALL_STAGE_BSP_VMM, INITCALL_ORDER_MIDDLE)
 {
-    size_t i;
     int retval;
+    size_t i;
 
     sys_pagemap.lock = SPINLOCK_INIT;
     sys_pagemap.levels = vmm_detect_levels();
