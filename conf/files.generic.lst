@@ -19,7 +19,9 @@ dev/atapi.c
 dev/blk_device.c
 dev/blk_event.c
 dev/blk_name.c
+dev/blk_ptable.c
 dev/ps2kbd.c
+dev/ptable_mbr.c
 
 ext/uacpi/default_handlers.c
 ext/uacpi/event.c

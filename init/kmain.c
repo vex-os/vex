@@ -50,8 +50,10 @@ void __noreturn kmain(void)
 
     pr_inform("hanging around...");
 
-    dump_lba(blk_device_find("ada0n0"), 0);
-    dump_lba(blk_device_find("acd0n1"), 0);
+    dump_lba(blk_device_find("ada0n1"), 0);
+    dump_lba(blk_device_find("ada0n2"), 0);
+    dump_lba(blk_device_find("ada0n2p1"), 0);
+    dump_lba(blk_device_find("ada0n2p2"), 0);
 
     for(;;) {
         stop_hart();

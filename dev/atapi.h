@@ -22,7 +22,7 @@ struct atapi_device {
 
 #define ATAPI_DEVICE_FROM_BLK(device) ((struct atapi_device*)(device))
 
-extern int atapi_register(struct atapi_device* restrict device, struct blk_name* restrict name, unsigned index);
+extern int atapi_register(struct atapi_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index);
 extern void atapi_unregister(struct atapi_device* restrict device);
 
 #endif /* A3F9F255_18A7_4E12_B8B7_E0E4F6D47EEB */
