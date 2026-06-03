@@ -20,6 +20,7 @@ struct vfs_node_ops {
     int (*read_dir)(struct vfs_node* restrict dir, struct vfs_dirent* out_dirent, off_t index);
     int (*create)(struct vfs_node* restrict dir, const char* restrict name, unsigned type, struct vfs_node** restrict out);
     int (*unlink)(struct vfs_node* restrict dir, const char* restrict name);
+    int (*ioctl)(struct vfs_node* restrict node, unsigned request, void* restrict arg);
     int (*stat)(struct vfs_node* restrict node, struct vfs_stat* restrict out_stat);
 };
 

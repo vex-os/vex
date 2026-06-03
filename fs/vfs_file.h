@@ -31,5 +31,6 @@ extern void vfs_file_close(struct vfs_file* restrict file);
 extern ssize_t vfs_file_read(struct vfs_file* restrict file, void* restrict buffer, size_t sz);
 extern ssize_t vfs_file_write(struct vfs_file* restrict file, const void* restrict buffer, size_t sz);
 extern int vfs_file_seek(struct vfs_file* restrict file, off_t offset, int whence);
+extern int vfs_file_ioctl(struct vfs_file* restrict file, unsigned request, void* restrict arg);
 
 #endif /* A3F2C1D0_7B4E_4A12_9C83_E5D6F8B21047 */

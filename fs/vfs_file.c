@@ -138,6 +138,19 @@ ssize_t vfs_file_write(struct vfs_file* restrict file, const void* restrict buff
     return result;
 }
 
+int vfs_file_ioctl(struct vfs_file* restrict file, unsigned request, void* restrict arg)
+{
+    if(file == nullptr) {
+        return EINVAL;
+    }
+
+    if(file->node->ops->ioctl == nullptr) {
+        return ENOTTY;
+    }
+
+    return file->node->ops->ioctl(file->node, request, arg);
+}
+
 int vfs_file_seek(struct vfs_file* restrict file, off_t offset, int whence)
 {
     struct vfs_stat st;
