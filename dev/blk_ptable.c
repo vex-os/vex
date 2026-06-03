@@ -22,7 +22,7 @@ struct blk_disk_state {
 static struct blk_ptable* ptable_head = nullptr;
 static struct blk_disk_state* disk_state_head = nullptr;
 
-static int part_op_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+static int part_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
     const struct blk_part_device* part = (const struct blk_part_device*)(device);
 
@@ -31,7 +31,7 @@ static int part_op_read(const struct blk_device* restrict device, uintptr_t lba,
     return blk_device_read(part->root, part->lba_start + lba, count, buffer);
 }
 
-static int part_op_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
+static int part_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
 {
     const struct blk_part_device* part = (const struct blk_part_device*)(device);
 
@@ -40,23 +40,23 @@ static int part_op_write(const struct blk_device* restrict device, uintptr_t lba
     return blk_device_write(part->root, part->lba_start + lba, count, buffer);
 }
 
-static int part_op_flush(const struct blk_device* restrict device)
+static int part_flush(const struct blk_device* restrict device)
 {
     const struct blk_part_device* part = (const struct blk_part_device*)(device);
 
     return blk_device_flush(part->root);
 }
 
-static void part_op_destroy(const struct blk_device* restrict device)
+static void part_destroy(const struct blk_device* restrict device)
 {
     kfree((void*)(device));
 }
 
 static const struct blk_device_ops part_ops = {
-    .read = &part_op_read,
-    .write = &part_op_write,
-    .flush = &part_op_flush,
-    .destroy = &part_op_destroy,
+    .read = &part_read,
+    .write = &part_write,
+    .flush = &part_flush,
+    .destroy = &part_destroy,
 };
 
 static struct blk_disk_state* disk_state_find(const struct blk_device* restrict disk)

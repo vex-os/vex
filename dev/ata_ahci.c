@@ -397,7 +397,7 @@ static const struct atapi_device_ops ahci_atapi_ops = {
     .send_packet = &ahci_atapi_send_packet,
 };
 
-static int ahci_op_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+static int ahci_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
     struct ahci_port* port = device->ctxdata;
 
@@ -427,7 +427,7 @@ static int ahci_op_read(const struct blk_device* restrict device, uintptr_t lba,
     return 0;
 }
 
-static int ahci_op_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
+static int ahci_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
 {
     struct ahci_port* port = device->ctxdata;
 
@@ -457,7 +457,7 @@ static int ahci_op_write(const struct blk_device* restrict device, uintptr_t lba
     return 0;
 }
 
-static int ahci_op_flush(const struct blk_device* restrict device)
+static int ahci_flush(const struct blk_device* restrict device)
 {
     struct ahci_port* port = device->ctxdata;
 
@@ -514,9 +514,9 @@ static void ahci_port_teardown(struct ahci_port* restrict port)
 }
 
 static const struct blk_device_ops ahci_blk_device_ops = {
-    .read = &ahci_op_read,
-    .write = &ahci_op_write,
-    .flush = &ahci_op_flush,
+    .read = &ahci_read,
+    .write = &ahci_write,
+    .flush = &ahci_flush,
     .destroy = nullptr,
 };
 
@@ -624,7 +624,7 @@ static void ahci_probe_atapi_port(struct ahci_pci_context* restrict context, str
     blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, &atapi_dev->base);
 }
 
-static int ahci_driver_op_probe(struct pci_device* restrict pci_dev, const struct pci_driver_id* restrict id)
+static int ahci_driver_probe(struct pci_device* restrict pci_dev, const struct pci_driver_id* restrict id)
 {
     struct ahci_pci_context* context;
     struct pci_bar* abar;
@@ -761,7 +761,7 @@ static void ahci_driver_remove(struct pci_device* restrict pci_dev)
 }
 
 static const struct pci_driver_ops ahci_driver_ops = {
-    .probe = &ahci_driver_op_probe,
+    .probe = &ahci_driver_probe,
     .remove = &ahci_driver_remove,
 };
 

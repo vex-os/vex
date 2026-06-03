@@ -2,7 +2,7 @@
 #include <core/console.h>
 #include <init/initcall.h>
 
-static void bxcons_op_write(struct console_driver* restrict driver, const void* restrict data, size_t size)
+static void bxcons_write(struct console_driver* restrict driver, const void* restrict data, size_t size)
 {
     size_t i;
     const char* psz = data;
@@ -14,7 +14,7 @@ static void bxcons_op_write(struct console_driver* restrict driver, const void* 
 
 static const struct console_driver_ops bxcons_ops = {
     .init = nullptr,
-    .write = &bxcons_op_write,
+    .write = &bxcons_write,
     .unblank = nullptr,
 };
 

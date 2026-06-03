@@ -18,7 +18,7 @@ struct acpi_clocksrc_privdata {
     uintptr_t pmio;
 };
 
-static uint64_t acpi_clocksrc_op_read(struct clocksrc* restrict src)
+static uint64_t acpi_clocksrc_read(struct clocksrc* restrict src)
 {
     struct acpi_clocksrc_privdata* priv = src->ctxdata;
 
@@ -31,7 +31,7 @@ static uint64_t acpi_clocksrc_op_read(struct clocksrc* restrict src)
 }
 
 static const struct clocksrc_ops acpi_clocksrc_ops = {
-    .read = &acpi_clocksrc_op_read,
+    .read = &acpi_clocksrc_read,
 };
 
 static struct clocksrc acpi_clocksrc = {

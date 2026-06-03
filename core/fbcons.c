@@ -434,7 +434,7 @@ static void fbcons_putchar(int character)
     do_redraw();
 }
 
-static void fbcons_op_write(struct console_driver* restrict driver, const void* restrict data, size_t sz)
+static void fbcons_write(struct console_driver* restrict driver, const void* restrict data, size_t sz)
 {
     size_t i;
     const char* psz = data;
@@ -446,7 +446,7 @@ static void fbcons_op_write(struct console_driver* restrict driver, const void* 
 
 static const struct console_driver_ops fbcons_ops = {
     .init = nullptr,
-    .write = &fbcons_op_write,
+    .write = &fbcons_write,
     .unblank = nullptr,
 };
 

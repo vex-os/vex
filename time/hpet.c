@@ -27,7 +27,7 @@ static inline void hpet_write_reg(volatile uint64_t* restrict mmio, uint32_t off
     mmio[offset / sizeof(uint64_t)] = value;
 }
 
-static uint64_t hpet_op_read(struct clocksrc* restrict src)
+static uint64_t hpet_read(struct clocksrc* restrict src)
 {
     volatile uint64_t* mmio = src->ctxdata;
 
@@ -35,7 +35,7 @@ static uint64_t hpet_op_read(struct clocksrc* restrict src)
 }
 
 static const struct clocksrc_ops hpet_ops = {
-    .read = &hpet_op_read,
+    .read = &hpet_read,
 };
 
 static struct clocksrc hpet_clocksrc = {

@@ -26,7 +26,7 @@ struct mbr_sector {
     uint8_t signature[2];
 } __packed;
 
-static int mbr_op_detect(const struct blk_device* restrict device, void** restrict ptdata)
+static int mbr_detect(const struct blk_device* restrict device, void** restrict ptdata)
 {
     struct mbr_sector sector;
     struct mbr_sector* sector_copy;
@@ -71,8 +71,7 @@ static int mbr_op_detect(const struct blk_device* restrict device, void** restri
     return EINVAL;
 }
 
-static int mbr_op_readpt(const struct blk_device* restrict device, void* restrict ptdata, unsigned index,
-    struct blk_ptable_info* restrict out)
+static int mbr_readpt(const struct blk_device* restrict device, void* restrict ptdata, unsigned index, struct blk_ptable_info* restrict out)
 {
     const struct mbr_sector* mbr = ptdata;
     const struct mbr_entry* entry;
@@ -102,15 +101,15 @@ static int mbr_op_readpt(const struct blk_device* restrict device, void* restric
     return ENOENT;
 }
 
-static void mbr_op_release(void* restrict ptdata)
+static void mbr_release(void* restrict ptdata)
 {
     kfree(ptdata);
 }
 
 static const struct blk_ptable_ops mbr_ops = {
-    .detect = &mbr_op_detect,
-    .readpt = &mbr_op_readpt,
-    .release = &mbr_op_release,
+    .detect = &mbr_detect,
+    .readpt = &mbr_readpt,
+    .release = &mbr_release,
 };
 
 static struct blk_ptable mbr_ptable = {
