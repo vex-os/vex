@@ -11,6 +11,7 @@
 #include <mm/malloc.h>
 #include <mm/slab.h>
 
+#if 0
 enum {
     fatfs_TYPE_12 = 12,
     fatfs_TYPE_16 = 16,
@@ -788,3 +789,4 @@ define_initcall(fatfs_init, INITCALL_STAGE_BSP_VFS, INITCALL_ORDER_EARLY)
 {
     vfs_driver_register(&fatfs_vfs_driver);
 }
+#endif
