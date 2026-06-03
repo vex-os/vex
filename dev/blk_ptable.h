@@ -34,5 +34,6 @@ struct blk_ptable {
 
 extern int blk_ptable_register(struct blk_ptable* restrict ptable);
 extern int blk_ptable_unregister(struct blk_ptable* restrict ptable);
+extern int blk_ptable_rescan(const struct blk_device* restrict device);
 
 #endif /* B33CA66F_97D1_4EA5_BFD0_1B04FED25014 */
