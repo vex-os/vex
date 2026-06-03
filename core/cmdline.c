@@ -51,7 +51,7 @@ int cmdline_parse(struct cmdline* restrict cmdl, char* restrict buffer, size_t l
 invalid_args:
     cmdl->buffer = nullptr;
     cmdl->length = 0;
-    return EINVAL;
+    return -EINVAL;
 }
 
 bool cmdline_contains(const struct cmdline* restrict cmdl, const char* restrict option)
@@ -136,7 +136,7 @@ define_initcall(sys_cmdline_parse, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_M
 
         retval = cmdline_parse(&sys_cmdline, sys_cmdline.buffer, sys_cmdline.length);
 
-        if(retval) {
+        if(retval < 0) {
             pr_warning("cmdline: parse error: %s", strerror(retval));
             sys_cmdline.buffer = nullptr;
             sys_cmdline.length = 0;

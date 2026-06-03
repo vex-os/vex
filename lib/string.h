@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stddef.h>
+#include <core/types.h>
 
 extern const void* memchr(const void* restrict buf, int chr, size_t sz) __nodiscard;
 extern int memcmp(const void* restrict ba, const void* restrict bb, size_t sz) __nodiscard;

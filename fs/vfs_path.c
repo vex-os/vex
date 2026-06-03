@@ -39,7 +39,7 @@ static int path_walk(struct vfs_node* restrict base, const char* restrict path, 
 
         if(length > VFS_NAME_MAX) {
             vfs_node_dec_refcount(current);
-            return ENAMETOOLONG;
+            return -ENAMETOOLONG;
         }
 
         memcpy(component, ptr, length);
@@ -48,12 +48,12 @@ static int path_walk(struct vfs_node* restrict base, const char* restrict path, 
 
         if(current->type != VFS_NODE_TYPE_DIRECTORY) {
             vfs_node_dec_refcount(current);
-            return ENOTDIR;
+            return -ENOTDIR;
         }
 
         if(current->ops->lookup == nullptr) {
             vfs_node_dec_refcount(current);
-            return ENOSYS;
+            return -ENOSYS;
         }
 
         next = nullptr;
@@ -61,7 +61,7 @@ static int path_walk(struct vfs_node* restrict base, const char* restrict path, 
 
         vfs_node_dec_refcount(current);
 
-        if(retval) {
+        if(retval < 0) {
             return retval;
         }
 
@@ -87,13 +87,13 @@ int vfs_lookup(const char* restrict path, struct vfs_node** restrict out)
     int retval;
 
     if(path == nullptr || out == nullptr) {
-        return EINVAL;
+        return -EINVAL;
     }
 
     root = nullptr;
     retval = vfs_get_root(&root);
 
-    if(retval) {
+    if(retval < 0) {
         return retval;
     }
 
@@ -108,13 +108,13 @@ int vfs_lookup(const char* restrict path, struct vfs_node** restrict out)
         return path_walk(root, path + 1, out);
     }
 
-    return EINVAL;
+    return -EINVAL;
 }
 
 int vfs_lookup_at(struct vfs_node* restrict base, const char* restrict path, struct vfs_node** restrict out)
 {
     if(base == nullptr || path == nullptr || out == nullptr) {
-        return EINVAL;
+        return -EINVAL;
     }
 
     if(path[0] == PATH_SEPARATOR) {

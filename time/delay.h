@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stdint.h>
+#include <core/types.h>
 
 extern void delay_msec(uint64_t msec);
 extern void delay_usec(uint64_t usec);

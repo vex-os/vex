@@ -1,7 +1,6 @@
 #include <lib/ctype.h>
 #include <lib/string.h>
 #include <lib/strings.h>
-#include <stdint.h>
 
 char* kstrncat(char* restrict dst, const char* restrict src, size_t sz)
 {

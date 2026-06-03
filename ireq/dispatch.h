@@ -3,7 +3,6 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stdint.h>
 
 struct interrupt_frame;
 

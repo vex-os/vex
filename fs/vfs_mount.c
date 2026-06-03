@@ -38,14 +38,14 @@ static struct vfs_driver* find_driver(const char* restrict name)
 int vfs_driver_register(struct vfs_driver* restrict driver)
 {
     if(driver == nullptr || driver->identifier[0] == 0x00 || driver->ops == nullptr) {
-        return EINVAL;
+        return -EINVAL;
     }
 
     spinlock_acquire(&drivers_lock);
 
     if(find_driver(driver->identifier)) {
         spinlock_release(&drivers_lock);
-        return EEXIST;
+        return -EEXIST;
     }
 
     driver->priv.next = drivers_head;
@@ -61,7 +61,7 @@ int vfs_driver_unregister(struct vfs_driver* restrict driver)
     struct vfs_driver** prev;
 
     if(driver == nullptr) {
-        return EINVAL;
+        return -EINVAL;
     }
 
     spinlock_acquire(&drivers_lock);
@@ -79,7 +79,7 @@ int vfs_driver_unregister(struct vfs_driver* restrict driver)
 
     spinlock_release(&drivers_lock);
 
-    return ENOENT;
+    return -ENOENT;
 }
 
 int vfs_mount(const char* restrict type, const char* restrict path, struct blk_device* restrict device, const char* restrict params)
@@ -93,7 +93,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, struct blk_d
     int retval;
 
     if(type == nullptr || type[0] == 0x00) {
-        return EINVAL;
+        return -EINVAL;
     }
 
     spinlock_acquire(&drivers_lock);
@@ -103,7 +103,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, struct blk_d
     spinlock_release(&drivers_lock);
 
     if(driver == nullptr) {
-        return ENODEV;
+        return -ENODEV;
     }
 
     cmdl.buffer = nullptr;
@@ -122,7 +122,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, struct blk_d
     if(fs == nullptr) {
         if(cmdl.buffer)
             kfree(cmdl.buffer);
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     memset(fs, 0, sizeof(struct vfs));
@@ -135,7 +135,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, struct blk_d
         kfree(cmdl.buffer);
     }
 
-    if(retval) {
+    if(retval < 0) {
         slab_free(fs);
         return retval;
     }
@@ -151,7 +151,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, struct blk_d
         mountpoint = nullptr;
         retval = vfs_lookup(path, &mountpoint);
 
-        if(retval) {
+        if(retval < 0) {
             spinlock_release(&mounts_lock);
 
             driver->ops->unmount(fs);
@@ -174,7 +174,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, struct blk_d
 
         slab_free(fs);
 
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     memset(entry, 0, sizeof(struct mount_entry));
@@ -187,7 +187,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, struct blk_d
             driver->ops->unmount(fs);
             slab_free(entry);
             slab_free(fs);
-            return ENOMEM;
+            return -ENOMEM;
         }
     }
 
@@ -208,7 +208,7 @@ int vfs_unmount(const char* restrict path)
     int retval;
 
     if(path == nullptr) {
-        return EINVAL;
+        return -EINVAL;
     }
 
     spinlock_acquire(&mounts_lock);
@@ -227,7 +227,7 @@ int vfs_unmount(const char* restrict path)
 
             retval = fs->ops->unmount(fs);
 
-            if(retval) {
+            if(retval < 0) {
                 spinlock_release(&mounts_lock);
                 return retval;
             }
@@ -253,20 +253,20 @@ int vfs_unmount(const char* restrict path)
 
     spinlock_release(&mounts_lock);
 
-    return ENOENT;
+    return -ENOENT;
 }
 
 int vfs_get_root(struct vfs_node** restrict out)
 {
     if(out == nullptr) {
-        return EINVAL;
+        return -EINVAL;
     }
 
     spinlock_acquire(&mounts_lock);
 
     if(vfs_root == nullptr) {
         spinlock_release(&mounts_lock);
-        return ENOENT;
+        return -ENOENT;
     }
 
     vfs_node_inc_refcount(vfs_root);

@@ -4,8 +4,7 @@
 
 #include <arch/limits.h>
 #include <core/cdefs.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <core/types.h>
 
 static __always_inline __nodiscard inline uintptr_t page_align(uintptr_t address)
 {

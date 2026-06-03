@@ -141,7 +141,7 @@ static int vmm_fork_table(vmm_entry_type* restrict dest, vmm_entry_type* restric
                 dest_child_phys = pslab_alloc();
 
                 if(dest_child_phys == 0) {
-                    return ENOMEM;
+                    return -ENOMEM;
                 }
 
                 dest_child = phys_to_virt(dest_child_phys);
@@ -150,7 +150,7 @@ static int vmm_fork_table(vmm_entry_type* restrict dest, vmm_entry_type* restric
                 dest[i] = vmm_entry_init(dest_child_phys, VPROT_URWX);
                 retval = vmm_fork_table(dest_child, stem_child, 0, VMM_TABLE_SIZE, depth - 1);
 
-                if(retval) {
+                if(retval < 0) {
                     pslab_free(dest_child_phys);
 
                     return retval;
@@ -182,7 +182,7 @@ static int vmm_clone_table(vmm_entry_type* restrict dest, vmm_entry_type* restri
             dest_child_phys = pslab_alloc();
 
             if(dest_child_phys == 0) {
-                return ENOMEM;
+                return -ENOMEM;
             }
 
             dest_child = phys_to_virt(dest_child_phys);
@@ -193,7 +193,7 @@ static int vmm_clone_table(vmm_entry_type* restrict dest, vmm_entry_type* restri
                 dest[i] = vmm_entry_init(dest_child_phys, VPROT_URWX);
                 retval = vmm_clone_table(dest_child, stem_child, 0, VMM_TABLE_SIZE, depth - 1);
 
-                if(retval) {
+                if(retval < 0) {
                     return retval;
                 }
             }

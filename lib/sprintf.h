@@ -3,8 +3,8 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <core/types.h>
 #include <stdarg.h>
-#include <stddef.h>
 
 extern int snprintf(char* restrict buffer, size_t sz, const char* restrict fmt, ...) __printflike(3, 4);
 extern int sprintf(char* restrict buffer, const char* restrict fmt, ...) __printflike(2, 3);

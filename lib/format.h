@@ -3,8 +3,8 @@
 #pragma once
 
 #include <core/cdefs.h>
+#include <core/types.h>
 #include <stdarg.h>
-#include <stddef.h>
 
 typedef void (*format_func_type)(int character, void* restrict user);
 

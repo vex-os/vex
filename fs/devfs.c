@@ -10,7 +10,6 @@
 #include <lib/strings.h>
 #include <mm/malloc.h>
 #include <mm/slab.h>
-#include <stdint.h>
 
 struct devfs_node {
     char name[VFS_NAME_SIZE];
@@ -52,8 +51,8 @@ static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buf
     if(byte_off == 0 && (sz % sector_size) == 0) {
         retval = blk_device_read(dev, lba, sz / sector_size, buffer);
 
-        if(retval)
-            return -retval;
+        if(retval < 0)
+            return retval;
         return (ssize_t)(sz);
     }
 
@@ -67,9 +66,9 @@ static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buf
         spinlock_acquire(&ctx->bounce_lock);
         retval = blk_device_read(dev, cur_lba, 1, ctx->bounce_buffer);
 
-        if(retval) {
+        if(retval < 0) {
             spinlock_release(&ctx->bounce_lock);
-            return -retval;
+            return retval;
         }
 
         memcpy(output, ctx->bounce_buffer + byte_off, chunk);
@@ -84,8 +83,8 @@ static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buf
         full = remaining / sector_size;
         retval = blk_device_read(dev, cur_lba, full, output);
 
-        if(retval) {
-            return -retval;
+        if(retval < 0) {
+            return retval;
         }
 
         output += full * sector_size;
@@ -98,9 +97,9 @@ static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buf
 
         retval = blk_device_read(dev, cur_lba, 1, ctx->bounce_buffer);
 
-        if(retval) {
+        if(retval < 0) {
             spinlock_release(&ctx->bounce_lock);
-            return -retval;
+            return retval;
         }
 
         memcpy(output, ctx->bounce_buffer, remaining);
@@ -132,8 +131,8 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
     if(byte_off == 0 && (sz % sector_size) == 0) {
         retval = blk_device_write(dev, lba, sz / sector_size, buffer);
 
-        if(retval)
-            return -retval;
+        if(retval < 0)
+            return retval;
         return (ssize_t)(sz);
     }
 
@@ -148,9 +147,9 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
 
         retval = blk_device_read(dev, cur_lba, 1, ctx->bounce_buffer);
 
-        if(retval) {
+        if(retval < 0) {
             spinlock_release(&ctx->bounce_lock);
-            return -retval;
+            return retval;
         }
 
         memcpy(ctx->bounce_buffer + byte_off, in, chunk);
@@ -159,8 +158,8 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
 
         spinlock_release(&ctx->bounce_lock);
 
-        if(retval) {
-            return -retval;
+        if(retval < 0) {
+            return retval;
         }
 
         in += chunk;
@@ -172,8 +171,8 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
         full = remaining / sector_size;
         retval = blk_device_write(dev, cur_lba, full, in);
 
-        if(retval) {
-            return -retval;
+        if(retval < 0) {
+            return retval;
         }
 
         in += full * sector_size;
@@ -186,9 +185,9 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
 
         retval = blk_device_read(dev, cur_lba, 1, ctx->bounce_buffer);
 
-        if(retval) {
+        if(retval < 0) {
             spinlock_release(&ctx->bounce_lock);
-            return -retval;
+            return retval;
         }
 
         memcpy(ctx->bounce_buffer, in, remaining);
@@ -197,8 +196,8 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
 
         spinlock_release(&ctx->bounce_lock);
 
-        if(retval) {
-            return -retval;
+        if(retval < 0) {
+            return retval;
         }
     }
 
@@ -207,7 +206,7 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
 
 static int devfs_blk_ioctl(struct vfs_node* restrict node, unsigned request, void* restrict arg)
 {
-    return ENOTTY;
+    return -ENOTTY;
 }
 
 static int devfs_blk_stat(struct vfs_node* restrict node, struct vfs_stat* restrict out_stat)
@@ -258,7 +257,7 @@ static int devfs_dir_lookup(struct vfs_node* restrict dir, const char* restrict 
 
     spinlock_release(&state->lock);
 
-    return ENOENT;
+    return -ENOENT;
 }
 
 static int devfs_dir_readdir(struct vfs_node* restrict dir, struct vfs_dirent* restrict out_dirent, off_t index)
@@ -280,7 +279,7 @@ static int devfs_dir_readdir(struct vfs_node* restrict dir, struct vfs_dirent* r
 
     spinlock_release(&state->lock);
 
-    return ENOENT;
+    return -ENOENT;
 }
 
 static const struct vfs_node_ops devfs_dir_ops = {
@@ -294,7 +293,7 @@ static int devfs_insert(const char* restrict name, struct vfs_node* restrict vno
     struct devfs_node* entry;
 
     if(devfs_instance == nullptr) {
-        return ENODEV;
+        return -ENODEV;
     }
 
     state = devfs_instance->root->ctxdata;
@@ -302,7 +301,7 @@ static int devfs_insert(const char* restrict name, struct vfs_node* restrict vno
     entry = slab_alloc(sizeof(struct devfs_node));
 
     if(entry == nullptr) {
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     memset(entry, 0, sizeof(struct devfs_node));
@@ -381,7 +380,7 @@ static void devfs_blk_handler(unsigned event, const struct blk_device* restrict 
 
         retval = devfs_insert(device->identifier, vnode);
 
-        if(retval) {
+        if(retval < 0) {
             vfs_node_dec_refcount(vnode);
         }
 
@@ -402,7 +401,7 @@ static int devfs_mount(struct vfs* restrict fs, struct blk_device* restrict devi
     state = slab_alloc(sizeof(struct devfs_state));
 
     if(state == nullptr) {
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     memset(state, 0, sizeof(struct devfs_state));
@@ -412,7 +411,7 @@ static int devfs_mount(struct vfs* restrict fs, struct blk_device* restrict devi
 
     if(root == nullptr) {
         slab_free(state);
-        return ENOMEM;
+        return -ENOMEM;
     }
 
     fs->root = root;

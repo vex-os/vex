@@ -13,7 +13,7 @@ int intctl_register(struct intctl* restrict controller)
 
     for(it = intctl_head; it; it = it->priv.next) {
         if(it == controller) {
-            return EEXIST;
+            return -EEXIST;
         }
     }
 

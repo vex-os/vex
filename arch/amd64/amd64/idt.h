@@ -3,7 +3,6 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stdint.h>
 
 #define IDT_SIZE 256
 

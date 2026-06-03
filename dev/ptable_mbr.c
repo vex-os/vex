@@ -5,7 +5,6 @@
 #include <init/initcall.h>
 #include <lib/string.h>
 #include <mm/malloc.h>
-#include <stdint.h>
 
 #define MBR_SIGNATURE_0 0x55U
 #define MBR_SIGNATURE_1 0xAAU
@@ -36,7 +35,7 @@ static int mbr_detect(const struct blk_device* restrict device, void** restrict 
 
     retval = blk_device_read(device, 0, 1, &sector);
 
-    if(retval) {
+    if(retval < 0) {
         return retval;
     }
 
@@ -52,13 +51,13 @@ static int mbr_detect(const struct blk_device* restrict device, void** restrict 
         is_protective = is_protective && sector.entries[3].type == 0x00;
 
         if(is_protective) {
-            return EINVAL;
+            return -EINVAL;
         }
 
         sector_copy = kmalloc(sizeof(struct mbr_sector));
 
         if(sector_copy == nullptr) {
-            return ENOMEM;
+            return -ENOMEM;
         }
 
         memcpy(sector_copy, &sector, sizeof(struct mbr_sector));
@@ -68,7 +67,7 @@ static int mbr_detect(const struct blk_device* restrict device, void** restrict 
         return 0;
     }
 
-    return EINVAL;
+    return -EINVAL;
 }
 
 static int mbr_readpt(const struct blk_device* restrict device, void* restrict ptdata, unsigned index, struct blk_ptable_info* restrict out)
@@ -98,7 +97,7 @@ static int mbr_readpt(const struct blk_device* restrict device, void* restrict p
         found += 1;
     }
 
-    return ENOENT;
+    return -ENOENT;
 }
 
 static void mbr_release(void* restrict ptdata)

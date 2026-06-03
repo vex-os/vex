@@ -2,8 +2,7 @@
 #define FBA4EE33_16D0_491E_B145_335A2BCB4620
 #pragma once
 
-#include <stddef.h>
-#include <stdint.h>
+#include <core/types.h>
 
 struct mmio_region {
     volatile uint8_t* virt8;

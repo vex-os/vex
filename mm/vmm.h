@@ -4,8 +4,8 @@
 
 #include <arch/limits.h>
 #include <arch/vmm.h>
+#include <core/types.h>
 #include <mm/vprot.h>
-#include <stdint.h>
 
 static_assert((VMM_TABLE_SIZE * sizeof(vmm_entry_type)) == PAGE_SIZE);
 

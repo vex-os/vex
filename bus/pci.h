@@ -5,10 +5,9 @@
 #include <core/cdefs.h>
 #include <core/mmio.h>
 #include <core/pmio.h>
+#include <core/types.h>
 #include <ireq/dispatch.h>
 #include <limits.h>
-#include <stddef.h>
-#include <stdint.h>
 
 #define PCI_CFG_VENDOR_ID       0x00
 #define PCI_CFG_DEVICE_ID       0x02

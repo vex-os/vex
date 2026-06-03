@@ -11,7 +11,6 @@
 #include <mm/page.h>
 #include <mm/vmm.h>
 #include <mm/vprot.h>
-#include <stdint.h>
 #include <time/clocksrc.h>
 #include <uacpi/kernel_api.h>
 

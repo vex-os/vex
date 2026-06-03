@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stdint.h>
+#include <core/types.h>
 
 #define AMD64_IST_COUNT 7
 

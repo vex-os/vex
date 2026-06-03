@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stdint.h>
+#include <core/types.h>
 
 struct clocksrc;
 struct clocksrc_ops {

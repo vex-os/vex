@@ -4,8 +4,7 @@
 
 #include <core/cdefs.h>
 #include <core/errno.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <core/types.h>
 
 struct blk_name;
 
@@ -42,13 +41,13 @@ extern int blk_device_register_root(struct blk_device* restrict device, struct b
 extern int blk_device_register_part(struct blk_device* restrict device, const struct blk_device* restrict root, unsigned partition);
 extern int blk_device_register_custom(struct blk_device* restrict device);
 extern int blk_device_unregister(struct blk_device* restrict device);
-extern const struct blk_device* blk_device_find(const char* name) __nodiscard;
+extern const struct blk_device* blk_device_find(const char* restrict name) __nodiscard;
 
 static __always_inline inline int blk_device_read(const struct blk_device* restrict device, uintptr_t lba, size_t count,
     void* restrict buffer)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT))
-        return ENODEV;
+        return -ENODEV;
     return device->ops->read(device, lba, count, buffer);
 }
 
@@ -56,14 +55,14 @@ static __always_inline inline int blk_device_write(const struct blk_device* rest
     const void* restrict buffer)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT))
-        return ENODEV;
+        return -ENODEV;
     return device->ops->write(device, lba, count, buffer);
 }
 
 static __always_inline inline int blk_device_flush(const struct blk_device* restrict device)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT))
-        return ENODEV;
+        return -ENODEV;
     if(device->ops->flush)
         return device->ops->flush(device);
     return 0;

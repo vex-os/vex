@@ -17,7 +17,7 @@ int console_driver_register(struct console_driver* restrict driver)
     for(it = console_head; it; it = it->priv.next) {
         if(it == driver) {
             spinlock_release(&console_lock);
-            return EEXIST;
+            return -EEXIST;
         }
     }
 
@@ -91,7 +91,7 @@ int console_driver_unregister(struct console_driver* restrict driver)
 
     spinlock_release(&console_lock);
 
-    return EINVAL;
+    return -EINVAL;
 }
 
 void console_write(const void* restrict data, size_t size)

@@ -4,7 +4,6 @@
 #include <core/panic.h>
 #include <init/initcall.h>
 #include <mm/pslab.h>
-#include <stdint.h>
 #include <uacpi/uacpi.h>
 
 define_initcall(acpi_tables, INITCALL_STAGE_BSP_VMM, INITCALL_ORDER_LAST)

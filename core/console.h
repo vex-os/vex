@@ -3,7 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stddef.h>
+#include <core/types.h>
 
 #define CONSF_NONE    0x0000U ///< No special flags
 #define CONSF_RECALL  0x0001U ///< Recall the last kprintf history on unblanking

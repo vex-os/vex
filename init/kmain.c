@@ -13,7 +13,6 @@
 #include <init/initcall.h>
 #include <limine.h>
 #include <mm/malloc.h>
-#include <stdint.h>
 
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;

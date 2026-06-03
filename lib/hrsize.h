@@ -3,8 +3,7 @@
 #pragma once
 
 #include <core/cdefs.h>
-#include <stddef.h>
-#include <stdint.h>
+#include <core/types.h>
 
 // Standard sprintf implementations do not support human-readable
 // size in bytes, nor do most standard syntax highlighters and even
