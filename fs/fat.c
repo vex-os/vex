@@ -144,6 +144,7 @@ struct fat_ctx {
     size_t sector_size;
     void* fat_cache;
     size_t fat_cache_size; // in bytes
+    void* bounce;          // sector-sized reusable buffer for read_dirent
 };
 
 struct fat_node_ctx {
@@ -212,7 +213,7 @@ static __always_inline inline uintptr_t cluster_to_lba(const struct fat_ctx* res
 
 static int read_dirent(const struct fat_ctx* restrict ctx, uint32_t first_cluster, off_t index, struct fat_dirent_83* restrict out)
 {
-    uint8_t* bounce; // FIXME: kmalloc is slow
+    uint8_t* bounce = ctx->bounce;
 
     int retval;
     size_t cluster_index;
@@ -226,20 +227,13 @@ static int read_dirent(const struct fat_ctx* restrict ctx, uint32_t first_cluste
     uint32_t cluster;
     uintptr_t lba;
 
-    entries_count = ctx->cluster_size_bytes / 32;
+    entries_count = ctx->sector_size / 32;
     index_sizetype = (size_t)(index);
-
-    bounce = kmalloc(ctx->sector_size); // FIXME: kmalloc is slow
-
-    if(bounce == nullptr) {
-        return -ENOMEM;
-    }
 
     if(first_cluster == 0) {
         sector_in_root = index_sizetype / entries_count;
 
         if(sector_in_root >= ctx->root_dir_sectors_fat1x) {
-            kfree(bounce);
             return -ENOENT;
         }
 
@@ -247,12 +241,10 @@ static int read_dirent(const struct fat_ctx* restrict ctx, uint32_t first_cluste
         retval = blk_device_read(ctx->device, lba, 1, bounce);
 
         if(retval < 0) {
-            kfree(bounce);
             return retval;
         }
 
         memcpy(out, bounce + (index_sizetype % entries_count) * 32, 32);
-        kfree(bounce);
         return 0;
     }
 
@@ -260,7 +252,7 @@ static int read_dirent(const struct fat_ctx* restrict ctx, uint32_t first_cluste
     cluster_index = index_sizetype / entries_count;
     entry_in_cluster = index_sizetype % entries_count;
     sector_in_cluster = (entry_in_cluster * 32) / ctx->sector_size;
-    entry_in_sector = entry_in_cluster % entries_count;
+    entry_in_sector = entry_in_cluster % (ctx->sector_size / 32);
 
     cluster = first_cluster;
 
@@ -268,7 +260,6 @@ static int read_dirent(const struct fat_ctx* restrict ctx, uint32_t first_cluste
         cluster = next_cluster(ctx, cluster);
 
         if(cluster == UINT32_MAX) {
-            kfree(bounce);
             return -ENOENT;
         }
     }
@@ -277,12 +268,10 @@ static int read_dirent(const struct fat_ctx* restrict ctx, uint32_t first_cluste
     retval = blk_device_read(ctx->device, lba, 1, bounce);
 
     if(retval < 0) {
-        kfree(bounce);
         return retval;
     }
 
     memcpy(out, bounce + entry_in_sector * 32, 32);
-    kfree(bounce);
     return 0;
 }
 
@@ -701,13 +690,25 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         return -ENOMEM;
     }
 
+    ctx->bounce = kmalloc(bpb->sector_size);
+
+    if(ctx->bounce == nullptr) {
+        kfree(boot);
+        kfree(ctx->fat_cache);
+        kfree(ctx);
+
+        return -ENOMEM;
+    }
+
     for(i = 0; i < fat_size; i++) {
         retval = blk_device_read(device, ctx->fat_start_lba + i, 1, (uint8_t*)(ctx->fat_cache) + i * bpb->sector_size);
 
         if(retval < 0) {
             kfree(boot);
+            kfree(ctx->bounce);
             kfree(ctx->fat_cache);
             kfree(ctx);
+
             return retval;
         }
     }
@@ -717,8 +718,10 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     root_ctx = slab_alloc(sizeof(struct fat_node_ctx));
 
     if(root_ctx == nullptr) {
+        kfree(ctx->bounce);
         kfree(ctx->fat_cache);
         kfree(ctx);
+
         return -ENOMEM;
     }
 
@@ -731,8 +734,10 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     if(root == nullptr) {
         slab_free(root_ctx);
+        kfree(ctx->bounce);
         kfree(ctx->fat_cache);
         kfree(ctx);
+
         return -ENOMEM;
     }
 
@@ -745,10 +750,15 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 static int fat_unmount(struct vfs* restrict fs)
 {
     struct fat_ctx* ctx = fs->ctxdata;
+
     fat_sync(fs);
+
     vfs_node_dec_refcount(fs->root);
+
+    kfree(ctx->bounce);
     kfree(ctx->fat_cache);
     kfree(ctx);
+
     return 0;
 }
 
