@@ -5,6 +5,7 @@
 #include <core/spinlock.h>
 #include <init/initcall.h>
 #include <lib/string.h>
+#include <lib/strings.h>
 #include <mm/malloc.h>
 #include <mm/page.h>
 #include <mm/pslab.h>
@@ -300,6 +301,28 @@ void kfree(void* restrict ptr)
     coalesce(block);
 
     spinlock_release(&heap_lock);
+}
+
+char* kstrdup(const char* restrict string)
+{
+    size_t size;
+    char* result;
+
+    if(string == nullptr) {
+        return nullptr;
+    }
+
+    size = 1 + strlen(string);
+    result = kmalloc(size);
+
+    if(result == nullptr) {
+        return nullptr;
+    }
+
+    memset(result, 0, size);
+    kstrncpy(result, string, size - 1);
+
+    return result;
 }
 
 define_initcall(init_malloc, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_FIRST)
