@@ -20,7 +20,7 @@ static int blk_device_register_internal(struct blk_device* restrict device)
     device->priv.next = blk_device_head;
     blk_device_head = device;
 
-    blk_event_notify(BLK_EVENT_REGISTERED, device);
+    blk_event_notify(BLK_EVENT_DEVICE_ADDED, device);
 
     return 0;
 }
@@ -79,10 +79,10 @@ int blk_device_unregister(struct blk_device* restrict device)
     }
 
     if(device->flags & BLK_FLAG_PRESENT) {
-        blk_event_notify(BLK_EVENT_DISCONNECTED, device);
+        blk_event_notify(BLK_EVENT_MEDIA_DISCONNECTED, device);
     }
 
-    blk_event_notify(BLK_EVENT_UNREGISTERED, device);
+    blk_event_notify(BLK_EVENT_DEVICE_REMOVED, device);
 
     if(device->ops->destroy) {
         device->ops->destroy(device);

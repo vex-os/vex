@@ -15,7 +15,7 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-static void dump_lba(const struct blk_device* restrict device, uintptr_t lba)
+static void __used dump_lba(const struct blk_device* restrict device, uintptr_t lba)
 {
     uint8_t* sector;
     unsigned i;
@@ -50,10 +50,10 @@ void __noreturn kmain(void)
 
     pr_inform("hanging around...");
 
-    dump_lba(blk_device_find("ada0n1"), 0);
-    dump_lba(blk_device_find("ada0n2"), 0);
-    dump_lba(blk_device_find("ada0n2p1"), 0);
-    dump_lba(blk_device_find("ada0n2p2"), 0);
+    // dump_lba(blk_device_find("ada0n1"), 0);
+    // dump_lba(blk_device_find("ada0n2"), 0);
+    // dump_lba(blk_device_find("ada0n2p1"), 0);
+    // dump_lba(blk_device_find("ada0n2p2"), 0);
 
     for(;;) {
         stop_hart();

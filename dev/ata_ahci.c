@@ -581,7 +581,7 @@ static void ahci_probe_ata_port(struct ahci_pci_context* restrict context, struc
     ata_identify_string(&identify[ATA_IDENTIFY_MODEL_FIELD], ATA_IDENTIFY_MODEL_NWORDS, model_str, sizeof(model_str));
     pr_debug("ahci: port %u: %s (%zu sectors)", port_num, model_str, device->sector_count);
 
-    blk_event_notify(BLK_EVENT_CONNECTED, device);
+    blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, device);
 }
 
 static void ahci_probe_atapi_port(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
@@ -621,7 +621,7 @@ static void ahci_probe_atapi_port(struct ahci_pci_context* restrict context, str
 
     pr_debug("ahci: port %u ATAPI: %s (%zu sectors of %zu bytes)", port_num, model_str, sector_count, sector_size);
 
-    blk_event_notify(BLK_EVENT_CONNECTED, &atapi_dev->base);
+    blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, &atapi_dev->base);
 }
 
 static int ahci_driver_op_probe(struct pci_device* restrict pci_dev, const struct pci_driver_id* restrict id)

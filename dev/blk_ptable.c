@@ -79,6 +79,8 @@ static void disk_state_remove_parts(struct blk_disk_state* restrict state)
     for(it = state->parts; it; it = next) {
         next = it->next;
 
+        blk_event_notify(BLK_EVENT_PARTITION_REMOVED, &it->base);
+
         blk_device_unregister(&it->base);
     }
 
@@ -146,6 +148,8 @@ static void probe_device(const struct blk_device* restrict device)
 
             part->next = state->parts;
             state->parts = part;
+
+            blk_event_notify(BLK_EVENT_PARTITION_ADDED, &part->base);
         }
 
         it->ops->release(ptdata);
@@ -185,11 +189,11 @@ static void handle_blk_event(unsigned event, const struct blk_device* restrict d
     }
 
     switch(event) {
-        case BLK_EVENT_CONNECTED:
+        case BLK_EVENT_MEDIA_CONNECTED:
             probe_device(device);
             break;
 
-        case BLK_EVENT_DISCONNECTED:
+        case BLK_EVENT_MEDIA_DISCONNECTED:
             forget_device(device);
             break;
     }
