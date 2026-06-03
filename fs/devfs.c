@@ -26,7 +26,7 @@ struct devfs_state {
 struct devfs_blk_ctx {
     const struct blk_device* dev;
     spinlock_type bounce_lock;
-    uint8_t* bounce_buffer; /// sector_size bytes, allocated once at device add
+    uint8_t* bounce_buffer;
 };
 
 static struct vfs* devfs_instance = nullptr;
@@ -49,7 +49,6 @@ static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buf
         return 0;
     }
 
-    // Fast path: sector-aligned read, no bounce needed
     if(byte_off == 0 && (sz % sector_size) == 0) {
         retval = blk_device_read(dev, lba, sz / sector_size, buffer);
 
@@ -58,7 +57,6 @@ static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buf
         return (ssize_t)(sz);
     }
 
-    // Head: partial first sector
     if(byte_off) {
         chunk = sector_size - byte_off;
 
@@ -82,7 +80,6 @@ static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buf
         cur_lba += 1;
     }
 
-    // Middle: full sectors, read directly into caller's buffer
     if(remaining >= sector_size) {
         full = remaining / sector_size;
         retval = blk_device_read(dev, cur_lba, full, output);
@@ -96,7 +93,6 @@ static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buf
         cur_lba += (uintptr_t)(full);
     }
 
-    // Tail: partial last sector
     if(remaining > 0) {
         spinlock_acquire(&ctx->bounce_lock);
 
@@ -133,7 +129,6 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
         return 0;
     }
 
-    // Fast path: sector-aligned write, no bounce needed
     if(byte_off == 0 && (sz % sector_size) == 0) {
         retval = blk_device_write(dev, lba, sz / sector_size, buffer);
 
@@ -142,7 +137,6 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
         return (ssize_t)(sz);
     }
 
-    // Head: partial first sector — RMW via bounce
     if(byte_off) {
         chunk = sector_size - byte_off;
 
@@ -174,7 +168,6 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
         cur_lba += 1;
     }
 
-    // Middle: full sectors, write directly from caller's buffer
     if(remaining >= sector_size) {
         full = remaining / sector_size;
         retval = blk_device_write(dev, cur_lba, full, in);
@@ -188,7 +181,6 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
         cur_lba += (uintptr_t)(full);
     }
 
-    // Tail: partial last sector — RMW via bounce
     if(remaining > 0) {
         spinlock_acquire(&ctx->bounce_lock);
 
