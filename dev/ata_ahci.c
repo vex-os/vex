@@ -157,12 +157,12 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
     while(ahci_register_read(port, PORT_REG_CI) & 1) {
         if(ahci_register_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
             tfd_value = ahci_register_read(port, PORT_REG_TFD);
-            pr_debug("ahci: error at LBA %zu (TFD=%08lX)", (size_t)(lba), tfd_value);
+            pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)(lba), tfd_value);
             return EIO;
         }
 
         if(counter >= AHCI_POLL_TIMEOUT) {
-            pr_debug("ahci: timeout at LBA %zu", (size_t)(lba));
+            pr_debug("ahci: poll timeout at LBA %zu", (size_t)(lba));
             return EIO;
         }
 
@@ -173,7 +173,7 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
 
     if(ahci_register_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
         tfd_value = ahci_register_read(port, PORT_REG_TFD);
-        pr_debug("ahci: error at LBA %zu (TFD=%08lX)", (size_t)(lba), tfd_value);
+        pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)(lba), tfd_value);
         return EIO;
     }
 
@@ -568,7 +568,6 @@ static void ahci_probe_ata_port(struct ahci_pci_context* restrict context, struc
     }
 
     if(ata_identify_is_atapi(identify)) {
-        pr_debug("ahci: port %u: ATA signature but ATAPI identify, skipping", port_num);
         ahci_port_teardown(port);
         return;
     }
