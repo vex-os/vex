@@ -13,7 +13,14 @@ struct blk_part_device {
     size_t lba_count;
 };
 
+struct blk_disk_state {
+    struct blk_disk_state* next;
+    const struct blk_device* disk;
+    struct blk_part_device* parts;
+};
+
 static struct blk_ptable* ptable_head = nullptr;
+static struct blk_disk_state* disk_state_head = nullptr;
 
 static int part_op_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
@@ -42,7 +49,7 @@ static int part_op_flush(const struct blk_device* restrict device)
 
 static void part_op_destroy(const struct blk_device* restrict device)
 {
-    // empty
+    kfree((void*)(device));
 }
 
 static const struct blk_device_ops part_ops = {
@@ -52,22 +59,65 @@ static const struct blk_device_ops part_ops = {
     .destroy = &part_op_destroy,
 };
 
+static struct blk_disk_state* disk_state_find(const struct blk_device* restrict disk)
+{
+    struct blk_disk_state* it;
+
+    for(it = disk_state_head; it; it = it->next) {
+        if(it->disk == disk)
+            return it;
+    }
+
+    return nullptr;
+}
+
+static void disk_state_remove_parts(struct blk_disk_state* restrict state)
+{
+    struct blk_part_device* it;
+    struct blk_part_device* next;
+
+    for(it = state->parts; it; it = next) {
+        next = it->next;
+
+        blk_device_unregister(&it->base);
+    }
+
+    state->parts = nullptr;
+}
+
 static void probe_device(const struct blk_device* restrict device)
 {
     struct blk_ptable* it;
+    struct blk_disk_state* state;
     struct blk_ptable_info info;
     struct blk_part_device* part;
     unsigned index;
     void* ptdata;
 
+    state = disk_state_find(device);
+
+    if(state == nullptr) {
+        state = kmalloc(sizeof(struct blk_disk_state));
+
+        if(state == nullptr) {
+            return;
+        }
+
+        state->disk = device;
+        state->parts = nullptr;
+
+        state->next = disk_state_head;
+        disk_state_head = state;
+    }
+
     for(it = ptable_head; it; it = it->priv.next) {
+        ptdata = nullptr;
+
         if(it->ops->detect(device, &ptdata)) {
             continue;
         }
 
-        index = 0;
-
-        for(;;) {
+        for(index = 0;; index += 1) {
             if(it->ops->readpt(device, ptdata, index, &info)) {
                 break;
             }
@@ -91,18 +141,57 @@ static void probe_device(const struct blk_device* restrict device)
 
             if(blk_device_register_part(&part->base, device->priv.name, device->priv.name_iterator, info.part_index)) {
                 kfree(part);
+                continue;
             }
+
+            part->next = state->parts;
+            state->parts = part;
         }
 
         it->ops->release(ptdata);
+
         return;
+    }
+}
+
+static void forget_device(const struct blk_device* restrict device)
+{
+    struct blk_disk_state* it;
+    struct blk_disk_state* prev = nullptr;
+
+    for(it = disk_state_head; it; it = it->next) {
+        if(it->disk == device) {
+            disk_state_remove_parts(it);
+
+            if(prev) {
+                prev->next = it->next;
+            }
+            else {
+                disk_state_head = it->next;
+            }
+
+            kfree(it);
+            return;
+        }
+
+        prev = it;
     }
 }
 
 static void handle_blk_event(unsigned event, const struct blk_device* restrict device, void* restrict ctxdata)
 {
-    if(event == BLK_EVENT_CONNECTED && 0 == (device->flags & BLK_FLAG_PARTITION)) {
-        probe_device(device);
+    if(device->flags & BLK_FLAG_PARTITION) {
+        return;
+    }
+
+    switch(event) {
+        case BLK_EVENT_CONNECTED:
+            probe_device(device);
+            break;
+
+        case BLK_EVENT_DISCONNECTED:
+            forget_device(device);
+            break;
     }
 }
 
@@ -142,6 +231,25 @@ int blk_ptable_unregister(struct blk_ptable* restrict ptable)
     }
 
     return ENODEV;
+}
+
+int blk_ptable_rescan(const struct blk_device* restrict device)
+{
+    struct blk_disk_state* state;
+
+    if(device->flags & BLK_FLAG_PARTITION) {
+        return EINVAL;
+    }
+
+    state = disk_state_find(device);
+
+    if(state) {
+        disk_state_remove_parts(state);
+    }
+
+    probe_device(device);
+
+    return 0;
 }
 
 define_initcall(blk_ptable, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_FIRST)
