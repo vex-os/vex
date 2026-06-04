@@ -7,10 +7,10 @@
 #include <core/version.h>
 #include <dev/blk_device.h>
 #include <fs/dirent.h>
-#include <fs/file.h>
-#include <fs/mount.h>
-#include <fs/path.h>
-#include <fs/vnode.h>
+#include <fs/vfs_file.h>
+#include <fs/vfs_mount.h>
+#include <fs/vfs_path.h>
+#include <fs/vfs_vnode.h>
 #include <init/initcall.h>
 #include <lib/sprintf.h>
 #include <lib/string.h>

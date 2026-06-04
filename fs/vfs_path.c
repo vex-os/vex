@@ -1,7 +1,7 @@
 #include <core/assert.h>
-#include <fs/mount.h>
-#include <fs/path.h>
-#include <fs/vnode.h>
+#include <fs/vfs_mount.h>
+#include <fs/vfs_path.h>
+#include <fs/vfs_vnode.h>
 #include <lib/string.h>
 #include <lib/strings.h>
 

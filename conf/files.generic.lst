@@ -47,18 +47,18 @@ ext/uacpi/types.c
 ext/uacpi/uacpi.c
 ext/uacpi/utilities.c
 
+# fs/fatfs_cluster.c
+# fs/fatfs_dir.c
+# fs/fatfs_vnode.c
+# fs/fatfs.c
 fs/devfs_blk.c
 fs/devfs_chr.c
 fs/devfs_dir.c
 fs/devfs.c
-# fs/fatfs.c
-# fs/fatfs_cluster.c
-# fs/fatfs_dir.c
-# fs/fatfs_vnode.c
-fs/file.c
-fs/mount.c
-fs/path.c
-fs/vnode.c
+fs/vfs_file.c
+fs/vfs_mount.c
+fs/vfs_path.c
+fs/vfs_vnode.c
 
 hash/crc32_iso3309.c
 hash/crc32.c

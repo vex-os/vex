@@ -1,8 +1,8 @@
 #include <core/atomic.h>
-#include <fs/file.h>
-#include <fs/path.h>
 #include <fs/stat.h>
-#include <fs/vnode.h>
+#include <fs/vfs_file.h>
+#include <fs/vfs_path.h>
+#include <fs/vfs_vnode.h>
 #include <lib/string.h>
 #include <mm/slab.h>
 

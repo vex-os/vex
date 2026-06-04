@@ -4,7 +4,7 @@
 
 #include <core/cdefs.h>
 #include <core/types.h>
-#include <fs/vnode.h>
+#include <fs/vfs_vnode.h>
 
 #define SEEK_SET 0
 #define SEEK_CUR 1

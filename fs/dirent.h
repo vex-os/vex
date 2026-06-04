@@ -2,7 +2,7 @@
 #define F7DF1819_15C7_467E_82C1_9D4D6A16B99D
 #pragma once
 
-#include <fs/path.h>
+#include <fs/vfs_path.h>
 
 struct dirent {
     char name[PATH_NAME_SIZE];

@@ -4,7 +4,7 @@
 
 #include <core/cdefs.h>
 #include <core/spinlock.h>
-#include <fs/path.h>
+#include <fs/vfs_path.h>
 
 struct blk_device;
 struct chr_device;

@@ -2,7 +2,7 @@
 #include <core/spinlock.h>
 #include <fs/devfs.h>
 #include <fs/dirent.h>
-#include <fs/vnode.h>
+#include <fs/vfs_vnode.h>
 #include <lib/string.h>
 #include <lib/strings.h>
 

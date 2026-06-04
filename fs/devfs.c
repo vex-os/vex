@@ -5,8 +5,8 @@
 #include <dev/chr_device.h>
 #include <dev/chr_event.h>
 #include <fs/devfs.h>
-#include <fs/mount.h>
-#include <fs/vnode.h>
+#include <fs/vfs_mount.h>
+#include <fs/vfs_vnode.h>
 #include <init/initcall.h>
 #include <lib/string.h>
 #include <lib/strings.h>
