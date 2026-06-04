@@ -77,11 +77,10 @@ static struct rte_entry ioapic_read_rte(struct ioapic_data* data, uint8_t irq)
 
 static void ioapic_write_rte(struct ioapic_data* data, uint8_t irq, struct rte_entry entry)
 {
-    uint32_t index = IOAPIC_REG_TBL_BASE + irq * IOAPIC_REG_TBL_STRIDE;
-
     uint64_t raw;
     memcpy(&raw, &entry, sizeof(raw));
 
+    uint32_t index = IOAPIC_REG_TBL_BASE + irq * IOAPIC_REG_TBL_STRIDE;
     ioapic_write(data, index + 0, (uint32_t)(raw));
     ioapic_write(data, index + 1, (uint32_t)(raw >> 32));
 }
@@ -90,7 +89,7 @@ static void ioapic_mask(struct intctl* restrict controller, uint32_t gsi)
 {
     struct ioapic_data* data = controller->ctxdata;
 
-    uint8_t irq = (uint8_t)(gsi - controller->gsi_base);
+    uint8_t irq = gsi - controller->gsi_base;
 
     struct rte_entry entry = ioapic_read_rte(data, irq);
     entry.masked = 1;
@@ -102,7 +101,7 @@ static void ioapic_unmask(struct intctl* restrict controller, uint32_t gsi)
 {
     struct ioapic_data* data = controller->ctxdata;
 
-    uint8_t irq = (uint8_t)(gsi - controller->gsi_base);
+    uint8_t irq = gsi - controller->gsi_base;
 
     struct rte_entry entry = ioapic_read_rte(data, irq);
     entry.masked = 0;
@@ -115,8 +114,6 @@ static void ioapic_route(struct intctl* restrict controller, uint32_t gsi, uint8
 {
     struct ioapic_data* data = controller->ctxdata;
 
-    uint8_t irq = (uint8_t)(gsi - controller->gsi_base);
-
     struct rte_entry entry = { 0 };
     entry.vector = vector;
     entry.dest = hart;
@@ -124,7 +121,7 @@ static void ioapic_route(struct intctl* restrict controller, uint32_t gsi, uint8
     entry.active_low = (polarity == ACTIVE_LOW);
     entry.masked = 1;
 
-    ioapic_write_rte(data, irq, entry);
+    ioapic_write_rte(data, gsi - controller->gsi_base, entry);
 }
 
 static const struct intctl_ops ioapic_ops = {
@@ -135,26 +132,17 @@ static const struct intctl_ops ioapic_ops = {
 
 static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct acpi_entry_hdr* entry)
 {
-    struct acpi_madt_ioapic* ioapic;
-    struct ioapic_data* data;
-    struct intctl* controller;
-
-    void* virt;
-    uint32_t id;
-    uint32_t ver;
-    uint8_t i;
-
     if(entry->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
-        ioapic = (struct acpi_madt_ioapic*)(entry);
+        struct acpi_madt_ioapic* ioapic = (struct acpi_madt_ioapic*)(entry);
 
-        data = kmalloc(sizeof(struct ioapic_data));
-        controller = kmalloc(sizeof(struct intctl));
+        struct ioapic_data* data = kmalloc(sizeof(struct ioapic_data));
+        struct intctl* controller = kmalloc(sizeof(struct intctl));
 
         if(data == nullptr || controller == nullptr) {
             panic("ioapic: out of memory");
         }
 
-        virt = phys_to_virt(ioapic->address);
+        void* virt = phys_to_virt(ioapic->address);
 
         if(vmm_map(&sys_pagemap, (uintptr_t)(virt), ioapic->address, VPROT_RW | VPROT_NOCACHE)) {
             panic("ioapic: failed to map mmio at %p", (const void*)((uintptr_t)(ioapic->address)));
@@ -162,8 +150,8 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
 
         data->base = (volatile uint32_t*)(virt);
 
-        id = ioapic_read(data, IOAPIC_REG_ID) >> 24;
-        ver = ioapic_read(data, IOAPIC_REG_VER);
+        uint32_t id = ioapic_read(data, IOAPIC_REG_ID) >> 24;
+        uint32_t ver = ioapic_read(data, IOAPIC_REG_VER);
 
         controller->ops = &ioapic_ops;
         controller->gsi_base = ioapic->gsi_base;
@@ -173,7 +161,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         controller->identifier = kasprintf("ioapic%u", (unsigned)(id));
         strict_kassert_text(controller->identifier, "kasprintf failed");
 
-        for(i = 0; i < controller->gsi_count; ++i) {
+        for(uint8_t i = 0; i < controller->gsi_count; ++i) {
             ioapic_write_rte(data, i, (struct rte_entry) { .masked = 1 });
         }
 
@@ -188,9 +176,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
 define_initcall(amd64_ioapic, INITCALL_STAGE_BSP_IREQ, INITCALL_ORDER_FIRST)
 {
     uacpi_table madt;
-    uacpi_status status;
-
-    status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);
+    uacpi_status status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);
 
     if(uacpi_unlikely_error(status)) {
         panic("ioapic: acpi madt not found: %s", uacpi_status_to_string(status));

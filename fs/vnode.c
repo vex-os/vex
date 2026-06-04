@@ -34,11 +34,9 @@ void vnode_incref(struct vnode* restrict node)
 
 bool vnode_decref(struct vnode* restrict node)
 {
-    unsigned prev;
-
     weak_kassert_text(node, "invalid node pointer");
 
-    prev = atomic_fetch_sub(&node->refcount, 1, ATOMIC_ACQ_REL);
+    unsigned prev = atomic_fetch_sub(&node->refcount, 1, ATOMIC_ACQ_REL);
 
     if(prev == 1) {
         if(node->ops->release)

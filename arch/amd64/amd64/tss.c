@@ -18,18 +18,15 @@ struct amd64_tss {
 
 define_initcall(amd64_tss, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_MIDDLE)
 {
-    size_t i;
-    struct hart_local* hart = this_hart();
-    struct amd64_tss* tss;
-
-    tss = kmalloc(sizeof(struct amd64_tss));
+    struct amd64_tss* tss = kmalloc(sizeof(struct amd64_tss));
     strict_kassert_text(tss, "out of memory");
-
     memset(tss, 0, sizeof(*tss));
 
-    tss->iomap_base = (uint16_t)sizeof(*tss);
+    tss->iomap_base = sizeof(*tss);
 
-    for(i = 0; i < AMD64_IST_COUNT; ++i) {
+    struct hart_local* hart = this_hart();
+
+    for(size_t i = 0; i < AMD64_IST_COUNT; ++i) {
         if(hart->amd64.ist_stacks[i]) {
             tss->ist[i] = hart->amd64.ist_stacks[i];
         }

@@ -42,19 +42,13 @@ static struct clocksrc acpi_clocksrc = {
 
 define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
 {
-    int retval;
     uacpi_table table;
-    uacpi_status status;
-    struct acpi_fadt* fadt;
-    struct acpi_clocksrc_privdata* priv;
-    void* virt;
-
-    status = uacpi_table_find_by_signature(ACPI_FADT_SIGNATURE, &table);
+    uacpi_status status = uacpi_table_find_by_signature(ACPI_FADT_SIGNATURE, &table);
 
     if(uacpi_likely_success(status)) {
-        fadt = (struct acpi_fadt*)(table.hdr);
+        struct acpi_fadt* fadt = (struct acpi_fadt*)(table.hdr);
 
-        priv = kmalloc(sizeof(struct acpi_clocksrc_privdata));
+        struct acpi_clocksrc_privdata* priv = kmalloc(sizeof(struct acpi_clocksrc_privdata));
         strict_kassert_text(priv, "out of memory");
 
         priv->mmio = nullptr;
@@ -62,9 +56,9 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
 
         if(fadt->x_pm_tmr_blk.address) {
             if(fadt->x_pm_tmr_blk.address_space_id == ACPI_AS_ID_SYS_MEM) {
-                virt = phys_to_virt(fadt->x_pm_tmr_blk.address);
+                void* virt = phys_to_virt(fadt->x_pm_tmr_blk.address);
 
-                retval = vmm_map(&sys_pagemap, (uintptr_t)(virt), fadt->x_pm_tmr_blk.address, VPROT_RW | VPROT_NOCACHE);
+                int retval = vmm_map(&sys_pagemap, (uintptr_t)(virt), fadt->x_pm_tmr_blk.address, VPROT_RW | VPROT_NOCACHE);
                 strict_kassert_text(retval == 0 || retval == EEXIST, "mmio map failed");
 
                 priv->mmio = virt;

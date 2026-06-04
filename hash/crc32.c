@@ -2,14 +2,10 @@
 
 void crc32_generate_nri(struct crc32_table* restrict table, uint32_t polynomial, uint32_t initial)
 {
-    uint32_t i;
-    uint32_t j;
-    uint32_t value;
+    for(uint32_t i = 0; i < CRC32_TABLE_SIZE; ++i) {
+        uint32_t value = i << 24;
 
-    for(i = 0; i < CRC32_TABLE_SIZE; ++i) {
-        value = i << 24;
-
-        for(j = 0; j < 8; ++j) {
+        for(uint32_t j = 0; j < 8; ++j) {
             if(value & UINT32_C(0x80000000)) {
                 value = polynomial ^ (value << 1);
             }
@@ -26,14 +22,10 @@ void crc32_generate_nri(struct crc32_table* restrict table, uint32_t polynomial,
 
 void crc32_generate_rfi(struct crc32_table* restrict table, uint32_t polynomial, uint32_t initial)
 {
-    uint32_t i;
-    uint32_t j;
-    uint32_t value;
+    for(uint32_t i = 0; i < CRC32_TABLE_SIZE; ++i) {
+        uint32_t value = i;
 
-    for(i = 0; i < CRC32_TABLE_SIZE; ++i) {
-        value = i;
-
-        for(j = 0; j < 8; ++j) {
+        for(uint32_t j = 0; j < 8; ++j) {
             if(value & 1) {
                 value = polynomial ^ (value >> 1);
             }
@@ -51,10 +43,9 @@ void crc32_generate_rfi(struct crc32_table* restrict table, uint32_t polynomial,
 uint32_t crc32_get_ext_nro(const struct crc32_table* restrict table, const void* restrict data, size_t sz, uint32_t ext)
 {
     const uint8_t* data_ptr = data;
-    size_t i;
     uint32_t crc = ~ext;
 
-    for(i = 0; i < sz; ++i)
+    for(size_t i = 0; i < sz; ++i)
         crc = table->table[(crc ^ data_ptr[i]) & 0xFF] ^ (crc >> 8);
 
     return crc ^ UINT32_C(0xFFFFFFFF);

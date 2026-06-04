@@ -8,7 +8,6 @@
 static int fat_entry_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
     union fat_entry* restrict out)
 {
-    int retval;
     size_t entries_per_sector = context->sector_size / sizeof(union fat_entry);
     size_t sector_index;
     size_t entry_in_sector;
@@ -41,7 +40,7 @@ static int fat_entry_read(const struct fat_vfs_context* restrict context, uintpt
         lba = fat_cluster_lba(context, cluster) + sector_index;
     }
 
-    retval = blk_device_read(context->device, lba, 1, context->bounce);
+    int retval = blk_device_read(context->device, lba, 1, context->bounce);
 
     if(retval < 0) {
         return retval;
@@ -56,7 +55,6 @@ static int fat_entry_read(const struct fat_vfs_context* restrict context, uintpt
 static int fat_entry_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
     const union fat_entry* restrict entry)
 {
-    int retval;
     size_t entries_per_sector = context->sector_size / sizeof(union fat_entry);
     size_t sector_index;
     size_t entry_in_sector;
@@ -89,7 +87,7 @@ static int fat_entry_write(const struct fat_vfs_context* restrict context, uintp
         lba = fat_cluster_lba(context, cluster) + sector_index;
     }
 
-    retval = blk_device_read(context->device, lba, 1, context->bounce);
+    int retval = blk_device_read(context->device, lba, 1, context->bounce);
 
     if(retval < 0) {
         return retval;
@@ -115,13 +113,12 @@ static uint8_t lfn_checksum(const uint8_t name[11])
 int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t* restrict offset,
     struct fat_dirent* restrict entry)
 {
-    int retval;
     union fat_entry raw;
     struct fat_ldir_entry lfn[FAT_LFN_MAX_SEGMENTS];
     unsigned num_lfn = 0;
 
     for(;;) {
-        retval = fat_entry_read(context, cluster, offset[0], &raw);
+        int retval = fat_entry_read(context, cluster, offset[0], &raw);
         offset[0] += 1;
 
         if(retval < 0) {
@@ -197,7 +194,6 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
 int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
     const struct fat_dirent* restrict entry)
 {
-    int retval;
     union fat_entry raw;
     size_t name_len = kstrnlen(entry->full_name, PATH_NAME_SIZE);
     unsigned num_lfn = (name_len + 12) / 13;
@@ -229,7 +225,7 @@ int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t c
             ldir->name_3[j] = pos < name_len ? (uint16_t)(uint8_t)entry->full_name[pos] : (pos == name_len ? 0x0000 : 0xFFFF);
         }
 
-        retval = fat_entry_write(context, cluster, offset - seg, &raw);
+        int retval = fat_entry_write(context, cluster, offset - seg, &raw);
 
         if(retval < 0) {
             return retval;

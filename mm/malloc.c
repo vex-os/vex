@@ -47,15 +47,12 @@ static struct memblock* find_free_block(size_t sz)
 
 static struct memblock* extend_heap(size_t sz)
 {
-    int retval;
     size_t i;
-    size_t npages;
-    struct memblock* block;
     uintptr_t phys;
     uintptr_t virt;
 
-    npages = page_count(sz);
-    block = slab_alloc(sizeof(struct memblock));
+    size_t npages = page_count(sz);
+    struct memblock* block = slab_alloc(sizeof(struct memblock));
 
     if(block == nullptr) {
         return nullptr;
@@ -75,7 +72,7 @@ static struct memblock* extend_heap(size_t sz)
         }
 
         virt = block->address + i * PAGE_SIZE;
-        retval = vmm_map(&sys_pagemap, virt, phys, VPROT_RW);
+        int retval = vmm_map(&sys_pagemap, virt, phys, VPROT_RW);
 
         if(retval < 0) {
             pslab_free(phys);
@@ -110,18 +107,14 @@ error_cleanup:
 
 static void split_block(struct memblock* restrict block, size_t sz)
 {
-    size_t aligned_sz;
-    size_t remainder;
-    struct memblock* new_block;
-
-    aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
-    remainder = block->length - aligned_sz;
+    size_t aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
+    size_t remainder = block->length - aligned_sz;
 
     if(remainder < 4 * sizeof(uintptr_t)) {
         return;
     }
 
-    new_block = slab_alloc(sizeof(struct memblock));
+    struct memblock* new_block = slab_alloc(sizeof(struct memblock));
 
     if(new_block == nullptr) {
         return;
@@ -197,17 +190,14 @@ static void coalesce(struct memblock* restrict block)
 
 void* kmalloc(size_t sz)
 {
-    size_t aligned_sz;
-    struct memblock* block;
-
     if(sz == 0) {
         return nullptr;
     }
 
     spinlock_acquire(&heap_lock);
 
-    aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
-    block = find_free_block(aligned_sz);
+    size_t aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
+    struct memblock* block = find_free_block(aligned_sz);
 
     if(block == nullptr) {
         block = extend_heap(aligned_sz);
@@ -242,10 +232,6 @@ void* kcalloc(size_t count, size_t sz)
 
 void* krealloc(void* restrict ptr, size_t sz)
 {
-    size_t aligned_sz;
-    struct memblock* block;
-    void* new_ptr;
-
     if(ptr == nullptr) {
         return kmalloc(sz);
     }
@@ -256,19 +242,19 @@ void* krealloc(void* restrict ptr, size_t sz)
         return nullptr;
     }
 
-    block = find_block_at((uintptr_t)(ptr));
+    struct memblock* block = find_block_at((uintptr_t)(ptr));
 
     if(block == nullptr) {
         return nullptr;
     }
 
-    aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
+    size_t aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
 
     if(block->length >= aligned_sz) {
         return ptr;
     }
 
-    new_ptr = kmalloc(aligned_sz);
+    void* new_ptr = kmalloc(aligned_sz);
 
     if(new_ptr == nullptr) {
         return nullptr;
@@ -282,13 +268,11 @@ void* krealloc(void* restrict ptr, size_t sz)
 
 void kfree(void* restrict ptr)
 {
-    struct memblock* block;
-
     if(ptr == nullptr) {
         return;
     }
 
-    block = find_block_at((uintptr_t)(ptr));
+    struct memblock* block = find_block_at((uintptr_t)(ptr));
 
     if(block == nullptr || block->type == BLOCK_TYPE_FREE) {
         panic("kfree: invalid or double free of %p", ptr);
@@ -306,15 +290,12 @@ void kfree(void* restrict ptr)
 
 char* kstrdup(const char* restrict string)
 {
-    size_t size;
-    char* result;
-
     if(string == nullptr) {
         return nullptr;
     }
 
-    size = 1 + strlen(string);
-    result = kmalloc(size);
+    size_t size = 1 + strlen(string);
+    char* result = kmalloc(size);
 
     if(result == nullptr) {
         return nullptr;
@@ -328,11 +309,9 @@ char* kstrdup(const char* restrict string)
 
 char* kasprintf(const char* restrict fmt, ...)
 {
-    char* result;
-
     va_list ap;
     va_start(ap, fmt);
-    result = kvasprintf(fmt, ap);
+    char* result = kvasprintf(fmt, ap);
     va_end(ap);
 
     return result;
@@ -340,19 +319,16 @@ char* kasprintf(const char* restrict fmt, ...)
 
 char* kvasprintf(const char* restrict fmt, va_list ap)
 {
-    int length;
-    char* result;
     va_list ap_copy;
-
     va_copy(ap_copy, ap);
-    length = vsnprintf(nullptr, 0, fmt, ap);
+    int length = vsnprintf(nullptr, 0, fmt, ap);
 
     if(length < 0) {
         va_end(ap_copy);
         return nullptr;
     }
 
-    result = kcalloc(1, length + 1);
+    char* result = kcalloc(1, length + 1);
 
     if(result == nullptr) {
         va_end(ap_copy);

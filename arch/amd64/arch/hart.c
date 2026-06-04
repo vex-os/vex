@@ -36,9 +36,7 @@ void broadcast_panic_ipi(void)
 
 define_initcall(amd64_hart, INITCALL_STAGE_SMP_HART, INITCALL_ORDER_FIRST)
 {
-    struct hart_local* hart;
-
-    hart = kmalloc(sizeof(struct hart_local));
+    struct hart_local* hart = kmalloc(sizeof(struct hart_local));
     strict_kassert_text(hart, "out of memory");
 
     memset(hart, 0, sizeof(struct hart_local));

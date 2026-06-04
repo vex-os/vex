@@ -16,15 +16,13 @@ static struct ireq_entry ireq_table[IREQ_TABLE_SIZE] = { 0 };
 
 unsigned ireq_handler_register(unsigned desired_number, ireq_handler_type handler, void* restrict ctxdata)
 {
-    unsigned number;
-
     if(desired_number < IREQ_TABLE_SIZE && ireq_table[desired_number].handler == nullptr) {
         ireq_table[desired_number].handler = handler;
         ireq_table[desired_number].ctxdata = ctxdata;
         return desired_number;
     }
 
-    for(number = 0; number < IREQ_TABLE_SIZE; number += 1) {
+    for(unsigned number = 0; number < IREQ_TABLE_SIZE; number += 1) {
         if(ireq_table[number].handler == nullptr) {
             ireq_table[number].handler = handler;
             ireq_table[number].ctxdata = ctxdata;
@@ -43,14 +41,12 @@ void ireq_handler_unregister(unsigned number)
 
 void dispatch_ireq(unsigned number, struct interrupt_frame* restrict frame)
 {
-    ireq_handler_type handler;
-
     if(number >= IREQ_TABLE_SIZE) {
         pr_debug("ireq: spurious IRQ 0x%02X out of range", number);
         return;
     }
 
-    handler = ireq_table[number].handler;
+    ireq_handler_type handler = ireq_table[number].handler;
 
     if(handler) {
         handler(number, frame, ireq_table[number].ctxdata);

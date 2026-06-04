@@ -43,8 +43,6 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 
 define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_LAST)
 {
-    uint64_t i;
-
     if(mp_request.response == nullptr) {
         panic("bootloader did not provide multicore information");
         unreachable();
@@ -58,7 +56,7 @@ define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_LAST)
 
     atomic_store_n(&smp_ready_count, UINT64_C(1), ATOMIC_RELAXED);
 
-    for(i = 0; i < smp_cpu_count; ++i) {
+    for(uint64_t i = 0; i < smp_cpu_count; ++i) {
         atomic_store_n(&mp_request.response->cpus[i]->goto_address, &smp_entry, ATOMIC_RELEASE);
     }
 

@@ -32,12 +32,8 @@ static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame,
 {
     struct isa_device* device = ctxdata;
 
-    struct isa_resource* cmd_res;
-    struct isa_resource* data_res;
-    uint8_t scancode;
-
-    data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
-    cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
+    struct isa_resource* data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
+    struct isa_resource* cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
 
     if(data_res == nullptr || cmd_res == nullptr) {
         return;
@@ -47,7 +43,7 @@ static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame,
         return;
     }
 
-    scancode = pmio_read8(&data_res->pmio, 0);
+    uint8_t scancode = pmio_read8(&data_res->pmio, 0);
 
     if(scancode & 0x80) {
         pr_inform("ps2kbd: key up   scancode=0x%02X", (unsigned)(scancode & 0x7F));
@@ -59,17 +55,12 @@ static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame,
 
 static int ps2kbd_probe(struct isa_device* restrict device)
 {
-    int retval;
-    struct isa_resource* cmd_res;
-    struct isa_resource* data_res;
-    uint8_t command_byte;
-
     if(strcmp(device->identifier, "PNP0303")) {
         return -ENODEV;
     }
 
-    data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
-    cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
+    struct isa_resource* data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
+    struct isa_resource* cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
 
     if(data_res == nullptr || cmd_res == nullptr) {
         return -ENODEV;
@@ -79,7 +70,7 @@ static int ps2kbd_probe(struct isa_device* restrict device)
     pmio_write8(&cmd_res->pmio, 0, 0x20);
 
     i8042_wait_read(&cmd_res->pmio);
-    command_byte = pmio_read8(&data_res->pmio, 0);
+    uint8_t command_byte = pmio_read8(&data_res->pmio, 0);
     command_byte |= 0x01;
     command_byte &= ~0x10U;
 
@@ -98,7 +89,7 @@ static int ps2kbd_probe(struct isa_device* restrict device)
     i8042_wait_read(&cmd_res->pmio);
     pmio_read8(&data_res->pmio, 0);
 
-    retval = isa_request_irq(device, 0, &ps2kbd_ireq, device);
+    int retval = isa_request_irq(device, 0, &ps2kbd_ireq, device);
 
     if(retval < 0) {
         return retval;

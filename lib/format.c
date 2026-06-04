@@ -29,12 +29,7 @@ static const char uc_digits[MAX_BASE + 1] = "0123456789ABCDEF";
 static size_t write_int(format_func_type func, void* restrict user, uintmax_t value, unsigned flags, unsigned width, unsigned precision,
     unsigned base)
 {
-    unsigned i;
-    size_t stager;
-    size_t counter;
     int sign, pad;
-    const char* digits;
-    char stage[128] = { 0 };
 
     if((flags & F_NEGATIVE) && (flags & F_SIGNED)) {
         // The number is both signed and considered
@@ -65,9 +60,10 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
         pad = ' ';
     }
 
-    stager = 0;
-    counter = 0;
-    digits = ((flags & F_UPPERCASE) ? uc_digits : lc_digits);
+    size_t stager = 0;
+    size_t counter = 0;
+    const char* digits = ((flags & F_UPPERCASE) ? uc_digits : lc_digits);
+    char stage[128] = { 0 };
 
     do {
         stage[stager++] = digits[value % base];
@@ -125,7 +121,7 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
             }
         }
 
-        for(i = stager; i < width; ++i) {
+        for(unsigned i = stager; i < width; ++i) {
             func(pad, user);
             counter++;
         }
@@ -139,7 +135,7 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
 
     // And now pad the number
     if(flags & F_LEFT) {
-        for(i = 0; i < width; ++i) {
+        for(unsigned i = 0; i < width; ++i) {
             func(' ', user);
             counter++;
         }
@@ -152,11 +148,6 @@ static const char defined_behaviour[] = "(null)";
 static size_t write_str(format_func_type func, void* restrict user, const char* restrict s, unsigned flags, unsigned width,
     unsigned precision)
 {
-    size_t i;
-    size_t cap;
-    size_t len;
-    size_t counter = 0;
-
     if(s == nullptr) {
         // C standard does not define what happens when you try
         // dereferencing a nullptr char pointer. Because NO ONE at INCITS/C
@@ -164,17 +155,12 @@ static size_t write_str(format_func_type func, void* restrict user, const char* 
         s = defined_behaviour;
     }
 
-    if(precision) {
-        cap = precision;
-        len = strnlen(s, precision);
-    }
-    else {
-        cap = SIZE_MAX;
-        len = strlen(s);
-    }
+    size_t cap = precision ? precision : SIZE_MAX;
+    size_t len = precision ? strnlen(s, precision) : strlen(s);
+    size_t counter = 0;
 
     if(!(flags & F_LEFT)) {
-        for(i = len; cap && i < width; ++i) {
+        for(size_t i = len; cap && i < width; ++i) {
             func(' ', user);
             counter++;
             cap--;
@@ -188,7 +174,7 @@ static size_t write_str(format_func_type func, void* restrict user, const char* 
     }
 
     if(flags & F_LEFT) {
-        for(i = len; cap && i < width; ++i) {
+        for(size_t i = len; cap && i < width; ++i) {
             func(' ', user);
             counter++;
             cap--;
@@ -275,7 +261,6 @@ int format(format_func_type func, void* restrict user, const char* restrict fmt,
 
 int vformat(format_func_type func, void* restrict user, const char* restrict fmt, va_list ap)
 {
-    size_t counter = 0;
     unsigned width;
     unsigned precision;
     unsigned flags;
@@ -283,6 +268,7 @@ int vformat(format_func_type func, void* restrict user, const char* restrict fmt
     unsigned length;
     const char* endptr;
     uintmax_t value;
+    size_t counter = 0;
 
     while(*fmt) {
         if(*fmt != '%' || *(++fmt) == '%') {

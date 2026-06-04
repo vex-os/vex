@@ -59,7 +59,6 @@ int console_driver_register(struct console_driver* restrict driver)
 int console_driver_unregister(struct console_driver* restrict driver)
 {
     struct console_driver* it;
-    struct console_driver* prev = nullptr;
 
     spinlock_acquire(&console_lock);
 
@@ -72,6 +71,8 @@ int console_driver_unregister(struct console_driver* restrict driver)
 
         return 0;
     }
+
+    struct console_driver* prev = nullptr;
 
     for(it = console_head; it; it = it->priv.next) {
         if(it == driver) {

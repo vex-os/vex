@@ -57,16 +57,13 @@ void kprintf(unsigned sv, const char* restrict fmt, ...)
 void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 {
     struct stagebuf st = { 0 };
-    uint64_t timestamp = 0;
-    uint64_t timestamp_s = 0;
-    uint64_t timestamp_msx = 0;
 
     spinlock_acquire(&kprintf_lock);
 
     if(sv <= loglevel) {
-        timestamp = clocksrc_read_nsec();
-        timestamp_s = timestamp / UINT64_C(1000000000);
-        timestamp_msx = (timestamp / UINT64_C(100000)) % UINT64_C(10000);
+        uint64_t timestamp = clocksrc_read_nsec();
+        uint64_t timestamp_s = timestamp / UINT64_C(1000000000);
+        uint64_t timestamp_msx = (timestamp / UINT64_C(100000)) % UINT64_C(10000);
 
         format(&kprintf_format_func, &st, "[%5ju.%04ju] ", (uintmax_t)(timestamp_s), (uintmax_t)(timestamp_msx));
         vformat(&kprintf_format_func, &st, fmt, ap);

@@ -54,12 +54,8 @@ static const struct vnode_ops devfs_chr_ops = {
 
 void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict device, void* restrict ctxdata)
 {
-    int retval;
-    struct devfs_chr_context* context;
-    struct vnode* vnode;
-
     if(event == CHR_EVENT_DEVICE_ADDED) {
-        context = slab_alloc(sizeof(struct devfs_chr_context));
+        struct devfs_chr_context* context = slab_alloc(sizeof(struct devfs_chr_context));
 
         if(context == nullptr) {
             return;
@@ -67,14 +63,14 @@ void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict d
 
         context->device = device;
 
-        vnode = vnode_alloc(VNODE_CHAR_DEV, &devfs_chr_ops, context);
+        struct vnode* vnode = vnode_alloc(VNODE_CHAR_DEV, &devfs_chr_ops, context);
 
         if(vnode == nullptr) {
             slab_free(context);
             return;
         }
 
-        retval = devfs_insert(device->identifier, vnode);
+        int retval = devfs_insert(device->identifier, vnode);
 
         if(retval < 0) {
             vnode_decref(vnode);

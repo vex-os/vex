@@ -46,30 +46,23 @@ static struct clocksrc hpet_clocksrc = {
 
 define_initcall(hpet_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
 {
-    int retval;
-    struct acpi_hpet* hpet;
-    uacpi_status status;
     uacpi_table table;
-    uint32_t hpet_config_reg;
-    uint64_t hpet_period_fsec;
-    volatile uint64_t* mmio;
-
-    status = uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &table);
+    uacpi_status status = uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &table);
 
     if(uacpi_likely_success(status)) {
-        hpet = (struct acpi_hpet*)(table.hdr);
+        struct acpi_hpet* hpet = (struct acpi_hpet*)(table.hdr);
 
         if(hpet->address.address) {
-            mmio = phys_to_virt(hpet->address.address);
+            volatile uint64_t* mmio = phys_to_virt(hpet->address.address);
 
-            retval = vmm_map(&sys_pagemap, (uintptr_t)(mmio), hpet->address.address, VPROT_RW | VPROT_NOCACHE);
+            int retval = vmm_map(&sys_pagemap, (uintptr_t)(mmio), hpet->address.address, VPROT_RW | VPROT_NOCACHE);
             strict_kassert_text(retval == 0 || retval == EEXIST, "mmio map failed");
 
             hpet_clocksrc.ctxdata = (void*)(mmio); // this removes the volatile qualifier without a warning
 
             uacpi_table_unref(&table);
 
-            hpet_period_fsec = hpet_read_reg(mmio, HPET_REG_CAPS);
+            uint64_t hpet_period_fsec = hpet_read_reg(mmio, HPET_REG_CAPS);
             hpet_period_fsec >>= HPET_CAPS_PERIOD_SHIFT;
 
             if(hpet_period_fsec == 0 || hpet_period_fsec > HPET_PERIOD_MAX) {
@@ -77,7 +70,7 @@ define_initcall(hpet_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
                 return;
             }
 
-            hpet_config_reg = hpet_read_reg(mmio, HPET_REG_CONFIG);
+            uint32_t hpet_config_reg = hpet_read_reg(mmio, HPET_REG_CONFIG);
             hpet_config_reg |= HPET_CONFIG_ENABLE;
 
             hpet_write_reg(mmio, HPET_REG_CONFIG, hpet_config_reg);

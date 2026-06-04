@@ -74,15 +74,14 @@ static struct blk_disk_state* disk_state_find(const struct blk_device* restrict 
 
 static void disk_state_remove_parts(struct blk_disk_state* restrict state)
 {
-    struct blk_part_device* it;
-    struct blk_part_device* next;
-
-    for(it = state->parts; it; it = next) {
-        next = it->next;
+    for(struct blk_part_device* it = state->parts; it;) {
+        struct blk_part_device* next = it->next;
 
         blk_event_notify(BLK_EVENT_PARTITION_REMOVED, &it->base);
 
         blk_device_unregister(&it->base);
+
+        it = next;
     }
 
     state->parts = nullptr;
@@ -90,14 +89,7 @@ static void disk_state_remove_parts(struct blk_disk_state* restrict state)
 
 static void probe_device(const struct blk_device* restrict device)
 {
-    struct blk_disk_state* state;
-    struct blk_part_device* part;
-    struct blk_ptable_info info;
-    struct blk_ptable* it;
-    unsigned index;
-    void* ptdata;
-
-    state = disk_state_find(device);
+    struct blk_disk_state* state = disk_state_find(device);
 
     if(state == nullptr) {
         state = kmalloc(sizeof(struct blk_disk_state));
@@ -113,19 +105,20 @@ static void probe_device(const struct blk_device* restrict device)
         disk_state_head = state;
     }
 
-    for(it = ptable_head; it; it = it->priv.next) {
-        ptdata = nullptr;
+    for(struct blk_ptable* it = ptable_head; it; it = it->priv.next) {
+        void* ptdata = nullptr;
 
         if(it->ops->detect(device, &ptdata)) {
             continue;
         }
 
-        for(index = 0;; index += 1) {
+        for(unsigned index = 0;; index += 1) {
+            struct blk_ptable_info info;
             if(it->ops->readpt(device, ptdata, index, &info)) {
                 break;
             }
 
-            part = kmalloc(sizeof(struct blk_part_device));
+            struct blk_part_device* part = kmalloc(sizeof(struct blk_part_device));
 
             if(part == nullptr) {
                 break;

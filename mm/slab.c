@@ -154,26 +154,22 @@ void slab_free(void* restrict ptr)
 
 define_initcall(slab, INITCALL_STAGE_BSP_SLAB, INITCALL_ORDER_MIDDLE)
 {
-    size_t i;
-    size_t npages;
-    bool result;
-
     slabs_count = 0U;
 
     while(SLAB_BLOCKSIZE(slabs_count) <= (PAGE_SIZE / 4)) {
         slabs_count += 1U;
     }
 
-    npages = page_count(slabs_count * sizeof(struct slab));
+    size_t npages = page_count(slabs_count * sizeof(struct slab));
 
     slabs = pdma_alloc_virt(npages);
     strict_kassert_text(slabs, "out of memory");
 
-    for(i = 0U; i < slabs_count; ++i) {
+    for(size_t i = 0U; i < slabs_count; ++i) {
         slabs[i].blocksize = SLAB_BLOCKSIZE(i);
         slabs[i].head = nullptr;
 
-        result = expand_slab(&slabs[i]);
+        bool result = expand_slab(&slabs[i]);
         strict_kassert_text(result, "out of memory");
 
         pr_debug("slab: slab[%zu]: head=%p, blocksize=%zu", i, slabs[i].head, slabs[i].blocksize);

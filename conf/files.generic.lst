@@ -51,10 +51,10 @@ fs/devfs_blk.c
 fs/devfs_chr.c
 fs/devfs_dir.c
 fs/devfs.c
-fs/fatfs.c
-fs/fatfs_cluster.c
-fs/fatfs_dir.c
-fs/fatfs_vnode.c
+# fs/fatfs.c
+# fs/fatfs_cluster.c
+# fs/fatfs_dir.c
+# fs/fatfs_vnode.c
 fs/file.c
 fs/mount.c
 fs/path.c

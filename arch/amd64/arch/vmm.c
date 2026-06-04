@@ -59,9 +59,7 @@ void vmm_pagemap_zero(struct vmm_pagemap* restrict vm)
 
 void vmm_pagemap_copy_kernel(struct vmm_pagemap* restrict dest, const struct vmm_pagemap* restrict stem)
 {
-    size_t i;
-
-    for(i = AMD64_VMM_TABLE_KERN; i < VMM_TABLE_SIZE; ++i) {
+    for(size_t i = AMD64_VMM_TABLE_KERN; i < VMM_TABLE_SIZE; ++i) {
         dest->amd64.cr3_virt[i] = stem->amd64.cr3_virt[i];
     }
 }

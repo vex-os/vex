@@ -261,12 +261,9 @@ static __always_inline inline void put_pixel(size_t offset, bool white)
 
 static void render_cell(size_t sx, size_t sy, int value)
 {
-    size_t i;
-    size_t gx, gy;
     size_t pixel = 0U;
-    const unsigned char* gptr;
 
-    i = sy * FONT_HEIGHT;
+    size_t i = sy * FONT_HEIGHT;
     if(i > fb_height)
         return;
     pixel += i * fb_width;
@@ -278,10 +275,10 @@ static void render_cell(size_t sx, size_t sy, int value)
 
     if(value < 0 || value > FONT_MAX_CP)
         value = 0;
-    gptr = &fbcons_font[value * FONT_STRIDE];
+    const unsigned char* gptr = &fbcons_font[value * FONT_STRIDE];
 
-    for(gy = 0U; gy < FONT_HEIGHT; gy += 1U) {
-        for(gx = 0U; gx < FONT_WIDTH; gx += 1U)
+    for(size_t gy = 0U; gy < FONT_HEIGHT; gy += 1U) {
+        for(size_t gx = 0U; gx < FONT_WIDTH; gx += 1U)
             put_pixel(pixel + gx, (gptr[gx >> 3] & (0x80 >> (gx & 0x07))));
         gptr += FONT_SCANLINE;
         pixel += fb_width;
@@ -290,11 +287,9 @@ static void render_cell(size_t sx, size_t sy, int value)
 
 static void render_cursor(size_t sx, size_t sy)
 {
-    size_t i;
-    size_t gx, gy;
     size_t pixel = 0U;
 
-    i = sy * FONT_HEIGHT;
+    size_t i = sy * FONT_HEIGHT;
     if(i > fb_height)
         return;
     pixel += i * fb_width;
@@ -304,8 +299,8 @@ static void render_cursor(size_t sx, size_t sy)
         return;
     pixel += i;
 
-    for(gy = 0U; gy < FONT_HEIGHT; gy += 1U) {
-        for(gx = 0U; gx < FONT_WIDTH; gx += 1U)
+    for(size_t gy = 0U; gy < FONT_HEIGHT; gy += 1U) {
+        for(size_t gx = 0U; gx < FONT_WIDTH; gx += 1U)
             put_pixel(pixel + gx, true);
         pixel += fb_width;
     }
@@ -313,25 +308,22 @@ static void render_cursor(size_t sx, size_t sy)
 
 static void do_newline(void)
 {
-    size_t i;
-    size_t subscreen;
-    struct vt_cell* cell;
 
     cursor_ypos += 1U;
 
     if(cursor_ypos >= vt_height) {
         cursor_ypos = vt_height - 1U;
-        subscreen = vt_length - vt_width;
+        size_t subscreen = vt_length - vt_width;
 
-        for(i = 0U; i < subscreen; ++i) {
-            cell = &vt_cells[i];
+        for(size_t i = 0U; i < subscreen; ++i) {
+            struct vt_cell* cell = &vt_cells[i];
             cell[0] = cell[vt_width];
             cell[0].dirty = true;
         }
 
-        cell = &vt_cells[subscreen];
+        struct vt_cell* cell = &vt_cells[subscreen];
 
-        for(i = 0U; i < vt_width; ++i) {
+        for(size_t i = 0U; i < vt_width; ++i) {
             cell[i].value = CHR_WS;
             cell[i].dirty = true;
         }
@@ -340,12 +332,9 @@ static void do_newline(void)
 
 static void do_redraw(void)
 {
-    size_t i, j;
-    struct vt_cell* cell;
-
-    for(i = 0U; i < vt_width; ++i) {
-        for(j = 0U; j < vt_height; ++j) {
-            cell = &vt_cells[j * vt_width + i];
+    for(size_t i = 0U; i < vt_width; ++i) {
+        for(size_t j = 0U; j < vt_height; ++j) {
+            struct vt_cell* cell = &vt_cells[j * vt_width + i];
 
             if(cell->dirty) {
                 render_cell(i, j, cell->value);
@@ -355,7 +344,7 @@ static void do_redraw(void)
         }
     }
 
-    cell = &vt_cells[cursor_ypos_prev * vt_width + cursor_xpos_prev];
+    struct vt_cell* cell = &vt_cells[cursor_ypos_prev * vt_width + cursor_xpos_prev];
     render_cell(cursor_xpos_prev, cursor_ypos_prev, cell->value);
 
     render_cursor(cursor_xpos, cursor_ypos);
@@ -366,9 +355,7 @@ static void do_redraw(void)
 
 static void do_clear(void)
 {
-    size_t i;
-
-    for(i = 0U; i < fb_length; ++i) {
+    for(size_t i = 0U; i < fb_length; ++i) {
         put_pixel(i, false);
     }
 
@@ -377,8 +364,6 @@ static void do_clear(void)
 
 static void fbcons_putchar(int character)
 {
-    struct vt_cell* cell;
-
     switch(character) {
         case CHR_BS:
         case CHR_DEL:
@@ -420,7 +405,7 @@ static void fbcons_putchar(int character)
             return;
     }
 
-    cell = &vt_cells[cursor_ypos * vt_width + cursor_xpos];
+    struct vt_cell* cell = &vt_cells[cursor_ypos * vt_width + cursor_xpos];
     cell->value = character;
     cell->dirty = true;
 
@@ -436,10 +421,9 @@ static void fbcons_putchar(int character)
 
 static void fbcons_write(struct console_driver* restrict driver, const void* restrict data, size_t sz)
 {
-    size_t i;
     const char* psz = data;
 
-    for(i = 0U; i < sz; fbcons_putchar(psz[i++])) {
+    for(size_t i = 0U; i < sz; fbcons_putchar(psz[i++])) {
         // empty
     }
 }
@@ -458,12 +442,9 @@ static struct console_driver fbcons_driver = {
 
 define_initcall(fbcons, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_LAST)
 {
-    size_t i;
-    struct limine_framebuffer* fb;
-
     if(fb_request.response) {
-        for(i = 0U; i < fb_request.response->framebuffer_count; ++i) {
-            fb = fb_request.response->framebuffers[i];
+        for(size_t i = 0U; i < fb_request.response->framebuffer_count; ++i) {
+            struct limine_framebuffer* fb = fb_request.response->framebuffers[i];
 
             if(fb->bpp == 8 || fb->bpp == 16 || fb->bpp == 32) {
                 fb_width = fb->width;

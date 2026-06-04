@@ -61,12 +61,13 @@ int clocksrc_calibrate_internal(struct clocksrc* restrict src, uint64_t scale, u
 int clocksrc_unregister(struct clocksrc* restrict src)
 {
     struct clocksrc* it;
-    struct clocksrc* prev = nullptr;
 
     if(clocksrc_head == src) {
         clocksrc_head = src->priv.next;
     }
     else {
+        struct clocksrc* prev = nullptr;
+
         for(it = clocksrc_head; it; it = it->priv.next) {
             if(it == src) {
                 prev->priv.next = it->priv.next;
@@ -105,14 +106,12 @@ struct clocksrc* active_clocksrc(void)
 
 uint64_t clocksrc_read_nsec(void)
 {
-    uint128_t delta;
-    uint64_t now;
-
     if(clocksrc_active == nullptr) {
         return UINT64_C(0);
     }
 
-    now = clocksrc_active->ops->read(clocksrc_active) & clocksrc_active->mask;
+    uint64_t now = clocksrc_active->ops->read(clocksrc_active) & clocksrc_active->mask;
+    uint128_t delta;
 
     if(now >= clocksrc_active->priv.last) {
         delta = now - clocksrc_active->priv.last;

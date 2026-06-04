@@ -24,10 +24,8 @@ static volatile __used __section(".limine_requests_end") uint64_t limine_request
 
 static void recurse_dir(struct vnode* restrict node, const char* restrict path)
 {
-    char subpath[PATH_NAME_SIZE];
-    size_t index = 0;
     struct dirent entry;
-    struct vnode* child;
+    size_t index = 0;
 
     while(0 == vnode_iterate(node, &entry, index++)) {
         if(0 == strcmp(entry.name, ".") || 0 == strcmp(entry.name, "..")) {
@@ -37,7 +35,9 @@ static void recurse_dir(struct vnode* restrict node, const char* restrict path)
         pr_inform("  [%u] %s/%s", entry.nodetype, path, entry.name);
 
         if(entry.nodetype == VNODE_DIRECTORY) {
+            struct vnode* child;
             if(0 == path_resolve_at(node, entry.name, &child)) {
+                char subpath[PATH_NAME_SIZE];
                 snprintf(subpath, sizeof(subpath), "%s%c%s", path, PATH_SEPARATOR, entry.name);
                 recurse_dir(child, subpath);
                 vnode_decref(child);
@@ -48,8 +48,7 @@ static void recurse_dir(struct vnode* restrict node, const char* restrict path)
 
 static void recurse_root(void)
 {
-    struct vnode* root;
-
+    struct vnode* root = nullptr;
     if(0 == path_resolve("/", &root)) {
         recurse_dir(root, "");
         vnode_decref(root);

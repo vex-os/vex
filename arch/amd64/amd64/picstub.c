@@ -35,8 +35,6 @@ void __used amd64_spur_handler(struct interrupt_frame* restrict frame, uint64_t 
 
 define_initcall(amd64_picstub_bsp, INTICALL_STAGE_BSP_ARCH, INITCALL_ORDER_MIDDLE)
 {
-    unsigned vector;
-
     disable_interrupts();
 
     // Generally speaking, masking everything and
@@ -63,7 +61,7 @@ define_initcall(amd64_picstub_bsp, INTICALL_STAGE_BSP_ARCH, INITCALL_ORDER_MIDDL
 
     // <<  Because it's a shit chip >>
     //                  - streaksu
-    for(vector = 0x00; vector <= 0x10; vector += 1U) {
+    for(unsigned vector = 0x00; vector <= 0x10; vector += 1U) {
         if(vector >= 0x08)
             pmwrite8(PIC2_COMMAND, 0x20);
         pmwrite8(PIC1_COMMAND, 0x20);
