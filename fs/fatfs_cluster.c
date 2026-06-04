@@ -2,8 +2,8 @@
 
 #include <core/endian.h>
 
+#include <lib/string.h>
 #include <stdint.h>
-#include <string.h>
 
 uintptr_t cluster_lba(const struct fatfs_context* restrict context, uint32_t cluster)
 {
