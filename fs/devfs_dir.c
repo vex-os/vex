@@ -1,7 +1,7 @@
 #include <core/errno.h>
 #include <core/spinlock.h>
 #include <fs/devfs.h>
-#include <fs/dirent.h>
+#include <fs/vfs_dirent.h>
 #include <fs/vfs_vnode.h>
 #include <lib/string.h>
 #include <lib/strings.h>

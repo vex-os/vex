@@ -1,35 +1,30 @@
-#include "fat.h"
-
 #include <core/errno.h>
 #include <dev/blk_device.h>
+#include <fs/fat.h>
 #include <lib/ctype.h>
 #include <lib/string.h>
 
-static int fat_entry_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
-    union fat_entry* restrict out)
+static int read_entry(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, union fat_entry* restrict entry)
 {
     size_t entries_per_sector = context->sector_size / sizeof(union fat_entry);
-    size_t sector_index;
-    size_t entry_in_sector;
     uintptr_t lba;
 
     if(cluster == 0) {
-        sector_index = offset / entries_per_sector;
+        size_t sector = offset / entries_per_sector;
 
-        if(sector_index >= context->rootdir_sectors) {
+        if(sector >= context->rootdir_sectors) {
             return -ENOENT;
         }
 
-        lba = context->data_start - context->rootdir_sectors + sector_index;
+        lba = context->data_start - context->rootdir_sectors + sector;
     }
     else {
         size_t entries_per_cluster = context->cluster_size_b / sizeof(union fat_entry);
-        size_t cluster_index = offset / entries_per_cluster;
-        size_t entry_in_cluster = offset % entries_per_cluster;
+        size_t cluster_idx = offset / entries_per_cluster;
+        size_t entry_idx = offset % entries_per_cluster;
+        size_t sector = entry_idx / entries_per_sector;
 
-        sector_index = entry_in_cluster / entries_per_sector;
-
-        for(size_t i = 0; i < cluster_index; i++) {
+        for(size_t i = 0; i < cluster_idx; ++i) {
             cluster = fat_cluster_next(context, cluster);
 
             if(cluster == UINTPTR_MAX) {
@@ -37,7 +32,7 @@ static int fat_entry_read(const struct fat_vfs_context* restrict context, uintpt
             }
         }
 
-        lba = fat_cluster_lba(context, cluster) + sector_index;
+        lba = sector + fat_cluster_lba(context, cluster);
     }
 
     int retval = blk_device_read(context->device, lba, 1, context->bounce);
@@ -46,37 +41,33 @@ static int fat_entry_read(const struct fat_vfs_context* restrict context, uintpt
         return retval;
     }
 
-    entry_in_sector = offset % entries_per_sector;
-    memcpy(out, context->bounce + entry_in_sector * sizeof(union fat_entry), sizeof(union fat_entry));
+    memcpy(entry, context->bounce + sizeof(union fat_entry) * (offset % entries_per_sector), sizeof(union fat_entry));
 
     return 0;
 }
 
-static int fat_entry_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
+static int write_entry(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
     const union fat_entry* restrict entry)
 {
     size_t entries_per_sector = context->sector_size / sizeof(union fat_entry);
-    size_t sector_index;
-    size_t entry_in_sector;
     uintptr_t lba;
 
     if(cluster == 0) {
-        sector_index = offset / entries_per_sector;
+        size_t sector = offset / entries_per_sector;
 
-        if(sector_index >= context->rootdir_sectors) {
-            return -ENOSPC;
+        if(sector >= context->rootdir_sectors) {
+            return -ENOENT;
         }
 
-        lba = context->data_start - context->rootdir_sectors + sector_index;
+        lba = context->data_start - context->rootdir_sectors + sector;
     }
     else {
         size_t entries_per_cluster = context->cluster_size_b / sizeof(union fat_entry);
-        size_t cluster_index = offset / entries_per_cluster;
-        size_t entry_in_cluster = offset % entries_per_cluster;
+        size_t cluster_idx = offset / entries_per_cluster;
+        size_t entry_idx = offset % entries_per_cluster;
+        size_t sector = entry_idx / entries_per_sector;
 
-        sector_index = entry_in_cluster / entries_per_sector;
-
-        for(size_t i = 0; i < cluster_index; i++) {
+        for(size_t i = 0; i < cluster_idx; ++i) {
             cluster = fat_cluster_next(context, cluster);
 
             if(cluster == UINTPTR_MAX) {
@@ -84,7 +75,7 @@ static int fat_entry_write(const struct fat_vfs_context* restrict context, uintp
             }
         }
 
-        lba = fat_cluster_lba(context, cluster) + sector_index;
+        lba = sector + fat_cluster_lba(context, cluster);
     }
 
     int retval = blk_device_read(context->device, lba, 1, context->bounce);
@@ -93,100 +84,127 @@ static int fat_entry_write(const struct fat_vfs_context* restrict context, uintp
         return retval;
     }
 
-    entry_in_sector = offset % entries_per_sector;
-    memcpy(context->bounce + entry_in_sector * sizeof(union fat_entry), entry, sizeof(union fat_entry));
+    memcpy(context->bounce + sizeof(union fat_entry) * (offset % entries_per_sector), entry, sizeof(union fat_entry));
 
-    return blk_device_write(context->device, lba, 1, context->bounce);
+    return 0;
 }
 
-static uint8_t lfn_checksum(const uint8_t name[11])
+static uint8_t ldir_checksum(const struct fat_dir_entry* restrict entry)
 {
-    uint8_t sum = 0;
+    uint8_t result = 0;
+    uint8_t store;
 
-    for(int i = 0; i < 11; i++) {
-        sum = ((sum & 1) ? 0x80 : 0x00) + (sum >> 1) + name[i];
+    for(int i = 0; i < 11; ++i) {
+        store = result;
+
+        result += entry->name[i];
+        result += store >> 1;
+
+        if(store & 1) {
+            result += 0x80;
+        }
     }
 
-    return sum;
+    return result;
 }
 
 int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t* restrict offset,
     struct fat_dirent* restrict entry)
 {
-    union fat_entry raw;
-    struct fat_ldir_entry lfn[FAT_LFN_MAX_SEGMENTS];
-    unsigned num_lfn = 0;
+    union fat_entry entry_raw;
+    struct fat_ldir_entry ldirs[FAT_LFN_MAX_SEGMENTS];
+    unsigned int num_ldir = 0;
 
     for(;;) {
-        int retval = fat_entry_read(context, cluster, offset[0], &raw);
-        offset[0] += 1;
+        int retval = read_entry(context, cluster, *offset, &entry_raw);
+
+        *offset += 1;
 
         if(retval < 0) {
             return retval;
         }
 
-        if(raw.dir.name[0] == 0x00) {
+        if(entry_raw.dir.name[0] == 0x00) {
             return -ENOENT;
         }
 
-        if(raw.dir.name[0] == 0xE5) {
-            num_lfn = 0;
+        if(entry_raw.dir.name[0] == 0xE5) {
+            num_ldir = 0;
             continue;
         }
 
-        if((raw.dir.attribute & FAT_ATTR_LONG_NAME) == FAT_ATTR_LONG_NAME) {
-            if(num_lfn < FAT_LFN_MAX_SEGMENTS) {
-                memcpy(&lfn[num_lfn++], &raw.ldir, sizeof(struct fat_ldir_entry));
+        if(FAT_ATTR_LONG_NAME == (entry_raw.dir.attribute & FAT_ATTR_LONG_NAME)) {
+            if(num_ldir < FAT_LFN_MAX_SEGMENTS) {
+                memcpy(&ldirs[num_ldir], &entry_raw.ldir, sizeof(struct fat_ldir_entry));
+                num_ldir += 1;
             }
         }
-        else if(raw.dir.attribute & FAT_ATTR_VOLUME_ID) {
-            num_lfn = 0;
+        else if(entry_raw.dir.attribute & FAT_ATTR_VOLUME_ID) {
+            num_ldir = 0;
         }
         else {
-            memcpy(&entry->base, &raw.dir, sizeof(struct fat_dir_entry));
+            memcpy(&entry->base, &entry_raw.dir, sizeof(struct fat_dir_entry));
             break;
         }
     }
 
-    size_t name_pos = 0;
+    ptrdiff_t name_pos = 0;
 
-    if(num_lfn) {
+    if(num_ldir > 0) {
         bool done = false;
 
-        for(unsigned i = num_lfn; i > 0 && !done; i--) {
-            struct fat_ldir_entry* seg = &lfn[i - 1];
+        for(unsigned i = num_ldir; i > 0 && !done; --i) {
+            const struct fat_ldir_entry* ldir = &ldirs[i - 1];
 
-            for(unsigned j = 0; j < 5 && name_pos < PATH_NAME_SIZE && !done; j++) {
-                if(seg->name_1[j] == 0x0000 || seg->name_1[j] == 0xFFFF) { done = true; break; }
-                entry->full_name[name_pos++] = seg->name_1[j] & 0xFF;
+            for(unsigned j = 0; j < 5 && name_pos < PATH_NAME_SIZE && !done; ++j) {
+                if(ldir->name_1[j] == 0x0000 || ldir->name_1[j] == 0xFFFF) {
+                    done = true;
+                    break;
+                }
+
+                entry->full_name[name_pos] = ldir->name_1[j] & 0xFF; // FIXME: multibyte unicode conversions
+                name_pos += 1;
             }
 
-            for(unsigned j = 0; j < 6 && name_pos < PATH_NAME_SIZE && !done; j++) {
-                if(seg->name_2[j] == 0x0000 || seg->name_2[j] == 0xFFFF) { done = true; break; }
-                entry->full_name[name_pos++] = seg->name_2[j] & 0xFF;
+            for(unsigned j = 0; j < 6 && name_pos < PATH_NAME_SIZE && !done; ++j) {
+                if(ldir->name_2[j] == 0x0000 || ldir->name_2[j] == 0xFFFF) {
+                    done = true;
+                    break;
+                }
+
+                entry->full_name[name_pos] = ldir->name_2[j] & 0xFF; // FIXME: multibyte unicode conversions
+                name_pos += 1;
             }
 
-            for(unsigned j = 0; j < 2 && name_pos < PATH_NAME_SIZE && !done; j++) {
-                if(seg->name_3[j] == 0x0000 || seg->name_3[j] == 0xFFFF) { done = true; break; }
-                entry->full_name[name_pos++] = seg->name_3[j] & 0xFF;
+            for(unsigned j = 0; j < 2 && name_pos < PATH_NAME_SIZE && !done; ++j) {
+                if(ldir->name_3[j] == 0x0000 || ldir->name_3[j] == 0xFFFF) {
+                    done = true;
+                    break;
+                }
+
+                entry->full_name[name_pos] = ldir->name_3[j] & 0xFF; // FIXME: multibyte unicode conversions
+                name_pos += 1;
             }
         }
     }
     else {
         for(unsigned i = 0; i < 8 && !isspace(entry->base.name[i]); i++) {
-            entry->full_name[name_pos++] = entry->base.name[i];
+            entry->full_name[name_pos] = entry->base.name[i];
+            name_pos += 1;
         }
 
         if(!isspace(entry->base.name[8])) {
-            entry->full_name[name_pos++] = '.';
+            entry->full_name[name_pos] = 0x2E;
+            name_pos += 1;
 
-            for(unsigned i = 8; i < 11 && !isspace(entry->base.name[i]); i++) {
-                entry->full_name[name_pos++] = entry->base.name[i];
+            for(unsigned i = 8; i < 11 && !isspace(entry->base.name[i]); ++i) {
+                entry->full_name[name_pos] = entry->base.name[i];
+                name_pos += 1;
             }
         }
     }
 
-    entry->full_name[name_pos] = '\0';
+    entry->full_name[name_pos] = 0;
 
     return 0;
 }
@@ -194,45 +212,76 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
 int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
     const struct fat_dirent* restrict entry)
 {
-    union fat_entry raw;
-    size_t name_len = kstrnlen(entry->full_name, PATH_NAME_SIZE);
-    unsigned num_lfn = (name_len + 12) / 13;
-    uint8_t checksum = lfn_checksum(entry->base.name);
+    size_t name_length = strnlen(entry->full_name, PATH_NAME_MAX);
+    uint8_t checksum = ldir_checksum(&entry->base);
+    unsigned num_ldir = (name_length + 12) / 13;
+    union fat_entry raw_entry;
 
-    for(unsigned seg = num_lfn; seg >= 1; seg--) {
-        size_t base = (seg - 1) * 13;
-        struct fat_ldir_entry* ldir = &raw.ldir;
+    for(unsigned int i = num_ldir; i >= 1; --i) {
+        size_t base = 13 * (i - 1);
+        size_t pos;
 
+        struct fat_ldir_entry* ldir = &raw_entry.ldir;
         memset(ldir, 0, sizeof(struct fat_ldir_entry));
 
-        ldir->order = (seg == num_lfn) ? (0x40 | seg) : seg;
+        ldir->order = i;
         ldir->attr = FAT_ATTR_LONG_NAME;
         ldir->checksum = checksum;
-        ldir->first_cluster_lo = 0;
 
-        for(unsigned j = 0; j < 5; j++) {
-            size_t pos = base + j;
-            ldir->name_1[j] = pos < name_len ? (uint16_t)(uint8_t)entry->full_name[pos] : (pos == name_len ? 0x0000 : 0xFFFF);
+        if(i == num_ldir) {
+            ldir->order |= UINT8_C(0x40);
         }
 
-        for(unsigned j = 0; j < 6; j++) {
-            size_t pos = base + 5 + j;
-            ldir->name_2[j] = pos < name_len ? (uint16_t)(uint8_t)entry->full_name[pos] : (pos == name_len ? 0x0000 : 0xFFFF);
+        for(unsigned j = 0; j < 5; ++j) {
+            pos = base + j;
+
+            if(pos < name_length) {
+                ldir->name_1[j] = entry->full_name[pos];
+            }
+            else if(pos == name_length) {
+                ldir->name_1[j] = 0x0000;
+            }
+            else {
+                ldir->name_1[j] = 0xFFFF;
+            }
         }
 
-        for(unsigned j = 0; j < 2; j++) {
-            size_t pos = base + 11 + j;
-            ldir->name_3[j] = pos < name_len ? (uint16_t)(uint8_t)entry->full_name[pos] : (pos == name_len ? 0x0000 : 0xFFFF);
+        for(unsigned j = 0; j < 6; ++j) {
+            pos = base + j + 5;
+
+            if(pos < name_length) {
+                ldir->name_2[j] = entry->full_name[pos];
+            }
+            else if(pos == name_length) {
+                ldir->name_2[j] = 0x0000;
+            }
+            else {
+                ldir->name_2[j] = 0xFFFF;
+            }
         }
 
-        int retval = fat_entry_write(context, cluster, offset - seg, &raw);
+        for(unsigned j = 0; j < 2; ++j) {
+            pos = base + j + 11;
+
+            if(pos < name_length) {
+                ldir->name_3[j] = entry->full_name[pos];
+            }
+            else if(pos == name_length) {
+                ldir->name_3[j] = 0x0000;
+            }
+            else {
+                ldir->name_3[j] = 0xFFFF;
+            }
+        }
+
+        int retval = write_entry(context, cluster, offset - i, &raw_entry);
 
         if(retval < 0) {
             return retval;
         }
     }
 
-    memcpy(&raw.dir, &entry->base, sizeof(struct fat_dir_entry));
+    memcpy(&raw_entry.dir, &entry->base, sizeof(struct fat_dir_entry));
 
-    return fat_entry_write(context, cluster, offset, &raw);
+    return write_entry(context, cluster, offset, &raw_entry);
 }

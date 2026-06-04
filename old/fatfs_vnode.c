@@ -2,9 +2,9 @@
 
 #include <core/errno.h>
 #include <dev/blk_device.h>
-#include <fs/dirent.h>
 #include <fs/stat.h>
-#include <fs/vnode.h>
+#include <fs/vfs_dirent.h>
+#include <fs/vfs_vnode.h>
 #include <lib/string.h>
 #include <lib/strings.h>
 #include <mm/slab.h>
