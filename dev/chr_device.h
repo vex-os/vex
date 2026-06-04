@@ -29,6 +29,8 @@ struct chr_device {
     void* ctxdata;
 };
 
+extern struct chr_device* chr_devices_head;
+
 int chr_device_register(struct chr_device* restrict device, struct chr_name* restrict name);
 int chr_device_register_custom(struct chr_device* restrict device, const char* restrict name);
 int chr_device_unregister(struct chr_device* restrict device);

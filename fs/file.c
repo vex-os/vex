@@ -108,8 +108,12 @@ ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t
     if(fp->flags & O_APPEND) {
         retval = vnode_stat(fp->node, &stat);
 
-        if(retval < 0 || stat.st_size < 0) {
+        if(retval < 0) {
             return retval;
+        }
+
+        if(stat.st_size < 0) {
+            return -EINVAL;
         }
 
         fp->offset = stat.st_size;

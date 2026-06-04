@@ -5,20 +5,20 @@
 #include <lib/string.h>
 #include <limits.h>
 
-static struct blk_device* blk_device_head = nullptr;
+struct blk_device* blk_devices_head = nullptr;
 
 static int blk_device_register_internal(struct blk_device* restrict device)
 {
     struct blk_device* it;
 
-    for(it = blk_device_head; it; it = it->priv.next) {
+    for(it = blk_devices_head; it; it = it->priv.next) {
         if(it == device) {
             return -EEXIST;
         }
     }
 
-    device->priv.next = blk_device_head;
-    blk_device_head = device;
+    device->priv.next = blk_devices_head;
+    blk_devices_head = device;
 
     blk_event_notify(BLK_EVENT_DEVICE_ADDED, device);
 
@@ -60,11 +60,11 @@ int blk_device_unregister(struct blk_device* restrict device)
     struct blk_device* it;
     struct blk_device* prev = nullptr;
 
-    if(blk_device_head == device) {
-        blk_device_head = device->priv.next;
+    if(blk_devices_head == device) {
+        blk_devices_head = device->priv.next;
     }
     else {
-        for(it = blk_device_head; it; it = it->priv.next) {
+        for(it = blk_devices_head; it; it = it->priv.next) {
             if(it == device) {
                 prev->priv.next = it->priv.next;
                 break;
@@ -95,7 +95,7 @@ const struct blk_device* blk_device_find(const char* restrict name)
 {
     struct blk_device* it;
 
-    for(it = blk_device_head; it; it = it->priv.next) {
+    for(it = blk_devices_head; it; it = it->priv.next) {
         if(strcmp(it->identifier, name) == 0) {
             return it;
         }

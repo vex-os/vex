@@ -1,6 +1,8 @@
 #include <core/errno.h>
 #include <core/spinlock.h>
+#include <dev/blk_device.h>
 #include <dev/blk_event.h>
+#include <dev/chr_device.h>
 #include <dev/chr_event.h>
 #include <fs/devfs.h>
 #include <fs/mount.h>
@@ -76,6 +78,8 @@ void devfs_remove(const char* restrict name)
 
 static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
 {
+    const struct blk_device* blk;
+    const struct chr_device* chr;
     struct devfs_state* state;
     struct vnode* root;
 
@@ -99,6 +103,21 @@ static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     fs->ctxdata = state;
 
     devfs_instance = fs;
+
+    for(blk = blk_devices_head; blk; blk = blk->priv.next) {
+        if(BLK_FLAG_PRESENT == (blk->flags & (BLK_FLAG_PRESENT | BLK_FLAG_HIDDEN))) {
+            if(blk->flags & BLK_FLAG_PARTITION) {
+                devfs_blk_event_handler(BLK_EVENT_PARTITION_ADDED, blk, nullptr);
+            }
+            else {
+                devfs_blk_event_handler(BLK_EVENT_MEDIA_CONNECTED, blk, nullptr);
+            }
+        }
+    }
+
+    for(chr = chr_devices_head; chr; chr = chr->priv.next) {
+        devfs_chr_event_handler(CHR_EVENT_DEVICE_ADDED, chr, nullptr);
+    }
 
     return 0;
 }

@@ -6,20 +6,20 @@
 #include <lib/strings.h>
 #include <limits.h>
 
-static struct chr_device* chr_device_head = nullptr;
+struct chr_device* chr_devices_head = nullptr;
 
 static int chr_device_register_internal(struct chr_device* restrict device)
 {
     struct chr_device* it;
 
-    for(it = chr_device_head; it; it = it->priv.next) {
+    for(it = chr_devices_head; it; it = it->priv.next) {
         if(it == device) {
             return -EEXIST;
         }
     }
 
-    device->priv.next = chr_device_head;
-    chr_device_head = device;
+    device->priv.next = chr_devices_head;
+    chr_devices_head = device;
 
     chr_event_notify(CHR_EVENT_DEVICE_ADDED, device);
 
@@ -51,13 +51,13 @@ int chr_device_unregister(struct chr_device* restrict device)
     struct chr_device* it;
     struct chr_device* prev = nullptr;
 
-    for(it = chr_device_head; it; prev = it, it = it->priv.next) {
+    for(it = chr_devices_head; it; prev = it, it = it->priv.next) {
         if(it == device) {
             if(prev) {
                 prev->priv.next = it->priv.next;
             }
             else {
-                chr_device_head = it->priv.next;
+                chr_devices_head = it->priv.next;
             }
 
             chr_event_notify(CHR_EVENT_DEVICE_REMOVED, device);
@@ -73,7 +73,7 @@ const struct chr_device* chr_device_find(const char* restrict name)
 {
     struct chr_device* it;
 
-    for(it = chr_device_head; it; it = it->priv.next) {
+    for(it = chr_devices_head; it; it = it->priv.next) {
         if(strcmp(it->identifier, name) == 0) {
             return it;
         }

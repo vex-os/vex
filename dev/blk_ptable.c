@@ -64,8 +64,9 @@ static struct blk_disk_state* disk_state_find(const struct blk_device* restrict 
     struct blk_disk_state* it;
 
     for(it = disk_state_head; it; it = it->next) {
-        if(it->disk == disk)
+        if(it->disk == disk) {
             return it;
+        }
     }
 
     return nullptr;

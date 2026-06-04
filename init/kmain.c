@@ -51,7 +51,7 @@ static void recurse_root(void)
     struct vnode* root;
 
     if(0 == path_resolve("/", &root)) {
-        recurse_dir(root, "/");
+        recurse_dir(root, "");
         vnode_decref(root);
     }
     else {
@@ -70,6 +70,7 @@ void __noreturn kmain(void)
     pr_inform("hanging around...");
 
     vfs_mount("msdos", "/", blk_device_find("ada0n1p1"), "readonly");
+    // vfs_mount("devfs", "/", nullptr, nullptr);
     recurse_root();
 
     struct file* fp = file_open("/limine.conf", O_RDONLY);
