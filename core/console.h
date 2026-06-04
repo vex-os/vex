@@ -28,9 +28,9 @@ struct console_driver {
     void* ctxdata;
 };
 
-extern int console_driver_register(struct console_driver* restrict driver);
-extern int console_driver_unregister(struct console_driver* restrict driver);
-extern void console_write(const void* restrict data, size_t size);
-extern void console_unblank_all(void);
+int console_driver_register(struct console_driver* restrict driver);
+int console_driver_unregister(struct console_driver* restrict driver);
+void console_write(const void* restrict data, size_t size);
+void console_unblank_all(void);
 
 #endif /* A3252828_5A4D_4592_BD44_063284F9226D */

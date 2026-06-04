@@ -55,6 +55,6 @@ extern const struct initcall_entry initcalls_bsp_end[];
 extern const struct initcall_entry initcalls_smp_start[];
 extern const struct initcall_entry initcalls_smp_end[];
 
-extern void invoke_initcalls(const struct initcall_entry* start, const struct initcall_entry* end);
+void invoke_initcalls(const struct initcall_entry* start, const struct initcall_entry* end);
 
 #endif /* C02B5460_568D_48F8_B826_99E2AE03A5AC */

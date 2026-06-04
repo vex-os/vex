@@ -5,27 +5,27 @@
 #include <core/cdefs.h>
 #include <core/types.h>
 
-extern const void* memchr(const void* restrict buf, int chr, size_t sz) __nodiscard;
-extern int memcmp(const void* restrict ba, const void* restrict bb, size_t sz) __nodiscard;
-extern void* memcpy(void* restrict dst, const void* restrict src, size_t sz);
-extern void* memmove(void* dst, const void* src, size_t sz);
-extern void* memset(void* restrict dst, int chr, size_t sz);
+const void* memchr(const void* restrict buf, int chr, size_t sz) __nodiscard;
+int memcmp(const void* restrict ba, const void* restrict bb, size_t sz) __nodiscard;
+void* memcpy(void* restrict dst, const void* restrict src, size_t sz);
+void* memmove(void* dst, const void* src, size_t sz);
+void* memset(void* restrict dst, int chr, size_t sz);
 
-extern char* strcat(char* restrict dst, const char* restrict src);
-extern char* strcpy(char* restrict dst, const char* restrict src);
-extern char* strerror(int errnum) __nodiscard;
-extern char* strncat(char* restrict dst, const char* restrict src, size_t sz);
-extern char* strncpy(char* restrict dst, const char* restrict src, size_t sz);
-extern const char* strchr(const char* restrict str, int chr) __nodiscard;
-extern const char* strpbrk(const char* restrict str, const char* restrict sym) __nodiscard;
-extern const char* strrchr(const char* restrict str, int chr) __nodiscard;
-extern const char* strstr(const char* restrict str, const char* restrict substr) __nodiscard;
-extern int strcmp(const char* restrict sa, const char* restrict sb) __nodiscard;
-extern int strerror_r(int errnum, char* restrict str, size_t sz);
-extern int strncmp(const char* restrict sa, const char* restrict sb, size_t sz) __nodiscard;
-extern size_t strcspn(const char* restrict str, const char* restrict sym) __nodiscard;
-extern size_t strlen(const char* restrict str) __nodiscard;
-extern size_t strnlen(const char* restrict str, size_t sz) __nodiscard;
-extern size_t strspn(const char* restrict str, const char* restrict sym) __nodiscard;
+char* strcat(char* restrict dst, const char* restrict src);
+char* strcpy(char* restrict dst, const char* restrict src);
+char* strerror(int errnum) __nodiscard;
+char* strncat(char* restrict dst, const char* restrict src, size_t sz);
+char* strncpy(char* restrict dst, const char* restrict src, size_t sz);
+const char* strchr(const char* restrict str, int chr) __nodiscard;
+const char* strpbrk(const char* restrict str, const char* restrict sym) __nodiscard;
+const char* strrchr(const char* restrict str, int chr) __nodiscard;
+const char* strstr(const char* restrict str, const char* restrict substr) __nodiscard;
+int strcmp(const char* restrict sa, const char* restrict sb) __nodiscard;
+int strerror_r(int errnum, char* restrict str, size_t sz);
+int strncmp(const char* restrict sa, const char* restrict sb, size_t sz) __nodiscard;
+size_t strcspn(const char* restrict str, const char* restrict sym) __nodiscard;
+size_t strlen(const char* restrict str) __nodiscard;
+size_t strnlen(const char* restrict str, size_t sz) __nodiscard;
+size_t strspn(const char* restrict str, const char* restrict sym) __nodiscard;
 
 #endif /* B7AE4B7F_54AE_433C_9BA4_36A2569AF05A */

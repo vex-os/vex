@@ -14,10 +14,10 @@
 
 typedef uint32_t bitmap_t;
 
-extern int bitmap_range_isset(const bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
-extern int bitmap_range_isclear(const bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
-extern void bitmap_range_clear(bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
-extern void bitmap_range_set(bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
+int bitmap_range_isset(const bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
+int bitmap_range_isclear(const bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
+void bitmap_range_clear(bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
+void bitmap_range_set(bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
 
 static __always_inline __nodiscard inline size_t bitmap_bytecount(size_t bits)
 {

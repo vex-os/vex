@@ -66,20 +66,20 @@ struct isa_driver {
     char identifier[64];
 };
 
-extern int isa_device_register(struct isa_device* restrict device);
-extern int isa_device_unregister(struct isa_device* restrict device);
+int isa_device_register(struct isa_device* restrict device);
+int isa_device_unregister(struct isa_device* restrict device);
 
-extern int isa_driver_register(struct isa_driver* restrict driver);
-extern int isa_driver_unregister(struct isa_driver* restrict driver);
+int isa_driver_register(struct isa_driver* restrict driver);
+int isa_driver_unregister(struct isa_driver* restrict driver);
 
-extern struct isa_resource* isa_get_resource(struct isa_device* restrict device, unsigned type, unsigned index) __nodiscard;
+struct isa_resource* isa_get_resource(struct isa_device* restrict device, unsigned type, unsigned index) __nodiscard;
 
-extern int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_handler_type handler, void* ctxdata);
-extern void isa_release_irq(struct isa_device* restrict device, unsigned index);
+int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_handler_type handler, void* ctxdata);
+void isa_release_irq(struct isa_device* restrict device, unsigned index);
 
 /// Resolves an ISA IRQ number to a GSI and trigger/polarity characteristics.
 /// Applies any ACPI MADT interrupt source overrides; defaults to identity
 /// mapping GSI numbers to IRQ lines edge-triggered, active-high if no override exists.
-extern void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsigned* out_polarity);
+void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsigned* out_polarity);
 
 #endif /* BAF7322B_9BD5_4ECE_B20C_153EF98E138C */

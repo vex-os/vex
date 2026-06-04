@@ -2,10 +2,9 @@
 #include <core/spinlock.h>
 #include <dev/blk_event.h>
 #include <dev/chr_event.h>
-#include <fs/devfs_internal.h>
-#include <fs/vfs_mount.h>
-#include <fs/vfs_node.h>
-#include <fs/vfs_types.h>
+#include <fs/devfs.h>
+#include <fs/mount.h>
+#include <fs/vnode.h>
 #include <init/initcall.h>
 #include <lib/string.h>
 #include <lib/strings.h>
@@ -13,7 +12,7 @@
 
 struct vfs* devfs_instance = nullptr;
 
-int devfs_insert(const char* restrict name, struct vfs_node* restrict vnode)
+int devfs_insert(const char* restrict name, struct vnode* restrict node)
 {
     struct devfs_node* entry;
     struct devfs_state* state;
@@ -33,7 +32,7 @@ int devfs_insert(const char* restrict name, struct vfs_node* restrict vnode)
     memset(entry, 0, sizeof(struct devfs_node));
     kstrncpy(entry->name, name, sizeof(entry->name));
 
-    entry->vnode = vnode;
+    entry->node = node;
 
     spinlock_acquire(&state->lock);
 
@@ -59,14 +58,13 @@ void devfs_remove(const char* restrict name)
 
     spinlock_acquire(&state->lock);
 
-    for(prev = &state->head; prev[0]; prev = &prev[0]->next) {
-        it = prev[0];
+    for(prev = &state->head; *prev; prev = &(prev[0])->next) {
+        it = *prev;
 
         if(0 == strcmp(it->name, name)) {
-            prev[0] = it->next;
+            *prev = it->next;
 
-            vfs_node_dec_refcount(it->vnode);
-
+            vnode_decref(it->node);
             slab_free(it);
 
             break;
@@ -79,7 +77,7 @@ void devfs_remove(const char* restrict name)
 static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
 {
     struct devfs_state* state;
-    struct vfs_node* root;
+    struct vnode* root;
 
     state = slab_alloc(sizeof(struct devfs_state));
 
@@ -90,7 +88,7 @@ static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     memset(state, 0, sizeof(struct devfs_state));
     state->lock = SPINLOCK_INIT;
 
-    root = vfs_node_alloc(VFS_NODE_TYPE_DIRECTORY, &devfs_dir_ops, state);
+    root = vnode_alloc(VNODE_DIRECTORY, &devfs_dir_ops, state);
 
     if(root == nullptr) {
         slab_free(state);
@@ -117,14 +115,14 @@ static int devfs_unmount(struct vfs* restrict fs)
     for(it = state->head; it; it = next) {
         next = it->next;
 
-        vfs_node_dec_refcount(it->vnode);
+        vnode_decref(it->node);
 
         slab_free(it);
     }
 
     spinlock_release(&state->lock);
 
-    vfs_node_dec_refcount(fs->root);
+    vnode_decref(fs->root);
 
     slab_free(state);
 
@@ -138,8 +136,9 @@ static const struct vfs_ops devfs_ops = {
     .unmount = &devfs_unmount,
 };
 
+static const char* devfs_identifiers[] = { "devtmpfs", "devfs", nullptr };
 static struct vfs_driver devfs_driver = {
-    .identifier = "devfs",
+    .identifiers = devfs_identifiers,
     .ops = &devfs_ops,
 };
 

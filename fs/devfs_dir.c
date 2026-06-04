@@ -1,23 +1,23 @@
 #include <core/errno.h>
 #include <core/spinlock.h>
-#include <fs/devfs_internal.h>
-#include <fs/vfs_node.h>
-#include <fs/vfs_types.h>
+#include <fs/devfs.h>
+#include <fs/dirent.h>
+#include <fs/vnode.h>
 #include <lib/string.h>
 #include <lib/strings.h>
 
-static int devfs_dir_lookup(struct vfs_node* restrict dir, const char* restrict name, struct vfs_node** restrict out)
+static int devfs_dir_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out)
 {
-    struct devfs_state* state = dir->ctxdata;
+    struct devfs_state* state = node->ctxdata;
     struct devfs_node* it;
 
     spinlock_acquire(&state->lock);
 
     for(it = state->head; it; it = it->next) {
         if(0 == strcmp(it->name, name)) {
-            vfs_node_inc_refcount(it->vnode);
+            vnode_decref(it->node);
 
-            out[0] = it->vnode;
+            *out = it->node;
 
             spinlock_release(&state->lock);
 
@@ -30,9 +30,9 @@ static int devfs_dir_lookup(struct vfs_node* restrict dir, const char* restrict 
     return -ENOENT;
 }
 
-static int devfs_dir_read_dir(struct vfs_node* restrict dir, struct vfs_dirent* restrict out_dirent, size_t index)
+static int devfs_dir_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index)
 {
-    struct devfs_state* state = dir->ctxdata;
+    struct devfs_state* state = node->ctxdata;
     struct devfs_node* it;
     size_t i = 0;
 
@@ -40,9 +40,9 @@ static int devfs_dir_read_dir(struct vfs_node* restrict dir, struct vfs_dirent* 
 
     for(it = state->head; it; it = it->next, i++) {
         if(i == index) {
-            kstrncpy(out_dirent->name, it->name, sizeof(out_dirent->name));
+            kstrncpy(out->name, it->name, sizeof(out->name));
 
-            out_dirent->type = it->vnode->type;
+            out->nodetype = it->node->nodetype;
 
             spinlock_release(&state->lock);
 
@@ -55,7 +55,7 @@ static int devfs_dir_read_dir(struct vfs_node* restrict dir, struct vfs_dirent* 
     return -ENOENT;
 }
 
-const struct vfs_node_ops devfs_dir_ops = {
+const struct vnode_ops devfs_dir_ops = {
     .lookup = &devfs_dir_lookup,
-    .read_dir = &devfs_dir_read_dir,
+    .iterate = &devfs_dir_iterate,
 };

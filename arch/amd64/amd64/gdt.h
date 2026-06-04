@@ -18,7 +18,7 @@
 
 struct amd64_gdt;
 
-extern void gdt_install_tss(struct amd64_gdt* restrict gdt, uintptr_t tss_base, size_t tss_size);
+void gdt_install_tss(struct amd64_gdt* restrict gdt, uintptr_t tss_base, size_t tss_size);
 
 static __always_inline __nodiscard inline uint16_t gdt_selector(uint16_t index, uint16_t ldt, uint16_t ring)
 {

@@ -23,8 +23,8 @@ extern struct chr_name* chr_name_tty;
 extern struct chr_name* chr_name_pty;
 extern struct chr_name* chr_name_fbdev;
 
-extern struct chr_name* chr_name_query(const char* restrict prefix) __nodiscard;
-extern unsigned chr_name_increment(struct chr_name* restrict name) __nodiscard;
-extern unsigned chr_name_count(const struct chr_name* restrict name) __nodiscard;
+struct chr_name* chr_name_query(const char* restrict prefix) __nodiscard;
+unsigned chr_name_increment(struct chr_name* restrict name) __nodiscard;
+unsigned chr_name_count(const struct chr_name* restrict name) __nodiscard;
 
 #endif /* BC09F6C2_A0F0_4B50_A47E_D87316FAC355 */

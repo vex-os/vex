@@ -35,12 +35,11 @@ struct intctl {
     void* ctxdata;
 };
 
-extern int intctl_register(struct intctl* restrict controller);
-extern struct intctl* find_intctl(uint32_t gsi) __nodiscard;
+int intctl_register(struct intctl* restrict controller);
+struct intctl* find_intctl(uint32_t gsi) __nodiscard;
 
-extern void intctl_mask(struct intctl* restrict controller, uint32_t gsi);
-extern void intctl_unmask(struct intctl* restrict controller, uint32_t gsi);
-extern void intctl_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
-    unsigned polarity);
+void intctl_mask(struct intctl* restrict controller, uint32_t gsi);
+void intctl_unmask(struct intctl* restrict controller, uint32_t gsi);
+void intctl_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger, unsigned polarity);
 
 #endif /* FF32ABB5_460B_4345_9EE3_A2925175426A */

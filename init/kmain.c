@@ -6,11 +6,11 @@
 #include <core/kprintf.h>
 #include <core/version.h>
 #include <dev/blk_device.h>
-#include <fs/vfs_file.h>
-#include <fs/vfs_mount.h>
-#include <fs/vfs_node.h>
-#include <fs/vfs_path.h>
-#include <fs/vfs_types.h>
+#include <fs/dirent.h>
+#include <fs/file.h>
+#include <fs/mount.h>
+#include <fs/path.h>
+#include <fs/vnode.h>
 #include <init/initcall.h>
 #include <lib/sprintf.h>
 #include <lib/string.h>
@@ -22,45 +22,41 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-static void recurse_list(struct vfs_node* restrict node, const char* restrict path)
+static void recurse_dir(struct vnode* restrict node, const char* restrict path)
 {
-    struct vfs_dirent de;
-    off_t index = 0;
+    char subpath[PATH_NAME_SIZE];
+    size_t index = 0;
+    struct dirent entry;
+    struct vnode* child;
 
-    while(node->ops->read_dir && 0 == node->ops->read_dir(node, &de, index)) {
-        if(de.name[0] == '.' && (de.name[1] == 0 || (de.name[1] == '.' && de.name[2] == 0))) {
-            index += 1;
+    while(0 == vnode_iterate(node, &entry, index++)) {
+        if(0 == strcmp(entry.name, ".") || 0 == strcmp(entry.name, "..")) {
             continue;
         }
 
-        pr_inform("  [%u] %s/%s", de.type, path, de.name);
+        pr_inform("  [%u] %s/%s", entry.nodetype, path, entry.name);
 
-        if(de.type == VFS_NODE_TYPE_DIRECTORY) {
-            struct vfs_node* child;
-
-            if(0 == vfs_lookup_at(node, de.name, &child)) {
-                char subpath[VFS_NAME_SIZE];
-                snprintf(subpath, sizeof(subpath), "%s/%s", path, de.name);
-                recurse_list(child, subpath);
-                vfs_node_dec_refcount(child);
+        if(entry.nodetype == VNODE_DIRECTORY) {
+            if(0 == path_resolve_at(node, entry.name, &child)) {
+                snprintf(subpath, sizeof(subpath), "%s%c%s", path, PATH_SEPARATOR, entry.name);
+                recurse_dir(child, subpath);
+                vnode_decref(child);
             }
         }
-
-        index++;
     }
 }
 
-static void list_root(void)
+static void recurse_root(void)
 {
-    struct vfs_node* root;
+    struct vnode* root;
 
-    if(vfs_lookup("/", &root)) {
-        pr_error("failed to get root");
-        return;
+    if(0 == path_resolve("/", &root)) {
+        recurse_dir(root, "/");
+        vnode_decref(root);
     }
-
-    recurse_list(root, "");
-    vfs_node_dec_refcount(root);
+    else {
+        pr_warning("no root");
+    }
 }
 
 void __noreturn kmain(void)
@@ -73,13 +69,12 @@ void __noreturn kmain(void)
 
     pr_inform("hanging around...");
 
-    vfs_mount("fat", "/", blk_device_find("ada0n1p1"), "readonly");
+    vfs_mount("msdos", "/", blk_device_find("ada0n1p1"), "readonly");
+    recurse_root();
 
-    list_root();
+    struct file* fp = file_open("/limine.conf", O_RDONLY);
 
-    struct vfs_file* file = vfs_open("/limine.conf", VFS_O_RDONLY);
-
-    if(file == nullptr) {
+    if(fp == nullptr) {
         pr_warning("nofile");
     }
     else {
@@ -89,7 +84,7 @@ void __noreturn kmain(void)
         memset(buffer, 0, sizeof(buffer));
         chr[1] = 0;
 
-        while(vfs_read(file, &chr[0], 1) > 0) {
+        while(file_read(fp, &chr[0], 1) > 0) {
             kstrncat(buffer, chr, sizeof(buffer));
         }
 
@@ -97,11 +92,8 @@ void __noreturn kmain(void)
 
         pr_warning("close");
 
-        vfs_close(file);
+        file_close(fp);
     }
-
-    // test_devfs_write("/ada0n2p2");
-    // test_devfs_read("/ada0n2p2");
 
     for(;;) {
         stop_hart();

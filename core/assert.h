@@ -4,7 +4,7 @@
 
 #include <core/cdefs.h>
 
-extern void assertion_fail(const char* restrict file, unsigned long line, const char* restrict func, const char* restrict text) __noreturn;
+void assertion_fail(const char* restrict file, unsigned long line, const char* restrict func, const char* restrict text) __noreturn;
 
 #define strict_kassert(expression)                                     \
     do {                                                               \

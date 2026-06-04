@@ -4,16 +4,15 @@
 
 #include <core/cdefs.h>
 #include <core/spinlock.h>
-#include <fs/vfs_types.h>
+#include <fs/path.h>
 
-struct vfs_node;
 struct blk_device;
 struct chr_device;
 
 struct devfs_node {
-    char name[VFS_NAME_SIZE];
-    struct vfs_node* vnode;
+    char name[PATH_NAME_SIZE];
     struct devfs_node* next;
+    struct vnode* node;
 };
 
 struct devfs_state {
@@ -22,9 +21,9 @@ struct devfs_state {
 };
 
 extern struct vfs* devfs_instance;
-extern const struct vfs_node_ops devfs_dir_ops;
+extern const struct vnode_ops devfs_dir_ops;
 
-extern int devfs_insert(const char* restrict name, struct vfs_node* restrict vnode);
+extern int devfs_insert(const char* restrict name, struct vnode* restrict node);
 extern void devfs_remove(const char* restrict name);
 
 extern void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict device, void* restrict ctxdata);

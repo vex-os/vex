@@ -37,11 +37,11 @@ struct clocksrc {
 #define CLOCKSRC_MASK_48 UINT64_C(0x0000FFFFFFFFFFFF)
 #define CLOCKSRC_MASK_64 UINT64_C(0xFFFFFFFFFFFFFFFF)
 
-extern int clocksrc_register_internal(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency);
-extern int clocksrc_calibrate_internal(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency);
-extern int clocksrc_unregister(struct clocksrc* restrict src);
-extern struct clocksrc* active_clocksrc(void) __nodiscard;
-extern uint64_t clocksrc_read_nsec(void) __nodiscard;
+int clocksrc_register_internal(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency);
+int clocksrc_calibrate_internal(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency);
+int clocksrc_unregister(struct clocksrc* restrict src);
+struct clocksrc* active_clocksrc(void) __nodiscard;
+uint64_t clocksrc_read_nsec(void) __nodiscard;
 
 static __always_inline inline int clocksrc_register_hz(struct clocksrc* restrict src, uint64_t hz)
 {
