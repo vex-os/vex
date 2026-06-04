@@ -41,7 +41,7 @@ static int devfs_chr_stat(struct vnode* restrict node, struct __k_stat* restrict
 {
     memset(out, 0, sizeof(struct __k_stat));
 
-    out->st_mode = 0x1337;
+    out->st_mode = S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 
     return 0;
 }

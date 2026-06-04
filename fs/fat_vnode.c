@@ -148,6 +148,12 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
         return -EROFS;
     }
 
+    ino_t existing_nodenumber;
+
+    if(0 == fat_vnode_lookup(node, name, &existing_nodenumber)) {
+        return vnode_lookup(node, name, out);
+    }
+
     size_t name_len = strnlen(name, PATH_NAME_SIZE);
 
     unsigned num_lfn = name_len + 12;

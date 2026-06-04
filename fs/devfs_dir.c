@@ -1,6 +1,7 @@
 #include <core/errno.h>
 #include <core/spinlock.h>
 #include <fs/devfs.h>
+#include <fs/stat.h>
 #include <fs/vfs_dirent.h>
 #include <fs/vfs_vnode.h>
 #include <lib/string.h>
@@ -44,7 +45,17 @@ static int devfs_dir_iterate(struct vnode* restrict node, struct dirent* restric
     return -ENOENT;
 }
 
+static int devfs_dir_stat(struct vnode* restrict node, struct __k_stat* restrict out)
+{
+    memset(out, 0, sizeof(struct __k_stat));
+
+    out->st_mode = S_IFDIR | S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
+
+    return 0;
+}
+
 const struct vnode_ops devfs_dir_ops = {
     .lookup = &devfs_dir_lookup,
     .iterate = &devfs_dir_iterate,
+    .stat = &devfs_dir_stat,
 };
