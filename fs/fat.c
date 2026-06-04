@@ -1,0 +1,218 @@
+#include <core/cmdline.h>
+#include <core/errno.h>
+#include <dev/blk_device.h>
+#include <fs/fat.h>
+#include <fs/vfs_mount.h>
+#include <fs/vfs_vnode.h>
+#include <init/initcall.h>
+#include <lib/stdlib.h>
+#include <lib/string.h>
+#include <mm/malloc.h>
+#include <mm/slab.h>
+
+static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
+{
+    if(device == nullptr) {
+        return -EINVAL;
+    }
+
+    union fat_extparams* boot = kmalloc(sizeof(union fat_extparams));
+
+    if(boot == nullptr) {
+        return -ENOMEM;
+    }
+
+    int retval = blk_device_read(device, 0, 1, boot);
+
+    if(retval < 0) {
+        kfree(boot);
+        return retval;
+    }
+
+    struct fat_bootparams* base = &boot->fat1X.base;
+
+    if(base->sector_size != (uint16_t)(device->sector_size) || base->cluster_size == 0) {
+        kfree(boot);
+        return -EINVAL;
+    }
+
+    size_t fat_size;
+    size_t total_sectors;
+
+    if(base->table_size_16) {
+        fat_size = base->table_size_16;
+    }
+    else {
+        fat_size = boot->fat32.table_size_32;
+    }
+
+    if(base->total_sectors_16) {
+        total_sectors = base->total_sectors_16;
+    }
+    else {
+        total_sectors = base->total_sectors_32;
+    }
+
+    size_t rootdir_sectors = base->root_entries * 32;
+    rootdir_sectors += base->sector_size - 1;
+    rootdir_sectors /= base->sector_size;
+
+    uintptr_t data_start = base->reserved_sectors;
+    data_start += base->tables_count * fat_size;
+    data_start += rootdir_sectors;
+
+    size_t cluster_count = total_sectors - data_start;
+    cluster_count /= base->cluster_size;
+
+    unsigned filesystem_type;
+
+    if(cluster_count < 4085) {
+        filesystem_type = FAT_TYPE_12;
+    }
+    else if(cluster_count < 65525) {
+        filesystem_type = FAT_TYPE_16;
+    }
+    else {
+        filesystem_type = FAT_TYPE_32;
+    }
+
+    struct fat_vfs_context* context = kmalloc(sizeof(struct fat_vfs_context));
+
+    if(context == nullptr) {
+        kfree(boot);
+        return -ENOMEM;
+    }
+
+    memset(context, 0, sizeof(struct fat_vfs_context));
+
+    context->device = device;
+    context->filesystem_type = filesystem_type;
+
+    context->param_readonly = cmdline_contains(params, "readonly") || cmdline_contains(params, "ro");
+
+    const char* uid_string = cmdline_argument(params, "uid");
+    const char* gid_string = cmdline_argument(params, "gid");
+
+    if(uid_string == nullptr) {
+        context->param_uid = 0;
+    }
+    else {
+        context->param_uid = strtoul(uid_string, nullptr, 10);
+    }
+
+    if(gid_string == nullptr) {
+        context->param_gid = 0;
+    }
+    else {
+        context->param_gid = strtoul(gid_string, nullptr, 10);
+    }
+
+    if(filesystem_type == FAT_TYPE_32) {
+        context->root_cluster = boot->fat32.root_cluster;
+    }
+    else {
+        context->root_cluster = 0;
+    }
+
+    context->table_start = base->reserved_sectors;
+    context->data_start = data_start;
+    context->rootdir_sectors = rootdir_sectors;
+    context->cluster_size_s = base->cluster_size;
+    context->cluster_size_b = base->cluster_size * base->sector_size;
+    context->sector_size = base->sector_size;
+
+    context->cache_size = fat_size * base->sector_size;
+    context->cache = kmalloc(context->cache_size);
+
+    if(context->cache == nullptr) {
+        kfree(boot);
+        kfree(context);
+        return -ENOMEM;
+    }
+
+    context->bounce = kmalloc(context->sector_size);
+
+    if(context->bounce == nullptr) {
+        kfree(boot);
+        kfree(context->cache);
+        kfree(context);
+        return -ENOMEM;
+    }
+
+    retval = blk_device_read(device, context->table_start, fat_size, context->cache);
+
+    if(retval < 0) {
+        kfree(boot);
+        kfree(context->bounce);
+        kfree(context->cache);
+        kfree(context);
+        return retval;
+    }
+
+    kfree(boot);
+
+    struct fat_vnode_context* root_context = slab_alloc(sizeof(struct fat_vnode_context));
+
+    if(root_context == nullptr) {
+        kfree(context->bounce);
+        kfree(context->cache);
+        kfree(context);
+        return -ENOMEM;
+    }
+
+    root_context->fs_ctx = context;
+    root_context->first_cluster = context->root_cluster;
+    root_context->size_bytes = 0;
+
+    struct vnode* root = vnode_alloc(VNODE_DIRECTORY, &fat_vnode_ops, root_context);
+
+    if(root == nullptr) {
+        slab_free(root_context);
+        kfree(context->bounce);
+        kfree(context->cache);
+        kfree(context);
+        return -ENOMEM;
+    }
+
+    fs->root = root;
+    fs->ctxdata = context;
+
+    return 0;
+}
+
+static int fat_unmount(struct vfs* restrict fs)
+{
+    struct fat_vfs_context* context = fs->ctxdata;
+
+    vnode_decref(fs->root);
+
+    kfree(context->bounce);
+    kfree(context->cache);
+    kfree(context);
+
+    return 0;
+}
+
+static int fat_sync(struct vfs* restrict fs)
+{
+    struct fat_vfs_context* context = fs->ctxdata;
+    size_t num_sectors = context->cache_size / context->sector_size;
+
+    return blk_device_write(context->device, context->table_start, num_sectors, context->cache);
+}
+
+static const struct vfs_ops fat_vfs_ops = {
+    .mount = &fat_mount,
+    .unmount = &fat_unmount,
+    .sync = &fat_sync,
+};
+
+static struct vfs_driver fat_vfs_driver = {
+    .identifier = "fat", // FIXME: figure out aliasing so it's possible to mount via fat, vfat, msdos, fat32 and so on
+    .ops = &fat_vfs_ops,
+};
+
+define_initcall(fat_init, INITCALL_STAGE_BSP_VFS, INITCALL_ORDER_EARLY)
+{
+    vfs_driver_register(&fat_vfs_driver);
+}
