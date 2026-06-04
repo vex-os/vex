@@ -496,7 +496,6 @@ static const struct blk_device_ops ahci_blk_device_ops = {
     .read = &ahci_read,
     .write = &ahci_write,
     .flush = &ahci_flush,
-    .destroy = nullptr,
 };
 
 static int ahci_register_ata_port(struct ahci_pci_context* restrict context, unsigned iterator, unsigned port_num)

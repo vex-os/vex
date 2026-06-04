@@ -308,7 +308,6 @@ static void render_cursor(size_t sx, size_t sy)
 
 static void do_newline(void)
 {
-
     cursor_ypos += 1U;
 
     if(cursor_ypos >= vt_height) {
@@ -429,9 +428,7 @@ static void fbcons_write(struct console_driver* restrict driver, const void* res
 }
 
 static const struct console_driver_ops fbcons_ops = {
-    .init = nullptr,
     .write = &fbcons_write,
-    .unblank = nullptr,
 };
 
 static struct console_driver fbcons_driver = {

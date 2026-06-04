@@ -84,8 +84,8 @@ int blk_device_unregister(struct blk_device* restrict device)
 
     blk_event_notify(BLK_EVENT_DEVICE_REMOVED, device);
 
-    if(device->ops->destroy) {
-        device->ops->destroy(device);
+    if(device->ops->release) {
+        device->ops->release(device);
     }
 
     return 0;

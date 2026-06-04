@@ -47,7 +47,7 @@ static int part_flush(const struct blk_device* restrict device)
     return blk_device_flush(part->root);
 }
 
-static void part_destroy(const struct blk_device* restrict device)
+static void part_release(const struct blk_device* restrict device)
 {
     kfree((void*)(device));
 }
@@ -56,7 +56,7 @@ static const struct blk_device_ops part_ops = {
     .read = &part_read,
     .write = &part_write,
     .flush = &part_flush,
-    .destroy = &part_destroy,
+    .release = &part_release,
 };
 
 static struct blk_disk_state* disk_state_find(const struct blk_device* restrict disk)

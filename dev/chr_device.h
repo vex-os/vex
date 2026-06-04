@@ -13,7 +13,7 @@ struct chr_device_ops {
     ssize_t (*read)(const struct chr_device* restrict device, size_t offset, void* restrict buffer, size_t sz);
     ssize_t (*write)(const struct chr_device* restrict device, size_t offset, const void* restrict buffer, size_t sz);
     int (*ioctl)(const struct chr_device* restrict device, unsigned request, void* restrict arg);
-    void (*destroy)(const struct chr_device* restrict device);
+    void (*release)(const struct chr_device* restrict device);
 };
 
 struct chr_device_private {
