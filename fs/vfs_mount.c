@@ -216,6 +216,8 @@ int vfs_unmount(const char* restrict path)
 
             if(fs->mountpoint) {
                 fs->mountpoint->fs_mounted = nullptr;
+                vnode_decref(fs->mountpoint);
+                fs->mountpoint = nullptr;
             }
 
             retval = fs->ops->unmount(fs);
@@ -289,12 +291,6 @@ struct vfs* vfs_find_mount_for(struct vnode* restrict node)
         }
 
         if(mp == node) {
-            struct vfs* result = entry->fs;
-            spinlock_release(&mounts_lock);
-            return result;
-        }
-
-        if(mp->ops == node->ops && mp->ops->same != nullptr && mp->ops->same(mp, node)) {
             struct vfs* result = entry->fs;
             spinlock_release(&mounts_lock);
             return result;

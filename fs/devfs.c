@@ -30,6 +30,16 @@ int devfs_insert(const char* restrict name, struct vnode* restrict node)
     memset(entry, 0, sizeof(struct devfs_node));
     kstrncpy(entry->name, name, sizeof(entry->name));
 
+    node->fs  = devfs_instance;
+    node->ino = (ino_t)(uintptr_t)node;
+
+    int retval = vnode_cache_insert(node);
+
+    if(retval < 0) {
+        slab_free(entry);
+        return retval;
+    }
+
     entry->node = node;
 
     spinlock_acquire(&state->lock);
@@ -86,6 +96,8 @@ static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restric
         return -ENOMEM;
     }
 
+    root->fs = fs;
+
     fs->root = root;
     fs->ctxdata = state;
 
@@ -113,15 +125,13 @@ static int devfs_unmount(struct vfs* restrict fs)
 {
     struct devfs_state* state = fs->ctxdata;
 
+    vnode_cache_evict_fs(fs);
+
     spinlock_acquire(&state->lock);
 
     for(struct devfs_node* it = state->head; it;) {
         struct devfs_node* next = it->next;
-
-        vnode_decref(it->node);
-
         slab_free(it);
-
         it = next;
     }
 

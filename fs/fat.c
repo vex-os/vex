@@ -174,6 +174,9 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         return -ENOMEM;
     }
 
+    root->fs  = fs;
+    root->ino = 0;
+
     fs->root = root;
     fs->ctxdata = context;
 
@@ -184,6 +187,7 @@ static int fat_unmount(struct vfs* restrict fs)
 {
     struct fat_vfs_context* context = fs->ctxdata;
 
+    vnode_cache_evict_fs(fs);
     vnode_decref(fs->root);
 
     kfree(context->bounce);
