@@ -1,14 +1,14 @@
-#include "fatfs.h"
 
 #include <core/cmdline.h>
 #include <core/errno.h>
 #include <dev/blk_device.h>
+#include <fs/fat.h>
 #include <fs/mount.h>
 #include <fs/vnode.h>
 #include <init/initcall.h>
+#include <lib/string.h>
 #include <mm/malloc.h>
 #include <mm/slab.h>
-#include <lib/string.h>
 
 static int fatfs_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
 {

@@ -1,5 +1,5 @@
-#ifndef FATFS_H
-#define FATFS_H
+#ifndef D099C456_C968_494D_86BC_F2AABC256EED
+#define D099C456_C968_494D_86BC_F2AABC256EED
 #pragma once
 
 #include <core/cdefs.h>
@@ -168,12 +168,12 @@ struct fatfs_vnode_context {
 
 extern const struct vnode_ops fatfs_vnode_ops;
 
-extern uintptr_t cluster_lba(const struct fatfs_context* restrict context, uint32_t cluster);
-extern uint32_t iterate_cluster(const struct fatfs_context* restrict context, uint32_t current);
+extern uintptr_t fatfs_cluster_lba(const struct fatfs_context* restrict context, uint32_t cluster);
+extern uint32_t fatfs_iterate_cluster(const struct fatfs_context* restrict context, uint32_t current);
 
-extern int read_entry(const struct fatfs_context* restrict context, uint32_t first_cluster, size_t offset,
+extern int fatfs_read_entry(const struct fatfs_context* restrict context, uint32_t first_cluster, size_t offset,
     union fatfs_table_entry* restrict out);
-extern int read_dirent(const struct fatfs_context* restrict context, uint32_t first_cluster, size_t* restrict offset,
+extern int fatfs_read_dirent(const struct fatfs_context* restrict context, uint32_t first_cluster, size_t* restrict offset,
     struct fatfs_dirent* restrict out);
 
-#endif /* FATFS_H */
+#endif /* D099C456_C968_494D_86BC_F2AABC256EED */
