@@ -106,9 +106,12 @@ int path_resolve(const char* restrict path, struct vnode** restrict out)
             root = mounted;
         }
 
-        return path_walk(root, &path[1], out);
+        retval = path_walk(root, &path[1], out);
+        vnode_decref(root);
+        return retval;
     }
 
+    vnode_decref(root);
     return -EINVAL;
 }
 

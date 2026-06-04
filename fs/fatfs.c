@@ -524,16 +524,14 @@ static int fatfs_vnode_iterate(struct vnode* restrict node, struct dirent* out, 
             return retval;
         }
 
-        if(visible < index) {
-            visible += 1;
-            continue;
-        }
-
         if(entry.basic.attribute & FATFS_ATTR_VOLUME_ID) {
             continue;
         }
 
-        visible += 1;
+        if(visible < index) {
+            visible += 1;
+            continue;
+        }
 
         if(entry.basic.attribute & FATFS_ATTR_DIRECTORY) {
             out->nodetype = VNODE_DIRECTORY;
@@ -573,9 +571,13 @@ static ssize_t fatfs_vnode_read(struct vnode* restrict node, void* restrict buff
 
     int retval;
     size_t chunk;
+    size_t cluster_index;
     size_t done;
-    size_t offset_cls;
+    size_t i;
+    size_t offset_in_cluster;
+    size_t offset_in_sector;
     size_t remaining;
+    size_t sector_index;
     uint32_t cluster;
     uintptr_t lba;
 
@@ -590,31 +592,50 @@ static ssize_t fatfs_vnode_read(struct vnode* restrict node, void* restrict buff
         remaining = context->size_bytes - offset;
     }
 
+    cluster_index = offset / context->fs_ctx->cluster_size_bytes;
     cluster = context->first_cluster;
-    offset_cls = offset % context->fs_ctx->cluster_size_bytes;
 
-    while(remaining > 0 && cluster < UINT32_MAX) {
-        chunk = context->fs_ctx->cluster_size_bytes - offset_cls;
+    for(i = 0; i < cluster_index; ++i) {
+        cluster = iterate_cluster(context->fs_ctx, cluster);
 
-        if(chunk > remaining) {
-            chunk = remaining;
-        }
-
-        lba = cluster_lba(context->fs_ctx, cluster);
-        retval = blk_device_read(context->fs_ctx->device, lba, context->fs_ctx->cluster_size_sectors, context->fs_ctx->bounce);
-
-        if(retval < 0) {
+        if(cluster == UINT32_MAX) {
             if(done > 0)
                 return (ssize_t)(done);
-            return retval;
+            return -EIO;
+        }
+    }
+
+    offset_in_cluster = offset % context->fs_ctx->cluster_size_bytes;
+
+    while(remaining > 0 && cluster < UINT32_MAX) {
+        sector_index = offset_in_cluster / context->fs_ctx->sector_size;
+        offset_in_sector = offset_in_cluster % context->fs_ctx->sector_size;
+
+        while(remaining > 0 && sector_index < context->fs_ctx->cluster_size_sectors) {
+            lba = cluster_lba(context->fs_ctx, cluster) + sector_index;
+            retval = blk_device_read(context->fs_ctx->device, lba, 1, context->fs_ctx->bounce);
+
+            if(retval < 0) {
+                if(done > 0)
+                    return (ssize_t)(done);
+                return retval;
+            }
+
+            chunk = context->fs_ctx->sector_size - offset_in_sector;
+
+            if(chunk > remaining) {
+                chunk = remaining;
+            }
+
+            memcpy(&((uint8_t*)(buffer))[done], &context->fs_ctx->bounce[offset_in_sector], chunk);
+
+            done += chunk;
+            remaining -= chunk;
+            offset_in_sector = 0;
+            sector_index += 1;
         }
 
-        memcpy(&((uint8_t*)(buffer))[done], &context->fs_ctx->bounce[offset_cls], chunk);
-
-        done += chunk;
-        remaining -= chunk;
-        offset_cls = 0;
-
+        offset_in_cluster = 0;
         cluster = iterate_cluster(context->fs_ctx, cluster);
     }
 

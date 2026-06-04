@@ -109,7 +109,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         return -EINVAL; // TODO: try deducing filesystem type
     }
 
-    if(path == nullptr || device == nullptr) {
+    if(path == nullptr) {
         return -EINVAL;
     }
 
@@ -155,7 +155,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
 
     spinlock_acquire(&mounts_lock);
 
-    if(vfs_root == nullptr && path[0] == PATH_SEPARATOR && path[0] == 0) {
+    if(vfs_root == nullptr && path[0] == PATH_SEPARATOR && path[1] == 0) {
         vfs_root = fs->root;
 
         vnode_incref(vfs_root);
