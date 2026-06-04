@@ -10,8 +10,6 @@
 #define SEEK_CUR 1
 #define SEEK_END 2
 
-struct vnode;
-
 struct file {
     struct vnode* node;
     unsigned refcount;

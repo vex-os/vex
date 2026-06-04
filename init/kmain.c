@@ -19,9 +19,12 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
+#include <fs/devfs.h>
+
 static void recurse_dir(struct vnode* restrict node, const char* restrict path)
 {
     struct dirent entry;
+    struct __k_stat stat;
     size_t index = 0;
 
     while(0 == vnode_iterate(node, &entry, index++)) {
@@ -29,10 +32,46 @@ static void recurse_dir(struct vnode* restrict node, const char* restrict path)
             continue;
         }
 
-        pr_inform("  [%u] %s/%s", entry.nodetype, path, entry.name);
+        const char* codename;
+
+        switch(entry.nodetype) {
+            case VNODE_FILE:
+                codename = "FIL";
+                break;
+
+            case VNODE_DIRECTORY:
+                codename = "DIR";
+                break;
+
+            case VNODE_BLOCK_DEV:
+                codename = "BLK";
+                break;
+
+            case VNODE_CHAR_DEV:
+                codename = "CHR";
+                break;
+
+            case VNODE_SYM_LINK:
+                codename = "LNK";
+                break;
+
+            default:
+                codename = "---";
+                break;
+        }
+
+        memset(&stat, 0, sizeof(struct __k_stat));
+        int chk = vnode_stat(node, &stat);
+
+        if(chk == -ENOSYS) {
+            pr_warning("%s/%s: stat: %s", path, entry.name, strerror(chk));
+        }
+
+        pr_inform("  %04X [%s] %s/%s", stat.st_mode, codename, path, entry.name);
 
         if(entry.nodetype == VNODE_DIRECTORY) {
             struct vnode* child;
+
             if(0 == path_resolve_at(node, entry.name, &child)) {
                 char subpath[PATH_NAME_SIZE];
                 snprintf(subpath, sizeof(subpath), "%s%c%s", path, PATH_SEPARATOR, entry.name);

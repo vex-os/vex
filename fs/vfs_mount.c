@@ -3,6 +3,7 @@
 #include <core/spinlock.h>
 #include <fs/vfs_mount.h>
 #include <fs/vfs_path.h>
+#include <fs/vfs_vcache.h>
 #include <fs/vfs_vnode.h>
 #include <lib/string.h>
 #include <mm/malloc.h>
@@ -73,9 +74,9 @@ int vfs_driver_unregister(struct vfs_driver* restrict driver)
 
     spinlock_acquire(&drivers_lock);
 
-    for(prev = &drivers_head; *prev; prev = &(*prev)->priv.next) {
-        if(*prev == driver) {
-            *prev = driver->priv.next;
+    for(prev = &drivers_head; prev[0]; prev = &prev[0]->priv.next) {
+        if(prev[0] == driver) {
+            prev[0] = driver->priv.next;
             driver->priv.next = nullptr;
 
             spinlock_release(&drivers_lock);
@@ -148,8 +149,12 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         retval = path_resolve(path, &mountpoint);
 
         if(retval < 0) {
+            vcache_evict(fs);
+
             driver->ops->unmount(fs);
+
             slab_free(fs);
+
             return retval;
         }
     }
@@ -170,6 +175,8 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
     if(entry == nullptr) {
         spinlock_release(&mounts_lock);
 
+        vcache_evict(fs);
+
         driver->ops->unmount(fs);
 
         slab_free(fs);
@@ -181,6 +188,8 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
 
     if(entry->path == nullptr) {
         spinlock_release(&mounts_lock);
+
+        vcache_evict(fs);
 
         driver->ops->unmount(fs);
 
@@ -207,8 +216,8 @@ int vfs_unmount(const char* restrict path)
 
     struct mount_entry** prev = &mounts_head;
 
-    while(*prev) {
-        struct mount_entry* entry = *prev;
+    while(prev[0]) {
+        struct mount_entry* entry = prev[0];
 
         if(entry->path && 0 == strcmp(entry->path, path)) {
             struct vfs* fs = entry->fs;
@@ -216,9 +225,13 @@ int vfs_unmount(const char* restrict path)
 
             if(fs->mountpoint) {
                 fs->mountpoint->fs_mounted = nullptr;
+
                 vnode_decref(fs->mountpoint);
+
                 fs->mountpoint = nullptr;
             }
+
+            vcache_evict(fs);
 
             retval = fs->ops->unmount(fs);
 
@@ -235,7 +248,6 @@ int vfs_unmount(const char* restrict path)
             }
 
             slab_free(fs);
-
             kfree(entry->path);
             slab_free(entry);
 

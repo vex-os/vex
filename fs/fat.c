@@ -174,11 +174,74 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         return -ENOMEM;
     }
 
-    root->fs  = fs;
-    root->ino = 0;
+    root->fs = fs;
+    root->nodenumber = 0;
 
     fs->root = root;
     fs->ctxdata = context;
+
+    return 0;
+}
+
+static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
+{
+    struct fat_vfs_context* context = fs->ctxdata;
+
+    ino_t nodenumber = node->nodenumber;
+    uintptr_t lba = nodenumber >> 32;
+    uintptr_t byte_offset = nodenumber & 0xFFFFFFFF;
+
+    int retval = blk_device_read(context->device, lba, 1, context->bounce);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    const struct fat_dir_entry* raw_entry = (const struct fat_dir_entry*)(context->bounce + byte_offset);
+
+    uintptr_t cluster = 0;
+    cluster |= (uintptr_t)(raw_entry->first_cluster_hi) << 16;
+    cluster |= (uintptr_t)(raw_entry->first_cluster_lo);
+
+    struct fat_vnode_context* node_context = slab_alloc(sizeof(struct fat_vnode_context));
+
+    if(node_context == nullptr) {
+        return -ENOMEM;
+    }
+
+    uintptr_t num_entries = context->sector_size / sizeof(union fat_entry);
+    uintptr_t dir_entry_s = byte_offset / sizeof(union fat_entry);
+    uintptr_t dir_lba = lba;
+
+    uintptr_t cluster_lba = dir_lba;
+    cluster_lba -= dir_lba % context->cluster_size_s;
+
+    // Reconstruct dir_cluster and dir_offset from the nodenumber
+    // so that writes can update entries without additional scanning
+
+    uintptr_t dir_cluster = cluster_lba - context->data_start;
+    dir_cluster /= context->cluster_size_s;
+    dir_cluster += 2;
+
+    size_t dir_offset = dir_lba;
+    dir_offset -= fat_cluster_lba(context, dir_cluster);
+    dir_offset *= num_entries;
+    dir_offset += dir_entry_s;
+
+    node_context->fs_ctx = context;
+    node_context->first_cluster = cluster;
+    node_context->size_bytes = raw_entry->file_size;
+    node_context->dir_cluster = dir_cluster;
+    node_context->dir_offset = dir_offset;
+
+    node->ctxdata = node_context;
+
+    if(raw_entry->attribute & FAT_ATTR_DIRECTORY) {
+        node->nodetype = VNODE_DIRECTORY;
+    }
+    else {
+        node->nodetype = VNODE_FILE;
+    }
 
     return 0;
 }
@@ -187,7 +250,6 @@ static int fat_unmount(struct vfs* restrict fs)
 {
     struct fat_vfs_context* context = fs->ctxdata;
 
-    vnode_cache_evict_fs(fs);
     vnode_decref(fs->root);
 
     kfree(context->bounce);
@@ -207,6 +269,7 @@ static int fat_sync(struct vfs* restrict fs)
 
 static const struct vfs_ops fat_vfs_ops = {
     .mount = &fat_mount,
+    .fillnode = &fat_fillnode,
     .unmount = &fat_unmount,
     .sync = &fat_sync,
 };

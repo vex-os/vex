@@ -6,6 +6,7 @@
 #include <dev/chr_event.h>
 #include <fs/devfs.h>
 #include <fs/vfs_mount.h>
+#include <fs/vfs_vcache.h>
 #include <fs/vfs_vnode.h>
 #include <init/initcall.h>
 #include <lib/string.h>
@@ -30,10 +31,10 @@ int devfs_insert(const char* restrict name, struct vnode* restrict node)
     memset(entry, 0, sizeof(struct devfs_node));
     kstrncpy(entry->name, name, sizeof(entry->name));
 
-    node->fs  = devfs_instance;
-    node->ino = (ino_t)(uintptr_t)node;
+    node->fs = devfs_instance;
+    node->nodenumber = (ino_t)((uintptr_t)(node));
 
-    int retval = vnode_cache_insert(node);
+    int retval = vcache_insert(node);
 
     if(retval < 0) {
         slab_free(entry);
@@ -124,8 +125,6 @@ static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 static int devfs_unmount(struct vfs* restrict fs)
 {
     struct devfs_state* state = fs->ctxdata;
-
-    vnode_cache_evict_fs(fs);
 
     spinlock_acquire(&state->lock);
 

@@ -10,9 +10,51 @@
 #include <lib/strings.h>
 #include <mm/slab.h>
 
+static ino_t fat_nodenumber(const struct fat_vfs_context* restrict fs, uintptr_t dir_cluster, size_t index)
+{
+    size_t num_entries = fs->sector_size / sizeof(union fat_entry);
+    uintptr_t entry_sector = index / num_entries;
+    uintptr_t entry_offset = index % num_entries * sizeof(union fat_entry);
+    uintptr_t lba;
+
+    if(dir_cluster == 0) {
+        lba = fs->data_start - fs->rootdir_sectors + entry_sector;
+    }
+    else {
+        lba = entry_sector + fat_cluster_lba(fs, dir_cluster);
+    }
+
+    ino_t result = 0;
+    result |= lba << 32;
+    result |= entry_offset;
+    return result;
+}
+
+static void make_83name(const char* restrict name, uint8_t out[11])
+{
+    memset(out, 0x20, 11);
+
+    const char* separator = strchr(name, PATH_SEPARATOR);
+
+    unsigned name_pos = 0;
+
+    for(const char* it = name; it[0] && it != separator && name_pos < 8; ++it) {
+        out[name_pos] = toupper(it[0]);
+        name_pos += 1;
+    }
+
+    if(separator) {
+        unsigned ext_pos = 8;
+
+        for(const char* it = separator + 1; it[0] && ext_pos < 11; ++it) {
+            out[ext_pos] = toupper(it[0]);
+            ext_pos += 1;
+        }
+    }
+}
+
 static void fat_vnode_release(struct vnode* restrict node);
 static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out_ino);
-static int fat_vnode_iget(struct vnode* restrict node);
 static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index);
 static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
 static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, uintptr_t offset);
@@ -22,7 +64,6 @@ static int fat_vnode_stat(struct vnode* restrict node, struct __k_stat* restrict
 const struct vnode_ops fat_vnode_ops = {
     .release = &fat_vnode_release,
     .lookup = &fat_vnode_lookup,
-    .iget = &fat_vnode_iget,
     .iterate = &fat_vnode_iterate,
     .create = &fat_vnode_create,
     .read = &fat_vnode_read,
@@ -30,38 +71,12 @@ const struct vnode_ops fat_vnode_ops = {
     .stat = &fat_vnode_stat,
 };
 
-/* ino encoding for FAT:
- *   bits 63..32 — LBA of the sector containing the directory entry
- *   bits 31..0  — byte offset of the 32-byte
-
- * * entry within that sector
- *
- * The root directory pseudo-entry (cluster 0/2) gets ino = 0 as a sentinel. */
-
-static ino_t fat_make_ino(const struct fat_vfs_context* fs, uintptr_t dir_cluster, size_t dir_entry_index)
-{
-    size_t entries_per_sector = fs->sector_size / 32;
-    uintptr_t entry_sector = dir_entry_index / entries_per_sector;
-    uintptr_t entry_offset = (dir_entry_index % entries_per_sector) * 32;
-    uintptr_t lba;
-
-    if(dir_cluster == 0) {
-        /* FAT12/16 fixed root directory — matches read_entry logic for cluster==0 */
-        lba = fs->data_start - fs->rootdir_sectors + entry_sector;
-    }
-    else {
-        lba = fat_cluster_lba(fs, dir_cluster) + entry_sector;
-    }
-
-    return ((ino_t)lba << 32) | (ino_t)entry_offset;
-}
-
 static void fat_vnode_release(struct vnode* restrict node)
 {
     slab_free(node->ctxdata);
 }
 
-static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out_ino)
+static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_dirent dirent;
@@ -70,66 +85,19 @@ static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict na
     for(;;) {
         int retval = fat_dirent_read(context->fs_ctx, context->first_cluster, &offset, &dirent);
 
-        if(retval < 0)
+        if(retval < 0) {
             return retval;
+        }
 
-        if(strncasecmp(dirent.full_name, name, PATH_NAME_SIZE))
+        if(strncasecmp(dirent.full_name, name, PATH_NAME_SIZE)) {
             continue;
+        }
 
-        /* offset was incremented past the entry by fat_dirent_read, so the
-         * actual entry index is (offset - 1). */
-        *out_ino = fat_make_ino(context->fs_ctx, context->first_cluster, offset - 1);
+        out[0] = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1); // fat_dirent_read increments the offset
         return 0;
     }
 
     unreachable();
-}
-
-static int fat_vnode_iget(struct vnode* restrict node)
-{
-    struct fat_vfs_context* fs = node->fs->ctxdata;
-
-    ino_t ino = node->ino;
-    uintptr_t lba = (uintptr_t)(ino >> 32);
-    uintptr_t byte_offset = (uintptr_t)(ino & 0xFFFFFFFF);
-
-    int retval = blk_device_read(fs->device, lba, 1, fs->bounce);
-
-    if(retval < 0)
-        return retval;
-
-    const struct fat_dir_entry* raw = (const struct fat_dir_entry*)(fs->bounce + byte_offset);
-
-    uintptr_t cluster = 0;
-    cluster |= (uintptr_t)(raw->first_cluster_hi) << 16;
-    cluster |= (uintptr_t)(raw->first_cluster_lo);
-
-    struct fat_vnode_context* ctx = slab_alloc(sizeof(struct fat_vnode_context));
-
-    if(ctx == nullptr)
-        return -ENOMEM;
-
-    /* Reconstruct dir_cluster and dir_offset from ino so that writes can
-     * update the directory entry without a second scan. */
-    uintptr_t entries_per_sector = fs->sector_size / 32;
-    uintptr_t dir_lba = lba;
-    uintptr_t dir_entry_in_sec = byte_offset / 32;
-
-    /* Walk back from lba to the cluster start to find dir_cluster. */
-    uintptr_t cluster_lba = dir_lba - (dir_lba % fs->cluster_size_s);
-    uintptr_t dir_cluster = ((cluster_lba - fs->data_start) / fs->cluster_size_s) + 2;
-    size_t dir_offset = (dir_lba - fat_cluster_lba(fs, dir_cluster)) * entries_per_sector + dir_entry_in_sec;
-
-    ctx->fs_ctx = fs;
-    ctx->first_cluster = cluster;
-    ctx->size_bytes = raw->file_size;
-    ctx->dir_cluster = dir_cluster;
-    ctx->dir_offset = dir_offset;
-
-    node->ctxdata = ctx;
-    node->nodetype = (raw->attribute & FAT_ATTR_DIRECTORY) ? VNODE_DIRECTORY : VNODE_FILE;
-
-    return 0;
 }
 
 static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index)
@@ -142,18 +110,25 @@ static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restric
     for(;;) {
         int retval = fat_dirent_read(context->fs_ctx, context->first_cluster, &offset, &entry);
 
-        if(retval < 0)
+        if(retval < 0) {
             return retval;
+        }
 
-        if(entry.base.attribute & FAT_ATTR_VOLUME_ID)
+        if(entry.base.attribute & FAT_ATTR_VOLUME_ID) {
             continue;
+        }
 
         if(visible < index) {
             visible += 1;
             continue;
         }
 
-        out->nodetype = (entry.base.attribute & FAT_ATTR_DIRECTORY) ? VNODE_DIRECTORY : VNODE_FILE;
+        if(entry.base.attribute & FAT_ATTR_DIRECTORY) {
+            out->nodetype = VNODE_DIRECTORY;
+        }
+        else {
+            out->nodetype = VNODE_FILE;
+        }
 
         memset(out->name, 0, PATH_NAME_SIZE);
         kstrncpy(out->name, entry.full_name, PATH_NAME_SIZE);
@@ -164,52 +139,34 @@ static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restric
     unreachable();
 }
 
-static void make_83name(const char* restrict name, uint8_t out[11])
-{
-    memset(out, ' ', 11);
-
-    const char* dot = nullptr;
-
-    for(const char* p = name; *p; p++) {
-        if(*p == '.')
-            dot = p;
-    }
-
-    unsigned ni = 0;
-
-    for(const char* p = name; *p && p != dot && ni < 8; p++, ni++)
-        out[ni] = (uint8_t)toupper((unsigned char)*p);
-
-    if(dot) {
-        unsigned ei = 8;
-
-        for(const char* p = dot + 1; *p && ei < 11; p++, ei++)
-            out[ei] = (uint8_t)toupper((unsigned char)*p);
-    }
-}
-
 static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
 
-    if(fs->param_readonly)
+    if(fs->param_readonly) {
         return -EROFS;
+    }
 
     size_t name_len = strnlen(name, PATH_NAME_SIZE);
-    unsigned num_lfn = (name_len + 12) / 13;
+
+    unsigned num_lfn = name_len + 12;
+    num_lfn /= 13;
+
     unsigned slots = num_lfn + 1;
 
     size_t slot_offset;
     int retval = fat_dirent_find_free(fs, context->first_cluster, slots, &slot_offset);
 
-    if(retval < 0)
+    if(retval < 0) {
         return retval;
+    }
 
     uintptr_t first_cluster = fat_cluster_alloc(fs);
 
-    if(first_cluster == UINTPTR_MAX)
+    if(first_cluster == UINTPTR_MAX) {
         return -ENOSPC;
+    }
 
     struct fat_dirent dirent;
     memset(&dirent, 0, sizeof(struct fat_dirent));
@@ -217,7 +174,13 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     make_83name(name, dirent.base.name);
     kstrncpy(dirent.full_name, name, PATH_NAME_SIZE);
 
-    dirent.base.attribute = (type == VNODE_DIRECTORY) ? FAT_ATTR_DIRECTORY : FAT_ATTR_ARCHIVE;
+    if(type == VNODE_DIRECTORY) {
+        dirent.base.attribute = FAT_ATTR_DIRECTORY;
+    }
+    else {
+        dirent.base.attribute = FAT_ATTR_ARCHIVE;
+    }
+
     dirent.base.first_cluster_hi = (uint16_t)(first_cluster >> 16);
     dirent.base.first_cluster_lo = (uint16_t)(first_cluster & 0xFFFF);
     dirent.base.file_size = 0;
@@ -251,7 +214,7 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     }
 
     out_node->fs = node->fs;
-    out_node->ino = fat_make_ino(fs, context->first_cluster, slot_offset + num_lfn);
+    out_node->nodenumber = fat_nodenumber(fs, context->first_cluster, slot_offset + num_lfn);
 
     out[0] = out_node;
 
@@ -263,13 +226,15 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
 
-    if(offset >= context->size_bytes)
+    if(offset >= context->size_bytes) {
         return 0;
+    }
 
     size_t remaining = sz;
 
-    if(offset + sz > context->size_bytes)
+    if(offset + sz > context->size_bytes) {
         remaining = context->size_bytes - offset;
+    }
 
     uintptr_t cluster = context->first_cluster;
     size_t cluster_index = offset / fs->cluster_size_b;
@@ -277,8 +242,9 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
     for(size_t i = 0; i < cluster_index; i++) {
         cluster = fat_cluster_next(fs, cluster);
 
-        if(cluster == UINTPTR_MAX)
+        if(cluster == UINTPTR_MAX) {
             return -EIO;
+        }
     }
 
     size_t offset_in_cluster = offset % fs->cluster_size_b;
@@ -300,8 +266,9 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
 
             size_t chunk = fs->sector_size - offset_in_sector;
 
-            if(chunk > remaining)
+            if(chunk > remaining) {
                 chunk = remaining;
+            }
 
             memcpy((uint8_t*)(buffer) + done, fs->bounce + offset_in_sector, chunk);
 
@@ -323,8 +290,9 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
 
-    if(fs->param_readonly)
+    if(fs->param_readonly) {
         return -EROFS;
+    }
 
     uintptr_t cluster = context->first_cluster;
     size_t cluster_index = offset / fs->cluster_size_b;
@@ -335,8 +303,9 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
         if(next == UINTPTR_MAX) {
             next = fat_cluster_alloc(fs);
 
-            if(next == UINTPTR_MAX)
+            if(next == UINTPTR_MAX) {
                 return -ENOSPC;
+            }
 
             fat_cluster_link(fs, cluster, next);
         }
@@ -345,8 +314,8 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
     }
 
     size_t offset_in_cluster = offset % fs->cluster_size_b;
-    size_t done = 0;
     size_t remaining = sz;
+    size_t done = 0;
 
     while(remaining > 0) {
         size_t sector_index = offset_in_cluster / fs->sector_size;
@@ -356,16 +325,20 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
             uintptr_t lba = fat_cluster_lba(fs, cluster) + sector_index;
             size_t chunk = fs->sector_size - offset_in_sector;
 
-            if(chunk > remaining)
+            if(chunk > remaining) {
                 chunk = remaining;
+            }
 
             int retval;
 
             if(offset_in_sector > 0 || chunk < fs->sector_size) {
                 retval = blk_device_read(fs->device, lba, 1, fs->bounce);
 
-                if(retval < 0)
-                    return done > 0 ? (ssize_t)done : retval;
+                if(retval < 0) {
+                    if(node > 0)
+                        return done;
+                    return retval;
+                }
             }
 
             memcpy(fs->bounce + offset_in_sector, (const uint8_t*)buffer + done, chunk);
@@ -427,7 +400,7 @@ static int fat_vnode_stat(struct vnode* restrict node, struct __k_stat* restrict
 
     memset(out, 0, sizeof(struct __k_stat));
 
-    out->st_ino = node->ino;
+    out->st_ino = node->nodenumber;
     out->st_uid = fs->param_uid;
     out->st_gid = fs->param_gid;
     out->st_size = context->size_bytes;
@@ -438,13 +411,16 @@ static int fat_vnode_stat(struct vnode* restrict node, struct __k_stat* restrict
 
     mode_t rw_bits = S_IRUSR | S_IRGRP | S_IROTH;
 
-    if(!fs->param_readonly)
+    if(!fs->param_readonly) {
         rw_bits |= S_IWUSR | S_IWGRP;
+    }
 
-    if(node->nodetype == VNODE_DIRECTORY)
+    if(node->nodetype == VNODE_DIRECTORY) {
         out->st_mode = S_IFDIR | rw_bits | S_IXUSR | S_IXGRP | S_IXOTH;
-    else
+    }
+    else {
         out->st_mode = S_IFREG | rw_bits;
+    }
 
     return 0;
 }
