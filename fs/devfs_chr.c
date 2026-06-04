@@ -3,7 +3,7 @@
 #include <dev/chr_event.h>
 #include <fs/devfs.h>
 #include <fs/stat.h>
-#include <fs/vnode.h>
+#include <fs/vfs_vnode.h>
 #include <lib/string.h>
 #include <mm/slab.h>
 

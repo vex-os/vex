@@ -1,6 +1,6 @@
 #include <core/assert.h>
 #include <core/atomic.h>
-#include <fs/vnode.h>
+#include <fs/vfs_vnode.h>
 #include <lib/string.h>
 #include <mm/slab.h>
 
