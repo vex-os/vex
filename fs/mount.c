@@ -24,13 +24,10 @@ static struct vnode* vfs_root = nullptr;
 static struct vfs_driver* find_driver(const char* restrict name)
 {
     struct vfs_driver* it;
-    const char** id;
 
     for(it = drivers_head; it; it = it->priv.next) {
-        for(id = it->identifiers; id && id[0]; id += 1) {
-            if(0 == strcmp(*id, name)) {
-                return it;
-            }
+        if(0 == strcmp(it->identifier, name)) {
+            return it;
         }
     }
 
@@ -39,8 +36,6 @@ static struct vfs_driver* find_driver(const char* restrict name)
 
 int vfs_driver_register(struct vfs_driver* restrict driver)
 {
-    const char** id;
-
     if(driver == nullptr || driver->ops == nullptr) {
         return -EINVAL;
     }
@@ -49,17 +44,15 @@ int vfs_driver_register(struct vfs_driver* restrict driver)
         return -EINVAL;
     }
 
-    if(driver->identifiers == nullptr || driver->identifiers[0] == nullptr || driver->identifiers[0][0] == 0) {
+    if(driver->identifier == nullptr || driver->identifier[0] == 0) {
         return -EINVAL;
     }
 
     spinlock_acquire(&drivers_lock);
 
-    for(id = driver->identifiers; id && id[0]; id += 1) {
-        if(find_driver(*id)) {
-            spinlock_release(&drivers_lock);
-            return -EEXIST;
-        }
+    if(find_driver(driver->identifier)) {
+        spinlock_release(&drivers_lock);
+        return -EEXIST;
     }
 
     driver->priv.next = drivers_head;

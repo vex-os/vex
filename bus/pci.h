@@ -99,7 +99,7 @@ struct pci_bus_private {
 struct pci_bus {
     struct pci_bus_private priv;
     const struct pci_bus_ops* ops;
-    char identifier[64];
+    const char* identifier;
     unsigned segment;
     unsigned index;
     void* ctxdata;

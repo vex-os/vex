@@ -155,9 +155,8 @@ static const struct vfs_ops devfs_ops = {
     .unmount = &devfs_unmount,
 };
 
-static const char* devfs_identifiers[] = { "devtmpfs", "devfs", nullptr };
 static struct vfs_driver devfs_driver = {
-    .identifiers = devfs_identifiers,
+    .identifier = "devfs",
     .ops = &devfs_ops,
 };
 

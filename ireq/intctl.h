@@ -29,7 +29,7 @@ struct intctl_private {
 struct intctl {
     struct intctl_private priv;
     const struct intctl_ops* ops;
-    char identifier[64];
+    const char* identifier;
     uint32_t gsi_base;
     uint32_t gsi_count;
     void* ctxdata;

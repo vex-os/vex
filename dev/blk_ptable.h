@@ -28,7 +28,7 @@ struct blk_ptable_private {
 struct blk_ptable {
     struct blk_ptable_private priv;
     const struct blk_ptable_ops* ops;
-    char identifier[64];
+    const char* identifier;
 };
 
 int blk_ptable_register(struct blk_ptable* restrict ptable);

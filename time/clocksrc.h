@@ -21,7 +21,7 @@ struct clocksrc_private {
 struct clocksrc {
     struct clocksrc_private priv;
     const struct clocksrc_ops* ops;
-    char identifier[64];
+    const char* identifier;
     unsigned rating;
     uint64_t mask;
     void* ctxdata;
