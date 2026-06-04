@@ -11,14 +11,14 @@ struct devfs_chr_context {
     const struct chr_device* device;
 };
 
-static ssize_t devfs_chr_read(struct vfs_node* restrict node, void* restrict buffer, size_t sz, off_t offset)
+static ssize_t devfs_chr_read(struct vfs_node* restrict node, void* restrict buffer, size_t sz, size_t offset)
 {
     const struct devfs_chr_context* context = node->ctxdata;
 
     return chr_device_read(context->device, offset, buffer, sz);
 }
 
-static ssize_t devfs_chr_write(struct vfs_node* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t devfs_chr_write(struct vfs_node* restrict node, const void* restrict buffer, size_t sz, size_t offset)
 {
     const struct devfs_chr_context* context = node->ctxdata;
 

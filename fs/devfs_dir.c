@@ -30,11 +30,11 @@ static int devfs_dir_lookup(struct vfs_node* restrict dir, const char* restrict 
     return -ENOENT;
 }
 
-static int devfs_dir_readdir(struct vfs_node* restrict dir, struct vfs_dirent* restrict out_dirent, off_t index)
+static int devfs_dir_read_dir(struct vfs_node* restrict dir, struct vfs_dirent* restrict out_dirent, size_t index)
 {
     struct devfs_state* state = dir->ctxdata;
     struct devfs_node* it;
-    off_t i = 0;
+    size_t i = 0;
 
     spinlock_acquire(&state->lock);
 
@@ -57,5 +57,5 @@ static int devfs_dir_readdir(struct vfs_node* restrict dir, struct vfs_dirent* r
 
 const struct vfs_node_ops devfs_dir_ops = {
     .lookup = &devfs_dir_lookup,
-    .read_dir = &devfs_dir_readdir,
+    .read_dir = &devfs_dir_read_dir,
 };

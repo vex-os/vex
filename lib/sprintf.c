@@ -53,7 +53,13 @@ int vsnprintf(char* restrict str, size_t sz, const char* restrict fmt, va_list a
     ft.write = 0;
 
     r = vformat(&vsnprintf_func, &ft, fmt, ap);
-    ft.data[ft.length - 1] = 0;
+
+    if(ft.write < ft.length) {
+        ft.data[ft.write] = 0x00;
+    }
+    else {
+        ft.data[ft.length = 1] = 0x00;
+    }
 
     return r;
 }
