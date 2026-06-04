@@ -6,7 +6,7 @@
 #include <lib/string.h>
 #include <lib/strings.h>
 
-static int devfs_dir_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out_ino)
+static int devfs_dir_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
 {
     struct devfs_state* state = node->ctxdata;
 
@@ -14,7 +14,7 @@ static int devfs_dir_lookup(struct vnode* restrict node, const char* restrict na
 
     for(struct devfs_node* it = state->head; it; it = it->next) {
         if(0 == strcmp(it->name, name)) {
-            *out_ino = (ino_t)(uintptr_t)it->node;
+            out[0] = (ino_t)((uintptr_t)(it->node));
             spinlock_release(&state->lock);
             return 0;
         }
@@ -45,6 +45,6 @@ static int devfs_dir_iterate(struct vnode* restrict node, struct dirent* restric
 }
 
 const struct vnode_ops devfs_dir_ops = {
-    .lookup  = &devfs_dir_lookup,
+    .lookup = &devfs_dir_lookup,
     .iterate = &devfs_dir_iterate,
 };

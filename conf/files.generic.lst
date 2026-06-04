@@ -58,6 +58,7 @@ fs/fat.c
 fs/vfs_file.c
 fs/vfs_mount.c
 fs/vfs_path.c
+fs/vfs_vcache.c
 fs/vfs_vnode.c
 
 hash/crc32_iso3309.c

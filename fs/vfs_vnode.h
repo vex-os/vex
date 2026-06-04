@@ -24,13 +24,13 @@ enum {
 #define O_APPEND 0x0010
 
 struct dirent;
+
 struct __k_stat;
 
 struct vnode;
 struct vnode_ops {
     void (*release)(struct vnode* restrict node);
-    int (*lookup)(struct vnode* restrict node, const char* restrict name, ino_t* restrict out_ino);
-    int (*iget)(struct vnode* restrict node);
+    int (*lookup)(struct vnode* restrict node, const char* restrict name, ino_t* restrict out);
     int (*iterate)(struct vnode* restrict node, struct dirent* restrict out, size_t index);
     int (*create)(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
     int (*unlink)(struct vnode* restrict node, const char* restrict name);
@@ -50,12 +50,11 @@ struct vnode {
     spinlock_type lock;
     unsigned refcount;
     unsigned nodetype;
-    ino_t ino;
+    ino_t nodenumber;
     void* ctxdata;
 };
 
 struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict ops, void* restrict ctxdata) __nodiscard;
-struct vnode* vnode_alloc_ino(struct vfs* restrict fs, ino_t ino, const struct vnode_ops* restrict ops) __nodiscard;
 void vnode_incref(struct vnode* restrict node);
 bool vnode_decref(struct vnode* restrict node);
 
@@ -69,8 +68,5 @@ ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz
 ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, uintptr_t offset);
 int vnode_stat(struct vnode* restrict node, struct __k_stat* restrict out);
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, void* restrict argument);
-
-int  vnode_cache_insert(struct vnode* restrict node);
-void vnode_cache_evict_fs(struct vfs* restrict fs);
 
 #endif /* EAAEA97D_DF46_4C1D_9BCC_3810B6FA33F7 */

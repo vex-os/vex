@@ -294,8 +294,7 @@ int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t 
     return write_entry(context, cluster, offset, &raw);
 }
 
-int fat_dirent_find_free(const struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count,
-    size_t* restrict out_offset)
+int fat_dirent_find_free(const struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset)
 {
     union fat_entry raw;
     unsigned run = 0;

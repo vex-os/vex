@@ -41,6 +41,8 @@ static int devfs_chr_stat(struct vnode* restrict node, struct __k_stat* restrict
 {
     memset(out, 0, sizeof(struct __k_stat));
 
+    out->st_mode = 0x1337;
+
     return 0;
 }
 

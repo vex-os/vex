@@ -18,16 +18,17 @@ static int path_walk(struct vnode* restrict stem, const char* restrict path, str
 
     vnode_incref(current);
 
-    while(*ptr) {
-        while(*ptr == PATH_SEPARATOR) {
+    while(ptr[0]) {
+        while(ptr[0] == PATH_SEPARATOR) {
             ptr += 1;
         }
 
-        if(*ptr == 0) {
+        if(ptr[0] == 0) {
             break;
         }
 
         const char* separator = strchr(ptr, PATH_SEPARATOR);
+
         size_t length;
 
         if(separator == nullptr) {
