@@ -1,3 +1,4 @@
+#include <core/assert.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <init/initcall.h>
@@ -169,7 +170,8 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         controller->gsi_count = ((ver >> IOAPIC_VER_MAXREDIR_SHIFT) & IOAPIC_VER_MAXREDIR_MASK) + 1;
         controller->ctxdata = data;
 
-        snprintf(controller->identifier, sizeof(controller->identifier), "ioapic-%u", (unsigned)(id));
+        controller->identifier = kasprintf("ioapic%u", (unsigned)(id));
+        strict_kassert_text(controller->identifier, "kasprintf failed");
 
         for(i = 0; i < controller->gsi_count; ++i) {
             ioapic_write_rte(data, i, (struct rte_entry) { .masked = 1 });

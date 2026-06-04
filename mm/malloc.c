@@ -4,6 +4,7 @@
 #include <core/panic.h>
 #include <core/spinlock.h>
 #include <init/initcall.h>
+#include <lib/sprintf.h>
 #include <lib/string.h>
 #include <lib/strings.h>
 #include <mm/malloc.h>
@@ -321,6 +322,47 @@ char* kstrdup(const char* restrict string)
 
     memset(result, 0, size);
     kstrncpy(result, string, size - 1);
+
+    return result;
+}
+
+char* kasprintf(const char* restrict fmt, ...)
+{
+    char* result;
+
+    va_list ap;
+    va_start(ap, fmt);
+    result = kvasprintf(fmt, ap);
+    va_end(ap);
+
+    return result;
+}
+
+char* kvasprintf(const char* restrict fmt, va_list ap)
+{
+    int length;
+    char* result;
+    va_list ap_copy;
+
+    va_copy(ap_copy, ap);
+    length = vsnprintf(nullptr, 0, fmt, ap);
+
+    if(length < 0) {
+        va_end(ap_copy);
+        return nullptr;
+    }
+
+    result = kcalloc(1, length + 1);
+
+    if(result == nullptr) {
+        va_end(ap_copy);
+        return nullptr;
+    }
+
+    memset(result, 0, length + 1);
+    vsnprintf(result, length, fmt, ap_copy);
+
+    va_end(ap_copy);
 
     return result;
 }

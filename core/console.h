@@ -23,7 +23,7 @@ struct console_driver_private {
 struct console_driver {
     struct console_driver_private priv;
     const struct console_driver_ops* ops;
-    char identifier[64];
+    const char* identifier;
     unsigned consflags;
     void* ctxdata;
 };

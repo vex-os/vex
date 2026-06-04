@@ -33,7 +33,7 @@ struct vfs_driver_private {
 struct vfs_driver {
     struct vfs_driver_private priv;
     const struct vfs_ops* restrict ops;
-    const char** identifiers;
+    const char* identifier;
 };
 
 int vfs_driver_register(struct vfs_driver* restrict driver);

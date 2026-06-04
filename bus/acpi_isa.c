@@ -1,4 +1,5 @@
 #include <bus/isa.h>
+#include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <init/initcall.h>
@@ -97,11 +98,11 @@ static uacpi_iteration_decision parse_resource(void* ctxdata, uacpi_resource* ac
 
 static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_node* node, uacpi_u32 depth)
 {
-    uacpi_status status;
-    uacpi_namespace_node_info* info;
-    struct parse_context context;
     struct isa_device* device;
     struct isa_resource* resources;
+    struct parse_context context;
+    uacpi_namespace_node_info* info;
+    uacpi_status status;
 
     status = uacpi_get_namespace_node_info(node, &info);
 
@@ -121,8 +122,8 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
         return UACPI_ITERATION_DECISION_CONTINUE;
     }
 
-    memset(device->identifier, 0, sizeof(device->identifier));
-    strncpy(device->identifier, info->hid.value, sizeof(device->identifier) - 1);
+    device->identifier = kstrdup(info->hid.value);
+    strict_kassert_text(device->identifier, "out of memory");
 
     context.num_resources = 0;
     uacpi_for_each_device_resource(node, "_CRS", parse_resource, &context);

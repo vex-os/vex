@@ -69,7 +69,7 @@ void __noreturn kmain(void)
 
     pr_inform("hanging around...");
 
-    vfs_mount("msdos", "/", blk_device_find("ada0n1p1"), "readonly");
+    vfs_mount("fat", "/", blk_device_find("ada0n1p1"), "readonly");
     // vfs_mount("devfs", "/", nullptr, nullptr);
     recurse_root();
 

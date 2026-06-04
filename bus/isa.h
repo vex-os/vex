@@ -47,7 +47,7 @@ struct isa_device_private {
 
 struct isa_device {
     struct isa_device_private priv;
-    char identifier[64];
+    const char* identifier;
     void* ctxdata;
 };
 
@@ -63,7 +63,7 @@ struct isa_driver_private {
 struct isa_driver {
     struct isa_driver_private priv;
     const struct isa_driver_ops* ops;
-    char identifier[64];
+    const char* identifier;
 };
 
 int isa_device_register(struct isa_device* restrict device);

@@ -840,9 +840,8 @@ static const struct vfs_ops fatfs_vfs_ops = {
     .sync = &fatfs_sync,
 };
 
-static const char* fatfs_identifiers[] = { "fat", "vfat", "msdos", nullptr };
 static struct vfs_driver fatfs_vfs_driver = {
-    .identifiers = fatfs_identifiers,
+    .identifier = "fat",
     .ops = &fatfs_vfs_ops,
 };
 
