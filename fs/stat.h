@@ -4,13 +4,14 @@
 
 #include <vex/stat.h>
 
-#define S_IFBLK   __k_S_IFBLK
-#define S_IFCHR   __k_S_IFCHR
-#define S_IFIFO   __k_S_IFIFO
-#define S_IFREG   __k_S_IFREG
-#define S_IFLNK   __k_S_IFLNK
-#define S_IFSOCK  __k_S_IFSOCK
-#define S_IF_MASK __k_S_IF_MASK
+#define S_IFBLK  __k_S_IFBLK
+#define S_IFCHR  __k_S_IFCHR
+#define S_IFIFO  __k_S_IFIFO
+#define S_IFREG  __k_S_IFREG
+#define S_IFDIR  __k_S_IFDIR
+#define S_IFLNK  __k_S_IFLNK
+#define S_IFSOCK __k_S_IFSOCK
+#define S_IFMT   __k_S_IFMT
 
 #define S_IRUSR __k_S_IRUSR
 #define S_IWUSR __k_S_IWUSR

@@ -140,6 +140,8 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         return retval;
     }
 
+    fs->ops = driver->ops;
+
     spinlock_acquire(&mounts_lock);
 
     if(vfs_root == nullptr && path[0] == PATH_SEPARATOR && path[1] == 0) {
@@ -243,6 +245,31 @@ int vfs_unmount(const char* restrict path)
         }
 
         prev = &entry->next;
+    }
+
+    spinlock_release(&mounts_lock);
+
+    return -ENOENT;
+}
+
+int vfs_sync(const char* restrict path)
+{
+    weak_kassert_text(path, "invalid path pointer");
+
+    spinlock_acquire(&mounts_lock);
+
+    for(struct mount_entry* entry = mounts_head; entry; entry = entry->next) {
+        if(entry->path && 0 == strcmp(entry->path, path)) {
+            struct vfs* fs = entry->fs;
+
+            spinlock_release(&mounts_lock);
+
+            if(fs->ops->sync == nullptr) {
+                return -ENOSYS;
+            }
+
+            return fs->ops->sync(fs);
+        }
     }
 
     spinlock_release(&mounts_lock);

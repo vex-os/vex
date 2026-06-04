@@ -41,6 +41,7 @@ int vfs_driver_unregister(struct vfs_driver* restrict driver);
 
 int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params);
 int vfs_unmount(const char* restrict path);
+int vfs_sync(const char* restrict path);
 int vfs_get_root(struct vnode** restrict out);
 
 #endif /* E7F3A178_693A_4817_A6DA_3793C8B5CE3F */

@@ -166,6 +166,8 @@ struct fat_vnode_context {
     struct fat_vfs_context* fs_ctx;
     uintptr_t first_cluster;
     size_t size_bytes;
+    uintptr_t dir_cluster;
+    size_t dir_offset;
 };
 
 extern const struct vnode_ops fat_vnode_ops;
@@ -187,6 +189,10 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
     struct fat_dirent* restrict entry);
 int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
     const struct fat_dirent* restrict entry);
+int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
+    const struct fat_dir_entry* restrict entry);
+int fat_dirent_find_free(const struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count,
+    size_t* restrict out_offset);
 
 static __always_inline inline uintptr_t fat_cluster_lba(const struct fat_vfs_context* restrict context, uintptr_t cluster)
 {

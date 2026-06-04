@@ -47,15 +47,15 @@ ext/uacpi/types.c
 ext/uacpi/uacpi.c
 ext/uacpi/utilities.c
 
-# fs/fatfs_cluster.c
-# fs/fatfs_dir.c
-# fs/fatfs_vnode.c
-# fs/fatfs.c
 fs/devfs_blk.c
 fs/devfs_chr.c
 fs/devfs_dir.c
 fs/devfs.c
-fs/file.c
+fs/fat_cluster.c
+fs/fat_dirent.c
+fs/fat_vnode.c
+fs/fat.c
+fs/vfs_file.c
 fs/vfs_mount.c
 fs/vfs_path.c
 fs/vfs_vnode.c
