@@ -13,6 +13,8 @@
 #include <fs/vfs_types.h>
 #include <init/initcall.h>
 #include <lib/sprintf.h>
+#include <lib/string.h>
+#include <lib/strings.h>
 #include <limine.h>
 #include <mm/malloc.h>
 
@@ -74,6 +76,30 @@ void __noreturn kmain(void)
     vfs_mount("fat", "/", blk_device_find("ada0n1p1"), "readonly");
 
     list_root();
+
+    struct vfs_file* file = vfs_open("/limine.conf", VFS_O_RDONLY);
+
+    if(file == nullptr) {
+        pr_warning("nofile");
+    }
+    else {
+        char chr[2];
+        char buffer[2048];
+
+        memset(buffer, 0, sizeof(buffer));
+        chr[1] = 0;
+
+        while(vfs_read(file, &chr[0], 1) > 0) {
+            kstrncat(buffer, chr, sizeof(buffer));
+        }
+
+        pr_inform("file:\n%s", buffer);
+
+        pr_warning("close");
+
+        vfs_close(file);
+    }
+
     // test_devfs_write("/ada0n2p2");
     // test_devfs_read("/ada0n2p2");
 
