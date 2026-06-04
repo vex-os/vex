@@ -1,9 +1,9 @@
 #include <core/errno.h>
 #include <dev/chr_device.h>
 #include <dev/chr_event.h>
-#include <fs/devfs_internal.h>
-#include <fs/vfs_node.h>
-#include <fs/vfs_types.h>
+#include <fs/devfs.h>
+#include <fs/stat.h>
+#include <fs/vnode.h>
 #include <lib/string.h>
 #include <mm/slab.h>
 
@@ -11,41 +11,41 @@ struct devfs_chr_context {
     const struct chr_device* device;
 };
 
-static ssize_t devfs_chr_read(struct vfs_node* restrict node, void* restrict buffer, size_t sz, size_t offset)
+static void devfs_chr_release(struct vnode* restrict node)
+{
+    slab_free(node->ctxdata);
+}
+
+static ssize_t devfs_chr_read(struct vnode* restrict node, void* restrict buffer, size_t sz, size_t offset)
 {
     const struct devfs_chr_context* context = node->ctxdata;
 
     return chr_device_read(context->device, offset, buffer, sz);
 }
 
-static ssize_t devfs_chr_write(struct vfs_node* restrict node, const void* restrict buffer, size_t sz, size_t offset)
+static ssize_t devfs_chr_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, size_t offset)
 {
     const struct devfs_chr_context* context = node->ctxdata;
 
     return chr_device_write(context->device, offset, buffer, sz);
 }
 
-static int devfs_chr_ioctl(struct vfs_node* restrict node, unsigned request, void* restrict arg)
+static int devfs_chr_ioctl(struct vnode* restrict node, unsigned request, void* restrict arg)
 {
     const struct devfs_chr_context* context = node->ctxdata;
 
     return chr_device_ioctl(context->device, request, arg);
 }
 
-static int devfs_chr_stat(struct vfs_node* restrict node, struct vfs_stat* restrict out_stat)
+static int devfs_chr_stat(struct vnode* restrict node, struct __k_stat* restrict out)
 {
-    memset(out_stat, 0, sizeof(struct vfs_stat));
-    out_stat->type = VFS_NODE_TYPE_CHR_DEVICE;
+    memset(out, 0, sizeof(struct __k_stat));
+
     return 0;
 }
 
-static void devfs_chr_destroy(struct vfs_node* restrict node)
-{
-    slab_free(node->ctxdata);
-}
-
-static const struct vfs_node_ops devfs_chr_ops = {
-    .destroy = &devfs_chr_destroy,
+static const struct vnode_ops devfs_chr_ops = {
+    .release = &devfs_chr_release,
     .read = &devfs_chr_read,
     .write = &devfs_chr_write,
     .ioctl = &devfs_chr_ioctl,
@@ -56,7 +56,7 @@ void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict d
 {
     int retval;
     struct devfs_chr_context* context;
-    struct vfs_node* vnode;
+    struct vnode* vnode;
 
     if(event == CHR_EVENT_DEVICE_ADDED) {
         context = slab_alloc(sizeof(struct devfs_chr_context));
@@ -67,7 +67,7 @@ void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict d
 
         context->device = device;
 
-        vnode = vfs_node_alloc(VFS_NODE_TYPE_CHR_DEVICE, &devfs_chr_ops, context);
+        vnode = vnode_alloc(VNODE_CHAR_DEV, &devfs_chr_ops, context);
 
         if(vnode == nullptr) {
             slab_free(context);
@@ -77,7 +77,7 @@ void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict d
         retval = devfs_insert(device->identifier, vnode);
 
         if(retval < 0) {
-            vfs_node_dec_refcount(vnode);
+            vnode_decref(vnode);
         }
 
         return;

@@ -2,9 +2,11 @@
 #include <core/endian.h>
 #include <core/errno.h>
 #include <dev/blk_device.h>
-#include <fs/vfs_mount.h>
-#include <fs/vfs_node.h>
-#include <fs/vfs_types.h>
+#include <fs/dirent.h>
+#include <fs/mount.h>
+#include <fs/path.h>
+#include <fs/stat.h>
+#include <fs/vnode.h>
 #include <init/initcall.h>
 #include <lib/ctype.h>
 #include <lib/string.h>
@@ -140,7 +142,7 @@ union fatfs_table_entry {
 
 struct fatfs_dirent {
     struct fatfs_table_entry_basic basic;
-    char full_name[VFS_NAME_SIZE];
+    char full_name[PATH_NAME_SIZE];
 };
 
 struct fatfs_context {
@@ -164,7 +166,7 @@ struct fatfs_context {
     uint8_t* bounce;
 };
 
-struct fatfs_node_context {
+struct fatfs_vnode_context {
     struct fatfs_context* fs_ctx;
     uint32_t first_cluster; // zero for fat1x root directory
     uint32_t size_bytes;
@@ -373,7 +375,7 @@ static int read_dirent(const struct fatfs_context* restrict context, uint32_t fi
         for(i = num_lfn; i > 0 && !lfn_done; --i) {
             lfn_it = &lfn[i - 1];
 
-            for(j = 0; j < 5 && name_pos < VFS_NAME_SIZE && !lfn_done; ++j) {
+            for(j = 0; j < 5 && name_pos < PATH_NAME_SIZE && !lfn_done; ++j) {
                 if(lfn_it->name_1[j] == 0x0000 || lfn_it->name_1[j] == 0xFFFF) {
                     lfn_done = true;
                 }
@@ -382,7 +384,7 @@ static int read_dirent(const struct fatfs_context* restrict context, uint32_t fi
                 }
             }
 
-            for(j = 0; j < 6 && name_pos < VFS_NAME_SIZE && !lfn_done; ++j) {
+            for(j = 0; j < 6 && name_pos < PATH_NAME_SIZE && !lfn_done; ++j) {
                 if(lfn_it->name_2[j] == 0x0000 || lfn_it->name_2[j] == 0xFFFF) {
                     lfn_done = true;
                 }
@@ -391,7 +393,7 @@ static int read_dirent(const struct fatfs_context* restrict context, uint32_t fi
                 }
             }
 
-            for(j = 0; j < 2 && name_pos < VFS_NAME_SIZE && !lfn_done; ++j) {
+            for(j = 0; j < 2 && name_pos < PATH_NAME_SIZE && !lfn_done; ++j) {
                 if(lfn_it->name_3[j] == 0x0000 || lfn_it->name_3[j] == 0xFFFF) {
                     lfn_done = true;
                 }
@@ -423,34 +425,34 @@ static int read_dirent(const struct fatfs_context* restrict context, uint32_t fi
     return 0;
 }
 
-static void fatfs_node_destroy(struct vfs_node* restrict node);
-static int fatfs_node_lookup(struct vfs_node* restrict dir, const char* restrict name, struct vfs_node** restrict out);
-static int fatfs_node_read_dir(struct vfs_node* restrict dir, struct vfs_dirent* out_dirent, size_t index);
-static ssize_t fatfs_node_read(struct vfs_node* restrict node, void* restrict buffer, size_t sz, size_t offset);
-static int fatfs_node_stat(struct vfs_node* restrict node, struct vfs_stat* restrict out_stat);
+static void fatfs_vnode_release(struct vnode* restrict node);
+static int fatfs_vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out);
+static int fatfs_vnode_iterate(struct vnode* restrict node, struct dirent* out_dirent, size_t index);
+static ssize_t fatfs_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, uintptr_t offset);
+static int fatfs_vnode_stat(struct vnode* restrict node, struct __k_stat* restrict out_stat);
 
-static const struct vfs_node_ops fatfs_node_ops = {
-    .destroy = &fatfs_node_destroy,
-    .lookup = &fatfs_node_lookup,
-    .read_dir = &fatfs_node_read_dir,
-    .read = &fatfs_node_read,
-    .stat = &fatfs_node_stat,
+static const struct vnode_ops fatfs_vnode_ops = {
+    .release = &fatfs_vnode_release,
+    .lookup = &fatfs_vnode_lookup,
+    .iterate = &fatfs_vnode_iterate,
+    .read = &fatfs_vnode_read,
+    .stat = &fatfs_vnode_stat,
 };
 
-static void fatfs_node_destroy(struct vfs_node* restrict node)
+static void fatfs_vnode_release(struct vnode* restrict node)
 {
     slab_free(node->ctxdata);
 }
 
-static int fatfs_node_lookup(struct vfs_node* restrict dir, const char* restrict name, struct vfs_node** restrict out)
+static int fatfs_vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out)
 {
-    struct fatfs_node_context* context = dir->ctxdata;
+    struct fatfs_vnode_context* context = node->ctxdata;
 
     int retval;
     size_t offset;
     struct fatfs_dirent dirent;
-    struct fatfs_node_context* out_context;
-    struct vfs_node* out_node;
+    struct fatfs_vnode_context* out_context;
+    struct vnode* out_node;
     uint32_t cluster;
     unsigned type;
 
@@ -463,7 +465,7 @@ static int fatfs_node_lookup(struct vfs_node* restrict dir, const char* restrict
             return retval;
         }
 
-        if(strncasecmp(dirent.full_name, name, VFS_NAME_SIZE)) {
+        if(strncasecmp(dirent.full_name, name, PATH_NAME_SIZE)) {
             continue;
         }
 
@@ -472,13 +474,13 @@ static int fatfs_node_lookup(struct vfs_node* restrict dir, const char* restrict
         cluster |= (uint32_t)(dirent.basic.first_cluster_lo);
 
         if(dirent.basic.attribute & FATFS_ATTR_DIRECTORY) {
-            type = VFS_NODE_TYPE_DIRECTORY;
+            type = VNODE_DIRECTORY;
         }
         else {
-            type = VFS_NODE_TYPE_FILE;
+            type = VNODE_FILE;
         }
 
-        out_context = slab_alloc(sizeof(struct fatfs_node_context));
+        out_context = slab_alloc(sizeof(struct fatfs_vnode_context));
 
         if(out_context == nullptr) {
             return -ENOMEM;
@@ -488,7 +490,7 @@ static int fatfs_node_lookup(struct vfs_node* restrict dir, const char* restrict
         out_context->first_cluster = cluster;
         out_context->size_bytes = dirent.basic.file_size;
 
-        out_node = vfs_node_alloc(type, &fatfs_node_ops, out_context);
+        out_node = vnode_alloc(type, &fatfs_vnode_ops, out_context);
 
         if(out_node == nullptr) {
             slab_free(out_context);
@@ -503,20 +505,20 @@ static int fatfs_node_lookup(struct vfs_node* restrict dir, const char* restrict
     unreachable();
 }
 
-static int fatfs_node_read_dir(struct vfs_node* restrict dir, struct vfs_dirent* out_dirent, size_t index)
+static int fatfs_vnode_iterate(struct vnode* restrict node, struct dirent* out, size_t index)
 {
-    struct fatfs_node_context* context = dir->ctxdata;
+    struct fatfs_vnode_context* context = node->ctxdata;
 
     int retval;
     size_t offset;
     size_t visible;
-    struct fatfs_dirent dirent;
+    struct fatfs_dirent entry;
 
     visible = 0;
     offset = 0;
 
     for(;;) {
-        retval = read_dirent(context->fs_ctx, context->first_cluster, &offset, &dirent);
+        retval = read_dirent(context->fs_ctx, context->first_cluster, &offset, &entry);
 
         if(retval < 0) {
             return retval;
@@ -527,21 +529,21 @@ static int fatfs_node_read_dir(struct vfs_node* restrict dir, struct vfs_dirent*
             continue;
         }
 
-        if(dirent.basic.attribute & FATFS_ATTR_VOLUME_ID) {
+        if(entry.basic.attribute & FATFS_ATTR_VOLUME_ID) {
             continue;
         }
 
         visible += 1;
 
-        if(dirent.basic.attribute & FATFS_ATTR_DIRECTORY) {
-            out_dirent->type = VFS_NODE_TYPE_DIRECTORY;
+        if(entry.basic.attribute & FATFS_ATTR_DIRECTORY) {
+            out->nodetype = VNODE_DIRECTORY;
         }
         else {
-            out_dirent->type = VFS_NODE_TYPE_FILE;
+            out->nodetype = VNODE_FILE;
         }
 
-        memset(out_dirent->name, 0, VFS_NAME_SIZE);
-        kstrncpy(out_dirent->name, dirent.full_name, VFS_NAME_SIZE);
+        memset(out->name, 0, PATH_NAME_SIZE);
+        kstrncpy(out->name, entry.full_name, PATH_NAME_SIZE);
 
         return 0;
     }
@@ -549,25 +551,25 @@ static int fatfs_node_read_dir(struct vfs_node* restrict dir, struct vfs_dirent*
     unreachable();
 }
 
-static int fatfs_node_stat(struct vfs_node* restrict node, struct vfs_stat* restrict out_stat)
+static int fatfs_vnode_stat(struct vnode* restrict node, struct __k_stat* restrict out)
 {
-    struct fatfs_node_context* context = node->ctxdata;
+    struct fatfs_vnode_context* context = node->ctxdata;
 
-    memset(out_stat, 0, sizeof(struct vfs_stat));
+    memset(out, 0, sizeof(struct __k_stat));
 
-    out_stat->size = context->size_bytes;
-    out_stat->type = node->type;
-    out_stat->block_size = context->fs_ctx->cluster_size_bytes;
-    out_stat->blocks = context->size_bytes;
-    out_stat->blocks += context->fs_ctx->cluster_size_bytes - 1;
-    out_stat->blocks /= context->fs_ctx->cluster_size_bytes;
+    out->st_size = (off_t)(context->size_bytes);
+    out->st_blksize = (blksize_t)(context->fs_ctx->cluster_size_bytes);
+
+    out->st_blocks = (blkcnt_t)(context->size_bytes);
+    out->st_blocks += context->fs_ctx->cluster_size_bytes - 1;
+    out->st_blocks /= context->fs_ctx->cluster_size_bytes;
 
     return 0;
 }
 
-static ssize_t fatfs_node_read(struct vfs_node* restrict node, void* restrict buffer, size_t sz, size_t offset)
+static ssize_t fatfs_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, uintptr_t offset)
 {
-    struct fatfs_node_context* context = node->ctxdata;
+    struct fatfs_vnode_context* context = node->ctxdata;
 
     int retval;
     size_t chunk;
@@ -625,8 +627,8 @@ static int fatfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     size_t i;
     struct fatfs_bootparams* bpb;
     struct fatfs_context* context;
-    struct fatfs_node_context* root_context;
-    struct vfs_node* root;
+    struct fatfs_vnode_context* root_context;
+    struct vnode* root;
     uint32_t cluster_count;
     uint32_t data_start;
     uint32_t fat_size;
@@ -746,7 +748,7 @@ static int fatfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 
     kfree(boot);
 
-    root_context = slab_alloc(sizeof(struct fatfs_node_context));
+    root_context = slab_alloc(sizeof(struct fatfs_vnode_context));
 
     if(root_context == nullptr) {
         kfree(context->bounce);
@@ -760,7 +762,7 @@ static int fatfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     root_context->first_cluster = context->root_cluster;
     root_context->size_bytes = 0;
 
-    root = vfs_node_alloc(VFS_NODE_TYPE_DIRECTORY, &fatfs_node_ops, root_context);
+    root = vnode_alloc(VNODE_DIRECTORY, &fatfs_vnode_ops, root_context);
 
     if(root == nullptr) {
         slab_free(root_context);
@@ -781,7 +783,7 @@ static int fatfs_unmount(struct vfs* restrict fs)
 {
     struct fatfs_context* context = fs->ctxdata;
 
-    vfs_node_dec_refcount(fs->root);
+    vnode_decref(fs->root);
 
     kfree(context->bounce);
     kfree(context->fat_cache);
@@ -817,8 +819,9 @@ static const struct vfs_ops fatfs_vfs_ops = {
     .sync = &fatfs_sync,
 };
 
+static const char* fatfs_identifiers[] = { "fat", "vfat", "msdos", nullptr };
 static struct vfs_driver fatfs_vfs_driver = {
-    .identifier = "fat",
+    .identifiers = fatfs_identifiers,
     .ops = &fatfs_vfs_ops,
 };
 

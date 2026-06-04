@@ -5,9 +5,9 @@
 #include <core/cdefs.h>
 #include <core/types.h>
 
-extern void* slab_alloc(size_t sz) __nodiscard;
-extern void* slab_calloc(size_t count, size_t sz) __nodiscard;
-extern void* slab_realloc(void* restrict ptr, size_t sz) __nodiscard;
-extern void slab_free(void* restrict ptr);
+void* slab_alloc(size_t sz) __nodiscard;
+void* slab_calloc(size_t count, size_t sz) __nodiscard;
+void* slab_realloc(void* restrict ptr, size_t sz) __nodiscard;
+void slab_free(void* restrict ptr);
 
 #endif /* B0FA8C47_F93D_43E0_A222_9A9C29CDA2B7 */

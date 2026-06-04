@@ -172,53 +172,53 @@ struct pci_driver {
         .subclass_id = UINT_MAX, \
     })
 
-extern int pci_bus_register(struct pci_bus* restrict bus);
-extern int pci_bus_unregister(struct pci_bus* restrict bus);
+int pci_bus_register(struct pci_bus* restrict bus);
+int pci_bus_unregister(struct pci_bus* restrict bus);
 
-extern int pci_driver_register(struct pci_driver* restrict driver);
-extern int pci_driver_unregister(struct pci_driver* restrict driver);
+int pci_driver_register(struct pci_driver* restrict driver);
+int pci_driver_unregister(struct pci_driver* restrict driver);
 
-extern struct pci_device* pci_find(unsigned segment, unsigned bus, unsigned device, unsigned function) __nodiscard;
+struct pci_device* pci_find(unsigned segment, unsigned bus, unsigned device, unsigned function) __nodiscard;
 
-extern uint8_t pci_cfg_read8(struct pci_device* restrict device, uintptr_t offset);
-extern uint16_t pci_cfg_read16(struct pci_device* restrict device, uintptr_t offset);
-extern uint32_t pci_cfg_read32(struct pci_device* restrict device, uintptr_t offset);
+uint8_t pci_cfg_read8(struct pci_device* restrict device, uintptr_t offset);
+uint16_t pci_cfg_read16(struct pci_device* restrict device, uintptr_t offset);
+uint32_t pci_cfg_read32(struct pci_device* restrict device, uintptr_t offset);
 
-extern void pci_cfg_write8(struct pci_device* restrict device, uintptr_t offset, uint8_t value);
-extern void pci_cfg_write16(struct pci_device* restrict device, uintptr_t offset, uint16_t value);
-extern void pci_cfg_write32(struct pci_device* restrict device, uintptr_t offset, uint32_t value);
+void pci_cfg_write8(struct pci_device* restrict device, uintptr_t offset, uint8_t value);
+void pci_cfg_write16(struct pci_device* restrict device, uintptr_t offset, uint16_t value);
+void pci_cfg_write32(struct pci_device* restrict device, uintptr_t offset, uint32_t value);
 
-extern struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_index) __nodiscard;
-extern void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index);
+struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_index) __nodiscard;
+void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index);
 
-extern uint8_t pci_bar_read8(struct pci_bar* restrict bar, uintptr_t offset);
-extern uint16_t pci_bar_read16(struct pci_bar* restrict bar, uintptr_t offset);
-extern uint32_t pci_bar_read32(struct pci_bar* restrict bar, uintptr_t offset);
-extern uint64_t pci_bar_read64(struct pci_bar* restrict bar, uintptr_t offset);
+uint8_t pci_bar_read8(struct pci_bar* restrict bar, uintptr_t offset);
+uint16_t pci_bar_read16(struct pci_bar* restrict bar, uintptr_t offset);
+uint32_t pci_bar_read32(struct pci_bar* restrict bar, uintptr_t offset);
+uint64_t pci_bar_read64(struct pci_bar* restrict bar, uintptr_t offset);
 
-extern void pci_bar_read8_string(struct pci_bar* restrict bar, uintptr_t offset, uint8_t* restrict data, size_t count);
-extern void pci_bar_read16_string(struct pci_bar* restrict bar, uintptr_t offset, uint16_t* restrict data, size_t count);
-extern void pci_bar_read32_string(struct pci_bar* restrict bar, uintptr_t offset, uint32_t* restrict data, size_t count);
-extern void pci_bar_read64_string(struct pci_bar* restrict bar, uintptr_t offset, uint64_t* restrict data, size_t count);
+void pci_bar_read8_string(struct pci_bar* restrict bar, uintptr_t offset, uint8_t* restrict data, size_t count);
+void pci_bar_read16_string(struct pci_bar* restrict bar, uintptr_t offset, uint16_t* restrict data, size_t count);
+void pci_bar_read32_string(struct pci_bar* restrict bar, uintptr_t offset, uint32_t* restrict data, size_t count);
+void pci_bar_read64_string(struct pci_bar* restrict bar, uintptr_t offset, uint64_t* restrict data, size_t count);
 
-extern void pci_bar_write8(struct pci_bar* restrict bar, uintptr_t offset, uint8_t value);
-extern void pci_bar_write16(struct pci_bar* restrict bar, uintptr_t offset, uint16_t value);
-extern void pci_bar_write32(struct pci_bar* restrict bar, uintptr_t offset, uint32_t value);
-extern void pci_bar_write64(struct pci_bar* restrict bar, uintptr_t offset, uint64_t value);
+void pci_bar_write8(struct pci_bar* restrict bar, uintptr_t offset, uint8_t value);
+void pci_bar_write16(struct pci_bar* restrict bar, uintptr_t offset, uint16_t value);
+void pci_bar_write32(struct pci_bar* restrict bar, uintptr_t offset, uint32_t value);
+void pci_bar_write64(struct pci_bar* restrict bar, uintptr_t offset, uint64_t value);
 
-extern void pci_bar_write8_string(struct pci_bar* restrict bar, uintptr_t offset, const uint8_t* restrict data, size_t count);
-extern void pci_bar_write16_string(struct pci_bar* restrict bar, uintptr_t offset, const uint16_t* restrict data, size_t count);
-extern void pci_bar_write32_string(struct pci_bar* restrict bar, uintptr_t offset, const uint32_t* restrict data, size_t count);
-extern void pci_bar_write64_string(struct pci_bar* restrict bar, uintptr_t offset, const uint64_t* restrict data, size_t count);
+void pci_bar_write8_string(struct pci_bar* restrict bar, uintptr_t offset, const uint8_t* restrict data, size_t count);
+void pci_bar_write16_string(struct pci_bar* restrict bar, uintptr_t offset, const uint16_t* restrict data, size_t count);
+void pci_bar_write32_string(struct pci_bar* restrict bar, uintptr_t offset, const uint32_t* restrict data, size_t count);
+void pci_bar_write64_string(struct pci_bar* restrict bar, uintptr_t offset, const uint64_t* restrict data, size_t count);
 
 /// Returns the config space offset of the capability with the given ID,
 /// or 0 if not found. Requires PCI_STS_CAP_LIST set in status register;
-extern uint8_t pci_get_cap(struct pci_device* restrict device, uint8_t cap_id) __nodiscard;
+uint8_t pci_get_cap(struct pci_device* restrict device, uint8_t cap_id) __nodiscard;
 
-extern void pci_enable_busmaster(struct pci_device* restrict device);
-extern void pci_disable_busmaster(struct pci_device* restrict device);
+void pci_enable_busmaster(struct pci_device* restrict device);
+void pci_disable_busmaster(struct pci_device* restrict device);
 
-extern int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handler, void* restrict ctxdata);
-extern void pci_release_irq(struct pci_device* restrict device);
+int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handler, void* restrict ctxdata);
+void pci_release_irq(struct pci_device* restrict device);
 
 #endif /* DE230BAC_AA17_4780_B3C2_71F7DA67E522 */

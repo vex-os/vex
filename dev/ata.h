@@ -101,6 +101,6 @@ static __always_inline __nodiscard inline size_t ata_identify_logical_sector_siz
     return 512;
 }
 
-extern void ata_identify_string(const uint16_t* restrict field, size_t field_nw, char* restrict string, size_t sz);
+void ata_identify_string(const uint16_t* restrict field, size_t field_nw, char* restrict string, size_t sz);
 
 #endif /* DC56E272_B668_44F0_A0D1_10B30073D8E6 */

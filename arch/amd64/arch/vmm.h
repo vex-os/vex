@@ -40,12 +40,12 @@ struct vmm_pagemap {
     } amd64;
 };
 
-extern unsigned vmm_detect_levels(void);
+unsigned vmm_detect_levels(void);
 
-extern int vmm_pagemap_alloc(struct vmm_pagemap* restrict vm) __nodiscard;
-extern void vmm_pagemap_free(struct vmm_pagemap* restrict vm);
-extern void vmm_pagemap_zero(struct vmm_pagemap* restrict vm);
-extern void vmm_pagemap_copy_kernel(struct vmm_pagemap* restrict dest, const struct vmm_pagemap* restrict stem);
+int vmm_pagemap_alloc(struct vmm_pagemap* restrict vm) __nodiscard;
+void vmm_pagemap_free(struct vmm_pagemap* restrict vm);
+void vmm_pagemap_zero(struct vmm_pagemap* restrict vm);
+void vmm_pagemap_copy_kernel(struct vmm_pagemap* restrict dest, const struct vmm_pagemap* restrict stem);
 
 static __always_inline __nodiscard inline vmm_entry_type* vmm_pagemap_root(const struct vmm_pagemap* restrict vm, uintptr_t virt)
 {

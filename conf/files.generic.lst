@@ -1,7 +1,7 @@
-bus/acpi.c
 bus/acpi_glue.c
 bus/acpi_isa.c
 bus/acpi_rsdp.c
+bus/acpi.c
 bus/isa.c
 bus/pci.c
 
@@ -13,9 +13,9 @@ core/kprintf.c
 core/panic.c
 core/version.c
 
-dev/ata.c
 dev/ata_ahci.c
 dev/ata_atapi.c
+dev/ata.c
 dev/blk_device.c
 dev/blk_event.c
 dev/blk_name.c
@@ -47,18 +47,18 @@ ext/uacpi/types.c
 ext/uacpi/uacpi.c
 ext/uacpi/utilities.c
 
-fs/devfs.c
 fs/devfs_blk.c
 fs/devfs_chr.c
 fs/devfs_dir.c
+fs/devfs.c
 fs/fatfs.c
-fs/vfs_file.c
-fs/vfs_mount.c
-fs/vfs_node.c
-fs/vfs_path.c
+fs/file.c
+fs/mount.c
+fs/path.c
+fs/vnode.c
 
-hash/crc32.c
 hash/crc32_iso3309.c
+hash/crc32.c
 
 init/initcall.c
 init/kmain.c

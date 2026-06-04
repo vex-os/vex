@@ -1,10 +1,9 @@
 #include <core/assert.h>
 #include <core/cmdline.h>
-#include <core/errno.h>
 #include <core/spinlock.h>
-#include <fs/vfs_mount.h>
-#include <fs/vfs_node.h>
-#include <fs/vfs_path.h>
+#include <fs/mount.h>
+#include <fs/path.h>
+#include <fs/vnode.h>
 #include <lib/string.h>
 #include <mm/malloc.h>
 #include <mm/slab.h>
@@ -20,15 +19,18 @@ static struct vfs_driver* drivers_head = nullptr;
 
 static spinlock_type mounts_lock = SPINLOCK_INIT;
 static struct mount_entry* mounts_head = nullptr;
-static struct vfs_node* vfs_root = nullptr;
+static struct vnode* vfs_root = nullptr;
 
 static struct vfs_driver* find_driver(const char* restrict name)
 {
     struct vfs_driver* it;
+    const char** id;
 
     for(it = drivers_head; it; it = it->priv.next) {
-        if(0 == strcmp(it->identifier, name)) {
-            return it;
+        for(id = it->identifiers; id && id[0]; id += 1) {
+            if(0 == strcmp(*id, name)) {
+                return it;
+            }
         }
     }
 
@@ -37,15 +39,27 @@ static struct vfs_driver* find_driver(const char* restrict name)
 
 int vfs_driver_register(struct vfs_driver* restrict driver)
 {
-    if(driver == nullptr || driver->identifier[0] == 0x00 || driver->ops == nullptr) {
+    const char** id;
+
+    if(driver == nullptr || driver->ops == nullptr) {
+        return -EINVAL;
+    }
+
+    if(driver->ops->mount == nullptr || driver->ops->unmount == nullptr) {
+        return -EINVAL;
+    }
+
+    if(driver->identifiers == nullptr || driver->identifiers[0] == nullptr || driver->identifiers[0][0] == 0) {
         return -EINVAL;
     }
 
     spinlock_acquire(&drivers_lock);
 
-    if(find_driver(driver->identifier)) {
-        spinlock_release(&drivers_lock);
-        return -EEXIST;
+    for(id = driver->identifiers; id && id[0]; id += 1) {
+        if(find_driver(*id)) {
+            spinlock_release(&drivers_lock);
+            return -EEXIST;
+        }
     }
 
     driver->priv.next = drivers_head;
@@ -66,9 +80,9 @@ int vfs_driver_unregister(struct vfs_driver* restrict driver)
 
     spinlock_acquire(&drivers_lock);
 
-    for(prev = &drivers_head; prev[0]; prev = &prev[0]->priv.next) {
-        if(prev[0] == driver) {
-            prev[0] = driver->priv.next;
+    for(prev = &drivers_head; *prev; prev = &(*prev)->priv.next) {
+        if(*prev == driver) {
+            *prev = driver->priv.next;
             driver->priv.next = nullptr;
 
             spinlock_release(&drivers_lock);
@@ -84,15 +98,18 @@ int vfs_driver_unregister(struct vfs_driver* restrict driver)
 
 int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params)
 {
-    char* params_copy;
     int retval;
     struct cmdline cmdl;
     struct mount_entry* entry;
     struct vfs_driver* driver;
-    struct vfs_node* mountpoint;
+    struct vnode* mountpoint;
     struct vfs* fs;
 
-    if(type == nullptr || type[0] == 0x00) {
+    if(type == nullptr || type[0] == 0) {
+        return -EINVAL; // TODO: try deducing filesystem type
+    }
+
+    if(path == nullptr || device == nullptr) {
         return -EINVAL;
     }
 
@@ -103,31 +120,27 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
     spinlock_release(&drivers_lock);
 
     if(driver == nullptr) {
-        return -ENODEV;
+        return -ENOENT;
     }
 
     cmdl.buffer = nullptr;
     cmdl.length = 0;
 
     if(params) {
-        params_copy = kstrdup(params);
+        cmdl.buffer = kstrdup(params);
 
-        if(params_copy) {
-            cmdline_parse(&cmdl, params_copy, 1 + strlen(params));
+        if(cmdl.buffer) {
+            cmdline_parse(&cmdl, cmdl.buffer, 1 + strlen(params));
         }
     }
 
-    fs = slab_alloc(sizeof(struct vfs));
+    fs = slab_calloc(1, sizeof(struct vfs));
 
     if(fs == nullptr) {
         if(cmdl.buffer)
             kfree(cmdl.buffer);
         return -ENOMEM;
     }
-
-    memset(fs, 0, sizeof(struct vfs));
-
-    fs->ops = driver->ops;
 
     retval = driver->ops->mount(fs, device, &cmdl);
 
@@ -142,14 +155,14 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
 
     spinlock_acquire(&mounts_lock);
 
-    if(vfs_root == nullptr && (path == nullptr || (path[0] == PATH_SEPARATOR && path[1] == 0x00))) {
+    if(vfs_root == nullptr && path[0] == PATH_SEPARATOR && path[0] == 0) {
         vfs_root = fs->root;
 
-        vfs_node_inc_refcount(vfs_root);
+        vnode_incref(vfs_root);
     }
     else {
         mountpoint = nullptr;
-        retval = vfs_lookup(path, &mountpoint);
+        retval = path_resolve(path, &mountpoint);
 
         if(retval < 0) {
             spinlock_release(&mounts_lock);
@@ -165,7 +178,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         fs->mountpoint = mountpoint;
     }
 
-    entry = slab_alloc(sizeof(struct mount_entry));
+    entry = slab_calloc(1, sizeof(struct mount_entry));
 
     if(entry == nullptr) {
         spinlock_release(&mounts_lock);
@@ -177,18 +190,17 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         return -ENOMEM;
     }
 
-    memset(entry, 0, sizeof(struct mount_entry));
+    entry->path = kstrdup(path);
 
-    if(path) {
-        entry->path = kstrdup(path);
+    if(entry->path == nullptr) {
+        spinlock_release(&mounts_lock);
 
-        if(entry->path == nullptr) {
-            spinlock_release(&mounts_lock);
-            driver->ops->unmount(fs);
-            slab_free(entry);
-            slab_free(fs);
-            return -ENOMEM;
-        }
+        driver->ops->unmount(fs);
+
+        slab_free(entry);
+        slab_free(fs);
+
+        return -ENOMEM;
     }
 
     entry->fs = fs;
@@ -207,16 +219,14 @@ int vfs_unmount(const char* restrict path)
     struct mount_entry** prev;
     struct vfs* fs;
 
-    if(path == nullptr) {
-        return -EINVAL;
-    }
+    weak_kassert_text(path, "invalid path pointer");
 
     spinlock_acquire(&mounts_lock);
 
     prev = &mounts_head;
 
-    while(prev[0]) {
-        entry = prev[0];
+    while(*prev) {
+        entry = *prev;
 
         if(entry->path && 0 == strcmp(entry->path, path)) {
             fs = entry->fs;
@@ -232,14 +242,15 @@ int vfs_unmount(const char* restrict path)
                 return retval;
             }
 
-            prev[0] = entry->next;
+            *prev = entry->next;
 
             if(vfs_root == fs->root) {
-                vfs_node_dec_refcount(vfs_root);
+                vnode_decref(vfs_root);
                 vfs_root = nullptr;
             }
 
             slab_free(fs);
+
             kfree(entry->path);
             slab_free(entry);
 
@@ -256,11 +267,9 @@ int vfs_unmount(const char* restrict path)
     return -ENOENT;
 }
 
-int vfs_get_root(struct vfs_node** restrict out)
+int vfs_get_root(struct vnode** restrict out)
 {
-    if(out == nullptr) {
-        return -EINVAL;
-    }
+    weak_kassert_text(out, "invalid output pointer");
 
     spinlock_acquire(&mounts_lock);
 
@@ -269,7 +278,7 @@ int vfs_get_root(struct vfs_node** restrict out)
         return -ENOENT;
     }
 
-    vfs_node_inc_refcount(vfs_root);
+    vnode_incref(vfs_root);
 
     out[0] = vfs_root;
 

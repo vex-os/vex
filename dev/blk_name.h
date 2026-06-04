@@ -25,8 +25,8 @@ extern struct blk_name* blk_name_atapi;
 extern struct blk_name* blk_name_nvme;
 extern struct blk_name* blk_name_virtio;
 
-extern struct blk_name* blk_name_query(const char* restrict prefix) __nodiscard;
-extern unsigned blk_name_increment(struct blk_name* restrict name) __nodiscard;
-extern unsigned blk_name_count(const struct blk_name* restrict name) __nodiscard;
+struct blk_name* blk_name_query(const char* restrict prefix) __nodiscard;
+unsigned blk_name_increment(struct blk_name* restrict name) __nodiscard;
+unsigned blk_name_count(const struct blk_name* restrict name) __nodiscard;
 
 #endif /* DDF5F45D_960D_439C_8511_CE0CBA3BAEAF */

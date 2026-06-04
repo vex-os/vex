@@ -2,20 +2,20 @@
 #define EF3B2190_ABFB_4621_B0A8_EF49AC4B5C9A
 #pragma once
 
-extern bool isalnum(int codepoint);
-extern bool isalpha(int codepoint);
-extern bool isblank(int codepoint);
-extern bool iscntrl(int codepoint);
-extern bool isdigit(int codepoint);
-extern bool isgraph(int codepoint);
-extern bool islower(int codepoint);
-extern bool isprint(int codepoint);
-extern bool ispunct(int codepoint);
-extern bool isspace(int codepoint);
-extern bool isupper(int codepoint);
-extern bool isxdigit(int codepoint);
+bool isalnum(int codepoint);
+bool isalpha(int codepoint);
+bool isblank(int codepoint);
+bool iscntrl(int codepoint);
+bool isdigit(int codepoint);
+bool isgraph(int codepoint);
+bool islower(int codepoint);
+bool isprint(int codepoint);
+bool ispunct(int codepoint);
+bool isspace(int codepoint);
+bool isupper(int codepoint);
+bool isxdigit(int codepoint);
 
-extern int tolower(int codepoint);
-extern int toupper(int codepoint);
+int tolower(int codepoint);
+int toupper(int codepoint);
 
 #endif /* EF3B2190_ABFB_4621_B0A8_EF49AC4B5C9A */

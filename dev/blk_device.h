@@ -37,11 +37,11 @@ struct blk_device {
     void* ctxdata;
 };
 
-extern int blk_device_register_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index);
-extern int blk_device_register_part(struct blk_device* restrict device, const struct blk_device* restrict root, unsigned partition);
-extern int blk_device_register_custom(struct blk_device* restrict device);
-extern int blk_device_unregister(struct blk_device* restrict device);
-extern const struct blk_device* blk_device_find(const char* restrict name) __nodiscard;
+int blk_device_register_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index);
+int blk_device_register_part(struct blk_device* restrict device, const struct blk_device* restrict root, unsigned partition);
+int blk_device_register_custom(struct blk_device* restrict device);
+int blk_device_unregister(struct blk_device* restrict device);
+const struct blk_device* blk_device_find(const char* restrict name) __nodiscard;
 
 static __always_inline inline int blk_device_read(const struct blk_device* restrict device, uintptr_t lba, size_t count,
     void* restrict buffer)

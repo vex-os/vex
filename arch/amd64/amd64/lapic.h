@@ -12,9 +12,9 @@
 #define LAPIC_REG_ICR_LO 0x0C0
 #define LAPIC_REG_ICR_HI 0x0C4
 
-extern uint32_t lapic_read(uint32_t reg);
-extern void lapic_write(uint32_t reg, uint32_t value);
-extern void lapic_send_broadcast_ipi(uint8_t vector);
+uint32_t lapic_read(uint32_t reg);
+void lapic_write(uint32_t reg, uint32_t value);
+void lapic_send_broadcast_ipi(uint8_t vector);
 
 static __always_inline __nodiscard inline uint32_t lapic_query_id(void)
 {

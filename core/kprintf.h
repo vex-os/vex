@@ -28,8 +28,8 @@ extern size_t kp_writepos;
 extern char kp_buffer[KP_BUFSIZE];
 extern unsigned loglevel;
 
-extern void kprintf(unsigned sv, const char* restrict fmt, ...) __printflike(2, 3);
-extern void kvprintf(unsigned sv, const char* restrict fmt, va_list ap) __printflike(2, 0);
+void kprintf(unsigned sv, const char* restrict fmt, ...) __printflike(2, 3);
+void kvprintf(unsigned sv, const char* restrict fmt, va_list ap) __printflike(2, 0);
 
 #define pr_emerg(fmt, ...)    kprintf(KP_EMERG, (fmt), ##__VA_ARGS__)
 #define pr_alert(fmt, ...)    kprintf(KP_ALERT, (fmt), ##__VA_ARGS__)

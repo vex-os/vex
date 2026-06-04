@@ -16,10 +16,10 @@ struct pdma_stats {
     size_t used_pages;
 };
 
-extern uintptr_t pdma_alloc(size_t numpages) __nodiscard;
-extern void* pdma_alloc_virt(size_t numpages) __nodiscard;
-extern void pdma_free(uintptr_t physaddr, size_t numpages);
-extern void pdma_free_virt(void* restrict virtaddr, size_t numpages);
-extern void pdma_get_stats(struct pdma_stats* stats);
+uintptr_t pdma_alloc(size_t numpages) __nodiscard;
+void* pdma_alloc_virt(size_t numpages) __nodiscard;
+void pdma_free(uintptr_t physaddr, size_t numpages);
+void pdma_free_virt(void* restrict virtaddr, size_t numpages);
+void pdma_get_stats(struct pdma_stats* stats);
 
 #endif /* B2E72E76_5D2F_43BF_A8B3_80677A7ECE4C */

@@ -2,9 +2,9 @@
 #include <core/spinlock.h>
 #include <dev/blk_device.h>
 #include <dev/blk_event.h>
-#include <fs/devfs_internal.h>
-#include <fs/vfs_node.h>
-#include <fs/vfs_types.h>
+#include <fs/devfs.h>
+#include <fs/stat.h>
+#include <fs/vnode.h>
 #include <lib/string.h>
 #include <mm/malloc.h>
 #include <mm/slab.h>
@@ -15,7 +15,14 @@ struct devfs_blk_context {
     uint8_t* bounce_buffer;
 };
 
-static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buffer, size_t sz, size_t offset)
+static void devfs_blk_release(struct vnode* restrict node)
+{
+    struct devfs_blk_context* context = node->ctxdata;
+    kfree(context->bounce_buffer);
+    slab_free(context);
+}
+
+static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer, size_t sz, uintptr_t offset)
 {
     struct devfs_blk_context* context = node->ctxdata;
     const struct blk_device* device = context->device;
@@ -104,7 +111,7 @@ static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buf
     return (ssize_t)(sz);
 }
 
-static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restrict buffer, size_t sz, size_t offset)
+static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, uintptr_t offset)
 {
     struct devfs_blk_context* context = node->ctxdata;
     const struct blk_device* device = context->device;
@@ -207,38 +214,24 @@ static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restr
     return (ssize_t)(sz);
 }
 
-static int devfs_blk_ioctl(struct vfs_node* restrict node, unsigned request, void* restrict arg)
-{
-    return -ENOTTY;
-}
-
-static int devfs_blk_stat(struct vfs_node* restrict node, struct vfs_stat* restrict out_stat)
+static int devfs_blk_stat(struct vnode* restrict node, struct __k_stat* restrict out)
 {
     const struct devfs_blk_context* context = node->ctxdata;
     const struct blk_device* device = context->device;
 
-    memset(out_stat, 0, sizeof(struct vfs_stat));
+    memset(out, 0, sizeof(struct __k_stat));
 
-    out_stat->type = VFS_NODE_TYPE_BLK_DEVICE;
-    out_stat->size = (off_t)(device->sector_count * device->sector_size);
-    out_stat->block_size = (blksize_t)(device->sector_size);
-    out_stat->blocks = (blkcnt_t)(device->sector_count);
+    out->st_size = (off_t)(device->sector_count * device->sector_size);
+    out->st_blksize = (blksize_t)(device->sector_size);
+    out->st_blocks = (blkcnt_t)(device->sector_count);
 
     return 0;
 }
 
-static void devfs_blk_destroy(struct vfs_node* restrict node)
-{
-    struct devfs_blk_context* context = node->ctxdata;
-    kfree(context->bounce_buffer);
-    slab_free(context);
-}
-
-static const struct vfs_node_ops devfs_blk_ops = {
-    .destroy = &devfs_blk_destroy,
+static const struct vnode_ops devfs_blk_ops = {
+    .release = &devfs_blk_release,
     .read = &devfs_blk_read,
     .write = &devfs_blk_write,
-    .ioctl = &devfs_blk_ioctl,
     .stat = &devfs_blk_stat,
 };
 
@@ -246,7 +239,7 @@ void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict d
 {
     int retval;
     struct devfs_blk_context* context;
-    struct vfs_node* vnode;
+    struct vnode* vnode;
 
     if(device->flags & BLK_FLAG_HIDDEN) {
         return;
@@ -268,7 +261,7 @@ void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict d
             return;
         }
 
-        vnode = vfs_node_alloc(VFS_NODE_TYPE_BLK_DEVICE, &devfs_blk_ops, context);
+        vnode = vnode_alloc(VNODE_BLOCK_DEV, &devfs_blk_ops, context);
 
         if(vnode == nullptr) {
             kfree(context->bounce_buffer);
@@ -279,7 +272,7 @@ void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict d
         retval = devfs_insert(device->identifier, vnode);
 
         if(retval < 0) {
-            vfs_node_dec_refcount(vnode);
+            vnode_decref(vnode);
         }
 
         return;
