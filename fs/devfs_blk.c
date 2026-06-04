@@ -203,7 +203,7 @@ static int devfs_blk_stat(struct vnode* restrict node, struct __k_stat* restrict
 
     memset(out, 0, sizeof(struct __k_stat));
 
-    out->st_mode = 0x4242;
+    out->st_mode = S_IFBLK | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 
     out->st_size = device->sector_count * device->sector_size;
     out->st_blksize = device->sector_size;

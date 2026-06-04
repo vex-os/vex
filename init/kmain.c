@@ -61,13 +61,14 @@ static void recurse_dir(struct vnode* restrict node, const char* restrict path)
         }
 
         memset(&stat, 0, sizeof(struct __k_stat));
-        int chk = vnode_stat(node, &stat);
+        struct vnode* entry_node;
 
-        if(chk == -ENOSYS) {
-            pr_warning("%s/%s: stat: %s", path, entry.name, strerror(chk));
+        if(0 == path_resolve_at(node, entry.name, &entry_node)) {
+            vnode_stat(entry_node, &stat);
+            vnode_decref(entry_node);
         }
 
-        pr_inform("  %04X [%s] %s/%s", stat.st_mode, codename, path, entry.name);
+        pr_inform("  %016b %04X [%s] %s/%s", stat.st_mode, stat.st_mode, codename, path, entry.name);
 
         if(entry.nodetype == VNODE_DIRECTORY) {
             struct vnode* child;
