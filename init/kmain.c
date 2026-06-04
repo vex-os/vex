@@ -6,7 +6,7 @@
 #include <core/kprintf.h>
 #include <core/version.h>
 #include <dev/blk_device.h>
-#include <fs/dirent.h>
+#include <fs/vfs_dirent.h>
 #include <fs/vfs_file.h>
 #include <fs/vfs_mount.h>
 #include <fs/vfs_path.h>
