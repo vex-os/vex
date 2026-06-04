@@ -12,9 +12,7 @@ static void bxcons_write(struct console_driver* restrict driver, const void* res
 }
 
 static const struct console_driver_ops bxcons_ops = {
-    .init = nullptr,
     .write = &bxcons_write,
-    .unblank = nullptr,
 };
 
 static struct console_driver bxcons_driver = {

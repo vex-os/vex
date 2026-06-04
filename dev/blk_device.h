@@ -13,7 +13,7 @@ struct blk_device_ops {
     int (*read)(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer);
     int (*write)(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer);
     int (*flush)(const struct blk_device* restrict device);
-    void (*destroy)(const struct blk_device* restrict device);
+    void (*release)(const struct blk_device* restrict device);
 };
 
 struct blk_device_private {

@@ -4,7 +4,7 @@
 
 #include <core/cdefs.h>
 #include <core/types.h>
-#include <fs/path.h>
+#include <fs/vfs_path.h>
 
 #define FAT_TYPE_12 12
 #define FAT_TYPE_16 16

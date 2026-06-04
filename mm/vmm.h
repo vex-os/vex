@@ -14,7 +14,7 @@ extern struct vmm_pagemap sys_pagemap;
 struct vmm_pagemap* vmm_create(void) __nodiscard;
 struct vmm_pagemap* vmm_fork(const struct vmm_pagemap* restrict stem) __nodiscard;  // shallow copy-on-write clone
 struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem) __nodiscard; // deep copy except kernel mappings
-void vmm_destroy(struct vmm_pagemap* restrict vm);
+void vmm_release(struct vmm_pagemap* restrict vm);
 
 int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigned vprot);
 int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned vprot);

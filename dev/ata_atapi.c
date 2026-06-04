@@ -62,7 +62,6 @@ static const struct blk_device_ops atapi_blk_device_ops = {
     .read = &atapi_read,
     .write = &atapi_write,
     .flush = &atapi_flush,
-    .destroy = nullptr,
 };
 
 int atapi_register(struct atapi_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index)

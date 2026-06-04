@@ -201,7 +201,7 @@ struct vmm_pagemap* vmm_fork(const struct vmm_pagemap* restrict stem)
             return vm;
         }
 
-        vmm_destroy(vm);
+        vmm_release(vm);
     }
 
     return nullptr;
@@ -220,13 +220,13 @@ struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem)
             return vm;
         }
 
-        vmm_destroy(vm);
+        vmm_release(vm);
     }
 
     return nullptr;
 }
 
-void vmm_destroy(struct vmm_pagemap* restrict vm)
+void vmm_release(struct vmm_pagemap* restrict vm)
 {
     vmm_table_collapse(vmm_pagemap_root(vm, 0), 0, VMM_TABLE_SIZE / 2, vm->levels - 1);
     vmm_pagemap_free(vm);
