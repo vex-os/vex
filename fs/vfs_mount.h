@@ -44,4 +44,8 @@ int vfs_unmount(const char* restrict path);
 int vfs_sync(const char* restrict path);
 int vfs_get_root(struct vnode** restrict out);
 
+/* Returns the vfs mounted on top of node (by identity comparison via vnode_ops.same),
+ * or nullptr if nothing is mounted there. Caller must NOT hold mounts_lock. */
+struct vfs* vfs_find_mount_for(struct vnode* restrict node);
+
 #endif /* E7F3A178_693A_4817_A6DA_3793C8B5CE3F */

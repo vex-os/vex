@@ -142,27 +142,25 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
 
     fs->ops = driver->ops;
 
-    spinlock_acquire(&mounts_lock);
+    struct vnode* mountpoint = nullptr;
 
-    if(vfs_root == nullptr && path[0] == PATH_SEPARATOR && path[1] == 0) {
-        vfs_root = fs->root;
-
-        vnode_incref(vfs_root);
-    }
-    else {
-        struct vnode* mountpoint = nullptr;
+    if(path[0] != PATH_SEPARATOR || path[1] != 0) {
         retval = path_resolve(path, &mountpoint);
 
         if(retval < 0) {
-            spinlock_release(&mounts_lock);
-
             driver->ops->unmount(fs);
-
             slab_free(fs);
-
             return retval;
         }
+    }
 
+    spinlock_acquire(&mounts_lock);
+
+    if(mountpoint == nullptr) {
+        vfs_root = fs->root;
+        vnode_incref(vfs_root);
+    }
+    else {
         mountpoint->fs_mounted = fs;
         fs->mountpoint = mountpoint;
     }
@@ -275,6 +273,37 @@ int vfs_sync(const char* restrict path)
     spinlock_release(&mounts_lock);
 
     return -ENOENT;
+}
+
+struct vfs* vfs_find_mount_for(struct vnode* restrict node)
+{
+    weak_kassert_text(node, "invalid node pointer");
+
+    spinlock_acquire(&mounts_lock);
+
+    for(struct mount_entry* entry = mounts_head; entry; entry = entry->next) {
+        struct vnode* mp = entry->fs->mountpoint;
+
+        if(mp == nullptr) {
+            continue;
+        }
+
+        if(mp == node) {
+            struct vfs* result = entry->fs;
+            spinlock_release(&mounts_lock);
+            return result;
+        }
+
+        if(mp->ops == node->ops && mp->ops->same != nullptr && mp->ops->same(mp, node)) {
+            struct vfs* result = entry->fs;
+            spinlock_release(&mounts_lock);
+            return result;
+        }
+    }
+
+    spinlock_release(&mounts_lock);
+
+    return nullptr;
 }
 
 int vfs_get_root(struct vnode** restrict out)
