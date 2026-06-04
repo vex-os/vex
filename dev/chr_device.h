@@ -10,8 +10,8 @@ struct chr_name;
 
 struct chr_device;
 struct chr_device_ops {
-    ssize_t (*read)(const struct chr_device* restrict device, off_t offset, void* restrict buffer, size_t sz);
-    ssize_t (*write)(const struct chr_device* restrict device, off_t offset, const void* restrict buffer, size_t sz);
+    ssize_t (*read)(const struct chr_device* restrict device, size_t offset, void* restrict buffer, size_t sz);
+    ssize_t (*write)(const struct chr_device* restrict device, size_t offset, const void* restrict buffer, size_t sz);
     int (*ioctl)(const struct chr_device* restrict device, unsigned request, void* restrict arg);
     void (*destroy)(const struct chr_device* restrict device);
 };
@@ -34,7 +34,7 @@ extern int chr_device_register_custom(struct chr_device* restrict device, const 
 extern int chr_device_unregister(struct chr_device* restrict device);
 extern const struct chr_device* chr_device_find(const char* restrict name) __nodiscard;
 
-static __always_inline inline ssize_t chr_device_read(const struct chr_device* restrict device, off_t offset, void* restrict buffer,
+static __always_inline inline ssize_t chr_device_read(const struct chr_device* restrict device, size_t offset, void* restrict buffer,
     size_t sz)
 {
     if(device->ops->read == nullptr)
@@ -42,7 +42,7 @@ static __always_inline inline ssize_t chr_device_read(const struct chr_device* r
     return device->ops->read(device, offset, buffer, sz);
 }
 
-static __always_inline inline ssize_t chr_device_write(const struct chr_device* restrict device, off_t offset, const void* restrict buffer,
+static __always_inline inline ssize_t chr_device_write(const struct chr_device* restrict device, size_t offset, const void* restrict buffer,
     size_t sz)
 {
     if(device->ops->write == nullptr)

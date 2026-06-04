@@ -15,22 +15,28 @@ struct devfs_blk_context {
     uint8_t* bounce_buffer;
 };
 
-static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buffer, size_t sz, off_t offset)
+static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buffer, size_t sz, size_t offset)
 {
     struct devfs_blk_context* context = node->ctxdata;
     const struct blk_device* device = context->device;
 
-    size_t sector_size = device->sector_size;
-    size_t byte_offset = (size_t)(offset % sector_size);
-    uintptr_t lba = (uintptr_t)(offset / sector_size);
-
-    size_t remaining = sz;
     uint8_t* buffer_ptr = buffer;
-    uintptr_t current = lba;
 
     int retval;
+    size_t byte_offset;
     size_t chunk;
     size_t full;
+    size_t remaining;
+    size_t sector_size;
+    uintptr_t current;
+    uintptr_t lba;
+
+    sector_size = device->sector_size;
+    byte_offset = offset % sector_size;
+    lba = offset / sector_size;
+
+    remaining = sz;
+    current = lba;
 
     if(sz == 0) {
         return 0;
@@ -98,22 +104,28 @@ static ssize_t devfs_blk_read(struct vfs_node* restrict node, void* restrict buf
     return (ssize_t)(sz);
 }
 
-static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t devfs_blk_write(struct vfs_node* restrict node, const void* restrict buffer, size_t sz, size_t offset)
 {
     struct devfs_blk_context* context = node->ctxdata;
     const struct blk_device* device = context->device;
 
-    size_t sector_size = device->sector_size;
-    size_t byte_offset = (size_t)(offset % sector_size);
-    uintptr_t lba = (uintptr_t)(offset / sector_size);
-
     const uint8_t* buffer_ptr = buffer;
-    size_t remaining = sz;
-    uintptr_t current = lba;
 
     int retval;
+    size_t byte_offset;
     size_t chunk;
     size_t full;
+    size_t remaining;
+    size_t sector_size;
+    uintptr_t current;
+    uintptr_t lba;
+
+    sector_size = device->sector_size;
+    byte_offset = offset % sector_size;
+    lba = offset / sector_size;
+
+    remaining = sz;
+    current = lba;
 
     if(sz == 0) {
         return 0;

@@ -1,0 +1,12 @@
+fatfs ramblings
+
+-   fatfs' allocation table is essentially a superblock? so caching it
+    in-memory makes at least some amount of sense;
+
+-   need a specific structure for a directory entry that encapsulates
+    _both_ 8.3 and LFN entries
+
+    fatfs_dirent maybe?
+
+
+

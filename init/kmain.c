@@ -26,26 +26,22 @@ static void recurse_list(struct vfs_node* restrict node, const char* restrict pa
     off_t index = 0;
 
     while(node->ops->read_dir && 0 == node->ops->read_dir(node, &de, index)) {
-        if(de.type == VFS_NODE_TYPE_DIRECTORY) {
-            if(de.name[0] == '.' && (de.name[1] == 0 || (de.name[1] == '.' && de.name[2] == 0))) {
-                index += 1;
-                continue;
-            }
+        if(de.name[0] == '.' && (de.name[1] == 0 || (de.name[1] == '.' && de.name[2] == 0))) {
+            index += 1;
+            continue;
+        }
 
+        pr_inform("  [%u] %s/%s", de.type, path, de.name);
+
+        if(de.type == VFS_NODE_TYPE_DIRECTORY) {
             struct vfs_node* child;
 
             if(0 == vfs_lookup_at(node, de.name, &child)) {
                 char subpath[VFS_NAME_SIZE];
-                snprintf(subpath, sizeof(subpath), "%s<>%s", path, de.name);
+                snprintf(subpath, sizeof(subpath), "%s/%s", path, de.name);
                 recurse_list(child, subpath);
                 vfs_node_dec_refcount(child);
             }
-            else {
-                pr_inform("  [dir] %s/%s (lookup failed)", path, de.name);
-            }
-        }
-        else {
-            pr_inform("  [%u] %s/%s", de.type, path, de.name);
         }
 
         index++;
@@ -75,7 +71,7 @@ void __noreturn kmain(void)
 
     pr_inform("hanging around...");
 
-    vfs_mount("fat", "/", blk_device_find("ada0n1p1"), nullptr);
+    vfs_mount("fat", "/", blk_device_find("ada0n1p1"), "readonly");
 
     list_root();
     // test_devfs_write("/ada0n2p2");
