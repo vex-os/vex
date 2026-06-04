@@ -7,7 +7,7 @@
 #include <lib/string.h>
 #include <mm/slab.h>
 
-struct vfs_file* vfs_file_open(const char* restrict path, unsigned flags)
+struct vfs_file* vfs_open(const char* restrict path, unsigned flags)
 {
     int retval;
     struct vfs_file* file;
@@ -52,7 +52,7 @@ struct vfs_file* vfs_file_open(const char* restrict path, unsigned flags)
     return file;
 }
 
-struct vfs_file* vfs_file_dupe(struct vfs_file* restrict file)
+struct vfs_file* vfs_dupe(struct vfs_file* restrict file)
 {
     if(file == nullptr) {
         return nullptr;
@@ -63,7 +63,7 @@ struct vfs_file* vfs_file_dupe(struct vfs_file* restrict file)
     return file;
 }
 
-void vfs_file_close(struct vfs_file* restrict file)
+void vfs_close(struct vfs_file* restrict file)
 {
     if(file == nullptr) {
         return;
@@ -80,7 +80,7 @@ void vfs_file_close(struct vfs_file* restrict file)
     }
 }
 
-ssize_t vfs_file_read(struct vfs_file* restrict file, void* restrict buffer, size_t sz)
+ssize_t vfs_read(struct vfs_file* restrict file, void* restrict buffer, size_t sz)
 {
     ssize_t result;
 
@@ -105,7 +105,7 @@ ssize_t vfs_file_read(struct vfs_file* restrict file, void* restrict buffer, siz
     return result;
 }
 
-ssize_t vfs_file_write(struct vfs_file* restrict file, const void* restrict buffer, size_t sz)
+ssize_t vfs_write(struct vfs_file* restrict file, const void* restrict buffer, size_t sz)
 {
     ssize_t result;
 
@@ -138,7 +138,7 @@ ssize_t vfs_file_write(struct vfs_file* restrict file, const void* restrict buff
     return result;
 }
 
-int vfs_file_ioctl(struct vfs_file* restrict file, unsigned request, void* restrict arg)
+int vfs_ioctl(struct vfs_file* restrict file, unsigned request, void* restrict arg)
 {
     if(file == nullptr) {
         return -EINVAL;
@@ -151,45 +151,49 @@ int vfs_file_ioctl(struct vfs_file* restrict file, unsigned request, void* restr
     return file->node->ops->ioctl(file->node, request, arg);
 }
 
-int vfs_file_seek(struct vfs_file* restrict file, off_t offset, int whence)
+int vfs_seek(struct vfs_file* restrict file, ssize_t offset, int whence)
 {
-    off_t new_offset;
+    int retval;
+    ssize_t new_offset;
     struct vfs_stat stat;
 
     if(file == nullptr) {
         return -EINVAL;
     }
 
-    switch(whence) {
-        case VFS_SEEK_SET:
-            new_offset = offset;
-            break;
-
-        case VFS_SEEK_CUR:
-            new_offset = file->offset + offset;
-            break;
-
-        case VFS_SEEK_END:
-            if(file->node->ops->stat == nullptr) {
-                return -ENOSYS;
-            }
-
-            if(file->node->ops->stat(file->node, &stat)) {
-                return -EIO;
-            }
-
-            new_offset = stat.size + offset;
-            break;
-
-        default:
-            return -EINVAL;
+    if(whence == VFS_SEEK_SET) {
+        new_offset = offset;
+        goto apply_offset;
+        unreachable();
     }
 
-    if(new_offset < 0) {
+    if(whence == VFS_SEEK_CUR) {
+        new_offset = offset + (ssize_t)(file->offset);
+        goto apply_offset;
+        unreachable();
+    }
+
+    if(whence == VFS_SEEK_END) {
+        if(file->node->ops->stat == nullptr) {
+            return -ENOSYS;
+        }
+
+        retval = file->node->ops->stat(file->node, &stat);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        new_offset = stat.size + offset;
+        goto apply_offset;
+        unreachable();
+    }
+
+    return -EINVAL;
+
+apply_offset:
+    if(new_offset < 0)
         return -EINVAL;
-    }
-
-    file->offset = new_offset;
-
+    file->offset = (size_t)(new_offset);
     return 0;
 }
