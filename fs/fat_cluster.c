@@ -63,17 +63,14 @@ int fat_cluster_write(const struct fat_vfs_context* restrict context, uintptr_t 
 
 uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintptr_t cluster)
 {
-    size_t offset;
-    uint16_t data16;
-    uint32_t data32;
-
     if(context->filesystem_type == FAT_TYPE_12) {
-        offset = cluster + (cluster >> 1);
+        size_t offset = cluster + (cluster >> 1);
 
         if(offset + sizeof(uint16_t) > context->cache_size) {
             return UINTPTR_MAX;
         }
 
+        uint16_t data16;
         memcpy(&data16, context->cache + offset, sizeof(uint16_t));
         data16 = LE16_to_host(data16);
 
@@ -93,12 +90,13 @@ uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintp
     }
 
     if(context->filesystem_type == FAT_TYPE_16) {
-        offset = cluster * sizeof(uint16_t);
+        size_t offset = cluster * sizeof(uint16_t);
 
         if(offset + sizeof(uint16_t) > context->cache_size) {
             return UINTPTR_MAX;
         }
 
+        uint16_t data16;
         memcpy(&data16, context->cache + offset, sizeof(uint16_t));
         data16 = LE16_to_host(data16);
 
@@ -111,12 +109,13 @@ uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintp
     }
 
     if(context->filesystem_type == FAT_TYPE_32) {
-        offset = cluster * sizeof(uint32_t);
+        size_t offset = cluster * sizeof(uint32_t);
 
         if(offset + sizeof(uint32_t) > context->cache_size) {
             return UINTPTR_MAX;
         }
 
+        uint32_t data32;
         memcpy(&data32, context->cache + offset, sizeof(uint32_t));
         data32 = LE32_to_host(data32) & FAT32_MASK;
 
@@ -133,15 +132,10 @@ uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintp
 
 uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
 {
-    size_t count;
-    size_t i;
-    uint16_t data16;
-    uint32_t data32;
-
     if(context->filesystem_type == FAT_TYPE_12) {
-        count = (context->cache_size * 2) / 3;
+        size_t count = (context->cache_size * 2) / 3;
 
-        for(i = 2; i < count; i++) {
+        for(size_t i = 2; i < count; i++) {
             if(fat12_read_entry(context, i) == 0) {
                 fat12_write_entry(context, i, 0x0FFF);
                 return i;
@@ -149,9 +143,10 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
         }
     }
     else if(context->filesystem_type == FAT_TYPE_16) {
-        count = context->cache_size / sizeof(uint16_t);
+        size_t count = context->cache_size / sizeof(uint16_t);
 
-        for(i = 2; i < count; i++) {
+        for(size_t i = 2; i < count; i++) {
+            uint16_t data16;
             memcpy(&data16, context->cache + i * sizeof(uint16_t), sizeof(uint16_t));
 
             if(LE16_to_host(data16) == 0) {
@@ -162,9 +157,10 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
         }
     }
     else if(context->filesystem_type == FAT_TYPE_32) {
-        count = context->cache_size / sizeof(uint32_t);
+        size_t count = context->cache_size / sizeof(uint32_t);
 
-        for(i = 2; i < count; i++) {
+        for(size_t i = 2; i < count; i++) {
+            uint32_t data32;
             memcpy(&data32, context->cache + i * sizeof(uint32_t), sizeof(uint32_t));
 
             if((LE32_to_host(data32) & FAT32_MASK) == 0) {
@@ -180,18 +176,15 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
 
 void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluster, uintptr_t next)
 {
-    uint16_t data16;
-    uint32_t data32;
-
     if(context->filesystem_type == FAT_TYPE_12) {
         fat12_write_entry(context, cluster, (uint16_t)(next));
     }
     else if(context->filesystem_type == FAT_TYPE_16) {
-        data16 = host_to_LE16((uint16_t)(next));
+        uint16_t data16 = host_to_LE16((uint16_t)(next));
         memcpy(context->cache + cluster * sizeof(uint16_t), &data16, sizeof(uint16_t));
     }
     else if(context->filesystem_type == FAT_TYPE_32) {
-        data32 = host_to_LE32((uint32_t)(next) & (FAT32_MASK));
+        uint32_t data32 = host_to_LE32((uint32_t)(next) & (FAT32_MASK));
         memcpy(context->cache + cluster * sizeof(uint32_t), &data32, sizeof(uint32_t));
     }
 }

@@ -8,15 +8,12 @@
 
 struct file* file_open(const char* restrict path, unsigned flags)
 {
-    int retval;
-    struct file* fp;
-    struct vnode* node;
-
     if(path == nullptr) {
         return nullptr;
     }
 
-    retval = path_resolve(path, &node);
+    struct vnode* node;
+    int retval = path_resolve(path, &node);
 
     if(retval < 0) {
         return nullptr;
@@ -29,7 +26,7 @@ struct file* file_open(const char* restrict path, unsigned flags)
         return nullptr;
     }
 
-    fp = slab_calloc(1, sizeof(struct file));
+    struct file* fp = slab_calloc(1, sizeof(struct file));
 
     if(fp == nullptr) {
         vnode_close(node);
@@ -93,10 +90,6 @@ ssize_t file_read(struct file* restrict fp, void* restrict buffer, size_t sz)
 
 ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t sz)
 {
-    int retval;
-    ssize_t result;
-    struct __k_stat stat;
-
     if(fp == nullptr || buffer == nullptr) {
         return -EINVAL;
     }
@@ -106,7 +99,8 @@ ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t
     }
 
     if(fp->flags & O_APPEND) {
-        retval = vnode_stat(fp->node, &stat);
+        struct __k_stat stat;
+        int retval = vnode_stat(fp->node, &stat);
 
         if(retval < 0) {
             return retval;
@@ -119,7 +113,7 @@ ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t
         fp->offset = stat.st_size;
     }
 
-    result = vnode_write(fp->node, buffer, sz, fp->offset);
+    ssize_t result = vnode_write(fp->node, buffer, sz, fp->offset);
 
     if(result > 0) {
         fp->offset += result;
@@ -130,13 +124,11 @@ ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t
 
 int file_seek(struct file* restrict fp, ptrdiff_t offset, int origin)
 {
-    int retval;
-    ptrdiff_t new_offset;
-    struct __k_stat stat;
-
     if(fp == nullptr) {
         return -EINVAL;
     }
+
+    ptrdiff_t new_offset;
 
     if(origin == SEEK_SET) {
         new_offset = offset;
@@ -149,7 +141,8 @@ int file_seek(struct file* restrict fp, ptrdiff_t offset, int origin)
     }
 
     if(origin == SEEK_END) {
-        retval = vnode_stat(fp->node, &stat);
+        struct __k_stat stat;
+        int retval = vnode_stat(fp->node, &stat);
 
         if(retval < 0) {
             return retval;

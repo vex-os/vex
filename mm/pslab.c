@@ -91,20 +91,12 @@ void pslab_get_stats(struct pslab_stats* stats)
 
 define_initcall(pslab, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_EARLY)
 {
-    size_t i;
-    const struct limine_memmap_entry* entry;
-    struct pslab_stats stats;
-    char hrsize_buffer[128];
-
-    uintptr_t start;
-    size_t length;
-
-    for(i = 0U; i < memmap->entry_count; ++i) {
-        entry = memmap->entries[i];
+    for(size_t i = 0U; i < memmap->entry_count; ++i) {
+        const struct limine_memmap_entry* entry = memmap->entries[i];
 
         if(entry->type == LIMINE_MEMMAP_USABLE) {
-            start = page_align_up(entry->base);
-            length = align_floor(entry->length, PAGE_SIZE);
+            uintptr_t start = page_align_up(entry->base);
+            size_t length = align_floor(entry->length, PAGE_SIZE);
 
             if(start == 0U) {
                 start += PAGE_SIZE;
@@ -126,8 +118,10 @@ define_initcall(pslab, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_EARLY)
         }
     }
 
+    struct pslab_stats stats;
     pslab_get_stats(&stats);
 
+    char hrsize_buffer[128];
     hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), stats.total_bytes);
     pr_debug("pslab: tracking %s in %zu pages", hrsize_buffer, stats.total_pages);
 }

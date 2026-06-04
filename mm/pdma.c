@@ -126,20 +126,13 @@ void pdma_get_stats(struct pdma_stats* stats)
 
 define_initcall(pdma, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_FIRST)
 {
-    size_t i;
-    const struct limine_memmap_entry* entry;
-    struct memmap_info info;
-    struct pdma_stats stats;
-    char hrsize_buffer[128];
-
-    size_t bitmap_size;
     size_t bitmap_npages = 0U;
-    uintptr_t bitmap_phys = 0U;
 
-    for(i = 0U; i < memmap->entry_count; ++i) {
-        entry = memmap->entries[i];
+    for(size_t i = 0U; i < memmap->entry_count; ++i) {
+        const struct limine_memmap_entry* entry = memmap->entries[i];
 
         if(entry->type == LIMINE_MEMMAP_USABLE) {
+            struct memmap_info info;
             get_memmap_info(entry, &info);
 
             if(info.start < PDMA_APPROX_END) {
@@ -158,14 +151,17 @@ define_initcall(pdma, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_FIRST)
 
     pdma_numpages = align_ceil(bitmap_npages, BITMAP_CHUNK_BITS);
 
-    bitmap_size = bitmap_bytecount(pdma_numpages);
+    size_t bitmap_size = bitmap_bytecount(pdma_numpages);
     bitmap_npages = page_count(bitmap_size);
     bitmap_size = bitmap_npages * PAGE_SIZE;
 
-    for(i = 0U; i < memmap->entry_count; ++i) {
-        entry = memmap->entries[i];
+    uintptr_t bitmap_phys = 0U;
+
+    for(size_t i = 0U; i < memmap->entry_count; ++i) {
+        const struct limine_memmap_entry* entry = memmap->entries[i];
 
         if(entry->type == LIMINE_MEMMAP_USABLE) {
+            struct memmap_info info;
             get_memmap_info(entry, &info);
 
             if(info.npages >= bitmap_npages && info.start + bitmap_size <= PDMA_APPROX_END) {
@@ -181,10 +177,11 @@ define_initcall(pdma, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_FIRST)
 
     bitmap_range_clear(pdma_bitmap, 0U, pdma_numpages - 1U);
 
-    for(i = 0U; i < memmap->entry_count; ++i) {
-        entry = memmap->entries[i];
+    for(size_t i = 0U; i < memmap->entry_count; ++i) {
+        const struct limine_memmap_entry* entry = memmap->entries[i];
 
         if(entry->type == LIMINE_MEMMAP_USABLE) {
+            struct memmap_info info;
             get_memmap_info(entry, &info);
 
             if(info.start >= PDMA_APPROX_END)
@@ -206,8 +203,10 @@ define_initcall(pdma, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_FIRST)
         }
     }
 
+    struct pdma_stats stats;
     pdma_get_stats(&stats);
 
+    char hrsize_buffer[128];
     hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), stats.total_bytes);
     pr_debug("pdma: tracking %s in %zu pages", hrsize_buffer, stats.total_pages);
 }

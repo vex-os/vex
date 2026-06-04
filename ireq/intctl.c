@@ -7,18 +7,14 @@ static struct intctl* intctl_head = nullptr;
 
 int intctl_register(struct intctl* restrict controller)
 {
-    size_t gsi_base;
-    size_t gsi_count;
-    struct intctl* it;
-
-    for(it = intctl_head; it; it = it->priv.next) {
+    for(struct intctl* it = intctl_head; it; it = it->priv.next) {
         if(it == controller) {
             return -EEXIST;
         }
     }
 
-    gsi_base = controller->gsi_base;
-    gsi_count = controller->gsi_count;
+    size_t gsi_base = controller->gsi_base;
+    size_t gsi_count = controller->gsi_count;
     pr_debug("intctl: adding %s: gsi_base=%zu, gsi_count=%zu", controller->identifier, gsi_base, gsi_count);
 
     controller->priv.next = intctl_head;

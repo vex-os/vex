@@ -57,13 +57,13 @@ int blk_device_register_custom(struct blk_device* restrict device)
 
 int blk_device_unregister(struct blk_device* restrict device)
 {
-    struct blk_device* it;
-    struct blk_device* prev = nullptr;
-
     if(blk_devices_head == device) {
         blk_devices_head = device->priv.next;
     }
     else {
+        struct blk_device* it;
+        struct blk_device* prev = nullptr;
+
         for(it = blk_devices_head; it; it = it->priv.next) {
             if(it == device) {
                 prev->priv.next = it->priv.next;

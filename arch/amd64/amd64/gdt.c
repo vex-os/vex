@@ -20,6 +20,9 @@
 
 #define GDT_ENTRY_COUNT 16
 
+#define PREDEF_CODE_FLAGS (GDT_READWRITE | GDT_NONSYSTEM | GDT_EXECUTABLE)
+#define PREDEF_DATA_FLAGS (GDT_READWRITE | GDT_NONSYSTEM)
+
 struct gdt_entry {
     uint16_t limit_0;
     uint16_t base_0;
@@ -102,26 +105,21 @@ void gdt_install_tss(struct amd64_gdt* restrict gdt, uintptr_t tss_base, size_t 
 
 define_initcall(amd64_gdt, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_EARLY)
 {
-    uint8_t code_flags = GDT_READWRITE | GDT_NONSYSTEM | GDT_EXECUTABLE;
-    uint8_t data_flags = GDT_READWRITE | GDT_NONSYSTEM;
-    struct hart_local* hart = this_hart();
-    struct amd64_gdt* gdt;
-
-    gdt = kmalloc(sizeof(struct amd64_gdt));
+    struct amd64_gdt* gdt = kmalloc(sizeof(struct amd64_gdt));
     strict_kassert_text(gdt, "out of memory");
-
     memset(gdt, 0, sizeof(struct amd64_gdt));
 
+    struct hart_local* hart = this_hart();
     hart->amd64.gdt = gdt;
 
-    set_entry_16(gdt, GDT_KERN_CODE_16, 0x00000000, 0xFFFF, code_flags | GDT_RING_0);
-    set_entry_16(gdt, GDT_KERN_DATA_16, 0x00000000, 0xFFFF, data_flags | GDT_RING_0);
-    set_entry_32(gdt, GDT_KERN_CODE_32, 0x00000000, 0xFFFFF, code_flags | GDT_RING_0);
-    set_entry_32(gdt, GDT_KERN_DATA_32, 0x00000000, 0xFFFFF, data_flags | GDT_RING_0);
-    set_entry_64(gdt, GDT_KERN_CODE_64, code_flags | GDT_RING_0);
-    set_entry_64(gdt, GDT_KERN_DATA_64, data_flags | GDT_RING_0);
-    set_entry_64(gdt, GDT_USER_CODE_64, code_flags | GDT_RING_3);
-    set_entry_64(gdt, GDT_USER_DATA_64, data_flags | GDT_RING_3);
+    set_entry_16(gdt, GDT_KERN_CODE_16, 0x00000000, 0xFFFF, PREDEF_CODE_FLAGS | GDT_RING_0);
+    set_entry_16(gdt, GDT_KERN_DATA_16, 0x00000000, 0xFFFF, PREDEF_DATA_FLAGS | GDT_RING_0);
+    set_entry_32(gdt, GDT_KERN_CODE_32, 0x00000000, 0xFFFFF, PREDEF_CODE_FLAGS | GDT_RING_0);
+    set_entry_32(gdt, GDT_KERN_DATA_32, 0x00000000, 0xFFFFF, PREDEF_DATA_FLAGS | GDT_RING_0);
+    set_entry_64(gdt, GDT_KERN_CODE_64, PREDEF_CODE_FLAGS | GDT_RING_0);
+    set_entry_64(gdt, GDT_KERN_DATA_64, PREDEF_DATA_FLAGS | GDT_RING_0);
+    set_entry_64(gdt, GDT_USER_CODE_64, PREDEF_CODE_FLAGS | GDT_RING_3);
+    set_entry_64(gdt, GDT_USER_DATA_64, PREDEF_DATA_FLAGS | GDT_RING_3);
 
     gdt->gdtr.size = (uint16_t)(sizeof(gdt->entries) - 1);
     gdt->gdtr.offset = (uintptr_t)(&gdt->entries[0]);

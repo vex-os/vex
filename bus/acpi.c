@@ -27,9 +27,7 @@ define_initcall(acpi_tables, INITCALL_STAGE_BSP_VMM, INITCALL_ORDER_LAST)
 
 define_initcall(init_acpi, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_MIDDLE)
 {
-    uacpi_status status;
-
-    status = uacpi_initialize(0);
+    uacpi_status status = uacpi_initialize(0);
 
     if(uacpi_unlikely_error(status)) {
         panic("acpi: %s", uacpi_status_to_string(status));

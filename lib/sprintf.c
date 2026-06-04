@@ -20,20 +20,18 @@ static void vsnprintf_func(int chr, void* restrict arg)
 
 int snprintf(char* restrict str, size_t sz, const char* restrict fmt, ...)
 {
-    int r;
     va_list ap;
     va_start(ap, fmt);
-    r = vsnprintf(str, sz, fmt, ap);
+    int r = vsnprintf(str, sz, fmt, ap);
     va_end(ap);
     return r;
 }
 
 int sprintf(char* restrict str, const char* restrict fmt, ...)
 {
-    int r;
     va_list ap;
     va_start(ap, fmt);
-    r = vsnprintf(str, SIZE_MAX, fmt, ap);
+    int r = vsnprintf(str, SIZE_MAX, fmt, ap);
     va_end(ap);
     return r;
 }
@@ -45,14 +43,8 @@ int vsprintf(char* restrict str, const char* restrict fmt, va_list ap)
 
 int vsnprintf(char* restrict str, size_t sz, const char* restrict fmt, va_list ap)
 {
-    int r;
-    struct fmtbuf ft;
-
-    ft.data = str;
-    ft.length = sz;
-    ft.write = 0;
-
-    r = vformat(&vsnprintf_func, &ft, fmt, ap);
+    struct fmtbuf ft = { .data = str, .length = sz, .write = 0 };
+    int r = vformat(&vsnprintf_func, &ft, fmt, ap);
 
     if(ft.data && ft.length > 0) {
         if(ft.write < ft.length) {

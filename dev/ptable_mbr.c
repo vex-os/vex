@@ -35,24 +35,19 @@ static_assert(512 == sizeof(struct mbr_sector)); // shutcho damn mouth it's not 
 
 static int mbr_detect(const struct blk_device* restrict device, void** restrict ptdata)
 {
-    bool is_protective;
-    bool is_valid;
-    int retval;
     struct mbr_sector sector;
-    struct mbr_sector* sector_copy;
-
-    retval = blk_device_read(device, 0, 1, &sector);
+    int retval = blk_device_read(device, 0, 1, &sector);
 
     if(retval < 0) {
         return retval;
     }
 
-    is_valid = true;
+    bool is_valid = true;
     is_valid = is_valid && sector.signature[0] == MBR_SIGNATURE_0;
     is_valid = is_valid && sector.signature[1] == MBR_SIGNATURE_1;
 
     if(is_valid) {
-        is_protective = true;
+        bool is_protective = true;
         is_protective = is_protective && sector.entries[0].type == 0xEE;
         is_protective = is_protective && sector.entries[1].type == 0x00;
         is_protective = is_protective && sector.entries[2].type == 0x00;
@@ -62,7 +57,7 @@ static int mbr_detect(const struct blk_device* restrict device, void** restrict 
             return -EINVAL;
         }
 
-        sector_copy = kmalloc(sizeof(struct mbr_sector));
+        struct mbr_sector* sector_copy = kmalloc(sizeof(struct mbr_sector));
 
         if(sector_copy == nullptr) {
             return -ENOMEM;
@@ -82,14 +77,10 @@ static int mbr_readpt(const struct blk_device* restrict device, void* restrict p
 {
     const struct mbr_sector* mbr = ptdata;
 
-    const struct mbr_entry* entry;
-    unsigned found;
-    unsigned slot;
+    unsigned found = 0;
 
-    found = 0;
-
-    for(slot = 0; slot < MBR_ENTRY_COUNT; slot += 1) {
-        entry = &mbr->entries[slot];
+    for(unsigned slot = 0; slot < MBR_ENTRY_COUNT; slot += 1) {
+        const struct mbr_entry* entry = &mbr->entries[slot];
 
         if(entry->type == 0x00 || entry->lba_count == 0) {
             continue;

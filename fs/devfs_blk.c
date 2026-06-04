@@ -29,28 +29,19 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
 
     uint8_t* buffer_ptr = buffer;
 
-    int retval;
-    size_t byte_offset;
-    size_t chunk;
-    size_t full;
-    size_t remaining;
-    size_t sector_size;
-    uintptr_t current;
-    uintptr_t lba;
+    size_t sector_size = device->sector_size;
+    size_t byte_offset = offset % sector_size;
+    uintptr_t lba = offset / sector_size;
 
-    sector_size = device->sector_size;
-    byte_offset = offset % sector_size;
-    lba = offset / sector_size;
-
-    remaining = sz;
-    current = lba;
+    size_t remaining = sz;
+    uintptr_t current = lba;
 
     if(sz == 0) {
         return 0;
     }
 
     if(byte_offset == 0 && (sz % sector_size) == 0) {
-        retval = blk_device_read(device, lba, sz / sector_size, buffer);
+        int retval = blk_device_read(device, lba, sz / sector_size, buffer);
 
         if(retval < 0)
             return retval;
@@ -58,14 +49,14 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
     }
 
     if(byte_offset) {
-        chunk = sector_size - byte_offset;
+        size_t chunk = sector_size - byte_offset;
 
         if(chunk > remaining) {
             chunk = remaining;
         }
 
         spinlock_acquire(&context->bounce_lock);
-        retval = blk_device_read(device, current, 1, context->bounce_buffer);
+        int retval = blk_device_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             spinlock_release(&context->bounce_lock);
@@ -81,8 +72,8 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
     }
 
     if(remaining >= sector_size) {
-        full = remaining / sector_size;
-        retval = blk_device_read(device, current, full, buffer_ptr);
+        size_t full = remaining / sector_size;
+        int retval = blk_device_read(device, current, full, buffer_ptr);
 
         if(retval < 0) {
             return retval;
@@ -96,7 +87,7 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
     if(remaining > 0) {
         spinlock_acquire(&context->bounce_lock);
 
-        retval = blk_device_read(device, current, 1, context->bounce_buffer);
+        int retval = blk_device_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             spinlock_release(&context->bounce_lock);
@@ -118,28 +109,19 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
 
     const uint8_t* buffer_ptr = buffer;
 
-    int retval;
-    size_t byte_offset;
-    size_t chunk;
-    size_t full;
-    size_t remaining;
-    size_t sector_size;
-    uintptr_t current;
-    uintptr_t lba;
+    size_t sector_size = device->sector_size;
+    size_t byte_offset = offset % sector_size;
+    uintptr_t lba = offset / sector_size;
 
-    sector_size = device->sector_size;
-    byte_offset = offset % sector_size;
-    lba = offset / sector_size;
-
-    remaining = sz;
-    current = lba;
+    size_t remaining = sz;
+    uintptr_t current = lba;
 
     if(sz == 0) {
         return 0;
     }
 
     if(byte_offset == 0 && (sz % sector_size) == 0) {
-        retval = blk_device_write(device, lba, sz / sector_size, buffer);
+        int retval = blk_device_write(device, lba, sz / sector_size, buffer);
 
         if(retval < 0)
             return retval;
@@ -147,7 +129,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
     }
 
     if(byte_offset) {
-        chunk = sector_size - byte_offset;
+        size_t chunk = sector_size - byte_offset;
 
         if(chunk > remaining) {
             chunk = remaining;
@@ -155,7 +137,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
 
         spinlock_acquire(&context->bounce_lock);
 
-        retval = blk_device_read(device, current, 1, context->bounce_buffer);
+        int retval = blk_device_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             spinlock_release(&context->bounce_lock);
@@ -178,8 +160,8 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
     }
 
     if(remaining >= sector_size) {
-        full = remaining / sector_size;
-        retval = blk_device_write(device, current, full, buffer_ptr);
+        size_t full = remaining / sector_size;
+        int retval = blk_device_write(device, current, full, buffer_ptr);
 
         if(retval < 0) {
             return retval;
@@ -193,7 +175,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
     if(remaining > 0) {
         spinlock_acquire(&context->bounce_lock);
 
-        retval = blk_device_read(device, current, 1, context->bounce_buffer);
+        int retval = blk_device_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             spinlock_release(&context->bounce_lock);
@@ -237,16 +219,12 @@ static const struct vnode_ops devfs_blk_ops = {
 
 void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict device, void* restrict ctxdata)
 {
-    int retval;
-    struct devfs_blk_context* context;
-    struct vnode* vnode;
-
     if(device->flags & BLK_FLAG_HIDDEN) {
         return;
     }
 
     if(event == BLK_EVENT_MEDIA_CONNECTED || event == BLK_EVENT_PARTITION_ADDED) {
-        context = slab_alloc(sizeof(struct devfs_blk_context));
+        struct devfs_blk_context* context = slab_alloc(sizeof(struct devfs_blk_context));
 
         if(context == nullptr) {
             return;
@@ -261,7 +239,7 @@ void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict d
             return;
         }
 
-        vnode = vnode_alloc(VNODE_BLOCK_DEV, &devfs_blk_ops, context);
+        struct vnode* vnode = vnode_alloc(VNODE_BLOCK_DEV, &devfs_blk_ops, context);
 
         if(vnode == nullptr) {
             kfree(context->bounce_buffer);
@@ -269,7 +247,7 @@ void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict d
             return;
         }
 
-        retval = devfs_insert(device->identifier, vnode);
+        int retval = devfs_insert(device->identifier, vnode);
 
         if(retval < 0) {
             vnode_decref(vnode);

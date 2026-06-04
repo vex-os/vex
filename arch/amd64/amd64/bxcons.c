@@ -4,10 +4,9 @@
 
 static void bxcons_write(struct console_driver* restrict driver, const void* restrict data, size_t size)
 {
-    size_t i;
     const char* psz = data;
 
-    for(i = 0; i < size; ++i) {
+    for(size_t i = 0; i < size; ++i) {
         pmwrite8(0xE9, psz[i]);
     }
 }

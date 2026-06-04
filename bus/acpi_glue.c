@@ -220,15 +220,13 @@ uacpi_status uacpi_kernel_pci_write32(uacpi_handle handle, uacpi_size off, uacpi
 
 uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* request)
 {
-    unsigned long long arg;
-
     if(request->type == UACPI_FIRMWARE_REQUEST_TYPE_BREAKPOINT) {
         pr_debug("uacpi: AML breakpoint hit");
         return UACPI_STATUS_OK;
     }
 
     if(request->type == UACPI_FIRMWARE_REQUEST_TYPE_FATAL) {
-        arg = request->fatal.arg;
+        unsigned long long arg = request->fatal.arg;
         pr_debug("uacpi: AML fatal: type=0x%x code=0x%x arg=0x%llx", request->fatal.type, request->fatal.code, arg);
         return UACPI_STATUS_OK;
     }
@@ -254,14 +252,12 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
     uacpi_handle* out_handle)
 {
     struct acpi_irq_trampoline* trampoline = kmalloc(sizeof(struct acpi_irq_trampoline));
-    struct intctl* controller;
-    unsigned ireq_number;
 
     if(trampoline == nullptr) {
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
 
-    controller = find_intctl(gsi);
+    struct intctl* controller = find_intctl(gsi);
 
     if(controller == nullptr) {
         kfree(trampoline);
@@ -273,7 +269,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
     trampoline->ctx = ctx;
     trampoline->gsi = gsi;
 
-    ireq_number = ireq_handler_register(UINT_MAX, &acpi_irq_dispatch, trampoline);
+    unsigned ireq_number = ireq_handler_register(UINT_MAX, &acpi_irq_dispatch, trampoline);
 
     if(ireq_number == UINT_MAX) {
         kfree(trampoline);
@@ -294,9 +290,8 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
 uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler handler, uacpi_handle irq_handle)
 {
     struct acpi_irq_trampoline* trampoline = irq_handle;
-    struct intctl* controller;
 
-    controller = find_intctl(trampoline->gsi);
+    struct intctl* controller = find_intctl(trampoline->gsi);
 
     if(controller) {
         intctl_mask(controller, trampoline->gsi);

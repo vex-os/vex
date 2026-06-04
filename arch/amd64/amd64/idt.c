@@ -93,10 +93,9 @@ static void set_entry(struct idt_entry* restrict entry, bool trap, uint16_t sele
 
 void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn)
 {
-    struct hart_local* hart = this_hart();
-    struct amd64_idt* idt = hart->amd64.idt;
-
     if(vector < IDT_SIZE) {
+        struct hart_local* hart = this_hart();
+        struct amd64_idt* idt = hart->amd64.idt;
         set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
         idt->entries[vector].flags |= IDT_RING_0;
     }
@@ -104,10 +103,9 @@ void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn)
 
 void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn)
 {
-    struct hart_local* hart = this_hart();
-    struct amd64_idt* idt = hart->amd64.idt;
-
     if(vector < IDT_SIZE) {
+        struct hart_local* hart = this_hart();
+        struct amd64_idt* idt = hart->amd64.idt;
         set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
         idt->entries[vector].flags |= IDT_RING_3;
     }
@@ -115,24 +113,20 @@ void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn)
 
 void unset_idt_entry(unsigned vector)
 {
-    struct hart_local* hart = this_hart();
-    struct amd64_idt* idt = hart->amd64.idt;
-
     if(vector < IDT_SIZE) {
+        struct hart_local* hart = this_hart();
+        struct amd64_idt* idt = hart->amd64.idt;
         memset(&idt->entries[vector], 0, sizeof(struct idt_entry));
     }
 }
 
 define_initcall(amd64_idt, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_EARLY)
 {
-    struct hart_local* hart = this_hart();
-    struct amd64_idt* idt;
-
-    idt = kmalloc(sizeof(struct amd64_idt));
+    struct amd64_idt* idt = kmalloc(sizeof(struct amd64_idt));
     strict_kassert_text(idt, "out of memory");
-
     memset(idt, 0, sizeof(*idt));
 
+    struct hart_local* hart = this_hart();
     hart->amd64.idt = idt;
 
     set_idt_entry_kern(0x00, true, &amd64_isr_00);

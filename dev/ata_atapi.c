@@ -29,12 +29,11 @@ static int atapi_write(const struct blk_device* restrict device, uintptr_t lba, 
 {
     const struct atapi_device* atapi = ATAPI_DEVICE_FROM_BLK(device);
 
-    atapi_cdb_type cdb;
-
     if(0 == (atapi->flags & ATAPI_FLAG_WRITABLE)) {
         return -EROFS;
     }
 
+    atapi_cdb_type cdb;
     memset(cdb, 0, sizeof(atapi_cdb_type));
     cdb[0] = ATAPI_CMD_WRITE_10;
     cdb[2] = (uint8_t)(lba >> 24);

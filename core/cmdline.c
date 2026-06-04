@@ -18,9 +18,6 @@ static volatile __used __section(".limine_requests") struct limine_executable_cm
 
 int cmdline_parse(struct cmdline* restrict cmdl, char* restrict buffer, size_t length)
 {
-    size_t i;
-    bool escape;
-
     cmdl->buffer = nullptr;
     cmdl->length = 0;
 
@@ -28,9 +25,9 @@ int cmdline_parse(struct cmdline* restrict cmdl, char* restrict buffer, size_t l
         goto invalid_args;
     }
 
-    escape = false;
+    bool escape = false;
 
-    for(i = 0; i < length; ++i) {
+    for(size_t i = 0; i < length; ++i) {
         if(isspace(buffer[i]) && !escape) {
             buffer[i] = 0;
             continue;
@@ -56,18 +53,13 @@ invalid_args:
 
 bool cmdline_contains(const struct cmdline* restrict cmdl, const char* restrict option)
 {
-    size_t option_size;
-    size_t token_size;
-    const char* token;
-    const char* end;
-
     if(cmdl->buffer) {
-        option_size = strlen(option);
-        token = cmdl->buffer;
-        end = cmdl->buffer + cmdl->length;
+        size_t option_size = strlen(option);
+        const char* token = cmdl->buffer;
+        const char* end = cmdl->buffer + cmdl->length;
 
         while(token < end) {
-            token_size = strlen(token);
+            size_t token_size = strlen(token);
 
             if(token_size == option_size && 0 == strncasecmp(token, option, option_size)) {
                 return true;
@@ -90,18 +82,13 @@ bool cmdline_contains(const struct cmdline* restrict cmdl, const char* restrict 
 
 const char* cmdline_argument(const struct cmdline* restrict cmdl, const char* restrict option)
 {
-    size_t option_size;
-    size_t token_size;
-    const char* token;
-    const char* end;
-
     if(cmdl->buffer) {
-        option_size = strlen(option);
-        token = cmdl->buffer;
-        end = cmdl->buffer + cmdl->length;
+        size_t option_size = strlen(option);
+        const char* token = cmdl->buffer;
+        const char* end = cmdl->buffer + cmdl->length;
 
         while(token < end) {
-            token_size = strlen(token);
+            size_t token_size = strlen(token);
 
             if(token_size == option_size && 0 == strncasecmp(token, option, option_size)) {
                 return &token[option_size];
@@ -124,8 +111,6 @@ const char* cmdline_argument(const struct cmdline* restrict cmdl, const char* re
 
 define_initcall(sys_cmdline_parse, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_MIDDLE)
 {
-    int retval;
-
     if(cmdline_request.response == nullptr) {
         sys_cmdline.buffer = nullptr;
         sys_cmdline.length = 0;
@@ -134,7 +119,7 @@ define_initcall(sys_cmdline_parse, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_M
         sys_cmdline.buffer = cmdline_request.response->cmdline;
         sys_cmdline.length = 1 + strlen(sys_cmdline.buffer);
 
-        retval = cmdline_parse(&sys_cmdline, sys_cmdline.buffer, sys_cmdline.length);
+        int retval = cmdline_parse(&sys_cmdline, sys_cmdline.buffer, sys_cmdline.length);
 
         if(retval < 0) {
             pr_warning("cmdline: parse error: %s", strerror(retval));
@@ -146,10 +131,8 @@ define_initcall(sys_cmdline_parse, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_M
 
 define_initcall(sys_cmdline_preserve, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_LAST)
 {
-    char* buffer_copy;
-
     if(sys_cmdline.buffer) {
-        buffer_copy = kmalloc(sys_cmdline.length);
+        char* buffer_copy = kmalloc(sys_cmdline.length);
         strict_kassert_text(buffer_copy, "out of memory");
 
         memset(buffer_copy, 0, sys_cmdline.length);

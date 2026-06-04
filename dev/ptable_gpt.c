@@ -72,31 +72,24 @@ struct gpt_ptdata {
 
 static int gpt_check_header(const struct blk_device* restrict device, uintptr_t header_lba, struct gpt_ptdata** restrict ptdata)
 {
-    int retval;
-    size_t entries_lbas;
-    size_t entries_size;
-    struct gpt_header header;
-    struct gpt_header* sector;
-    struct gpt_ptdata* gpt;
-    uint32_t checksum;
-
-    sector = kmalloc(device->sector_size);
+    struct gpt_header* sector = kmalloc(device->sector_size);
 
     if(sector == nullptr) {
         return -ENOMEM;
     }
 
-    retval = blk_device_read(device, header_lba, 1, sector);
+    int retval = blk_device_read(device, header_lba, 1, sector);
 
     if(retval < 0) {
         kfree(sector);
         return retval;
     }
 
+    struct gpt_header header;
     memcpy(&header, sector, sizeof(struct gpt_header));
     kfree(sector);
 
-    checksum = LE32_to_host(header.header_crc32);
+    uint32_t checksum = LE32_to_host(header.header_crc32);
     header.header_crc32 = UINT32_C(0);
 
     if(memcmp(header.signature, "EFI PART", 8)) {
@@ -104,14 +97,14 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
     }
 
     if(checksum == crc32_iso3309_get(&header, LE32_to_host(header.header_size))) {
-        entries_size = (size_t)(LE32_to_host(header.entry_count) * LE32_to_host(header.entry_size));
-        gpt = kmalloc(entries_size + sizeof(struct gpt_ptdata));
+        size_t entries_size = (size_t)(LE32_to_host(header.entry_count) * LE32_to_host(header.entry_size));
+        struct gpt_ptdata* gpt = kmalloc(entries_size + sizeof(struct gpt_ptdata));
 
         if(gpt == nullptr) {
             return -ENOMEM;
         }
 
-        entries_lbas = (entries_size + device->sector_size - 1) / device->sector_size;
+        size_t entries_lbas = (entries_size + device->sector_size - 1) / device->sector_size;
         retval = blk_device_read(device, LE64_to_host(header.entry_start_lba), entries_lbas, gpt->cached_entries);
 
         if(retval < 0) {
@@ -136,18 +129,14 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
 
 static int gpt_detect(const struct blk_device* restrict device, void** restrict ptdata)
 {
-    bool is_valid;
-    int retval;
-    struct gpt_ptdata* gpt;
     struct pmbr_sector sector;
-
-    retval = blk_device_read(device, 0, 1, &sector);
+    int retval = blk_device_read(device, 0, 1, &sector);
 
     if(retval < 0) {
         return retval;
     }
 
-    is_valid = true;
+    bool is_valid = true;
     is_valid = is_valid && sector.signature[0] == PMBR_SIGNATURE_0;
     is_valid = is_valid && sector.signature[1] == PMBR_SIGNATURE_1;
     is_valid = is_valid && sector.entries[0].type == 0xEE;
@@ -159,6 +148,7 @@ static int gpt_detect(const struct blk_device* restrict device, void** restrict 
         return -EINVAL;
     }
 
+    struct gpt_ptdata* gpt;
     retval = gpt_check_header(device, LE32_to_host(sector.entries[0].lba_start), &gpt);
 
     if(retval < 0) {
@@ -182,25 +172,20 @@ static int gpt_readpt(const struct blk_device* restrict device, void* restrict p
     uint32_t entry_count = LE32_to_host(gpt->header.entry_count);
     uint32_t entry_size = LE32_to_host(gpt->header.entry_size);
 
-    const struct gpt_entry* entry;
-    const uint16_t* name;
-    size_t name_len;
-    unsigned found;
-    unsigned i;
-    unsigned slot;
+    unsigned found = 0;
 
-    found = 0;
-
-    for(slot = 0; slot < entry_count; slot += 1) {
-        entry = (const struct gpt_entry*)(gpt->cached_entries + entry_size * (uint32_t)(slot));
+    for(unsigned slot = 0; slot < entry_count; slot += 1) {
+        const struct gpt_entry* entry = (const struct gpt_entry*)(gpt->cached_entries + entry_size * (uint32_t)(slot));
 
         if(0 == memcmp(entry->type_guid, null_guid, 16)) {
             continue;
         }
 
         if(found == index) {
-            name = (const uint16_t*)((const uint8_t*)(entry) + sizeof(struct gpt_entry));
-            name_len = (entry_size - sizeof(struct gpt_entry)) / sizeof(uint16_t);
+            const uint16_t* name = (const uint16_t*)((const uint8_t*)(entry) + sizeof(struct gpt_entry));
+            size_t name_len = (entry_size - sizeof(struct gpt_entry)) / sizeof(uint16_t);
+
+            unsigned i;
 
             for(i = 0; i < name_len && i < 63 && name[i]; i += 1) {
                 out->part_label[i] = (char)(LE16_to_host(name[i]) & 0x7F);

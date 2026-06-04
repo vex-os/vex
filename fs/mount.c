@@ -91,13 +91,6 @@ int vfs_driver_unregister(struct vfs_driver* restrict driver)
 
 int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params)
 {
-    int retval;
-    struct cmdline cmdl;
-    struct mount_entry* entry;
-    struct vfs_driver* driver;
-    struct vnode* mountpoint;
-    struct vfs* fs;
-
     if(type == nullptr || type[0] == 0) {
         return -EINVAL; // TODO: try deducing filesystem type
     }
@@ -108,7 +101,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
 
     spinlock_acquire(&drivers_lock);
 
-    driver = find_driver(type);
+    struct vfs_driver* driver = find_driver(type);
 
     spinlock_release(&drivers_lock);
 
@@ -116,6 +109,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         return -ENOENT;
     }
 
+    struct cmdline cmdl;
     cmdl.buffer = nullptr;
     cmdl.length = 0;
 
@@ -127,7 +121,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         }
     }
 
-    fs = slab_calloc(1, sizeof(struct vfs));
+    struct vfs* fs = slab_calloc(1, sizeof(struct vfs));
 
     if(fs == nullptr) {
         if(cmdl.buffer)
@@ -135,7 +129,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         return -ENOMEM;
     }
 
-    retval = driver->ops->mount(fs, device, &cmdl);
+    int retval = driver->ops->mount(fs, device, &cmdl);
 
     if(cmdl.buffer) {
         kfree(cmdl.buffer);
@@ -154,7 +148,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         vnode_incref(vfs_root);
     }
     else {
-        mountpoint = nullptr;
+        struct vnode* mountpoint = nullptr;
         retval = path_resolve(path, &mountpoint);
 
         if(retval < 0) {
@@ -171,7 +165,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         fs->mountpoint = mountpoint;
     }
 
-    entry = slab_calloc(1, sizeof(struct mount_entry));
+    struct mount_entry* entry = slab_calloc(1, sizeof(struct mount_entry));
 
     if(entry == nullptr) {
         spinlock_release(&mounts_lock);
@@ -207,22 +201,18 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
 
 int vfs_unmount(const char* restrict path)
 {
-    int retval;
-    struct mount_entry* entry;
-    struct mount_entry** prev;
-    struct vfs* fs;
-
     weak_kassert_text(path, "invalid path pointer");
 
     spinlock_acquire(&mounts_lock);
 
-    prev = &mounts_head;
+    struct mount_entry** prev = &mounts_head;
 
     while(*prev) {
-        entry = *prev;
+        struct mount_entry* entry = *prev;
 
         if(entry->path && 0 == strcmp(entry->path, path)) {
-            fs = entry->fs;
+            struct vfs* fs = entry->fs;
+            int retval;
 
             if(fs->mountpoint) {
                 fs->mountpoint->fs_mounted = nullptr;

@@ -21,10 +21,9 @@ struct parse_context {
 static uacpi_iteration_decision parse_resource(void* ctxdata, uacpi_resource* acpi_resource)
 {
     struct parse_context* context = ctxdata;
-    struct isa_resource* resource;
 
     if(context->num_resources < ACPI_MAX_ISA_RESOURCES) {
-        resource = &context->resources[context->num_resources];
+        struct isa_resource* resource = &context->resources[context->num_resources];
 
         if(acpi_resource->type == UACPI_RESOURCE_TYPE_IO) {
             resource->type = ISA_RESOURCE_PMIO;
@@ -98,13 +97,8 @@ static uacpi_iteration_decision parse_resource(void* ctxdata, uacpi_resource* ac
 
 static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_node* node, uacpi_u32 depth)
 {
-    struct isa_device* device;
-    struct isa_resource* resources;
-    struct parse_context context;
     uacpi_namespace_node_info* info;
-    uacpi_status status;
-
-    status = uacpi_get_namespace_node_info(node, &info);
+    uacpi_status status = uacpi_get_namespace_node_info(node, &info);
 
     if(uacpi_unlikely_error(status)) {
         return UACPI_ITERATION_DECISION_CONTINUE;
@@ -115,7 +109,7 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
         return UACPI_ITERATION_DECISION_CONTINUE;
     }
 
-    device = kmalloc(sizeof(struct isa_device));
+    struct isa_device* device = kmalloc(sizeof(struct isa_device));
 
     if(device == nullptr) {
         uacpi_free_namespace_node_info(info);
@@ -125,10 +119,12 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
     device->identifier = kstrdup(info->hid.value);
     strict_kassert_text(device->identifier, "out of memory");
 
+    struct parse_context context;
     context.num_resources = 0;
+
     uacpi_for_each_device_resource(node, "_CRS", parse_resource, &context);
 
-    resources = nullptr;
+    struct isa_resource* resources = nullptr;
 
     if(context.num_resources > 0) {
         resources = kmalloc(sizeof(struct isa_resource) * context.num_resources);
@@ -159,11 +155,9 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
 
 define_initcall(init_acpi_isa, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_LATE)
 {
-    uacpi_status status;
-    uacpi_namespace_node* node;
-
-    node = uacpi_namespace_get_predefined(UACPI_PREDEFINED_NAMESPACE_SB);
-    status = uacpi_namespace_for_each_child(node, &enumerate_device, nullptr, UACPI_OBJECT_DEVICE_BIT, UACPI_MAX_DEPTH_ANY, nullptr);
+    uacpi_namespace_node* node = uacpi_namespace_get_predefined(UACPI_PREDEFINED_NAMESPACE_SB);
+    uacpi_status status = uacpi_namespace_for_each_child(node, &enumerate_device, nullptr, UACPI_OBJECT_DEVICE_BIT, UACPI_MAX_DEPTH_ANY,
+        nullptr);
 
     if(uacpi_unlikely_error(status)) {
         pr_debug("acpi_isa: %s", uacpi_status_to_string(status));

@@ -9,20 +9,12 @@ static int path_walk(struct vnode* restrict stem, const char* restrict path, str
 {
     char component[PATH_NAME_SIZE];
 
-    const char* ptr;
-    const char* separator;
-    int retval;
-    size_t length;
-    struct vnode* current;
-    struct vnode* mounted;
-    struct vnode* next;
-
     weak_kassert_text(stem, "invalid stem pointer");
     weak_kassert_text(path, "invalid path pointer");
     weak_kassert_text(out, "invalid out pointer");
 
-    ptr = path;
-    current = stem;
+    const char* ptr = path;
+    struct vnode* current = stem;
 
     vnode_incref(current);
 
@@ -35,7 +27,8 @@ static int path_walk(struct vnode* restrict stem, const char* restrict path, str
             break;
         }
 
-        separator = strchr(ptr, PATH_SEPARATOR);
+        const char* separator = strchr(ptr, PATH_SEPARATOR);
+        size_t length;
 
         if(separator == nullptr) {
             length = strlen(ptr);
@@ -58,8 +51,8 @@ static int path_walk(struct vnode* restrict stem, const char* restrict path, str
             return -ENOTDIR;
         }
 
-        next = nullptr;
-        retval = vnode_lookup(current, component, &next);
+        struct vnode* next = nullptr;
+        int retval = vnode_lookup(current, component, &next);
 
         vnode_decref(current);
 
@@ -68,7 +61,7 @@ static int path_walk(struct vnode* restrict stem, const char* restrict path, str
         }
 
         if(next->fs_mounted) {
-            mounted = next->fs_mounted->root;
+            struct vnode* mounted = next->fs_mounted->root;
             vnode_incref(mounted);
             vnode_decref(next);
             next = mounted;
@@ -84,15 +77,11 @@ static int path_walk(struct vnode* restrict stem, const char* restrict path, str
 
 int path_resolve(const char* restrict path, struct vnode** restrict out)
 {
-    int retval;
-    struct vnode* mounted;
-    struct vnode* root;
-
     weak_kassert_text(path, "invalid path pointer");
     weak_kassert_text(out, "invalid out pointer");
 
-    root = nullptr;
-    retval = vfs_get_root(&root);
+    struct vnode* root = nullptr;
+    int retval = vfs_get_root(&root);
 
     if(retval < 0) {
         return retval;
@@ -100,7 +89,7 @@ int path_resolve(const char* restrict path, struct vnode** restrict out)
 
     if(path[0] == PATH_SEPARATOR) {
         if(root->fs_mounted) {
-            mounted = root->fs_mounted->root;
+            struct vnode* mounted = root->fs_mounted->root;
             vnode_incref(mounted);
             vnode_decref(root);
             root = mounted;

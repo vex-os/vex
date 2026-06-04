@@ -4,14 +4,13 @@
 
 char* kstrncat(char* restrict dst, const char* restrict src, size_t sz)
 {
-    size_t nc;
     char* save = dst;
 
     while(*dst && sz--) {
         dst++;
     }
 
-    nc = strnlen(src, --sz);
+    size_t nc = strnlen(src, --sz);
 
     dst[nc] = 0;
 
