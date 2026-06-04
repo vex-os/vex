@@ -11,6 +11,7 @@
 #include <mm/slab.h>
 
 static void fat_vnode_release(struct vnode* restrict node);
+static bool fat_vnode_same(struct vnode* restrict a, struct vnode* restrict b);
 static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out);
 static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index);
 static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
@@ -20,6 +21,7 @@ static int fat_vnode_stat(struct vnode* restrict node, struct __k_stat* restrict
 
 const struct vnode_ops fat_vnode_ops = {
     .release = &fat_vnode_release,
+    .same = &fat_vnode_same,
     .lookup = &fat_vnode_lookup,
     .iterate = &fat_vnode_iterate,
     .create = &fat_vnode_create,
@@ -31,6 +33,13 @@ const struct vnode_ops fat_vnode_ops = {
 static void fat_vnode_release(struct vnode* restrict node)
 {
     slab_free(node->ctxdata);
+}
+
+static bool fat_vnode_same(struct vnode* restrict a, struct vnode* restrict b)
+{
+    const struct fat_vnode_context* ca = a->ctxdata;
+    const struct fat_vnode_context* cb = b->ctxdata;
+    return ca->fs_ctx == cb->fs_ctx && ca->first_cluster == cb->first_cluster;
 }
 
 static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out)

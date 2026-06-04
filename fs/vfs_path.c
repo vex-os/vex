@@ -60,13 +60,6 @@ static int path_walk(struct vnode* restrict stem, const char* restrict path, str
             return retval;
         }
 
-        if(next->fs_mounted) {
-            struct vnode* mounted = next->fs_mounted->root;
-            vnode_incref(mounted);
-            vnode_decref(next);
-            next = mounted;
-        }
-
         current = next;
     }
 
@@ -88,13 +81,6 @@ int path_resolve(const char* restrict path, struct vnode** restrict out)
     }
 
     if(path[0] == PATH_SEPARATOR) {
-        if(root->fs_mounted) {
-            struct vnode* mounted = root->fs_mounted->root;
-            vnode_incref(mounted);
-            vnode_decref(root);
-            root = mounted;
-        }
-
         retval = path_walk(root, &path[1], out);
         vnode_decref(root);
         return retval;

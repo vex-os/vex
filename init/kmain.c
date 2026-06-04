@@ -7,16 +7,13 @@
 #include <core/version.h>
 #include <dev/blk_device.h>
 #include <fs/vfs_dirent.h>
-#include <fs/vfs_file.h>
 #include <fs/vfs_mount.h>
 #include <fs/vfs_path.h>
 #include <fs/vfs_vnode.h>
 #include <init/initcall.h>
 #include <lib/sprintf.h>
 #include <lib/string.h>
-#include <lib/strings.h>
 #include <limine.h>
-#include <mm/malloc.h>
 
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
@@ -69,44 +66,23 @@ void __noreturn kmain(void)
     pr_inform("hanging around...");
 
     vfs_mount("fat", "/", blk_device_find("ada0n1p1"), nullptr);
-    // vfs_mount("devfs", "/", nullptr, nullptr);
-    recurse_root();
 
-    struct file* wfp = file_open("/hello.txt", O_WRONLY | O_CREAT | O_TRUNC);
+    struct vnode* root_node = nullptr;
+    struct vnode* dev_node = nullptr;
 
-    if(wfp == nullptr) {
-        pr_warning("failed to create /hello.txt");
-    }
-    else {
-        const char* msg = "hello world from vex\n";
-        ssize_t written = file_write(wfp, msg, strlen(msg));
-        pr_inform("wrote %zd bytes to /hello.txt", written);
-        file_close(wfp);
-        vfs_sync("/");
-    }
+    if(0 == vfs_get_root(&root_node)) {
+        vnode_create(root_node, "dev", VNODE_DIRECTORY, &dev_node);
+        vnode_decref(root_node);
 
-    struct file* fp = file_open("/limine.conf", O_RDONLY);
-
-    if(fp == nullptr) {
-        pr_warning("nofile");
-    }
-    else {
-        char chr[2];
-        char buffer[2048];
-
-        memset(buffer, 0, sizeof(buffer));
-        chr[1] = 0;
-
-        while(file_read(fp, &chr[0], 1) > 0) {
-            kstrncat(buffer, chr, sizeof(buffer));
+        if(dev_node != nullptr) {
+            vnode_decref(dev_node);
         }
-
-        pr_inform("file:\n%s", buffer);
-
-        pr_warning("close");
-
-        file_close(fp);
     }
+
+    vfs_sync("/");
+    vfs_mount("devfs", "/dev", nullptr, nullptr);
+
+    recurse_root();
 
     for(;;) {
         stop_hart();
