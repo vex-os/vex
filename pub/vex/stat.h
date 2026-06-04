@@ -3,13 +3,14 @@
 
 #include <vex/types.h>
 
-#define __k_S_IFBLK   ((__k_mode_t)(0x1000))
-#define __k_S_IFCHR   ((__k_mode_t)(0x2000))
-#define __k_S_IFIFO   ((__k_mode_t)(0x3000))
-#define __k_S_IFREG   ((__k_mode_t)(0x4000))
-#define __k_S_IFLNK   ((__k_mode_t)(0x5000))
-#define __k_S_IFSOCK  ((__k_mode_t)(0x6000))
-#define __k_S_IF_MASK ((__k_mode_t)(0xF000))
+#define __k_S_IFBLK  ((__k_mode_t)(0x1000))
+#define __k_S_IFCHR  ((__k_mode_t)(0x2000))
+#define __k_S_IFIFO  ((__k_mode_t)(0x3000))
+#define __k_S_IFREG  ((__k_mode_t)(0x4000))
+#define __k_S_IFDIR  ((__k_mode_t)(0x5000))
+#define __k_S_IFLNK  ((__k_mode_t)(0x6000))
+#define __k_S_IFSOCK ((__k_mode_t)(0x7000))
+#define __k_S_IFMT   ((__k_mode_t)(0xF000))
 
 #define __k_S_IRUSR ((__k_mode_t)(0x0001))
 #define __k_S_IWUSR ((__k_mode_t)(0x0002))

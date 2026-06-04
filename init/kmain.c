@@ -68,9 +68,22 @@ void __noreturn kmain(void)
 
     pr_inform("hanging around...");
 
-    vfs_mount("fat", "/", blk_device_find("ada0n1p1"), "readonly");
+    vfs_mount("fat", "/", blk_device_find("ada0n1p1"), nullptr);
     // vfs_mount("devfs", "/", nullptr, nullptr);
     recurse_root();
+
+    struct file* wfp = file_open("/hello.txt", O_WRONLY | O_CREAT | O_TRUNC);
+
+    if(wfp == nullptr) {
+        pr_warning("failed to create /hello.txt");
+    }
+    else {
+        const char* msg = "hello world from vex\n";
+        ssize_t written = file_write(wfp, msg, strlen(msg));
+        pr_inform("wrote %zd bytes to /hello.txt", written);
+        file_close(wfp);
+        vfs_sync("/");
+    }
 
     struct file* fp = file_open("/limine.conf", O_RDONLY);
 

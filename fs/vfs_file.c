@@ -15,7 +15,47 @@ struct file* file_open(const char* restrict path, unsigned flags)
     struct vnode* node;
     int retval = path_resolve(path, &node);
 
-    if(retval < 0) {
+    if(retval == -ENOENT && (flags & O_CREAT)) {
+        const char* slash = nullptr;
+
+        for(const char* p = path; *p; p++) {
+            if(*p == PATH_SEPARATOR) {
+                slash = p;
+            }
+        }
+
+        const char* filename = slash ? slash + 1 : path;
+        struct vnode* parent;
+
+        if(slash == nullptr || slash == path) {
+            retval = path_resolve("/", &parent);
+        }
+        else {
+            char dirpath[PATH_NAME_SIZE];
+            size_t dirlen = slash - path;
+
+            if(dirlen >= PATH_NAME_SIZE) {
+                return nullptr;
+            }
+
+            memcpy(dirpath, path, dirlen);
+            dirpath[dirlen] = '\0';
+
+            retval = path_resolve(dirpath, &parent);
+        }
+
+        if(retval < 0) {
+            return nullptr;
+        }
+
+        retval = vnode_create(parent, filename, VNODE_FILE, &node);
+        vnode_decref(parent);
+
+        if(retval < 0) {
+            return nullptr;
+        }
+    }
+    else if(retval < 0) {
         return nullptr;
     }
 

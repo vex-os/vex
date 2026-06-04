@@ -86,7 +86,7 @@ static int write_entry(const struct fat_vfs_context* restrict context, uintptr_t
 
     memcpy(context->bounce + sizeof(union fat_entry) * (offset % entries_per_sector), entry, sizeof(union fat_entry));
 
-    return 0;
+    return blk_device_write(context->device, lba, 1, context->bounce);
 }
 
 static uint8_t ldir_checksum(const struct fat_dir_entry* restrict entry)
@@ -284,4 +284,49 @@ int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t c
     memcpy(&raw_entry.dir, &entry->base, sizeof(struct fat_dir_entry));
 
     return write_entry(context, cluster, offset, &raw_entry);
+}
+
+int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
+    const struct fat_dir_entry* restrict entry)
+{
+    union fat_entry raw;
+    memcpy(&raw.dir, entry, sizeof(struct fat_dir_entry));
+    return write_entry(context, cluster, offset, &raw);
+}
+
+int fat_dirent_find_free(const struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count,
+    size_t* restrict out_offset)
+{
+    union fat_entry raw;
+    unsigned run = 0;
+    size_t run_start = 0;
+    size_t offset = 0;
+
+    for(;;) {
+        int retval = read_entry(context, cluster, offset, &raw);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        uint8_t first = raw.dir.name[0];
+
+        if(first == 0x00 || first == 0xE5) {
+            if(run == 0) {
+                run_start = offset;
+            }
+
+            run += 1;
+
+            if(run >= count) {
+                *out_offset = run_start;
+                return 0;
+            }
+        }
+        else {
+            run = 0;
+        }
+
+        offset += 1;
+    }
 }
