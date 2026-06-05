@@ -165,7 +165,7 @@ static bool has_shortpath(const struct fat_vfs_context* restrict fs, uintptr_t c
             return false;
         }
 
-        if(memcmp(entry.base.name, shortname, 11) == 0) {
+        if(0 == memcmp(entry.base.name, shortname, 11)) {
             return true;
         }
     }
@@ -207,7 +207,7 @@ static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict na
             return retval;
         }
 
-        if(strncasecmp(dirent.full_name, name, PATH_NAME_SIZE)) {
+        if(strncasecmp(dirent.full_name, name, PATH_NAME_MAX)) {
             continue;
         }
 
@@ -501,7 +501,13 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
 
         struct fat_dirent dirent;
         size_t dir_off = context->dir_offset;
-        fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent);
+        int retval = fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent);
+
+        if(retval < 0) {
+            fat_cluster_free(fs, new_cluster);
+            context->first_cluster = 0;
+            return retval;
+        }
 
         dirent.base.first_cluster_hi = new_cluster >> 16;
         dirent.base.first_cluster_lo = new_cluster & 0xFFFF;
@@ -597,11 +603,11 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
         struct fat_dirent dirent;
         size_t dir_off = context->dir_offset;
 
-        fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent);
+        if(0 == fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent)) {
+            dirent.base.file_size = context->size_bytes;
 
-        dirent.base.file_size = context->size_bytes;
-
-        fat_dirent_update(context->fs_ctx, context->dir_cluster, context->dir_offset, &dirent.base);
+            fat_dirent_update(context->fs_ctx, context->dir_cluster, context->dir_offset, &dirent.base);
+        }
     }
 
     return done;
