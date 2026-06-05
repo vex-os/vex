@@ -120,10 +120,8 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
             return -ENOENT;
         }
 
-        if(entry_raw.dir.name[0] == 0x05) {
-            entry_raw.dir.name[0] = 0xE5;
-        }
-        else if(entry_raw.dir.name[0] == 0xE5) {
+        // Deleted entries (any type including LFN) are skipped
+        if(entry_raw.dir.name[0] == 0xE5) {
             num_ldir = 0;
             continue;
         }
@@ -154,6 +152,12 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
             num_ldir = 0;
         }
         else {
+            // 0x05 is a Kanji escape for 0xE5 as first char of an 8.3 name.
+            // Only applies to regular/directory entries, not to LFN order bytes.
+            if(entry_raw.dir.name[0] == 0x05) {
+                entry_raw.dir.name[0] = 0xE5;
+            }
+
             memcpy(&entry->base, &entry_raw.dir, sizeof(struct fat_dir_entry));
 
             if(num_ldir > 0) {
