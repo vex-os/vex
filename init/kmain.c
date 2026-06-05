@@ -226,6 +226,141 @@ static void fat_t6_dir_extend(struct vnode* restrict testdir)
     vnode_decref(subdir);
 }
 
+// T7: max-length filename (255 chars) — exercises the strncasecmp PATH_NAME_MAX fix.
+// Before the fix, lookup used PATH_NAME_SIZE (256) which could read one byte past the
+// caller's string when the name was exactly PATH_NAME_MAX long.
+static void fat_t7_maxlen_name(struct vnode* restrict testdir)
+{
+    char fname[PATH_NAME_SIZE];
+    memset(fname, 'a', PATH_NAME_MAX);
+    fname[PATH_NAME_MAX] = '\0';
+
+    struct vnode* file = nullptr;
+    int r = vnode_create(testdir, fname, VNODE_FILE, &file);
+    fat_check(r == 0 && file != nullptr, "T7 create 255-char filename");
+    if(r != 0 || file == nullptr)
+        return;
+
+    const char content[] = "maxlen";
+    vnode_write(file, content, sizeof(content) - 1, 0);
+    vnode_decref(file);
+
+    struct vnode* found = nullptr;
+    r = vnode_lookup(testdir, fname, &found);
+    fat_check(r == 0 && found != nullptr, "T7 lookup 255-char filename");
+
+    if(found) {
+        memset(fat_rbuf, 0, sizeof(content));
+        ssize_t nr = vnode_read(found, fat_rbuf, sizeof(content) - 1, 0);
+        fat_check(nr == (ssize_t)(sizeof(content) - 1) && memcmp(fat_rbuf, content, nr) == 0,
+            "T7 read back content");
+        vnode_decref(found);
+    }
+}
+
+// T8: sequential cluster chain extension — write data in multiple passes, each extending
+// the cluster chain, then read back. Exercises fat_cluster_link (fix #1: upper nibble
+// preservation) and the file_size update path that reads the dir entry (fix #2).
+static void fat_t8_chain_extend(struct vnode* restrict testdir)
+{
+    struct vnode* file = nullptr;
+    int r = vnode_create(testdir, "chainext.bin", VNODE_FILE, &file);
+    fat_check(r == 0 && file != nullptr, "T8 create chainext.bin");
+    if(r != 0 || file == nullptr)
+        return;
+
+    // Write in 4 KB chunks to force cluster allocation at each step
+    // (cluster size on test image is typically 4 KB or 512 B — 4 KB covers both)
+    const size_t chunk = 4096;
+    const int passes = 8;
+    size_t off = 0;
+    bool write_ok = true;
+
+    for(int p = 0; p < passes; p++) {
+        memset(fat_wbuf, (uint8_t)('A' + p), chunk);
+        ssize_t nw = vnode_write(file, fat_wbuf, chunk, off);
+        if(nw != (ssize_t)chunk) {
+            write_ok = false;
+            break;
+        }
+        off += chunk;
+    }
+
+    fat_check(write_ok, "T8 wrote 8×4KB in chain");
+
+    struct __k_stat st;
+    vnode_stat(file, &st);
+    fat_check((size_t)st.st_size == (size_t)(chunk * passes), "T8 stat size after chain writes");
+
+    // Read back each chunk and verify the fill byte
+    bool read_ok = true;
+    off = 0;
+
+    for(int p = 0; p < passes; p++) {
+        memset(fat_rbuf, 0, chunk);
+        ssize_t nr = vnode_read(file, fat_rbuf, chunk, off);
+        if(nr != (ssize_t)chunk) {
+            read_ok = false;
+            break;
+        }
+
+        for(size_t i = 0; i < chunk; i++) {
+            if(fat_rbuf[i] != (uint8_t)('A' + p)) {
+                read_ok = false;
+                break;
+            }
+        }
+
+        if(!read_ok)
+            break;
+        off += chunk;
+    }
+
+    fat_check(read_ok, "T8 read back each 4KB chunk correctly");
+    vnode_decref(file);
+}
+
+// T9: first-write cluster allocation — a newly created file has first_cluster==0 in its
+// dir entry. The first vnode_write must allocate a cluster and update the dir entry.
+// Re-opening the file via lookup must see the cluster and file_size correctly.
+// This exercises fix #2 (fat_dirent_read return value in fat_vnode_write).
+static void fat_t9_first_write_cluster(struct vnode* restrict testdir)
+{
+    const char* fname = "firstwrite.txt";
+    const char content[] = "first cluster allocation test\n";
+    const size_t len = sizeof(content) - 1;
+
+    struct vnode* file = nullptr;
+    int r = vnode_create(testdir, fname, VNODE_FILE, &file);
+    fat_check(r == 0 && file != nullptr, "T9 create firstwrite.txt");
+    if(r != 0 || file == nullptr)
+        return;
+
+    // The vnode was just created: first_cluster == 0, size == 0.
+    // Write triggers cluster alloc + dir entry update.
+    ssize_t nw = vnode_write(file, content, len, 0);
+    fat_check(nw == (ssize_t)len, "T9 first write");
+    vnode_decref(file);
+
+    // Re-open via lookup: the dir entry on disk must now carry the correct cluster.
+    struct vnode* found = nullptr;
+    r = vnode_lookup(testdir, fname, &found);
+    fat_check(r == 0 && found != nullptr, "T9 lookup after first write");
+    if(found == nullptr)
+        return;
+
+    struct __k_stat st;
+    vnode_stat(found, &st);
+    fat_check((size_t)st.st_size == len, "T9 stat size after reopen");
+
+    memset(fat_rbuf, 0, len + 1);
+    ssize_t nr = vnode_read(found, fat_rbuf, len, 0);
+    fat_check(nr == (ssize_t)len && memcmp(fat_rbuf, content, len) == 0,
+        "T9 read content after reopen");
+
+    vnode_decref(found);
+}
+
 static void fat_run_tests(struct vnode* restrict root)
 {
     fat_tests_passed = 0;
@@ -246,6 +381,9 @@ static void fat_run_tests(struct vnode* restrict root)
     fat_t4_83_collision(testdir);
     fat_t5_dotdot(testdir);
     fat_t6_dir_extend(testdir);
+    fat_t7_maxlen_name(testdir);
+    fat_t8_chain_extend(testdir);
+    fat_t9_first_write_cluster(testdir);
 
     vnode_decref(testdir);
 
