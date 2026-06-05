@@ -120,9 +120,94 @@ void __noreturn kmain(void)
     }
 
     vfs_sync("/");
+
     vfs_mount("devfs", "/dev", nullptr, nullptr);
 
+    // создаём usr/local/bin в FAT
+    struct vnode* usr_node = nullptr;
+    struct vnode* local_node = nullptr;
+    struct vnode* bin_node = nullptr;
+
+    if(0 == vfs_get_root(&root_node)) {
+        if(0 == vnode_create(root_node, "usr", VNODE_DIRECTORY, &usr_node)) {
+            if(0 == vnode_create(usr_node, "local", VNODE_DIRECTORY, &local_node)) {
+                vnode_create(local_node, "bin", VNODE_DIRECTORY, &bin_node);
+                if(bin_node) vnode_decref(bin_node);
+                vnode_decref(local_node);
+            }
+            vnode_decref(usr_node);
+        }
+        vnode_decref(root_node);
+    }
+
+    vfs_sync("/");
+
     recurse_root();
+
+    struct vnode* root = nullptr;
+    struct vnode* a = nullptr;
+    struct vnode* b = nullptr;
+
+    vfs_get_root(&root);
+
+    if(0 == path_resolve("/dev/..", &a)) {
+        pr_inform("dotdot: /dev/.. %s /", a == root ? "==" : "!=");
+        vnode_decref(a);
+    }
+    else {
+        pr_warning("dotdot: /dev/.. failed");
+    }
+
+    if(0 == path_resolve("/dev/../..", &b)) {
+        pr_inform("dotdot: /dev/../.. %s /", b == root ? "==" : "!=");
+        vnode_decref(b);
+    }
+    else {
+        pr_warning("dotdot: /dev/../.. failed");
+    }
+
+    // /usr/local/bin/../.. == /usr
+    struct vnode* usr = nullptr;
+    struct vnode* c = nullptr;
+
+    if(0 == path_resolve("/usr", &usr)) {
+        if(0 == path_resolve("/usr/local/bin/../..", &c)) {
+            pr_inform("dotdot: /usr/local/bin/../.. %s /usr", c == usr ? "==" : "!=");
+            vnode_decref(c);
+        }
+        else {
+            pr_warning("dotdot: /usr/local/bin/../.. failed");
+        }
+        vnode_decref(usr);
+    }
+
+    // /usr/local/../local/bin/.. == /usr/local
+    struct vnode* local = nullptr;
+    struct vnode* d = nullptr;
+
+    if(0 == path_resolve("/usr/local", &local)) {
+        if(0 == path_resolve("/usr/local/../local/bin/..", &d)) {
+            pr_inform("dotdot: /usr/local/../local/bin/.. %s /usr/local", d == local ? "==" : "!=");
+            vnode_decref(d);
+        }
+        else {
+            pr_warning("dotdot: /usr/local/../local/bin/.. failed");
+        }
+        vnode_decref(local);
+    }
+
+    // /dev/../usr/local/bin/../../../dev/.. == /
+    struct vnode* e = nullptr;
+
+    if(0 == path_resolve("/dev/../usr/local/bin/../../../dev/..", &e)) {
+        pr_inform("dotdot: long path %s /", e == root ? "==" : "!=");
+        vnode_decref(e);
+    }
+    else {
+        pr_warning("dotdot: long path failed");
+    }
+
+    vnode_decref(root);
 
     for(;;) {
         stop_hart();

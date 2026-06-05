@@ -46,6 +46,7 @@ struct vfs;
 struct vnode {
     struct vfs* fs;
     struct vfs* fs_mounted;
+    struct vnode* parent;
     const struct vnode_ops* ops;
     spinlock_type lock;
     unsigned refcount;

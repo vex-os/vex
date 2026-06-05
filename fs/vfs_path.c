@@ -52,6 +52,27 @@ static int path_walk(struct vnode* restrict stem, const char* restrict path, str
             return -ENOTDIR;
         }
 
+        if(component[0] == '.' && component[1] == 0) {
+            continue;
+        }
+
+        if(component[0] == '.' && component[1] == '.' && component[2] == 0) {
+            struct vnode* up = nullptr;
+
+            if(current->fs && current->fs->root == current) {
+                // граница монтирования: поднимаемся на mountpoint
+                up = current->fs->mountpoint ? current->fs->mountpoint : current;
+            }
+            else {
+                up = current->parent ? current->parent : current;
+            }
+
+            vnode_incref(up);
+            vnode_decref(current);
+            current = up;
+            continue;
+        }
+
         struct vnode* next = nullptr;
         int retval = vnode_lookup(current, component, &next);
 
