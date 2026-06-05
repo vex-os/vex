@@ -156,6 +156,10 @@ struct fat_vfs_context {
     size_t cluster_size_b;
     size_t sector_size;
 
+    size_t table_size_s;
+    unsigned num_tables;
+    uintptr_t fsinfo_lba;
+
     uint8_t* cache;
     size_t cache_size;
 
@@ -172,18 +176,11 @@ struct fat_vnode_context {
 
 extern const struct vnode_ops fat_vnode_ops;
 
-int fat_cluster_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, void* restrict buffer);
-int fat_cluster_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, const void* restrict buffer);
-
 void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluster, uintptr_t next);
 void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluster);
 
 uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintptr_t cluster) __nodiscard;
 uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context) __nodiscard;
-
-// int fat_entry_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, union fat_entry* restrict entry);
-// int fat_entry_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
-//     const union fat_entry* restrict entry);
 
 int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t* restrict offset,
     struct fat_dirent* restrict entry);
@@ -191,7 +188,7 @@ int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t c
     const struct fat_dirent* restrict entry);
 int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
     const struct fat_dir_entry* restrict entry);
-int fat_dirent_find_free(const struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset);
+int fat_dirent_find_free(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset);
 
 static __always_inline inline uintptr_t fat_cluster_lba(const struct fat_vfs_context* restrict context, uintptr_t cluster)
 {

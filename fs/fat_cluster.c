@@ -47,20 +47,6 @@ static void fat12_write_entry(struct fat_vfs_context* restrict context, uintptr_
     memcpy(context->cache + offset, &data, sizeof(uint16_t));
 }
 
-int fat_cluster_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, void* restrict buffer)
-{
-    uintptr_t lba = fat_cluster_lba(context, cluster);
-
-    return blk_device_read(context->device, lba, context->cluster_size_s, buffer);
-}
-
-int fat_cluster_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, const void* restrict buffer)
-{
-    uintptr_t lba = fat_cluster_lba(context, cluster);
-
-    return blk_device_write(context->device, lba, context->cluster_size_s, buffer);
-}
-
 uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintptr_t cluster)
 {
     if(context->filesystem_type == FAT_TYPE_12) {
