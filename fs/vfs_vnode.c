@@ -224,6 +224,15 @@ int vnode_stat(struct vnode* restrict node, struct __k_stat* restrict out)
     return node->ops->stat(node, out);
 }
 
+ssize_t vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz)
+{
+    weak_kassert_text(node, "invalid node pointer");
+
+    if(node->ops->readlink == nullptr)
+        return -ENOSYS;
+    return node->ops->readlink(node, buf, sz);
+}
+
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, void* restrict argument)
 {
     weak_kassert_text(node, "invalid node pointer");
