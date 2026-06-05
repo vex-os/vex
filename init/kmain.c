@@ -101,7 +101,7 @@ static void fat_t2_lfn(struct vnode* restrict testdir)
 static void fat_t3_multicluster(struct vnode* restrict testdir)
 {
     for(int i = 0; i < FAT_TEST_BUF; i++) {
-        fat_wbuf[i] = (uint8_t)(i & 0xFF);
+        fat_wbuf[i] = i & 0xFF;
     }
 
     struct vnode* file = nullptr;
@@ -276,7 +276,7 @@ static void fat_t8_chain_extend(struct vnode* restrict testdir)
     bool write_ok = true;
 
     for(int p = 0; p < passes; p++) {
-        memset(fat_wbuf, (uint8_t)('A' + p), chunk);
+        memset(fat_wbuf, 'A' + p, chunk);
         ssize_t nw = vnode_write(file, fat_wbuf, chunk, off);
         if(nw != (ssize_t)chunk) {
             write_ok = false;
