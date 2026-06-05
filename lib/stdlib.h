@@ -5,7 +5,7 @@
 #include <core/cdefs.h>
 #include <core/types.h>
 
-static __always_inline __nodiscard inline int abs(int value)
+static __always_inline __nodiscard int abs(int value)
 {
 #if __has_builtin(__builtin_abs)
     return __builtin_abs(value);
@@ -19,7 +19,7 @@ static __always_inline __nodiscard inline int abs(int value)
 #endif
 }
 
-static __always_inline __nodiscard inline long labs(long value)
+static __always_inline __nodiscard long labs(long value)
 {
 #if __has_builtin(__builtin_labs)
     return __builtin_labs(value);
@@ -33,7 +33,7 @@ static __always_inline __nodiscard inline long labs(long value)
 #endif
 }
 
-static __always_inline __nodiscard inline long long llabs(long long value)
+static __always_inline __nodiscard long long llabs(long long value)
 {
 #if __has_builtin(__builtin_llabs)
     return __builtin_llabs(value);

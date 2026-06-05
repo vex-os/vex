@@ -1,6 +1,6 @@
 #include <lib/bitmap.h>
 
-static __always_inline __nodiscard inline bitmap_t make_bitmask(size_t bitmod)
+static __always_inline __nodiscard bitmap_t make_bitmask(size_t bitmod)
 {
     if(bitmod == 0)
         return BITMAP_MASK_SET;

@@ -23,19 +23,19 @@ struct hart_local {
     } amd64;
 };
 
-static __always_inline __nodiscard inline struct hart_local* this_hart(void)
+static __always_inline __nodiscard struct hart_local* this_hart(void)
 {
     struct hart_local* hart;
     asm volatile("movq %%gs:0, %0" : "=r"(hart));
     return hart;
 }
 
-static __always_inline inline void yield_hart(void)
+static __always_inline void yield_hart(void)
 {
     asm volatile("pause");
 }
 
-static __always_inline inline void stop_hart(void)
+static __always_inline void stop_hart(void)
 {
     asm volatile("hlt");
 }

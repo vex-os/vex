@@ -45,15 +45,14 @@ int blk_device_register_custom(struct blk_device* restrict device);
 int blk_device_unregister(struct blk_device* restrict device);
 const struct blk_device* blk_device_find(const char* restrict name) __nodiscard;
 
-static __always_inline inline int blk_device_read(const struct blk_device* restrict device, uintptr_t lba, size_t count,
-    void* restrict buffer)
+static __always_inline int blk_device_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT))
         return -ENODEV;
     return device->ops->read(device, lba, count, buffer);
 }
 
-static __always_inline inline int blk_device_write(const struct blk_device* restrict device, uintptr_t lba, size_t count,
+static __always_inline int blk_device_write(const struct blk_device* restrict device, uintptr_t lba, size_t count,
     const void* restrict buffer)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT))
@@ -61,7 +60,7 @@ static __always_inline inline int blk_device_write(const struct blk_device* rest
     return device->ops->write(device, lba, count, buffer);
 }
 
-static __always_inline inline int blk_device_flush(const struct blk_device* restrict device)
+static __always_inline int blk_device_flush(const struct blk_device* restrict device)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT))
         return -ENODEV;

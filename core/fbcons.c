@@ -238,7 +238,7 @@ static size_t cursor_ypos_prev = 0U;
 static size_t cursor_xpos = 0U;
 static size_t cursor_ypos = 0U;
 
-static __always_inline inline void put_pixel(size_t offset, bool white)
+static __always_inline void put_pixel(size_t offset, bool white)
 {
     switch(fb_depth) {
         case 8:
