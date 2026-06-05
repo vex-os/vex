@@ -216,7 +216,7 @@ void amd64_ireq_FF(void);
 
 void __used amd64_ireq_handler(struct interrupt_frame* restrict frame, uint64_t idt_vector)
 {
-    dispatch_ireq((unsigned)(idt_vector - ARCH_IREQ_BASE), frame);
+    dispatch_ireq(idt_vector - ARCH_IREQ_BASE, frame);
 
     lapic_write(LAPIC_REG_EOI, UINT32_C(0));
 }

@@ -45,7 +45,7 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
 
         if(retval < 0)
             return retval;
-        return (ssize_t)(sz);
+        return sz;
     }
 
     if(byte_offset) {
@@ -81,7 +81,7 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
 
         buffer_ptr += full * sector_size;
         remaining -= full * sector_size;
-        current += (uintptr_t)(full);
+        current += full;
     }
 
     if(remaining > 0) {
@@ -99,7 +99,7 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
         spinlock_release(&context->bounce_lock);
     }
 
-    return (ssize_t)(sz);
+    return sz;
 }
 
 static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, uintptr_t offset)
@@ -125,7 +125,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
 
         if(retval < 0)
             return retval;
-        return (ssize_t)(sz);
+        return sz;
     }
 
     if(byte_offset) {
@@ -169,7 +169,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
 
         buffer_ptr += full * sector_size;
         remaining -= full * sector_size;
-        current += (uintptr_t)(full);
+        current += full;
     }
 
     if(remaining > 0) {
@@ -193,7 +193,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
         }
     }
 
-    return (ssize_t)(sz);
+    return sz;
 }
 
 static int devfs_blk_stat(struct vnode* restrict node, struct __k_stat* restrict out)

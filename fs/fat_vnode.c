@@ -467,7 +467,7 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
                 chunk = remaining;
             }
 
-            memcpy((uint8_t*)(buffer) + done, fs->bounce + offset_in_sector, chunk);
+            memcpy((uint8_t*)buffer + done, fs->bounce + offset_in_sector, chunk);
 
             done += chunk;
             remaining -= chunk;

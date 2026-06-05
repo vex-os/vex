@@ -97,7 +97,7 @@ void uacpi_kernel_restore_interrupts(uacpi_interrupt_state state)
 
 uacpi_handle uacpi_kernel_create_spinlock(void)
 {
-    return ((uacpi_handle)(420));
+    return (uacpi_handle)420;
 }
 
 void uacpi_kernel_free_spinlock(uacpi_handle handle)
@@ -117,5 +117,5 @@ void uacpi_kernel_unlock_spinlock(uacpi_handle handle, uacpi_cpu_flags flags)
 
 uacpi_thread_id uacpi_kernel_get_thread_id(void)
 {
-    return ((uacpi_thread_id)(1));
+    return (uacpi_thread_id)1;
 }

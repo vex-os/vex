@@ -18,7 +18,7 @@ struct vmm_pagemap sys_pagemap;
 
 static size_t pagemap_index(uintptr_t virt, uintptr_t shift)
 {
-    return (size_t)((virt >> shift) & VMM_ENTRY_LEVEL_MASK);
+    return (virt >> shift) & VMM_ENTRY_LEVEL_MASK;
 }
 
 static vmm_entry_type* vmm_entry_get(vmm_entry_type* restrict table, size_t index, bool allocate)

@@ -56,9 +56,9 @@ void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* msg)
 
 void* uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
 {
-    uintptr_t phys = page_align((uintptr_t)(addr));
+    uintptr_t phys = page_align(addr);
     uintptr_t virt = hhdm_base + phys;
-    uintptr_t end = page_align_up((uintptr_t)(addr) + len);
+    uintptr_t end = page_align_up(addr + len);
 
     while(phys < end) {
         vmm_map(&sys_pagemap, virt, phys, VPROT_RW);
@@ -71,8 +71,8 @@ void* uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
 
 void uacpi_kernel_unmap(void* addr, uacpi_size len)
 {
-    uintptr_t virt = page_align((uintptr_t)(addr));
-    uintptr_t end = page_align_up((uintptr_t)(addr) + len);
+    uintptr_t virt = page_align((uintptr_t)addr);
+    uintptr_t end = page_align_up((uintptr_t)addr + len);
 
     while(virt < end) {
         vmm_unmap(&sys_pagemap, virt);
@@ -93,7 +93,7 @@ void uacpi_kernel_free(void* mem)
 
 uacpi_handle uacpi_kernel_create_mutex(void)
 {
-    return ((uacpi_handle)(42));
+    return (uacpi_handle)42;
 }
 
 void uacpi_kernel_free_mutex(uacpi_handle handle)
@@ -113,7 +113,7 @@ void uacpi_kernel_release_mutex(uacpi_handle handle)
 
 uacpi_handle uacpi_kernel_create_event(void)
 {
-    return ((uacpi_handle)(69));
+    return (uacpi_handle)69;
 }
 
 void uacpi_kernel_free_event(uacpi_handle handle)
@@ -143,7 +143,7 @@ uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void)
 
 void uacpi_kernel_stall(uacpi_u8 usec)
 {
-    uacpi_u64 deadline = clocksrc_read_nsec() + ((uacpi_u64)(usec)) * UINT64_C(1000);
+    uacpi_u64 deadline = clocksrc_read_nsec() + usec * UINT64_C(1000);
 
     while(clocksrc_read_nsec() < deadline) {
         yield_hart();
@@ -280,7 +280,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
 
     trampoline->ireq_number = ireq_number;
 
-    intctl_route(controller, gsi, (uint8_t)(ireq_number + ARCH_IREQ_BASE), 0, TRIGGER_LEVEL, ACTIVE_LOW);
+    intctl_route(controller, gsi, ireq_number + ARCH_IREQ_BASE, 0, TRIGGER_LEVEL, ACTIVE_LOW);
     intctl_unmask(controller, gsi);
 
     *out_handle = trampoline;

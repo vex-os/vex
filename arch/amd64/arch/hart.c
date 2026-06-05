@@ -44,7 +44,7 @@ define_initcall(amd64_hart, INITCALL_STAGE_SMP_HART, INITCALL_ORDER_FIRST)
     hart->self = hart;
     hart->index = atomic_fetch_add(&hart_count, 1, ATOMIC_RELAXED);
 
-    msr_write(MSR_GS_BASE, (uint64_t)(hart));
+    msr_write(MSR_GS_BASE, (uint64_t)hart);
 }
 
 define_initcall(amd64_panic_halt, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_MIDDLE)

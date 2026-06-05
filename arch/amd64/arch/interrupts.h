@@ -37,7 +37,7 @@ static __always_inline inline bool disable_interrupts(void)
     asm volatile("pushfq");
     asm volatile("pop %0" : "=r"(rflags));
     asm volatile("cli");
-    return ((bool)(rflags & UINT64_C(0x0000000000000200)));
+    return rflags & UINT64_C(0x0000000000000200);
 }
 
 static __always_inline inline bool enable_interrupts(void)
@@ -46,7 +46,7 @@ static __always_inline inline bool enable_interrupts(void)
     asm volatile("pushfq");
     asm volatile("pop %0" : "=r"(rflags));
     asm volatile("sti");
-    return ((bool)(rflags & UINT64_C(0x0000000000000200)));
+    return rflags & UINT64_C(0x0000000000000200);
 }
 
 static __always_inline inline void restore_interrupts(bool state)

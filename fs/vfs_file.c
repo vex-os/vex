@@ -185,7 +185,7 @@ int file_seek(struct file* restrict fp, ptrdiff_t offset, int origin)
     }
 
     if(origin == SEEK_CUR) {
-        new_offset = offset + (ptrdiff_t)(fp->offset);
+        new_offset = offset + fp->offset;
         goto apply_offset;
     }
 
@@ -204,12 +204,9 @@ int file_seek(struct file* restrict fp, ptrdiff_t offset, int origin)
     return -EINVAL;
 
 apply_offset:
-    if(new_offset < 0) {
+    if(new_offset < 0)
         return -EINVAL;
-    }
-
-    fp->offset = (uintptr_t)(new_offset);
-
+    fp->offset = new_offset;
     return 0;
 }
 
