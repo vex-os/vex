@@ -118,45 +118,45 @@ struct ahci_pci_context {
     uint32_t ata_mask;
 };
 
-static __always_inline uint32_t ahci_register_read(struct ahci_port* restrict port, uint32_t offset)
+static __always_inline uint32_t port_read(struct ahci_port* restrict port, uint32_t offset)
 {
     return pci_bar_read32(port->bar, port->port_base + offset);
 }
 
-static __always_inline void ahci_register_write(struct ahci_port* restrict port, uint32_t offset, uint32_t value)
+static __always_inline void port_write(struct ahci_port* restrict port, uint32_t offset, uint32_t value)
 {
     pci_bar_write32(port->bar, port->port_base + offset, value);
 }
 
 static void ahci_stop(struct ahci_port* restrict port)
 {
-    ahci_register_write(port, PORT_REG_CMD, ahci_register_read(port, PORT_REG_CMD) & ~PORT_CMD_ST);
+    port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) & ~PORT_CMD_ST);
 
-    while(ahci_register_read(port, PORT_REG_CMD) & PORT_CMD_CR) {
+    while(port_read(port, PORT_REG_CMD) & PORT_CMD_CR) {
         yield_hart();
     }
 
-    ahci_register_write(port, PORT_REG_CMD, ahci_register_read(port, PORT_REG_CMD) & ~PORT_CMD_FRE);
+    port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) & ~PORT_CMD_FRE);
 
-    while(ahci_register_read(port, PORT_REG_CMD) & PORT_CMD_FR) {
+    while(port_read(port, PORT_REG_CMD) & PORT_CMD_FR) {
         yield_hart();
     }
 }
 
 static void ahci_start(struct ahci_port* restrict port)
 {
-    ahci_register_write(port, PORT_REG_CMD, ahci_register_read(port, PORT_REG_CMD) | PORT_CMD_FRE);
-    ahci_register_write(port, PORT_REG_CMD, ahci_register_read(port, PORT_REG_CMD) | PORT_CMD_ST);
+    port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) | PORT_CMD_FRE);
+    port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) | PORT_CMD_ST);
 }
 
 static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
 {
     unsigned counter = 0;
 
-    while(ahci_register_read(port, PORT_REG_CI) & 1) {
-        if(ahci_register_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
-            unsigned long tfd_value = ahci_register_read(port, PORT_REG_TFD);
-            pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)lba, tfd_value);
+    while(port_read(port, PORT_REG_CI) & 1) {
+        if(port_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
+            unsigned long tfd = port_read(port, PORT_REG_TFD);
+            pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)lba, tfd);
             return -EIO;
         }
 
@@ -170,9 +170,9 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
         counter += 1;
     }
 
-    if(ahci_register_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
-        unsigned long tfd_value = ahci_register_read(port, PORT_REG_TFD);
-        pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)lba, tfd_value);
+    if(port_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
+        unsigned long tfd = port_read(port, PORT_REG_TFD);
+        pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)lba, tfd);
         return -EIO;
     }
 
@@ -227,14 +227,14 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
 
 static int ahci_issue(struct ahci_port* restrict port, uintptr_t lba)
 {
-    ahci_register_write(port, PORT_REG_SERR, 0xFFFFFFFF);
-    ahci_register_write(port, PORT_REG_IS, 0xFFFFFFFF);
+    port_write(port, PORT_REG_SERR, 0xFFFFFFFF);
+    port_write(port, PORT_REG_IS, 0xFFFFFFFF);
 
-    while(ahci_register_read(port, PORT_REG_TFD) & (PORT_TFD_BSY | PORT_TFD_DRQ)) {
+    while(port_read(port, PORT_REG_TFD) & (PORT_TFD_BSY | PORT_TFD_DRQ)) {
         yield_hart();
     }
 
-    ahci_register_write(port, PORT_REG_CI, 1);
+    port_write(port, PORT_REG_CI, 1);
 
     return ahci_poll(port, lba);
 }
@@ -323,7 +323,7 @@ static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_ty
     }
 }
 
-static int ahci_atapi_read_capacity(struct ahci_port* restrict port, size_t* restrict sector_count, size_t* restrict sector_size)
+static int ahci_atapi_capacity(struct ahci_port* restrict port, size_t* restrict sector_count, size_t* restrict sector_size)
 {
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
 
@@ -358,7 +358,7 @@ static int ahci_atapi_read_capacity(struct ahci_port* restrict port, size_t* res
     return 0;
 }
 
-static int ahci_atapi_send_packet(const struct atapi_device* restrict device, const atapi_cdb_type cdb, void* restrict buffer, size_t count)
+static int ahci_atapi_packet(const struct atapi_device* restrict device, const atapi_cdb_type cdb, void* restrict buffer, size_t count)
 {
     struct ahci_port* port = device->base.ctxdata;
 
@@ -386,7 +386,7 @@ static int ahci_atapi_send_packet(const struct atapi_device* restrict device, co
 }
 
 static const struct atapi_device_ops ahci_atapi_ops = {
-    .send_packet = &ahci_atapi_send_packet,
+    .send_packet = &ahci_atapi_packet,
 };
 
 static int ahci_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
@@ -406,9 +406,9 @@ static int ahci_read(const struct blk_device* restrict device, uintptr_t lba, si
             return retval;
         }
 
-        uint8_t* buffer_ptr = buffer;
-        buffer_ptr += sector * 512;
-        memcpy(buffer_ptr, (const uint8_t*)(databuf), 512);
+        uint8_t* buf = buffer;
+        buf += sector * 512;
+        memcpy(buf, (const uint8_t*)(databuf), 512);
     }
 
     return 0;
@@ -423,9 +423,9 @@ static int ahci_write(const struct blk_device* restrict device, uintptr_t lba, s
     for(size_t sector = 0; sector < count; sector += 1) {
         uintptr_t current_lba = lba + sector;
 
-        const uint8_t* buffer_ptr = buffer;
-        buffer_ptr += sector * 512;
-        memcpy((void*)databuf, buffer_ptr, 512);
+        const uint8_t* buf = buffer;
+        buf += sector * 512;
+        memcpy((void*)databuf, buf, 512);
 
         ahci_setup(port, current_lba, ATA_CMD_WRITE_DMA_EXT, 1, true);
 
@@ -498,7 +498,7 @@ static const struct blk_device_ops ahci_blk_device_ops = {
     .flush = &ahci_flush,
 };
 
-static int ahci_register_ata_port(struct ahci_pci_context* restrict context, unsigned iterator, unsigned port_num)
+static int ahci_port_register_ata(struct ahci_pci_context* restrict context, unsigned iterator, unsigned port_num)
 {
     struct blk_device* device = &context->devices[port_num];
 
@@ -511,7 +511,7 @@ static int ahci_register_ata_port(struct ahci_pci_context* restrict context, uns
     return blk_device_register_root(device, blk_name_ata, iterator, port_num);
 }
 
-static int ahci_register_atapi_port(struct ahci_pci_context* restrict context, unsigned iterator, unsigned port_num)
+static int ahci_port_register_atapi(struct ahci_pci_context* restrict context, unsigned iterator, unsigned port_num)
 {
     struct atapi_device* atapi_dev = &context->atapi_devices[port_num];
 
@@ -525,7 +525,7 @@ static int ahci_register_atapi_port(struct ahci_pci_context* restrict context, u
     return atapi_register(atapi_dev, blk_name_atapi, iterator, port_num);
 }
 
-static void ahci_probe_ata_port(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
+static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
 {
     if(ahci_port_init(context, abar, port_num)) {
         pr_debug("ahci: out of DMA memory for port %u", port_num);
@@ -552,14 +552,14 @@ static void ahci_probe_ata_port(struct ahci_pci_context* restrict context, struc
     device->flags = BLK_FLAG_PRESENT;
     device->ctxdata = port;
 
-    char model_str[41];
-    ata_identify_string(&identify[ATA_IDENTIFY_MODEL_FIELD], ATA_IDENTIFY_MODEL_NWORDS, model_str, sizeof(model_str));
-    pr_debug("ahci: port %u: %s (%zu sectors)", port_num, model_str, device->sector_count);
+    char model[41];
+    ata_identify_string(&identify[ATA_IDENTIFY_MODEL_FIELD], ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
+    pr_debug("ahci: port %u: %s (%zu sectors)", port_num, model, device->sector_count);
 
     blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, device);
 }
 
-static void ahci_probe_atapi_port(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
+static void ahci_port_probe_atapi(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
 {
     if(ahci_port_init(context, abar, port_num)) {
         pr_debug("ahci: out of DMA memory for ATAPI port %u", port_num);
@@ -570,19 +570,19 @@ static void ahci_probe_atapi_port(struct ahci_pci_context* restrict context, str
     struct ahci_port* port = &context->ports[port_num];
     struct atapi_device* atapi_dev = &context->atapi_devices[port_num];
 
-    char model_str[41];
+    char model[41];
 
     if(0 == ahci_atapi_identify(port, identify)) {
-        ata_identify_string(&identify[ATA_IDENTIFY_MODEL_FIELD], ATA_IDENTIFY_MODEL_NWORDS, model_str, sizeof(model_str));
+        ata_identify_string(&identify[ATA_IDENTIFY_MODEL_FIELD], ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
     }
     else {
-        model_str[0] = 0x00;
+        model[0] = 0x00;
     }
 
     size_t sector_count;
     size_t sector_size;
 
-    if(ahci_atapi_read_capacity(port, &sector_count, &sector_size)) {
+    if(ahci_atapi_capacity(port, &sector_count, &sector_size)) {
         pr_debug("ahci: ATAPI port %u: no media or read capacity failed", port_num);
         ahci_port_teardown(port);
         return;
@@ -593,12 +593,12 @@ static void ahci_probe_atapi_port(struct ahci_pci_context* restrict context, str
     atapi_dev->base.flags = BLK_FLAG_PRESENT;
     atapi_dev->base.ctxdata = port;
 
-    pr_debug("ahci: port %u ATAPI: %s (%zu sectors of %zu bytes)", port_num, model_str, sector_count, sector_size);
+    pr_debug("ahci: port %u ATAPI: %s (%zu sectors of %zu bytes)", port_num, model, sector_count, sector_size);
 
     blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, &atapi_dev->base);
 }
 
-static int ahci_driver_probe(struct pci_device* restrict pci_dev, const struct pci_driver_id* restrict id)
+static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driver_id* restrict id)
 {
     struct ahci_pci_context* context = kmalloc(sizeof(struct ahci_pci_context));
 
@@ -641,12 +641,12 @@ static int ahci_driver_probe(struct pci_device* restrict pci_dev, const struct p
         uint32_t ahci_signature = pci_bar_read32(abar, port_base + PORT_REG_SIG);
 
         if(ahci_signature == ATA_SIGNATURE_ATAPI) {
-            if(0 == ahci_register_atapi_port(context, iterator, port_num)) {
+            if(0 == ahci_port_register_atapi(context, iterator, port_num)) {
                 context->atapi_mask |= (UINT32_C(1) << port_num);
             }
         }
         else {
-            if(0 == ahci_register_ata_port(context, iterator, port_num)) {
+            if(0 == ahci_port_register_ata(context, iterator, port_num)) {
                 context->ata_mask |= (UINT32_C(1) << port_num);
             }
         }
@@ -678,17 +678,17 @@ static int ahci_driver_probe(struct pci_device* restrict pci_dev, const struct p
         }
 
         if(context->atapi_mask & port_bit) {
-            ahci_probe_atapi_port(context, abar, port_num);
+            ahci_port_probe_atapi(context, abar, port_num);
         }
         else {
-            ahci_probe_ata_port(context, abar, port_num);
+            ahci_port_probe_ata(context, abar, port_num);
         }
     }
 
     return 0;
 }
 
-static void ahci_driver_remove(struct pci_device* restrict pci_dev)
+static void ahci_remove(struct pci_device* restrict pci_dev)
 {
     struct ahci_pci_context* context = pci_dev->ctxdata;
 
@@ -722,8 +722,8 @@ static void ahci_driver_remove(struct pci_device* restrict pci_dev)
 }
 
 static const struct pci_driver_ops ahci_driver_ops = {
-    .probe = &ahci_driver_probe,
-    .remove = &ahci_driver_remove,
+    .probe = &ahci_probe,
+    .remove = &ahci_remove,
 };
 
 static const struct pci_driver_id ahci_ids[] = {

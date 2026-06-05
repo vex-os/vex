@@ -325,7 +325,7 @@ int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t 
     return write_entry(context, cluster, offset, &raw);
 }
 
-int fat_dirent_find_free(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset)
+int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset)
 {
     union fat_entry raw;
     unsigned run = 0;
@@ -355,26 +355,26 @@ int fat_dirent_find_free(struct fat_vfs_context* restrict context, uintptr_t clu
                 tail = next;
             }
 
-            uintptr_t new_cluster = fat_cluster_alloc(context);
+            uintptr_t cluster = fat_cluster_alloc(context);
 
-            if(new_cluster == UINTPTR_MAX) {
+            if(cluster == UINTPTR_MAX) {
                 return -ENOSPC;
             }
 
             memset(context->bounce, 0, context->sector_size);
 
-            uintptr_t new_lba = fat_cluster_lba(context, new_cluster);
+            uintptr_t lba = fat_cluster_lba(context, cluster);
 
             for(size_t s = 0; s < context->cluster_size_s; s++) {
-                retval = blk_device_write(context->device, new_lba + s, 1, context->bounce);
+                retval = blk_device_write(context->device, lba + s, 1, context->bounce);
 
                 if(retval < 0) {
-                    fat_cluster_free(context, new_cluster);
+                    fat_cluster_free(context, cluster);
                     return retval;
                 }
             }
 
-            fat_cluster_link(context, tail, new_cluster);
+            fat_cluster_link(context, tail, cluster);
 
             retval = read_entry(context, cluster, offset, &raw);
 

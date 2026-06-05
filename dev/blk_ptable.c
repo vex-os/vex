@@ -252,5 +252,5 @@ int blk_ptable_rescan(const struct blk_device* restrict device)
 
 define_initcall(blk_ptable, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_FIRST)
 {
-    blk_event_register_handler(&handle_blk_event, nullptr);
+    blk_event_subscribe(&handle_blk_event, nullptr);
 }

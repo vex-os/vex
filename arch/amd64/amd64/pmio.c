@@ -36,32 +36,32 @@ void pmio_write32(const struct pmio_region* restrict pmio, uintptr_t offset, uin
     pmwrite32(pmio->base + offset, value);
 }
 
-void pmio_read8_string(const struct pmio_region* restrict pmio, uintptr_t offset, uint8_t* restrict data, size_t count)
+void pmio_read8s(const struct pmio_region* restrict pmio, uintptr_t offset, uint8_t* restrict data, size_t count)
 {
-    pmread8_string(pmio->base + offset, data, count);
+    pmread8s(pmio->base + offset, data, count);
 }
 
-void pmio_read16_string(const struct pmio_region* restrict pmio, uintptr_t offset, uint16_t* restrict data, size_t count)
+void pmio_read16s(const struct pmio_region* restrict pmio, uintptr_t offset, uint16_t* restrict data, size_t count)
 {
-    pmread16_string(pmio->base + offset, data, count);
+    pmread16s(pmio->base + offset, data, count);
 }
 
-void pmio_read32_string(const struct pmio_region* restrict pmio, uintptr_t offset, uint32_t* restrict data, size_t count)
+void pmio_read32s(const struct pmio_region* restrict pmio, uintptr_t offset, uint32_t* restrict data, size_t count)
 {
-    pmread32_string(pmio->base + offset, data, count);
+    pmread32s(pmio->base + offset, data, count);
 }
 
-void pmio_write8_string(const struct pmio_region* restrict pmio, uintptr_t offset, const uint8_t* restrict data, size_t count)
+void pmio_write8s(const struct pmio_region* restrict pmio, uintptr_t offset, const uint8_t* restrict data, size_t count)
 {
-    pmwrite8_string(pmio->base + offset, data, count);
+    pmwrite8s(pmio->base + offset, data, count);
 }
 
-void pmio_write16_string(const struct pmio_region* restrict pmio, uintptr_t offset, const uint16_t* restrict data, size_t count)
+void pmio_write16s(const struct pmio_region* restrict pmio, uintptr_t offset, const uint16_t* restrict data, size_t count)
 {
-    pmwrite16_string(pmio->base + offset, data, count);
+    pmwrite16s(pmio->base + offset, data, count);
 }
 
-void pmio_write32_string(const struct pmio_region* restrict pmio, uintptr_t offset, const uint32_t* restrict data, size_t count)
+void pmio_write32s(const struct pmio_region* restrict pmio, uintptr_t offset, const uint32_t* restrict data, size_t count)
 {
-    pmwrite32_string(pmio->base + offset, data, count);
+    pmwrite32s(pmio->base + offset, data, count);
 }

@@ -31,7 +31,7 @@ static void panic_halt_handler(unsigned number, struct interrupt_frame* restrict
 
 void broadcast_panic_ipi(void)
 {
-    lapic_send_broadcast_ipi(panic_ipi_vector);
+    lapic_broadcast_ipi(panic_ipi_vector);
 }
 
 define_initcall(amd64_hart, INITCALL_STAGE_SMP_HART, INITCALL_ORDER_FIRST)

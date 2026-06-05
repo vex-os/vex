@@ -31,7 +31,7 @@ static ino_t fat_nodenumber(const struct fat_vfs_context* restrict fs, uintptr_t
     return result;
 }
 
-static bool check_shortpath_char(char c)
+static bool is_shortname_char(char c)
 {
     static const char ok[] = "$%-_@~`!(){}^#&";
 
@@ -56,7 +56,7 @@ static bool check_shortpath_char(char c)
     return false;
 }
 
-static void shortpath_parts(const char* restrict filename, char stem[6], unsigned* restrict stem_len, char ext[3],
+static void shortname_parts(const char* restrict filename, char stem[6], unsigned* restrict stem_len, char ext[3],
     unsigned* restrict ext_len)
 {
     *stem_len = 0;
@@ -85,7 +85,7 @@ static void shortpath_parts(const char* restrict filename, char stem[6], unsigne
             continue;
         }
 
-        if(check_shortpath_char(chr)) {
+        if(is_shortname_char(chr)) {
             stem[*stem_len] = chr;
             *stem_len += 1;
         }
@@ -99,7 +99,7 @@ static void shortpath_parts(const char* restrict filename, char stem[6], unsigne
                 continue;
             }
 
-            if(check_shortpath_char(chr)) {
+            if(is_shortname_char(chr)) {
                 ext[*ext_len] = chr;
                 *ext_len += 1;
             }
@@ -107,13 +107,13 @@ static void shortpath_parts(const char* restrict filename, char stem[6], unsigne
     }
 }
 
-static void shortpath_filename(const char* restrict name, unsigned tail_n, uint8_t out[11])
+static void shortname_build(const char* restrict name, unsigned tail_n, uint8_t out[11])
 {
     memset(out, 0x20, 11);
 
     char stem[6], ext[3];
     unsigned stem_len, ext_len;
-    shortpath_parts(name, stem, &stem_len, ext, &ext_len);
+    shortname_parts(name, stem, &stem_len, ext, &ext_len);
 
     char tail[5];
     unsigned tail_len = 1;
@@ -154,7 +154,7 @@ static void shortpath_filename(const char* restrict name, unsigned tail_n, uint8
     }
 }
 
-static bool has_shortpath(const struct fat_vfs_context* restrict fs, uintptr_t cluster, const uint8_t shortname[11])
+static bool shortname_exists(const struct fat_vfs_context* restrict fs, uintptr_t cluster, const uint8_t shortname[11])
 {
     struct fat_dirent entry;
     size_t offset = 0;
@@ -282,7 +282,7 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     unsigned slots = num_lfn + 1;
 
     size_t slot_offset;
-    int retval = fat_dirent_find_free(fs, context->first_cluster, slots, &slot_offset);
+    int retval = fat_dirent_alloc(fs, context->first_cluster, slots, &slot_offset);
 
     if(retval < 0) {
         return retval;
@@ -304,17 +304,17 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     struct fat_dirent dirent;
     memset(&dirent, 0, sizeof(struct fat_dirent));
 
-    bool found_shortpath = false;
+    bool found = false;
     for(unsigned n = 1; n <= 999; ++n) {
-        shortpath_filename(name, n, dirent.base.name);
+        shortname_build(name, n, dirent.base.name);
 
-        if(!has_shortpath(fs, context->first_cluster, dirent.base.name)) {
-            found_shortpath = true;
+        if(!shortname_exists(fs, context->first_cluster, dirent.base.name)) {
+            found = true;
             break;
         }
     }
 
-    if(!found_shortpath) {
+    if(!found) {
         if(first_cluster)
             fat_cluster_free(fs, first_cluster);
         return -ENOSPC;
@@ -390,31 +390,31 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
         }
     }
 
-    struct fat_vnode_context* out_ctx = slab_alloc(sizeof(struct fat_vnode_context));
+    struct fat_vnode_context* ctx = slab_alloc(sizeof(struct fat_vnode_context));
 
-    if(out_ctx == nullptr) {
+    if(ctx == nullptr) {
         fat_cluster_free(fs, first_cluster);
         return -ENOMEM;
     }
 
-    out_ctx->fs_ctx = fs;
-    out_ctx->first_cluster = first_cluster;
-    out_ctx->size_bytes = 0;
-    out_ctx->dir_cluster = context->first_cluster;
-    out_ctx->dir_offset = slot_offset + num_lfn;
+    ctx->fs_ctx = fs;
+    ctx->first_cluster = first_cluster;
+    ctx->size_bytes = 0;
+    ctx->dir_cluster = context->first_cluster;
+    ctx->dir_offset = slot_offset + num_lfn;
 
-    struct vnode* out_node = vnode_alloc(type, &fat_vnode_ops, out_ctx);
+    struct vnode* vnode = vnode_alloc(type, &fat_vnode_ops, ctx);
 
-    if(out_node == nullptr) {
-        slab_free(out_ctx);
+    if(vnode == nullptr) {
+        slab_free(ctx);
         fat_cluster_free(fs, first_cluster);
         return -ENOMEM;
     }
 
-    out_node->fs = node->fs;
-    out_node->nodenumber = fat_nodenumber(fs, context->first_cluster, slot_offset + num_lfn);
+    vnode->fs = node->fs;
+    vnode->nodenumber = fat_nodenumber(fs, context->first_cluster, slot_offset + num_lfn);
 
-    *out = out_node;
+    *out = vnode;
 
     return 0;
 }

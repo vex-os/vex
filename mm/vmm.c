@@ -16,7 +16,7 @@
 
 struct vmm_pagemap sys_pagemap;
 
-static size_t pagemap_index(uintptr_t virt, uintptr_t shift)
+static size_t pte_index(uintptr_t virt, uintptr_t shift)
 {
     return (virt >> shift) & VMM_ENTRY_LEVEL_MASK;
 }
@@ -41,12 +41,12 @@ static vmm_entry_type* vmm_entry_get(vmm_entry_type* restrict table, size_t inde
     return nullptr;
 }
 
-static vmm_entry_type* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr_t virt, bool allocate)
+static vmm_entry_type* vmm_pte_walk(struct vmm_pagemap* restrict vm, uintptr_t virt, bool allocate)
 {
     vmm_entry_type* table = vmm_pagemap_root(vm, virt);
 
     if(vm->levels >= 5) {
-        size_t index = pagemap_index(virt, VMM_ENTRY_LVL5_SHIFT);
+        size_t index = pte_index(virt, VMM_ENTRY_LVL5_SHIFT);
         table = vmm_entry_get(table, index, allocate);
 
         if(table == nullptr) {
@@ -55,7 +55,7 @@ static vmm_entry_type* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr
     }
 
     if(vm->levels >= 4) {
-        size_t index = pagemap_index(virt, VMM_ENTRY_LVL4_SHIFT);
+        size_t index = pte_index(virt, VMM_ENTRY_LVL4_SHIFT);
         table = vmm_entry_get(table, index, allocate);
 
         if(table == nullptr) {
@@ -64,7 +64,7 @@ static vmm_entry_type* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr
     }
 
     if(vm->levels >= 3) {
-        size_t index = pagemap_index(virt, VMM_ENTRY_LVL3_SHIFT);
+        size_t index = pte_index(virt, VMM_ENTRY_LVL3_SHIFT);
         table = vmm_entry_get(table, index, allocate);
 
         if(table == nullptr) {
@@ -72,24 +72,24 @@ static vmm_entry_type* vmm_entry_lookup(struct vmm_pagemap* restrict vm, uintptr
         }
     }
 
-    size_t index = pagemap_index(virt, VMM_ENTRY_LVL2_SHIFT);
+    size_t index = pte_index(virt, VMM_ENTRY_LVL2_SHIFT);
     table = vmm_entry_get(table, index, allocate);
 
     if(table == nullptr) {
         return nullptr;
     }
 
-    index = pagemap_index(virt, VMM_ENTRY_LVL1_SHIFT);
+    index = pte_index(virt, VMM_ENTRY_LVL1_SHIFT);
     return &table[index];
 }
 
-static void vmm_table_collapse(vmm_entry_type* restrict table, size_t begin, size_t end, unsigned depth)
+static void vmm_table_free(vmm_entry_type* restrict table, size_t begin, size_t end, unsigned depth)
 {
     if(depth) {
         for(size_t i = begin; i < end; ++i) {
             if(vmm_entry_valid(table[i])) {
                 vmm_entry_type* child = phys_to_virt(vmm_entry_address(table[i]));
-                vmm_table_collapse(child, 0, VMM_TABLE_SIZE, depth - 1);
+                vmm_table_free(child, 0, VMM_TABLE_SIZE, depth - 1);
                 pslab_free(virt_to_phys(child));
             }
         }
@@ -228,7 +228,7 @@ struct vmm_pagemap* vmm_clone(const struct vmm_pagemap* restrict stem)
 
 void vmm_release(struct vmm_pagemap* restrict vm)
 {
-    vmm_table_collapse(vmm_pagemap_root(vm, 0), 0, VMM_TABLE_SIZE / 2, vm->levels - 1);
+    vmm_table_free(vmm_pagemap_root(vm, 0), 0, VMM_TABLE_SIZE / 2, vm->levels - 1);
     vmm_pagemap_free(vm);
     slab_free(vm);
 }
@@ -237,7 +237,7 @@ int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, uns
 {
     spinlock_acquire(&vm->lock);
 
-    vmm_entry_type* entry = vmm_entry_lookup(vm, virt, true);
+    vmm_entry_type* entry = vmm_pte_walk(vm, virt, true);
     int retval;
 
     if(entry == nullptr) {
@@ -260,7 +260,7 @@ int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned vprot)
 {
     spinlock_acquire(&vm->lock);
 
-    vmm_entry_type* entry = vmm_entry_lookup(vm, virt, false);
+    vmm_entry_type* entry = vmm_pte_walk(vm, virt, false);
     int retval;
 
     if(entry == nullptr) {
@@ -283,7 +283,7 @@ int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
 {
     spinlock_acquire(&vm->lock);
 
-    vmm_entry_type* entry = vmm_entry_lookup(vm, virt, false);
+    vmm_entry_type* entry = vmm_pte_walk(vm, virt, false);
     int retval;
 
     if(entry == nullptr) {
@@ -304,7 +304,7 @@ int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
 
 uintptr_t vmm_resolve(const struct vmm_pagemap* restrict vm, uintptr_t virt)
 {
-    vmm_entry_type* entry = vmm_entry_lookup((struct vmm_pagemap*)vm, virt, false);
+    vmm_entry_type* entry = vmm_pte_walk((struct vmm_pagemap*)vm, virt, false);
 
     if(entry && vmm_entry_valid(*entry)) {
         return vmm_entry_address(*entry) + (virt & (PAGE_SIZE - 1));

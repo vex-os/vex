@@ -14,7 +14,7 @@ static size_t pslab_numpages = 0U;
 static size_t pslab_numused = 0U;
 static spinlock_type pslab_lock = SPINLOCK_INIT;
 
-static void add_region(uintptr_t start, size_t length)
+static void pslab_add_region(uintptr_t start, size_t length)
 {
     void** head_ptr;
     uintptr_t offset;
@@ -81,7 +81,7 @@ void pslab_free_virt(void* restrict virtaddr)
     spinlock_release(&pslab_lock);
 }
 
-void pslab_get_stats(struct pslab_stats* stats)
+void pslab_stats(struct pslab_stats* stats)
 {
     stats->total_bytes = pslab_numpages * PAGE_SIZE;
     stats->total_pages = pslab_numpages;
@@ -113,13 +113,13 @@ define_initcall(pslab, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_EARLY)
             }
 
             if(length > 0U) {
-                add_region(start, length);
+                pslab_add_region(start, length);
             }
         }
     }
 
     struct pslab_stats stats;
-    pslab_get_stats(&stats);
+    pslab_stats(&stats);
 
     char hrsize_buffer[128];
     hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), stats.total_bytes);

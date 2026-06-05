@@ -14,7 +14,7 @@ struct event_handler {
 static struct event_handler* handlers_head = nullptr;
 
 #if BLK_EVENT_LOGGING
-static void log_blk_event(unsigned event, const struct blk_device* restrict device)
+static void blk_event_log(unsigned event, const struct blk_device* restrict device)
 {
     char hrsize_buffer[256];
 
@@ -50,7 +50,7 @@ static void log_blk_event(unsigned event, const struct blk_device* restrict devi
 }
 #endif
 
-int blk_event_register_handler(blk_event_handler_type handler, void* restrict ctxdata)
+int blk_event_subscribe(blk_event_handler_type handler, void* restrict ctxdata)
 {
     struct event_handler* it;
 
@@ -75,7 +75,7 @@ int blk_event_register_handler(blk_event_handler_type handler, void* restrict ct
     return 0;
 }
 
-int blk_event_unregister_handler(blk_event_handler_type handler, void* restrict ctxdata)
+int blk_event_unsubscribe(blk_event_handler_type handler, void* restrict ctxdata)
 {
     struct event_handler* it;
     struct event_handler* prev = nullptr;
@@ -105,7 +105,7 @@ void blk_event_notify(unsigned event, const struct blk_device* restrict device)
     struct event_handler* it;
 
 #if BLK_EVENT_LOGGING
-    log_blk_event(event, device);
+    blk_event_log(event, device);
 #endif
 
     for(it = handlers_head; it; it = it->next) {
