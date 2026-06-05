@@ -71,7 +71,7 @@ bool cmdline_contains(const struct cmdline* restrict cmdl, const char* restrict 
 
             token += token_size + 1;
 
-            while(token < end && token[0] == 0) {
+            while(token < end && *token == 0) {
                 token += 1;
             }
         }
@@ -100,7 +100,7 @@ const char* cmdline_argument(const struct cmdline* restrict cmdl, const char* re
 
             token += token_size + 1;
 
-            while(token < end && token[0] == 0) {
+            while(token < end && *token == 0) {
                 token += 1;
             }
         }

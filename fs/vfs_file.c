@@ -18,8 +18,8 @@ struct file* file_open(const char* restrict path, unsigned flags)
     if(retval == -ENOENT && (flags & O_CREAT)) {
         const char* slash = nullptr;
 
-        for(const char* it = path; it[0]; ++it) {
-            if(it[0] == PATH_SEPARATOR) {
+        for(const char* it = path; *it; ++it) {
+            if(*it == PATH_SEPARATOR) {
                 slash = it;
             }
         }

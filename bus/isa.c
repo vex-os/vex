@@ -240,14 +240,14 @@ void isa_release_irq(struct isa_device* restrict device, unsigned index)
 void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsigned* out_polarity)
 {
     if(line < ISA_IRQ_COUNT) {
-        out_gsi[0] = isa_irq_table[line].gsi;
-        out_trigger[0] = isa_irq_table[line].trigger;
-        out_polarity[0] = isa_irq_table[line].polarity;
+        *out_gsi = isa_irq_table[line].gsi;
+        *out_trigger = isa_irq_table[line].trigger;
+        *out_polarity = isa_irq_table[line].polarity;
     }
     else {
-        out_gsi[0] = line;
-        out_trigger[0] = TRIGGER_EDGE;
-        out_polarity[0] = ACTIVE_HIGH;
+        *out_gsi = line;
+        *out_trigger = TRIGGER_EDGE;
+        *out_polarity = ACTIVE_HIGH;
     }
 }
 

@@ -16,7 +16,8 @@
 
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out)
 {
-    out[0] = rsdp_address;
+    *out = rsdp_address;
+
     return UACPI_STATUS_OK;
 }
 
@@ -166,7 +167,7 @@ uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handl
         return UACPI_STATUS_NOT_FOUND;
     }
 
-    out_handle[0] = dev;
+    *out_handle = dev;
 
     return UACPI_STATUS_OK;
 }
@@ -176,44 +177,44 @@ void uacpi_kernel_pci_device_close(uacpi_handle handle)
     // empty
 }
 
-uacpi_status uacpi_kernel_pci_read8(uacpi_handle handle, uacpi_size off, uacpi_u8* val)
+uacpi_status uacpi_kernel_pci_read8(uacpi_handle handle, uacpi_size off, uacpi_u8* value)
 {
-    val[0] = pci_cfg_read8(handle, off);
+    *value = pci_cfg_read8(handle, off);
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_read16(uacpi_handle handle, uacpi_size off, uacpi_u16* val)
+uacpi_status uacpi_kernel_pci_read16(uacpi_handle handle, uacpi_size off, uacpi_u16* value)
 {
-    val[0] = pci_cfg_read16(handle, off);
+    *value = pci_cfg_read16(handle, off);
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_read32(uacpi_handle handle, uacpi_size off, uacpi_u32* val)
+uacpi_status uacpi_kernel_pci_read32(uacpi_handle handle, uacpi_size off, uacpi_u32* value)
 {
-    val[0] = pci_cfg_read32(handle, off);
+    *value = pci_cfg_read32(handle, off);
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_write8(uacpi_handle handle, uacpi_size off, uacpi_u8 val)
+uacpi_status uacpi_kernel_pci_write8(uacpi_handle handle, uacpi_size off, uacpi_u8 value)
 {
-    pci_cfg_write8(handle, off, val);
+    pci_cfg_write8(handle, off, value);
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_write16(uacpi_handle handle, uacpi_size off, uacpi_u16 val)
+uacpi_status uacpi_kernel_pci_write16(uacpi_handle handle, uacpi_size off, uacpi_u16 value)
 {
-    pci_cfg_write16(handle, off, val);
+    pci_cfg_write16(handle, off, value);
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_pci_write32(uacpi_handle handle, uacpi_size off, uacpi_u32 val)
+uacpi_status uacpi_kernel_pci_write32(uacpi_handle handle, uacpi_size off, uacpi_u32 value)
 {
-    pci_cfg_write32(handle, off, val);
+    pci_cfg_write32(handle, off, value);
 
     return UACPI_STATUS_OK;
 }
@@ -282,7 +283,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
     intctl_route(controller, gsi, (uint8_t)(ireq_number + ARCH_IREQ_BASE), 0, TRIGGER_LEVEL, ACTIVE_LOW);
     intctl_unmask(controller, gsi);
 
-    out_handle[0] = trampoline;
+    *out_handle = trampoline;
 
     return UACPI_STATUS_OK;
 }

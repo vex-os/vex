@@ -344,16 +344,16 @@ static int ahci_atapi_read_capacity(struct ahci_port* restrict port, size_t* res
 
     memcpy(result, (const void*)(databuf), sizeof(result));
 
-    sector_count[0] = (size_t)(result[0]) << 24;
-    sector_count[0] |= (size_t)(result[1]) << 16;
-    sector_count[0] |= (size_t)(result[2]) << 8;
-    sector_count[0] |= (size_t)(result[3]);
-    sector_count[0] += 1;
+    *sector_count = (size_t)(result[0]) << 24;
+    *sector_count |= (size_t)(result[1]) << 16;
+    *sector_count |= (size_t)(result[2]) << 8;
+    *sector_count |= (size_t)(result[3]);
+    *sector_count += 1;
 
-    sector_size[0] = (size_t)(result[4]) << 24;
-    sector_size[0] |= (size_t)(result[5]) << 16;
-    sector_size[0] |= (size_t)(result[6]) << 8;
-    sector_size[0] |= (size_t)(result[7]);
+    *sector_size = (size_t)(result[4]) << 24;
+    *sector_size |= (size_t)(result[5]) << 16;
+    *sector_size |= (size_t)(result[6]) << 8;
+    *sector_size |= (size_t)(result[7]);
 
     return 0;
 }

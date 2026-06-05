@@ -95,7 +95,7 @@ int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct 
     struct vnode* cached = vcache_get(node->fs, nodenumber);
 
     if(cached) {
-        out[0] = cached;
+        *out = cached;
         return 0;
     }
 
@@ -131,7 +131,7 @@ int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct 
 
     vnode_incref(result);
 
-    out[0] = result;
+    *out = result;
 
     return 0;
 }

@@ -21,7 +21,7 @@ uacpi_status uacpi_kernel_io_map(uacpi_io_addr base, uacpi_size len, uacpi_handl
     range->base = base;
     range->length = len;
 
-    out_handle[0] = range;
+    *out_handle = range;
 
     return UACPI_STATUS_OK;
 }
@@ -31,56 +31,56 @@ void uacpi_kernel_io_unmap(uacpi_handle handle)
     kfree(handle);
 }
 
-uacpi_status uacpi_kernel_io_read8(uacpi_handle handle, uacpi_size off, uacpi_u8* val)
+uacpi_status uacpi_kernel_io_read8(uacpi_handle handle, uacpi_size off, uacpi_u8* value)
 {
     struct pmio_range* range = handle;
 
-    val[0] = pmread8(range->base + off);
+    *value = pmread8(range->base + off);
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_io_read16(uacpi_handle h, uacpi_size off, uacpi_u16* val)
+uacpi_status uacpi_kernel_io_read16(uacpi_handle h, uacpi_size off, uacpi_u16* value)
 {
     struct pmio_range* range = h;
 
-    val[0] = pmread16(range->base + off);
+    *value = pmread16(range->base + off);
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_io_read32(uacpi_handle h, uacpi_size off, uacpi_u32* val)
+uacpi_status uacpi_kernel_io_read32(uacpi_handle h, uacpi_size off, uacpi_u32* value)
 {
     struct pmio_range* range = h;
 
-    val[0] = pmread32(range->base + off);
+    *value = pmread32(range->base + off);
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_io_write8(uacpi_handle h, uacpi_size off, uacpi_u8 val)
+uacpi_status uacpi_kernel_io_write8(uacpi_handle h, uacpi_size off, uacpi_u8 value)
 {
     struct pmio_range* range = h;
 
-    pmwrite8(range->base + off, val);
+    pmwrite8(range->base + off, value);
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_io_write16(uacpi_handle h, uacpi_size off, uacpi_u16 val)
+uacpi_status uacpi_kernel_io_write16(uacpi_handle h, uacpi_size off, uacpi_u16 value)
 {
     struct pmio_range* range = h;
 
-    pmwrite16(range->base + off, val);
+    pmwrite16(range->base + off, value);
 
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_kernel_io_write32(uacpi_handle h, uacpi_size off, uacpi_u32 val)
+uacpi_status uacpi_kernel_io_write32(uacpi_handle h, uacpi_size off, uacpi_u32 value)
 {
     struct pmio_range* range = h;
 
-    pmwrite32(range->base + off, val);
+    pmwrite32(range->base + off, value);
 
     return UACPI_STATUS_OK;
 }
