@@ -32,7 +32,7 @@ int devfs_insert(const char* restrict name, struct vnode* restrict node)
     kstrncpy(entry->name, name, sizeof(entry->name));
 
     node->fs = devfs_instance;
-    node->nodenumber = (ino_t)((uintptr_t)(node));
+    node->nodenumber = (ino_t)(uintptr_t)node;
 
     int retval = vcache_insert(node);
 

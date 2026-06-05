@@ -56,7 +56,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     struct fat_bootparams* base = &boot->fat1X.base;
 
-    if(base->sector_size != (uint16_t)(device->sector_size) || base->cluster_size == 0) {
+    if(base->sector_size != device->sector_size || base->cluster_size == 0) {
         kfree(boot);
         return -EINVAL;
     }
@@ -234,8 +234,8 @@ static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
     const struct fat_dir_entry* raw_entry = (const struct fat_dir_entry*)(context->bounce + byte_offset);
 
     uintptr_t cluster = 0;
-    cluster |= (uintptr_t)(raw_entry->first_cluster_hi) << 16;
-    cluster |= (uintptr_t)(raw_entry->first_cluster_lo);
+    cluster |= (uintptr_t)raw_entry->first_cluster_hi << 16;
+    cluster |= (uintptr_t)raw_entry->first_cluster_lo;
 
     struct fat_vnode_context* node_context = slab_alloc(sizeof(struct fat_vnode_context));
 

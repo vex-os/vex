@@ -65,7 +65,7 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
         uint64_t timestamp_s = timestamp / UINT64_C(1000000000);
         uint64_t timestamp_msx = (timestamp / UINT64_C(100000)) % UINT64_C(10000);
 
-        format(&kprintf_format_func, &st, "[%5ju.%04ju] ", (uintmax_t)(timestamp_s), (uintmax_t)(timestamp_msx));
+        format(&kprintf_format_func, &st, "[%5ju.%04ju] ", (uintmax_t)timestamp_s, (uintmax_t)timestamp_msx);
         vformat(&kprintf_format_func, &st, fmt, ap);
 
         if(st.last != LF) {

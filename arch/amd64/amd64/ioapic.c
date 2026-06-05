@@ -67,8 +67,8 @@ static struct rte_entry ioapic_read_rte(struct ioapic_data* data, uint8_t irq)
     uint32_t index = IOAPIC_REG_TBL_BASE + irq * IOAPIC_REG_TBL_STRIDE;
 
     uint64_t raw = UINT64_C(0);
-    raw |= (uint64_t)(ioapic_read(data, index + 0));
-    raw |= (uint64_t)(ioapic_read(data, index + 1)) << 32;
+    raw |= (uint64_t)ioapic_read(data, index + 0);
+    raw |= (uint64_t)ioapic_read(data, index + 1) << 32;
 
     struct rte_entry entry;
     memcpy(&entry, &raw, sizeof(entry));
@@ -81,8 +81,8 @@ static void ioapic_write_rte(struct ioapic_data* data, uint8_t irq, struct rte_e
     memcpy(&raw, &entry, sizeof(raw));
 
     uint32_t index = IOAPIC_REG_TBL_BASE + irq * IOAPIC_REG_TBL_STRIDE;
-    ioapic_write(data, index + 0, (uint32_t)(raw));
-    ioapic_write(data, index + 1, (uint32_t)(raw >> 32));
+    ioapic_write(data, index + 0, raw);
+    ioapic_write(data, index + 1, raw >> 32);
 }
 
 static void ioapic_mask(struct intctl* restrict controller, uint32_t gsi)
@@ -144,8 +144,8 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
 
         void* virt = phys_to_virt(ioapic->address);
 
-        if(vmm_map(&sys_pagemap, (uintptr_t)(virt), ioapic->address, VPROT_RW | VPROT_NOCACHE)) {
-            panic("ioapic: failed to map mmio at %p", (const void*)((uintptr_t)(ioapic->address)));
+        if(vmm_map(&sys_pagemap, (uintptr_t)virt, ioapic->address, VPROT_RW | VPROT_NOCACHE)) {
+            panic("ioapic: failed to map mmio at %p", (const void*)(uintptr_t)ioapic->address);
         }
 
         data->base = (volatile uint32_t*)(virt);
@@ -158,7 +158,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         controller->gsi_count = ((ver >> IOAPIC_VER_MAXREDIR_SHIFT) & IOAPIC_VER_MAXREDIR_MASK) + 1;
         controller->ctxdata = data;
 
-        controller->identifier = kasprintf("ioapic%u", (unsigned)(id));
+        controller->identifier = kasprintf("ioapic%u", (unsigned)id);
         strict_kassert_text(controller->identifier, "kasprintf failed");
 
         for(uint8_t i = 0; i < controller->gsi_count; ++i) {

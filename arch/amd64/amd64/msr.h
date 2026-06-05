@@ -9,13 +9,13 @@ static __always_inline __nodiscard inline uint64_t msr_read(uint32_t msreg)
 {
     uint32_t lo, hi;
     asm volatile("rdmsr" : "=a"(lo), "=d"(hi) : "c"(msreg));
-    return ((uint64_t)(hi) << 32) | ((uint64_t)(lo));
+    return ((uint64_t)hi << 32) | (uint64_t)lo;
 }
 
 static __always_inline inline void msr_write(uint32_t msreg, uint64_t value)
 {
-    uint32_t lo = (uint32_t)(value);
-    uint32_t hi = (uint32_t)(value >> 32);
+    uint32_t lo = value;
+    uint32_t hi = value >> 32;
     asm volatile("wrmsr" ::"a"(lo), "d"(hi), "c"(msreg));
 }
 

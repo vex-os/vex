@@ -12,10 +12,10 @@ static uint32_t cf8_addr(struct pci_bus* bus, unsigned device_index, unsigned fu
 {
     uint32_t result = UINT32_C(0);
     result |= UINT32_C(1) << 31;
-    result |= (uint32_t)(bus->index) << 16;
-    result |= (uint32_t)(device_index & 0x1F) << 11;
-    result |= (uint32_t)(function & 0x07) << 8;
-    result |= (uint32_t)(offset & 0xFC);
+    result |= (bus->index) << 16;
+    result |= (device_index & 0x1F) << 11;
+    result |= (function & 0x07) << 8;
+    result |= (offset & 0xFC);
     return result;
 }
 

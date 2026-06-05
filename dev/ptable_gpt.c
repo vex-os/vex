@@ -97,7 +97,7 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
     }
 
     if(checksum == crc32_iso3309_get(&header, LE32_to_host(header.header_size))) {
-        size_t entries_size = (size_t)(LE32_to_host(header.entry_count) * LE32_to_host(header.entry_size));
+        size_t entries_size = (size_t)LE32_to_host(header.entry_count) * LE32_to_host(header.entry_size);
         struct gpt_ptdata* gpt = kmalloc(entries_size + sizeof(struct gpt_ptdata));
 
         if(gpt == nullptr) {
@@ -175,20 +175,20 @@ static int gpt_readpt(const struct blk_device* restrict device, void* restrict p
     unsigned found = 0;
 
     for(unsigned slot = 0; slot < entry_count; slot += 1) {
-        const struct gpt_entry* entry = (const struct gpt_entry*)(gpt->cached_entries + entry_size * (uint32_t)(slot));
+        const struct gpt_entry* entry = (const struct gpt_entry*)(gpt->cached_entries + entry_size * slot);
 
         if(0 == memcmp(entry->type_guid, null_guid, 16)) {
             continue;
         }
 
         if(found == index) {
-            const uint16_t* name = (const uint16_t*)((const uint8_t*)(entry) + sizeof(struct gpt_entry));
+            const uint16_t* name = (const uint16_t*)((const uint8_t*)entry + sizeof(struct gpt_entry));
             size_t name_len = (entry_size - sizeof(struct gpt_entry)) / sizeof(uint16_t);
 
             unsigned i;
 
             for(i = 0; i < name_len && i < 63 && name[i]; i += 1) {
-                out->part_label[i] = (char)(LE16_to_host(name[i]) & 0x7F);
+                out->part_label[i] = LE16_to_host(name[i]) & 0x7F;
             }
 
             out->part_label[i] = 0x00;

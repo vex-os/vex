@@ -58,7 +58,7 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
             if(fadt->x_pm_tmr_blk.address_space_id == ACPI_AS_ID_SYS_MEM) {
                 void* virt = phys_to_virt(fadt->x_pm_tmr_blk.address);
 
-                int retval = vmm_map(&sys_pagemap, (uintptr_t)(virt), fadt->x_pm_tmr_blk.address, VPROT_RW | VPROT_NOCACHE);
+                int retval = vmm_map(&sys_pagemap, (uintptr_t)virt, fadt->x_pm_tmr_blk.address, VPROT_RW | VPROT_NOCACHE);
                 strict_kassert_text(retval == 0 || retval == EEXIST, "mmio map failed");
 
                 priv->mmio = virt;

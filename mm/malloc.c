@@ -215,7 +215,7 @@ void* kmalloc(size_t sz)
 
     spinlock_release(&heap_lock);
 
-    return (void*)(block->address);
+    return (void*)block->address;
 }
 
 void* kcalloc(size_t count, size_t sz)
@@ -242,7 +242,7 @@ void* krealloc(void* restrict ptr, size_t sz)
         return nullptr;
     }
 
-    struct memblock* block = find_block_at((uintptr_t)(ptr));
+    struct memblock* block = find_block_at((uintptr_t)ptr);
 
     if(block == nullptr) {
         return nullptr;
@@ -272,7 +272,7 @@ void kfree(void* restrict ptr)
         return;
     }
 
-    struct memblock* block = find_block_at((uintptr_t)(ptr));
+    struct memblock* block = find_block_at((uintptr_t)ptr);
 
     if(block == nullptr || block->type == BLOCK_TYPE_FREE) {
         panic("kfree: invalid or double free of %p", ptr);
@@ -345,5 +345,5 @@ char* kvasprintf(const char* restrict fmt, va_list ap)
 
 define_initcall(init_malloc, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_FIRST)
 {
-    heap_end = PAGE_SIZE + page_align_up((uintptr_t)(kernel_end));
+    heap_end = PAGE_SIZE + page_align_up((uintptr_t)kernel_end);
 }

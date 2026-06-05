@@ -163,16 +163,16 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
 void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluster, uintptr_t next)
 {
     if(context->filesystem_type == FAT_TYPE_12) {
-        fat12_write_entry(context, cluster, (uint16_t)(next));
+        fat12_write_entry(context, cluster, next);
     }
     else if(context->filesystem_type == FAT_TYPE_16) {
-        uint16_t data16 = host_to_LE16((uint16_t)(next));
+        uint16_t data16 = host_to_LE16(next);
         memcpy(context->cache + cluster * sizeof(uint16_t), &data16, sizeof(uint16_t));
     }
     else if(context->filesystem_type == FAT_TYPE_32) {
         uint32_t data32;
         memcpy(&data32, context->cache + cluster * sizeof(uint32_t), sizeof(uint32_t));
-        data32 = (data32 & host_to_LE32(~FAT32_MASK)) | host_to_LE32((uint32_t)(next)&FAT32_MASK);
+        data32 = (data32 & host_to_LE32(~FAT32_MASK)) | host_to_LE32(next & FAT32_MASK);
         memcpy(context->cache + cluster * sizeof(uint32_t), &data32, sizeof(uint32_t));
     }
 }

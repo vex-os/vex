@@ -49,7 +49,7 @@ static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame,
         pr_inform("ps2kbd: key up   scancode=0x%02X", (unsigned)(scancode & 0x7F));
     }
     else {
-        pr_inform("ps2kbd: key down scancode=0x%02X", (unsigned)(scancode));
+        pr_inform("ps2kbd: key down scancode=0x%02X", (unsigned)scancode);
     }
 }
 

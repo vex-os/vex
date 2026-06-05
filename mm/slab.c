@@ -53,7 +53,7 @@ static bool expand_slab(struct slab* restrict sl)
         header = align_ceil(sizeof(struct slab*), sl->blocksize);
 
         sl->head[0] = sl;
-        sl->head = (void**)((uintptr_t)(sl->head) + header);
+        sl->head = (void**)((uintptr_t)sl->head + header);
 
         // Each page contains a chunk of the linked list
         // prepended with a header that takes at least a single

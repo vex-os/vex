@@ -37,7 +37,7 @@ void lapic_send_broadcast_ipi(uint8_t vector)
         }
 
         lapic_write(LAPIC_REG_ICR_HI, UINT32_C(0));
-        lapic_write(LAPIC_REG_ICR_LO, (uint32_t)(vector) | UINT32_C(0x000C4000));
+        lapic_write(LAPIC_REG_ICR_LO, (uint32_t)vector | UINT32_C(0x000C4000));
     }
 }
 
@@ -49,7 +49,7 @@ define_initcall(amd64_lapic, INITCALL_STAGE_SMP_IREQ, INITCALL_ORDER_FIRST)
     uintptr_t lapic_phys = lapic_base_msr & MSR_APIC_BASE_PHYSMASK;
     lapic_virtual_base = phys_to_virt(lapic_phys);
 
-    int retval = vmm_map(&sys_pagemap, (uintptr_t)(lapic_virtual_base), lapic_phys, VPROT_RW | VPROT_NOCACHE);
+    int retval = vmm_map(&sys_pagemap, (uintptr_t)lapic_virtual_base, lapic_phys, VPROT_RW | VPROT_NOCACHE);
     strict_kassert_text(retval == 0 || retval == EEXIST, "vmm_map failed");
 
     uint32_t lapic_svr_value = lapic_read(LAPIC_REG_SVR);

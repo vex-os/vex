@@ -12,7 +12,7 @@ static spinlock_type cache_lock = SPINLOCK_INIT;
 static unsigned hash_bucket(struct vfs* restrict fs, ino_t nodenumber)
 {
     uint64_t hash;
-    hash = (uint64_t)((uintptr_t)(fs));
+    hash = (uint64_t)(uintptr_t)fs;
     hash *= UINT64_C(0x9E3779B97F4A7C15);
     hash ^= nodenumber * UINT64_C(0x517CC1B727220A95);
     hash >>= 56;

@@ -7,8 +7,8 @@ void ata_identify_string(const uint16_t* restrict field, size_t field_nw, char* 
 
     for(size_t i = 0; i < field_nw && pos + 2 <= sz - 1; ++i) {
         uint16_t word = LE16_to_host(field[i]);
-        string[pos++] = (char)(word >> 8);
-        string[pos++] = (char)(word & 0xFF);
+        string[pos++] = word >> 8;
+        string[pos++] = word & 0xFF;
     }
 
     string[pos] = 0x00;

@@ -212,7 +212,7 @@ int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_han
 
     res->irq.ireq_number = ireq_number;
 
-    intctl_route(controller, res->irq.gsi, (uint8_t)(ireq_number + ARCH_IREQ_BASE), 0, res->irq.trigger, res->irq.polarity);
+    intctl_route(controller, res->irq.gsi, ireq_number + ARCH_IREQ_BASE, 0, res->irq.trigger, res->irq.polarity);
     intctl_unmask(controller, res->irq.gsi);
 
     return 0;

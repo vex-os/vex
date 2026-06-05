@@ -54,12 +54,12 @@ static __always_inline __nodiscard inline vmm_entry_type* vmm_pagemap_root(const
 
 static __always_inline __nodiscard inline bool vmm_entry_valid(vmm_entry_type entry)
 {
-    return (bool)(entry & AMD64_VMM_PML_PRESENT);
+    return entry & AMD64_VMM_PML_PRESENT;
 }
 
 static __always_inline __nodiscard inline uintptr_t vmm_entry_address(vmm_entry_type entry)
 {
-    return (uintptr_t)(entry & AMD64_VMM_ADDRESS_MASK);
+    return entry & AMD64_VMM_ADDRESS_MASK;
 }
 
 static __always_inline __nodiscard inline unsigned vmm_entry_vprot(vmm_entry_type entry)

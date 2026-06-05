@@ -156,12 +156,12 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
     while(ahci_register_read(port, PORT_REG_CI) & 1) {
         if(ahci_register_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
             unsigned long tfd_value = ahci_register_read(port, PORT_REG_TFD);
-            pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)(lba), tfd_value);
+            pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)lba, tfd_value);
             return -EIO;
         }
 
         if(counter >= AHCI_POLL_TIMEOUT) {
-            pr_debug("ahci: poll timeout at LBA %zu", (size_t)(lba));
+            pr_debug("ahci: poll timeout at LBA %zu", (size_t)lba);
             return -EIO;
         }
 
@@ -172,7 +172,7 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
 
     if(ahci_register_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
         unsigned long tfd_value = ahci_register_read(port, PORT_REG_TFD);
-        pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)(lba), tfd_value);
+        pr_debug("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)lba, tfd_value);
         return -EIO;
     }
 
@@ -188,7 +188,7 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
     uintptr_t cmdtable_phys = port->dma_phys + DMA_OFFSET_CMDTABLE;
     uintptr_t buffer_phys = port->dma_phys + DMA_OFFSET_DATABUF;
 
-    memset((void*)(fis), 0, sizeof(struct ata_fis_h2d));
+    memset((void*)fis, 0, sizeof(struct ata_fis_h2d));
 
     if(write) {
         header->flags = host_to_LE16((UINT16_C(1) << 6) | 5); // Write, CFL=5
@@ -199,8 +199,8 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
 
     header->prdtl = host_to_LE16(1);
     header->prdbc = 0;
-    header->ctba = host_to_LE32((uint32_t)(cmdtable_phys));
-    header->ctbau = host_to_LE32((uint32_t)(cmdtable_phys >> 32));
+    header->ctba = host_to_LE32(cmdtable_phys);
+    header->ctbau = host_to_LE32(cmdtable_phys >> 32);
     header->reserved[0] = 0;
     header->reserved[1] = 0;
     header->reserved[2] = 0;
@@ -210,17 +210,17 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
     fis->pm_port = 0x80; // C=1, new command
     fis->command = cmd;
     fis->device = ATA_DEVICE_LBA;
-    fis->lba0 = (uint8_t)(lba >> 0);
-    fis->lba1 = (uint8_t)(lba >> 8);
-    fis->lba2 = (uint8_t)(lba >> 16);
-    fis->lba3 = (uint8_t)(lba >> 24);
-    fis->lba4 = (uint8_t)(lba >> 32);
-    fis->lba5 = (uint8_t)(lba >> 40);
-    fis->count_lo = (uint8_t)(count >> 0);
-    fis->count_hi = (uint8_t)(count >> 8);
+    fis->lba0 = lba >> 0;
+    fis->lba1 = lba >> 8;
+    fis->lba2 = lba >> 16;
+    fis->lba3 = lba >> 24;
+    fis->lba4 = lba >> 32;
+    fis->lba5 = lba >> 40;
+    fis->count_lo = count >> 0;
+    fis->count_hi = count >> 8;
 
-    prdt->dba = host_to_LE32((uint32_t)(buffer_phys));
-    prdt->dbau = host_to_LE32((uint32_t)(buffer_phys >> 32));
+    prdt->dba = host_to_LE32(buffer_phys);
+    prdt->dbau = host_to_LE32(buffer_phys >> 32);
     prdt->reserved = 0;
     prdt->dbc = host_to_LE32(512 - 1);
 }
@@ -243,7 +243,7 @@ static int ahci_identify(struct ahci_port* restrict port, ata_identify_type iden
 {
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
 
-    memset((void*)(databuf), 0, 512);
+    memset((void*)databuf, 0, 512);
 
     ahci_setup(port, 0, ATA_CMD_IDENTIFY, 0, false);
 
@@ -262,7 +262,7 @@ static int ahci_atapi_identify(struct ahci_port* restrict port, ata_identify_typ
 {
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
 
-    memset((void*)(databuf), 0, sizeof(ata_identify_type));
+    memset((void*)databuf, 0, sizeof(ata_identify_type));
 
     ahci_setup(port, 0, ATA_CMD_IDENTIFY_ATAPI, 0, false);
 
@@ -288,7 +288,7 @@ static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_ty
     uintptr_t cmdtable_phys = port->dma_phys + DMA_OFFSET_CMDTABLE;
     uintptr_t buffer_phys = port->dma_phys + DMA_OFFSET_DATABUF;
 
-    memset((void*)(fis), 0, sizeof(struct ata_fis_h2d));
+    memset((void*)fis, 0, sizeof(struct ata_fis_h2d));
 
     if(write) {
         header->flags = host_to_LE16((UINT16_C(1) << 6) | (UINT16_C(1) << 5) | 5); // Write, ATAPI, CFL=5
@@ -299,8 +299,8 @@ static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_ty
 
     header->prdtl = host_to_LE16(byte_count > 0 ? 1 : 0);
     header->prdbc = 0;
-    header->ctba = host_to_LE32((uint32_t)(cmdtable_phys));
-    header->ctbau = host_to_LE32((uint32_t)(cmdtable_phys >> 32));
+    header->ctba = host_to_LE32(cmdtable_phys);
+    header->ctbau = host_to_LE32(cmdtable_phys >> 32);
     header->reserved[0] = 0;
     header->reserved[1] = 0;
     header->reserved[2] = 0;
@@ -310,16 +310,16 @@ static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_ty
     fis->pm_port = 0x80;
     fis->command = ATA_CMD_PACKET;
     fis->features = 0x01; // DMA
-    fis->lba1 = (uint8_t)(byte_count & 0xFF);
-    fis->lba2 = (uint8_t)((byte_count >> 8) & 0xFF);
+    fis->lba1 = byte_count & 0xFF;
+    fis->lba2 = (byte_count >> 8) & 0xFF;
 
-    memcpy((void*)(atapi_area), cdb, sizeof(atapi_cdb_type));
+    memcpy((void*)atapi_area, cdb, sizeof(atapi_cdb_type));
 
     if(byte_count > 0) {
-        prdt->dba = host_to_LE32((uint32_t)(buffer_phys));
-        prdt->dbau = host_to_LE32((uint32_t)(buffer_phys >> 32));
+        prdt->dba = host_to_LE32(buffer_phys);
+        prdt->dbau = host_to_LE32(buffer_phys >> 32);
         prdt->reserved = 0;
-        prdt->dbc = host_to_LE32((uint32_t)(byte_count - 1));
+        prdt->dbc = host_to_LE32(byte_count - 1);
     }
 }
 
@@ -332,7 +332,7 @@ static int ahci_atapi_read_capacity(struct ahci_port* restrict port, size_t* res
     cdb[0] = 0x25; // READ CAPACITY(10)
 
     uint8_t result[8];
-    memset((void*)(databuf), 0, sizeof(result));
+    memset((void*)databuf, 0, sizeof(result));
 
     ahci_atapi_setup(port, cdb, sizeof(result), false);
 
@@ -342,18 +342,18 @@ static int ahci_atapi_read_capacity(struct ahci_port* restrict port, size_t* res
         return retval;
     }
 
-    memcpy(result, (const void*)(databuf), sizeof(result));
+    memcpy(result, (const void*)databuf, sizeof(result));
 
-    *sector_count = (size_t)(result[0]) << 24;
-    *sector_count |= (size_t)(result[1]) << 16;
-    *sector_count |= (size_t)(result[2]) << 8;
-    *sector_count |= (size_t)(result[3]);
+    *sector_count = (size_t)result[0] << 24;
+    *sector_count |= (size_t)result[1] << 16;
+    *sector_count |= (size_t)result[2] << 8;
+    *sector_count |= (size_t)result[3];
     *sector_count += 1;
 
-    *sector_size = (size_t)(result[4]) << 24;
-    *sector_size |= (size_t)(result[5]) << 16;
-    *sector_size |= (size_t)(result[6]) << 8;
-    *sector_size |= (size_t)(result[7]);
+    *sector_size = (size_t)result[4] << 24;
+    *sector_size |= (size_t)result[5] << 16;
+    *sector_size |= (size_t)result[6] << 8;
+    *sector_size |= (size_t)result[7];
 
     return 0;
 }
@@ -364,10 +364,10 @@ static int ahci_atapi_send_packet(const struct atapi_device* restrict device, co
 
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
 
-    bool write = (bool)(cdb[0] == 0x2A); // WRITE(10)
+    bool write = cdb[0] == 0x2A; // WRITE(10)
 
     if(write && count > 0) {
-        memcpy((void*)(databuf), buffer, count);
+        memcpy((void*)databuf, buffer, count);
     }
 
     ahci_atapi_setup(port, cdb, count, write);
@@ -425,7 +425,7 @@ static int ahci_write(const struct blk_device* restrict device, uintptr_t lba, s
 
         const uint8_t* buffer_ptr = buffer;
         buffer_ptr += sector * 512;
-        memcpy((uint8_t*)(databuf), buffer_ptr, 512);
+        memcpy((void*)databuf, buffer_ptr, 512);
 
         ahci_setup(port, current_lba, ATA_CMD_WRITE_DMA_EXT, 1, true);
 
@@ -470,10 +470,10 @@ static int ahci_port_init(struct ahci_pci_context* restrict context, struct pci_
 
     ahci_stop(port);
 
-    pci_bar_write32(abar, port_base + PORT_REG_CLB, (uint32_t)(dma_phys + DMA_OFFSET_CMDLIST));
-    pci_bar_write32(abar, port_base + PORT_REG_CLBU, (uint32_t)((dma_phys + DMA_OFFSET_CMDLIST) >> 32));
-    pci_bar_write32(abar, port_base + PORT_REG_FB, (uint32_t)(dma_phys + DMA_OFFSET_FIS));
-    pci_bar_write32(abar, port_base + PORT_REG_FBU, (uint32_t)((dma_phys + DMA_OFFSET_FIS) >> 32));
+    pci_bar_write32(abar, port_base + PORT_REG_CLB, dma_phys + DMA_OFFSET_CMDLIST);
+    pci_bar_write32(abar, port_base + PORT_REG_CLBU, (dma_phys + DMA_OFFSET_CMDLIST) >> 32);
+    pci_bar_write32(abar, port_base + PORT_REG_FB, dma_phys + DMA_OFFSET_FIS);
+    pci_bar_write32(abar, port_base + PORT_REG_FBU, (dma_phys + DMA_OFFSET_FIS) >> 32);
 
     pci_bar_write32(abar, port_base + PORT_REG_SERR, 0xFFFFFFFF);
     pci_bar_write32(abar, port_base + PORT_REG_IS, 0xFFFFFFFF);

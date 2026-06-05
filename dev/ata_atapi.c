@@ -15,12 +15,12 @@ static int atapi_read(const struct blk_device* restrict device, uintptr_t lba, s
 
     memset(cdb, 0, sizeof(atapi_cdb_type));
     cdb[0] = ATAPI_CMD_READ_10;
-    cdb[2] = (uint8_t)(lba >> 24);
-    cdb[3] = (uint8_t)(lba >> 16);
-    cdb[4] = (uint8_t)(lba >> 8);
-    cdb[5] = (uint8_t)(lba >> 0);
-    cdb[7] = (uint8_t)(count >> 8);
-    cdb[8] = (uint8_t)(count >> 0);
+    cdb[2] = lba >> 24;
+    cdb[3] = lba >> 16;
+    cdb[4] = lba >> 8;
+    cdb[5] = lba & 0xFF;
+    cdb[7] = count >> 8;
+    cdb[8] = count & 0xFF;
 
     return atapi->ops->send_packet(atapi, cdb, buffer, count * device->sector_size);
 }
@@ -36,14 +36,14 @@ static int atapi_write(const struct blk_device* restrict device, uintptr_t lba, 
     atapi_cdb_type cdb;
     memset(cdb, 0, sizeof(atapi_cdb_type));
     cdb[0] = ATAPI_CMD_WRITE_10;
-    cdb[2] = (uint8_t)(lba >> 24);
-    cdb[3] = (uint8_t)(lba >> 16);
-    cdb[4] = (uint8_t)(lba >> 8);
-    cdb[5] = (uint8_t)(lba >> 0);
-    cdb[7] = (uint8_t)(count >> 8);
-    cdb[8] = (uint8_t)(count >> 0);
+    cdb[2] = lba >> 24;
+    cdb[3] = lba >> 16;
+    cdb[4] = lba >> 8;
+    cdb[5] = lba & 0xFF;
+    cdb[7] = count >> 8;
+    cdb[8] = count & 0xFF;
 
-    return atapi->ops->send_packet(atapi, cdb, (void*)(buffer), count * device->sector_size);
+    return atapi->ops->send_packet(atapi, cdb, (void*)buffer, count * device->sector_size);
 }
 
 static int atapi_flush(const struct blk_device* restrict device)

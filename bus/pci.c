@@ -107,16 +107,16 @@ static uintptr_t get_bar_address(struct pci_device* restrict device, unsigned ba
     uint32_t raw = pci_cfg_read32(device, offset);
 
     if(raw & PCI_BAR_IO) {
-        return (uintptr_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_IO));
+        return raw & PCI_BAR_ADDR_MASK_IO;
     }
 
     if((raw & PCI_BAR_MEM_TYPE_MASK) == PCI_BAR_MEM_64BIT) {
         uint64_t raw_higher = pci_cfg_read32(device, offset + 4);
 
-        return (uintptr_t)((raw_higher << 32) | (uint64_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_MEM)));
+        return (raw & PCI_BAR_ADDR_MASK_MEM) | (raw_higher << 32);
     }
 
-    return (uintptr_t)(raw & (uint32_t)(PCI_BAR_ADDR_MASK_MEM));
+    return raw & PCI_BAR_ADDR_MASK_MEM;
 }
 
 static size_t get_bar_length(struct pci_device* restrict device, unsigned bar_index)
@@ -129,10 +129,10 @@ static size_t get_bar_length(struct pci_device* restrict device, unsigned bar_in
     pci_cfg_write32(device, offset, raw);
 
     if(raw & PCI_BAR_IO) {
-        mask &= (uint32_t)(PCI_BAR_ADDR_MASK_IO);
+        mask &= PCI_BAR_ADDR_MASK_IO;
     }
     else {
-        mask &= (uint32_t)(PCI_BAR_ADDR_MASK_MEM);
+        mask &= PCI_BAR_ADDR_MASK_MEM;
     }
 
     return (size_t)(~mask) + 1;
@@ -144,7 +144,7 @@ static void* bar_map_mmio(struct pci_device* restrict device, unsigned bar_index
     size_t size = get_bar_length(device, bar_index);
 
     for(size_t i = 0; i < size; i += PAGE_SIZE) {
-        vmm_map(&sys_pagemap, (uintptr_t)(phys_to_virt(phys + i)), phys + i, VPROT_RW | VPROT_NOCACHE);
+        vmm_map(&sys_pagemap, (uintptr_t)phys_to_virt(phys + i), phys + i, VPROT_RW | VPROT_NOCACHE);
     }
 
     return phys_to_virt(phys);
@@ -156,7 +156,7 @@ static void bar_unmap_mmio(struct pci_device* restrict device, unsigned bar_inde
     size_t size = get_bar_length(device, bar_index);
 
     for(size_t i = 0; i < size; i += PAGE_SIZE) {
-        vmm_unmap(&sys_pagemap, (uintptr_t)(phys_to_virt(phys + i)));
+        vmm_unmap(&sys_pagemap, (uintptr_t)phys_to_virt(phys + i));
     }
 }
 
@@ -334,7 +334,7 @@ struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_ind
 
     if(raw & PCI_BAR_IO) {
         bar->type = PCI_BAR_TYPE_PMIO;
-        bar->pmio.base = raw & (uint32_t)(PCI_BAR_ADDR_MASK_IO);
+        bar->pmio.base = raw & PCI_BAR_ADDR_MASK_IO;
         bar->pmio.length = get_bar_length(device, bar_index);
         pmio_region_setup(&bar->pmio);
     }
@@ -586,7 +586,7 @@ int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handle
 
     device->priv.ireq_number = ireq_number;
 
-    intctl_route(controller, int_line, (uint8_t)(ireq_number + ARCH_IREQ_BASE), 0, TRIGGER_LEVEL, ACTIVE_LOW);
+    intctl_route(controller, int_line, ireq_number + ARCH_IREQ_BASE, 0, TRIGGER_LEVEL, ACTIVE_LOW);
     intctl_unmask(controller, int_line);
 
     return 0;
