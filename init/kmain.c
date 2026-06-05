@@ -252,8 +252,7 @@ static void fat_t7_maxlen_name(struct vnode* restrict testdir)
     if(found) {
         memset(fat_rbuf, 0, sizeof(content));
         ssize_t nr = vnode_read(found, fat_rbuf, sizeof(content) - 1, 0);
-        fat_check(nr == (ssize_t)(sizeof(content) - 1) && memcmp(fat_rbuf, content, nr) == 0,
-            "T7 read back content");
+        fat_check(nr == (ssize_t)(sizeof(content) - 1) && memcmp(fat_rbuf, content, nr) == 0, "T7 read back content");
         vnode_decref(found);
     }
 }
@@ -355,8 +354,7 @@ static void fat_t9_first_write_cluster(struct vnode* restrict testdir)
 
     memset(fat_rbuf, 0, len + 1);
     ssize_t nr = vnode_read(found, fat_rbuf, len, 0);
-    fat_check(nr == (ssize_t)len && memcmp(fat_rbuf, content, len) == 0,
-        "T9 read content after reopen");
+    fat_check(nr == (ssize_t)len && memcmp(fat_rbuf, content, len) == 0, "T9 read content after reopen");
 
     vnode_decref(found);
 }
