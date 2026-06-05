@@ -30,25 +30,143 @@ static ino_t fat_nodenumber(const struct fat_vfs_context* restrict fs, uintptr_t
     return result;
 }
 
-static void make_83name(const char* restrict name, uint8_t out[11])
+static bool check_shortpath_char(char c)
+{
+    static const char ok[] = "$%-_@~`!(){}^#&";
+
+    if(c >= 128) {
+        return true;
+    }
+
+    if(c >= 'A' && c <= 'Z') {
+        return true;
+    }
+
+    if(c >= '0' && c <= '9') {
+        return true;
+    }
+
+    for(const char* it = ok; it[0]; ++it) {
+        if(c == it[0]) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void shortpath_parts(const char* restrict filename, char stem[6], unsigned* restrict stem_len, char ext[3],
+    unsigned* restrict ext_len)
+{
+    stem_len[0] = 0;
+    ext_len[0] = 0;
+
+    const char* last_dot = nullptr;
+    for(const char* it = filename; it[0]; ++it) {
+        if(it[0] == '.') {
+            last_dot = it;
+        }
+    }
+
+    const char* stem_end;
+
+    if(last_dot == nullptr) {
+        stem_end = filename + strnlen(filename, PATH_NAME_SIZE);
+    }
+    else {
+        stem_end = last_dot;
+    }
+
+    for(const char* it = filename; it != stem_end && stem_len[0] < 6; ++it) {
+        char chr = toupper(it[0]);
+
+        if(chr == ' ' || chr == '.') {
+            continue;
+        }
+
+        if(check_shortpath_char(chr)) {
+            stem[stem_len[0]] = chr;
+            stem_len[0] += 1;
+        }
+    }
+
+    if(last_dot) {
+        for(const char* it = last_dot + 1; it[0] && ext_len[0] < 3; ++it) {
+            char chr = toupper(it[0]);
+
+            if(chr == ' ') {
+                continue;
+            }
+
+            if(check_shortpath_char(chr)) {
+                ext[ext_len[0]] = chr;
+                ext_len[0] += 1;
+            }
+        }
+    }
+}
+
+static void shortpath_filename(const char* restrict name, unsigned tail_n, uint8_t out[11])
 {
     memset(out, 0x20, 11);
 
-    const char* separator = strchr(name, PATH_SEPARATOR);
+    char stem[6], ext[3];
+    unsigned stem_len, ext_len;
+    shortpath_parts(name, stem, &stem_len, ext, &ext_len);
 
-    unsigned name_pos = 0;
+    char tail[5];
+    unsigned tail_len = 1;
+    tail[0] = '~';
 
-    for(const char* it = name; it[0] && it != separator && name_pos < 8; ++it) {
-        out[name_pos] = toupper(it[0]);
-        name_pos += 1;
+    if(tail_n >= 100) {
+        tail[tail_len] = '0' + tail_n / 100;
+        tail_len += 1;
     }
 
-    if(separator) {
-        unsigned ext_pos = 8;
+    if(tail_n >= 10) {
+        tail[tail_len] = '0' + (tail_n / 10) % 10;
+        tail_len += 1;
+    }
 
-        for(const char* it = separator + 1; it[0] && ext_pos < 11; ++it) {
-            out[ext_pos] = toupper(it[0]);
-            ext_pos += 1;
+    tail[tail_len] = '0' + tail_n % 10;
+    tail_len += 1;
+
+    unsigned stem_max = 8 - tail_len;
+    if(stem_len > stem_max) {
+        stem_len = stem_max;
+    }
+
+    unsigned pos = 0;
+
+    for(unsigned i = 0; i < stem_len; ++i) {
+        out[pos] = stem[i];
+        pos += 1;
+    }
+
+    for(unsigned i = 0; i < tail_len; ++i) {
+        out[pos] = tail[i];
+        pos += 1;
+    }
+
+    for(unsigned i = 0; i < ext_len; ++i) {
+        out[8 + i] = ext[i];
+    }
+}
+
+static bool has_shortpath(const struct fat_vfs_context* restrict fs, uintptr_t cluster, const uint8_t shortname[11])
+{
+    struct fat_dirent entry;
+    size_t offset = 0;
+
+    for(;;) {
+        int retval = fat_dirent_read(fs, cluster, &offset, &entry);
+
+        if(retval < 0) {
+            return false;
+        }
+
+        if(memcmp(entry.base.name, shortname, 11) == 0) {
+            return true;
         }
     }
 }
@@ -168,16 +286,38 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
         return retval;
     }
 
-    uintptr_t first_cluster = fat_cluster_alloc(fs);
+    // Directories need a cluster immediately (for . and ..).
+    // Files start with first_cluster=0 and get a cluster on first write —
+    // pre-allocating an unused cluster causes fsck to report "chain > file_size".
+    uintptr_t first_cluster = 0;
 
-    if(first_cluster == UINTPTR_MAX) {
-        return -ENOSPC;
+    if(type == VNODE_DIRECTORY) {
+        first_cluster = fat_cluster_alloc(fs);
+
+        if(first_cluster == UINTPTR_MAX) {
+            return -ENOSPC;
+        }
     }
 
     struct fat_dirent dirent;
     memset(&dirent, 0, sizeof(struct fat_dirent));
 
-    make_83name(name, dirent.base.name);
+    bool found_shortpath = false;
+    for(unsigned n = 1; n <= 999; ++n) {
+        shortpath_filename(name, n, dirent.base.name);
+
+        if(!has_shortpath(fs, context->first_cluster, dirent.base.name)) {
+            found_shortpath = true;
+            break;
+        }
+    }
+
+    if(!found_shortpath) {
+        if(first_cluster)
+            fat_cluster_free(fs, first_cluster);
+        return -ENOSPC;
+    }
+
     kstrncpy(dirent.full_name, name, PATH_NAME_SIZE);
 
     if(type == VNODE_DIRECTORY) {
@@ -187,15 +327,65 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
         dirent.base.attribute = FAT_ATTR_ARCHIVE;
     }
 
-    dirent.base.first_cluster_hi = (uint16_t)(first_cluster >> 16);
-    dirent.base.first_cluster_lo = (uint16_t)(first_cluster & 0xFFFF);
+    dirent.base.first_cluster_hi = first_cluster >> 16;
+    dirent.base.first_cluster_lo = first_cluster & 0xFFFF;
     dirent.base.file_size = 0;
 
     retval = fat_dirent_write(fs, context->first_cluster, slot_offset + num_lfn, &dirent);
 
     if(retval < 0) {
-        fat_cluster_free(fs, first_cluster);
+        if(first_cluster != 0)
+            fat_cluster_free(fs, first_cluster);
         return retval;
+    }
+
+    // Write . and .. entries into newly created directories
+    if(type == VNODE_DIRECTORY) {
+        uintptr_t dir_lba = fat_cluster_lba(fs, first_cluster);
+
+        memset(fs->bounce, 0, fs->sector_size);
+
+        for(size_t s = 0; s < fs->cluster_size_s; s++) {
+            retval = blk_device_write(fs->device, dir_lba + s, 1, fs->bounce);
+
+            if(retval < 0) {
+                fat_cluster_free(fs, first_cluster);
+                return retval;
+            }
+        }
+
+        union fat_entry dot_entry;
+        memset(&dot_entry, 0, sizeof(union fat_entry));
+
+        dot_entry.dir.attribute = FAT_ATTR_DIRECTORY;
+        dot_entry.dir.first_cluster_hi = first_cluster >> 16;
+        dot_entry.dir.first_cluster_lo = first_cluster & 0xFFFF;
+
+        memset(dot_entry.dir.name, 0x20, 11);
+        dot_entry.dir.name[0] = '.';
+
+        retval = fat_dirent_update(fs, first_cluster, 0, &dot_entry.dir);
+
+        if(retval < 0) {
+            fat_cluster_free(fs, first_cluster);
+            return retval;
+        }
+
+        memset(dot_entry.dir.name, 0x20, 11);
+        dot_entry.dir.name[0] = '.';
+        dot_entry.dir.name[1] = '.';
+
+        // For FAT12/16 the parent's cluster field is 0 if parent is root
+        uintptr_t parent_cluster = context->first_cluster;
+        dot_entry.dir.first_cluster_hi = parent_cluster >> 16;
+        dot_entry.dir.first_cluster_lo = parent_cluster & 0xFFFF;
+
+        retval = fat_dirent_update(fs, first_cluster, 1, &dot_entry.dir);
+
+        if(retval < 0) {
+            fat_cluster_free(fs, first_cluster);
+            return retval;
+        }
     }
 
     struct fat_vnode_context* out_ctx = slab_alloc(sizeof(struct fat_vnode_context));
@@ -300,6 +490,24 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
         return -EROFS;
     }
 
+    if(context->first_cluster == 0) {
+        uintptr_t new_cluster = fat_cluster_alloc(fs);
+
+        if(new_cluster == UINTPTR_MAX) {
+            return -ENOSPC;
+        }
+
+        context->first_cluster = new_cluster;
+
+        struct fat_dirent dirent;
+        size_t dir_off = context->dir_offset;
+        fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent);
+
+        dirent.base.first_cluster_hi = new_cluster >> 16;
+        dirent.base.first_cluster_lo = new_cluster & 0xFFFF;
+        fat_dirent_update(context->fs_ctx, context->dir_cluster, context->dir_offset, &dirent.base);
+    }
+
     uintptr_t cluster = context->first_cluster;
     size_t cluster_index = offset / fs->cluster_size_b;
 
@@ -341,7 +549,7 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
                 retval = blk_device_read(fs->device, lba, 1, fs->bounce);
 
                 if(retval < 0) {
-                    if(node > 0)
+                    if(done > 0)
                         return done;
                     return retval;
                 }

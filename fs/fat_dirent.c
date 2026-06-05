@@ -92,17 +92,9 @@ static int write_entry(const struct fat_vfs_context* restrict context, uintptr_t
 static uint8_t ldir_checksum(const struct fat_dir_entry* restrict entry)
 {
     uint8_t result = 0;
-    uint8_t store;
 
     for(int i = 0; i < 11; ++i) {
-        store = result;
-
-        result += entry->name[i];
-        result += store >> 1;
-
-        if(store & 1) {
-            result += 0x80;
-        }
+        result = ((result & 1) ? 0x80 : 0) + (result >> 1) + entry->name[i];
     }
 
     return result;
@@ -134,8 +126,22 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
         }
 
         if(FAT_ATTR_LONG_NAME == (entry_raw.dir.attribute & FAT_ATTR_LONG_NAME)) {
+            const struct fat_ldir_entry* ldir = &entry_raw.ldir;
+            uint8_t ord = ldir->order & ~UINT8_C(0x40);
+
+            // Discard the accumulator on any invalid or overflow entry
+            if(ord == 0 || ord > FAT_LFN_MAX_SEGMENTS || ldir->type != 0) {
+                num_ldir = 0;
+                continue;
+            }
+
+            if(ldir->order & UINT8_C(0x40)) {
+                // This is the last LFN segment (stored first on disk); reset accumulator
+                num_ldir = 0;
+            }
+
             if(num_ldir < FAT_LFN_MAX_SEGMENTS) {
-                memcpy(&ldirs[num_ldir], &entry_raw.ldir, sizeof(struct fat_ldir_entry));
+                memcpy(&ldirs[num_ldir], ldir, sizeof(struct fat_ldir_entry));
                 num_ldir += 1;
             }
         }
@@ -144,6 +150,19 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
         }
         else {
             memcpy(&entry->base, &entry_raw.dir, sizeof(struct fat_dir_entry));
+
+            // Discard LFN segments if the checksum doesn't match the 8.3 entry
+            if(num_ldir > 0) {
+                uint8_t expected = ldir_checksum(&entry->base);
+
+                for(unsigned i = 0; i < num_ldir; i++) {
+                    if(ldirs[i].checksum != expected) {
+                        num_ldir = 0;
+                        break;
+                    }
+                }
+            }
+
             break;
         }
     }
@@ -294,7 +313,7 @@ int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t 
     return write_entry(context, cluster, offset, &raw);
 }
 
-int fat_dirent_find_free(const struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset)
+int fat_dirent_find_free(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset)
 {
     union fat_entry raw;
     unsigned run = 0;
@@ -304,7 +323,50 @@ int fat_dirent_find_free(const struct fat_vfs_context* restrict context, uintptr
     for(;;) {
         int retval = read_entry(context, cluster, offset, &raw);
 
-        if(retval < 0) {
+        if(retval == -ENOENT) {
+            // End of directory chain reached.
+            // The fixed FAT12/FAT16 root area cannot be extended.
+            if(cluster == 0) {
+                return -ENOSPC;
+            }
+
+            // Walk to the tail cluster of this directory's chain
+            uintptr_t tail = cluster;
+
+            for(;;) {
+                uintptr_t next = fat_cluster_next(context, tail);
+
+                if(next == UINTPTR_MAX) {
+                    break;
+                }
+
+                tail = next;
+            }
+
+            uintptr_t new_cluster = fat_cluster_alloc(context);
+
+            if(new_cluster == UINTPTR_MAX) {
+                return -ENOSPC;
+            }
+
+            // Zero the new cluster via bounce buffer so it reads as empty
+            memset(context->bounce, 0, context->sector_size);
+            uintptr_t new_lba = fat_cluster_lba(context, new_cluster);
+
+            for(size_t s = 0; s < context->cluster_size_s; s++) {
+                blk_device_write(context->device, new_lba + s, 1, context->bounce);
+            }
+
+            fat_cluster_link(context, tail, new_cluster);
+
+            // Retry the same offset — read_entry can now traverse the extended chain
+            retval = read_entry(context, cluster, offset, &raw);
+
+            if(retval < 0) {
+                return retval;
+            }
+        }
+        else if(retval < 0) {
             return retval;
         }
 

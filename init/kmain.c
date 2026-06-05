@@ -15,6 +15,243 @@
 #include <lib/string.h>
 #include <limine.h>
 
+// ---------------------------------------------------------------------------
+// FAT conformance tests
+// ---------------------------------------------------------------------------
+
+static int fat_tests_passed;
+static int fat_tests_total;
+
+static void fat_check(bool ok, const char* name)
+{
+    fat_tests_total++;
+
+    if(ok) {
+        fat_tests_passed++;
+        pr_inform("FAT [PASS] %s", name);
+    }
+    else {
+        pr_warning("FAT [FAIL] %s", name);
+    }
+}
+
+// 32KB: enough to span many clusters even at the smallest FAT16 cluster size (512B)
+#define FAT_TEST_BUF 32768
+static uint8_t fat_wbuf[FAT_TEST_BUF];
+static uint8_t fat_rbuf[FAT_TEST_BUF];
+
+// T1: create a short-name file, write known data, read it back
+static void fat_t1_short_write_read(struct vnode* restrict testdir)
+{
+    const char content[] = "Hello, World!\n";
+    const size_t len = sizeof(content) - 1;
+
+    struct vnode* file = nullptr;
+    int r = vnode_create(testdir, "test83.txt", VNODE_FILE, &file);
+    fat_check(r == 0 && file != nullptr, "T1 create test83.txt");
+    if(r != 0 || file == nullptr)
+        return;
+
+    ssize_t nw = vnode_write(file, content, len, 0);
+    fat_check(nw == (ssize_t)len, "T1 write");
+
+    memset(fat_rbuf, 0, len + 1);
+    ssize_t nr = vnode_read(file, fat_rbuf, len, 0);
+    fat_check(nr == (ssize_t)len, "T1 read length");
+    fat_check(memcmp(fat_rbuf, content, len) == 0, "T1 read content");
+
+    struct __k_stat st;
+    vnode_stat(file, &st);
+    fat_check((size_t)st.st_size == len, "T1 stat size");
+
+    vnode_decref(file);
+}
+
+// T2: long filename (LFN), close then reopen via lookup
+static void fat_t2_lfn(struct vnode* restrict testdir)
+{
+    const char fname[] = "this_is_a_long_filename_test.txt";
+    const char content[] = "LFN test data\n";
+    const size_t len = sizeof(content) - 1;
+
+    struct vnode* file = nullptr;
+    int r = vnode_create(testdir, fname, VNODE_FILE, &file);
+    fat_check(r == 0 && file != nullptr, "T2 create LFN file");
+    if(r != 0 || file == nullptr)
+        return;
+
+    vnode_write(file, content, len, 0);
+    vnode_decref(file);
+
+    // Re-open via lookup: exercises fat_dirent_read LFN reassembly
+    struct vnode* found = nullptr;
+    r = vnode_lookup(testdir, fname, &found);
+    fat_check(r == 0 && found != nullptr, "T2 lookup LFN file");
+    if(found == nullptr)
+        return;
+
+    memset(fat_rbuf, 0, len + 1);
+    ssize_t nr = vnode_read(found, fat_rbuf, len, 0);
+    fat_check(nr == (ssize_t)len && memcmp(fat_rbuf, content, len) == 0, "T2 read back LFN content");
+
+    vnode_decref(found);
+}
+
+// T3: multi-cluster file — write 32KB with a known pattern, read back
+static void fat_t3_multicluster(struct vnode* restrict testdir)
+{
+    for(int i = 0; i < FAT_TEST_BUF; i++) {
+        fat_wbuf[i] = (uint8_t)(i & 0xFF);
+    }
+
+    struct vnode* file = nullptr;
+    int r = vnode_create(testdir, "multicluster.bin", VNODE_FILE, &file);
+    fat_check(r == 0 && file != nullptr, "T3 create multicluster.bin");
+    if(r != 0 || file == nullptr)
+        return;
+
+    ssize_t nw = vnode_write(file, fat_wbuf, FAT_TEST_BUF, 0);
+    fat_check(nw == FAT_TEST_BUF, "T3 write 32KB");
+
+    memset(fat_rbuf, 0, FAT_TEST_BUF);
+    ssize_t nr = vnode_read(file, fat_rbuf, FAT_TEST_BUF, 0);
+    fat_check(nr == FAT_TEST_BUF, "T3 read back 32KB");
+    fat_check(memcmp(fat_rbuf, fat_wbuf, FAT_TEST_BUF) == 0, "T3 data matches");
+
+    struct __k_stat st;
+    vnode_stat(file, &st);
+    fat_check((int)st.st_size == FAT_TEST_BUF, "T3 stat size 32KB");
+
+    vnode_decref(file);
+}
+
+// T4: 8.3 name collision — three LFN files whose stems would collide
+//     → ~1 ~2 ~3 must be generated; all three must remain independently findable
+static void fat_t4_83_collision(struct vnode* restrict testdir)
+{
+    static const char* const names[] = {
+        "verylongname_alpha.txt",
+        "verylongname_beta.txt",
+        "verylongname_gamma.txt",
+    };
+
+    for(int i = 0; i < 3; i++) {
+        struct vnode* f = nullptr;
+        int r = vnode_create(testdir, names[i], VNODE_FILE, &f);
+
+        char label[64];
+        snprintf(label, sizeof(label), "T4 create %s", names[i]);
+        fat_check(r == 0 && f != nullptr, label);
+
+        if(f)
+            vnode_decref(f);
+    }
+
+    for(int i = 0; i < 3; i++) {
+        struct vnode* found = nullptr;
+        vnode_lookup(testdir, names[i], &found);
+
+        char label[64];
+        snprintf(label, sizeof(label), "T4 lookup %s", names[i]);
+        fat_check(found != nullptr, label);
+
+        if(found)
+            vnode_decref(found);
+    }
+}
+
+// T5: new directory must contain . and ..
+static void fat_t5_dotdot(struct vnode* restrict testdir)
+{
+    struct vnode* subdir = nullptr;
+    int r = vnode_create(testdir, "dotdottest", VNODE_DIRECTORY, &subdir);
+    fat_check(r == 0 && subdir != nullptr, "T5 create dotdottest");
+    if(r != 0 || subdir == nullptr)
+        return;
+
+    struct dirent de;
+    bool found_dot = false;
+    bool found_dotdot = false;
+
+    for(size_t i = 0; vnode_iterate(subdir, &de, i) == 0; i++) {
+        if(strcmp(de.name, ".") == 0)
+            found_dot = true;
+        if(strcmp(de.name, "..") == 0)
+            found_dotdot = true;
+    }
+
+    fat_check(found_dot, "T5 . entry present");
+    fat_check(found_dotdot, "T5 .. entry present");
+
+    vnode_decref(subdir);
+}
+
+// T6: force fat_dirent_find_free to extend the directory cluster chain
+//     by creating enough entries to overflow the initial directory cluster
+static void fat_t6_dir_extend(struct vnode* restrict testdir)
+{
+    struct vnode* subdir = nullptr;
+    int r = vnode_create(testdir, "dirextend", VNODE_DIRECTORY, &subdir);
+    fat_check(r == 0 && subdir != nullptr, "T6 create dirextend");
+    if(r != 0 || subdir == nullptr)
+        return;
+
+    // 50 files × (1 LFN + 1 SFN) = 100 slots + 2 for . and ..
+    // At 512B/cluster that's 7 clusters — well beyond the initial one
+    int created = 0;
+    char fname[24];
+
+    for(int i = 0; i < 50; i++) {
+        snprintf(fname, sizeof(fname), "file%02d.txt", i);
+        struct vnode* f = nullptr;
+
+        if(vnode_create(subdir, fname, VNODE_FILE, &f) == 0 && f != nullptr) {
+            created++;
+            vnode_decref(f);
+        }
+    }
+
+    fat_check(created == 50, "T6 created 50 files");
+
+    // Count back via iterate (skip . and ..)
+    struct dirent de;
+    int found = 0;
+    for(size_t i = 0; vnode_iterate(subdir, &de, i) == 0; i++) {
+        if(de.name[0] != '.')
+            found++;
+    }
+
+    fat_check(found == 50, "T6 iterate returns 50 files");
+
+    vnode_decref(subdir);
+}
+
+static void fat_run_tests(struct vnode* restrict root)
+{
+    fat_tests_passed = 0;
+    fat_tests_total = 0;
+
+    // All tests live under /fattest to keep the root clean
+    struct vnode* testdir = nullptr;
+    int r = vnode_create(root, "fattest", VNODE_DIRECTORY, &testdir);
+
+    if(r != 0 || testdir == nullptr) {
+        pr_warning("FAT TESTS: could not create /fattest (%d), skipping", r);
+        return;
+    }
+
+    fat_t1_short_write_read(testdir);
+    fat_t2_lfn(testdir);
+    fat_t3_multicluster(testdir);
+    fat_t4_83_collision(testdir);
+    fat_t5_dotdot(testdir);
+    fat_t6_dir_extend(testdir);
+
+    vnode_decref(testdir);
+
+    pr_inform("FAT TESTS: %d / %d passed", fat_tests_passed, fat_tests_total);
+}
+
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
@@ -137,6 +374,13 @@ void __noreturn kmain(void)
             }
             vnode_decref(usr_node);
         }
+        vnode_decref(root_node);
+    }
+
+    vfs_sync("/");
+
+    if(0 == vfs_get_root(&root_node)) {
+        fat_run_tests(root_node);
         vnode_decref(root_node);
     }
 

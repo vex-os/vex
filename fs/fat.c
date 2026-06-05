@@ -10,6 +10,31 @@
 #include <mm/malloc.h>
 #include <mm/slab.h>
 
+static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
+{
+    if(context->filesystem_type != FAT_TYPE_32 || context->fsinfo_lba == 0) {
+        return;
+    }
+
+    if(blk_device_read(context->device, context->fsinfo_lba, 1, context->bounce)) {
+        return;
+    }
+
+    struct fat_fsinfo_fat32* info = (struct fat_fsinfo_fat32*)(context->bounce);
+
+    bool fsinfo_valid = true;
+    fsinfo_valid = fsinfo_valid && info->lead_signature == UINT32_C(0x41615252);
+    fsinfo_valid = fsinfo_valid && info->struct_signature == UINT32_C(0x61417272);
+    fsinfo_valid = fsinfo_valid && info->trail_signature == UINT32_C(0xAA550000);
+
+    if(fsinfo_valid) {
+        info->free_count = UINT32_C(0xFFFFFFFF);
+        info->next_free = UINT32_C(0xFFFFFFFF);
+
+        blk_device_write(context->device, context->fsinfo_lba, 1, context->bounce);
+    }
+}
+
 static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
 {
     if(device == nullptr) {
@@ -120,6 +145,15 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     context->cluster_size_s = base->cluster_size;
     context->cluster_size_b = base->cluster_size * base->sector_size;
     context->sector_size = base->sector_size;
+    context->table_size_s = fat_size;
+    context->num_tables = base->tables_count;
+
+    if(filesystem_type == FAT_TYPE_32) {
+        context->fsinfo_lba = boot->fat32.fs_info;
+    }
+    else {
+        context->fsinfo_lba = 0;
+    }
 
     context->cache_size = fat_size * base->sector_size;
     context->cache = kmalloc(context->cache_size);
@@ -213,20 +247,28 @@ static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
     uintptr_t dir_entry_s = byte_offset / sizeof(union fat_entry);
     uintptr_t dir_lba = lba;
 
-    uintptr_t cluster_lba = dir_lba;
-    cluster_lba -= dir_lba % context->cluster_size_s;
-
     // Reconstruct dir_cluster and dir_offset from the nodenumber
-    // so that writes can update entries without additional scanning
+    // so that writes can update entries without additional scanning.
+    // For FAT12/FAT16 the root directory lives before data_start (cluster == 0).
 
-    uintptr_t dir_cluster = cluster_lba - context->data_start;
-    dir_cluster /= context->cluster_size_s;
-    dir_cluster += 2;
+    uintptr_t dir_cluster;
+    size_t dir_offset;
 
-    size_t dir_offset = dir_lba;
-    dir_offset -= fat_cluster_lba(context, dir_cluster);
-    dir_offset *= num_entries;
-    dir_offset += dir_entry_s;
+    uintptr_t root_start = context->data_start - context->rootdir_sectors;
+
+    if(dir_lba >= root_start && dir_lba < context->data_start) {
+        // Entry is in the fixed FAT12/FAT16 root directory area
+        dir_cluster = 0;
+        dir_offset = (dir_lba - root_start) * num_entries + dir_entry_s;
+    }
+    else {
+        uintptr_t cluster_lba = dir_lba - dir_lba % context->cluster_size_s;
+
+        dir_cluster = (cluster_lba - context->data_start) / context->cluster_size_s + 2;
+
+        dir_offset = dir_lba - fat_cluster_lba(context, dir_cluster);
+        dir_offset = dir_offset * num_entries + dir_entry_s;
+    }
 
     node_context->fs_ctx = context;
     node_context->first_cluster = cluster;
@@ -264,7 +306,18 @@ static int fat_sync(struct vfs* restrict fs)
     struct fat_vfs_context* context = fs->ctxdata;
     size_t num_sectors = context->cache_size / context->sector_size;
 
-    return blk_device_write(context->device, context->table_start, num_sectors, context->cache);
+    for(unsigned i = 0; i < context->num_tables; i++) {
+        uintptr_t lba = context->table_start + i * context->table_size_s;
+        int retval = blk_device_write(context->device, lba, num_sectors, context->cache);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
+    invalidate_fsinfo(context);
+
+    return 0;
 }
 
 static const struct vfs_ops fat_vfs_ops = {
@@ -275,7 +328,7 @@ static const struct vfs_ops fat_vfs_ops = {
 };
 
 static struct vfs_driver fat_vfs_driver = {
-    .identifier = "fat", // FIXME: figure out aliasing so it's possible to mount via fat, vfat, msdos, fat32 and so on
+    .identifier = "fat", // FIXME: figure out aliasing so it's possible to mount via fat, and msdos
     .ops = &fat_vfs_ops,
 };
 
