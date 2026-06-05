@@ -55,29 +55,29 @@ typedef uint16_t ata_identify_type[256];
 
 static __always_inline __nodiscard inline bool ata_identify_is_atapi(const ata_identify_type packet)
 {
-    return LE16_to_host(packet[0]) & UINT16_C(0x8000);
+    return le16toh(packet[0]) & UINT16_C(0x8000);
 }
 
 static __always_inline __nodiscard inline bool ata_identify_has_lba48(const ata_identify_type packet)
 {
-    return LE16_to_host(packet[83]) & UINT16_C(0x0400);
+    return le16toh(packet[83]) & UINT16_C(0x0400);
 }
 
 static __always_inline __nodiscard inline size_t ata_identify_lba48_capacity(const ata_identify_type packet)
 {
     size_t result = 0;
-    result |= (size_t)LE16_to_host(packet[100]);
-    result |= (size_t)LE16_to_host(packet[101]) << 16;
-    result |= (size_t)LE16_to_host(packet[102]) << 32;
-    result |= (size_t)LE16_to_host(packet[103]) << 48;
+    result |= (size_t)le16toh(packet[100]);
+    result |= (size_t)le16toh(packet[101]) << 16;
+    result |= (size_t)le16toh(packet[102]) << 32;
+    result |= (size_t)le16toh(packet[103]) << 48;
     return result;
 }
 
 static __always_inline __nodiscard inline size_t ata_identify_lba28_capacity(const ata_identify_type packet)
 {
     size_t result = 0;
-    result |= (size_t)LE16_to_host(packet[60]);
-    result |= (size_t)LE16_to_host(packet[61]) << 16;
+    result |= (size_t)le16toh(packet[60]);
+    result |= (size_t)le16toh(packet[61]) << 16;
     return result;
 }
 
@@ -92,9 +92,9 @@ static __always_inline __nodiscard inline size_t ata_identify_logical_sector_siz
 {
     size_t result = 0;
 
-    if(LE16_to_host(packet[106]) & UINT16_C(0x1000)) {
-        result |= (size_t)LE16_to_host(packet[117]);
-        result |= (size_t)LE16_to_host(packet[118]) << 16;
+    if(le16toh(packet[106]) & UINT16_C(0x1000)) {
+        result |= (size_t)le16toh(packet[117]);
+        result |= (size_t)le16toh(packet[118]) << 16;
         return result;
     }
 

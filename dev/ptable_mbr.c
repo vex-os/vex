@@ -89,8 +89,8 @@ static int mbr_readpt(const struct blk_device* restrict device, void* restrict p
         if(found == index) {
             out->part_label[0] = 0x00;
             out->part_index = slot;
-            out->lba_start = LE32_to_host(entry->lba_start);
-            out->lba_count = LE32_to_host(entry->lba_count);
+            out->lba_start = le32toh(entry->lba_start);
+            out->lba_count = le32toh(entry->lba_count);
             out->type = entry->type;
             return 0;
         }

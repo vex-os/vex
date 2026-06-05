@@ -89,15 +89,15 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
     memcpy(&header, sector, sizeof(struct gpt_header));
     kfree(sector);
 
-    uint32_t checksum = LE32_to_host(header.header_crc32);
+    uint32_t checksum = le32toh(header.header_crc32);
     header.header_crc32 = UINT32_C(0);
 
     if(memcmp(header.signature, "EFI PART", 8)) {
         return -EINVAL;
     }
 
-    if(checksum == crc32_iso3309_get(&header, LE32_to_host(header.header_size))) {
-        size_t entries_size = (size_t)LE32_to_host(header.entry_count) * LE32_to_host(header.entry_size);
+    if(checksum == crc32_iso3309_get(&header, le32toh(header.header_size))) {
+        size_t entries_size = (size_t)le32toh(header.entry_count) * le32toh(header.entry_size);
         struct gpt_ptdata* gpt = kmalloc(entries_size + sizeof(struct gpt_ptdata));
 
         if(gpt == nullptr) {
@@ -105,14 +105,14 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
         }
 
         size_t entries_lbas = (entries_size + device->sector_size - 1) / device->sector_size;
-        retval = blk_device_read(device, LE64_to_host(header.entry_start_lba), entries_lbas, gpt->cached_entries);
+        retval = blk_device_read(device, le64toh(header.entry_start_lba), entries_lbas, gpt->cached_entries);
 
         if(retval < 0) {
             kfree(gpt);
             return retval;
         }
 
-        if(LE32_to_host(header.entry_crc32) != crc32_iso3309_get(gpt->cached_entries, entries_size)) {
+        if(le32toh(header.entry_crc32) != crc32_iso3309_get(gpt->cached_entries, entries_size)) {
             kfree(gpt);
             return -EINVAL;
         }
@@ -149,7 +149,7 @@ static int gpt_detect(const struct blk_device* restrict device, void** restrict 
     }
 
     struct gpt_ptdata* gpt;
-    retval = gpt_check_header(device, LE32_to_host(sector.entries[0].lba_start), &gpt);
+    retval = gpt_check_header(device, le32toh(sector.entries[0].lba_start), &gpt);
 
     if(retval < 0) {
         retval = gpt_check_header(device, device->sector_count - 1, &gpt);
@@ -169,8 +169,8 @@ static int gpt_readpt(const struct blk_device* restrict device, void* restrict p
     static const uint8_t null_guid[16] = { 0 }; // FIXME: a GUID library would be nice
 
     const struct gpt_ptdata* gpt = ptdata;
-    uint32_t entry_count = LE32_to_host(gpt->header.entry_count);
-    uint32_t entry_size = LE32_to_host(gpt->header.entry_size);
+    uint32_t entry_count = le32toh(gpt->header.entry_count);
+    uint32_t entry_size = le32toh(gpt->header.entry_size);
 
     unsigned found = 0;
 
@@ -188,13 +188,13 @@ static int gpt_readpt(const struct blk_device* restrict device, void* restrict p
             unsigned i;
 
             for(i = 0; i < name_len && i < 63 && name[i]; i += 1) {
-                out->part_label[i] = LE16_to_host(name[i]) & 0x7F;
+                out->part_label[i] = le16toh(name[i]) & 0x7F;
             }
 
             out->part_label[i] = 0x00;
             out->part_index = slot;
-            out->lba_start = LE64_to_host(entry->lba_start);
-            out->lba_count = LE64_to_host(entry->lba_end) - LE64_to_host(entry->lba_start) + 1;
+            out->lba_start = le64toh(entry->lba_start);
+            out->lba_count = le64toh(entry->lba_end) - le64toh(entry->lba_start) + 1;
             out->type = 0; // FIXME: figure out a way to shove a GUID into an uint64_t
 
             return 0;

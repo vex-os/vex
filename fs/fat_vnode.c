@@ -329,8 +329,8 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
         dirent.base.attribute = FAT_ATTR_ARCHIVE;
     }
 
-    dirent.base.first_cluster_hi = host_to_LE16(first_cluster >> 16);
-    dirent.base.first_cluster_lo = host_to_LE16(first_cluster & 0xFFFF);
+    dirent.base.first_cluster_hi = htole16(first_cluster >> 16);
+    dirent.base.first_cluster_lo = htole16(first_cluster & 0xFFFF);
     dirent.base.file_size = 0;
 
     retval = fat_dirent_write(fs, context->first_cluster, slot_offset + num_lfn, &dirent);
@@ -360,8 +360,8 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
         memset(&dot_entry, 0, sizeof(union fat_entry));
 
         dot_entry.dir.attribute = FAT_ATTR_DIRECTORY;
-        dot_entry.dir.first_cluster_hi = host_to_LE16(first_cluster >> 16);
-        dot_entry.dir.first_cluster_lo = host_to_LE16(first_cluster & 0xFFFF);
+        dot_entry.dir.first_cluster_hi = htole16(first_cluster >> 16);
+        dot_entry.dir.first_cluster_lo = htole16(first_cluster & 0xFFFF);
 
         memset(dot_entry.dir.name, 0x20, 11);
         dot_entry.dir.name[0] = '.';
@@ -379,8 +379,8 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
 
         // For FAT12/16 the parent's cluster field is 0 if parent is root
         uintptr_t parent_cluster = context->first_cluster;
-        dot_entry.dir.first_cluster_hi = host_to_LE16(parent_cluster >> 16);
-        dot_entry.dir.first_cluster_lo = host_to_LE16(parent_cluster & 0xFFFF);
+        dot_entry.dir.first_cluster_hi = htole16(parent_cluster >> 16);
+        dot_entry.dir.first_cluster_lo = htole16(parent_cluster & 0xFFFF);
 
         retval = fat_dirent_update(fs, first_cluster, 1, &dot_entry.dir);
 
@@ -511,8 +511,8 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
             return retval;
         }
 
-        dirent.base.first_cluster_hi = host_to_LE16(new_cluster >> 16);
-        dirent.base.first_cluster_lo = host_to_LE16(new_cluster & 0xFFFF);
+        dirent.base.first_cluster_hi = htole16(new_cluster >> 16);
+        dirent.base.first_cluster_lo = htole16(new_cluster & 0xFFFF);
         fat_dirent_update(context->fs_ctx, context->dir_cluster, context->dir_offset, &dirent.base);
     }
 
@@ -606,7 +606,7 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
         size_t dir_off = context->dir_offset;
 
         if(0 == fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent)) {
-            dirent.base.file_size = host_to_LE32(context->size_bytes);
+            dirent.base.file_size = htole32(context->size_bytes);
 
             fat_dirent_update(context->fs_ctx, context->dir_cluster, context->dir_offset, &dirent.base);
         }
