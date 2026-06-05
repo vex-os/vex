@@ -74,9 +74,10 @@ int vfs_driver_unregister(struct vfs_driver* restrict driver)
 
     spinlock_acquire(&drivers_lock);
 
-    for(prev = &drivers_head; prev[0]; prev = &prev[0]->priv.next) {
-        if(prev[0] == driver) {
-            prev[0] = driver->priv.next;
+    for(prev = &drivers_head; *prev; prev = &((**prev).priv.next)) {
+        if(*prev == driver) {
+            *prev = driver->priv.next;
+
             driver->priv.next = nullptr;
 
             spinlock_release(&drivers_lock);
@@ -92,7 +93,7 @@ int vfs_driver_unregister(struct vfs_driver* restrict driver)
 
 int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params)
 {
-    if(type == nullptr || type[0] == 0) {
+    if(type == nullptr || *type == 0) {
         return -EINVAL; // TODO: try deducing filesystem type
     }
 
@@ -216,8 +217,8 @@ int vfs_unmount(const char* restrict path)
 
     struct mount_entry** prev = &mounts_head;
 
-    while(prev[0]) {
-        struct mount_entry* entry = prev[0];
+    while(*prev) {
+        struct mount_entry* entry = *prev;
 
         if(entry->path && 0 == strcmp(entry->path, path)) {
             struct vfs* fs = entry->fs;
@@ -327,7 +328,7 @@ int vfs_get_root(struct vnode** restrict out)
 
     vnode_incref(vfs_root);
 
-    out[0] = vfs_root;
+    *out = vfs_root;
 
     spinlock_release(&mounts_lock);
 

@@ -68,11 +68,11 @@ void vcache_evict(struct vfs* restrict fs)
     for(unsigned bucket = 0; bucket < NUM_BUCKETS; bucket += 1) {
         struct vcache** prev = &cache[bucket];
 
-        while(prev[0]) {
-            struct vcache* entry = prev[0];
+        while(*prev) {
+            struct vcache* entry = *prev;
 
             if(entry->fs == fs) {
-                prev[0] = entry->next;
+                *prev = entry->next;
                 vnode_decref(entry->node);
                 slab_free(entry);
             }

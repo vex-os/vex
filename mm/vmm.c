@@ -243,11 +243,11 @@ int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, uns
     if(entry == nullptr) {
         retval = ENOMEM;
     }
-    else if(vmm_entry_valid(entry[0])) {
+    else if(vmm_entry_valid(*entry)) {
         retval = EEXIST;
     }
     else {
-        entry[0] = vmm_entry_init(page_align(phys), vprot);
+        *entry = vmm_entry_init(page_align(phys), vprot);
         retval = 0;
     }
 

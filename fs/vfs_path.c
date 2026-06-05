@@ -71,13 +71,13 @@ static int follow_symlink(struct vnode* restrict node, struct vnode* restrict li
         return retval;
     }
 
-    if(rest && rest[0]) {
+    if(rest && *rest) {
         retval = resolve_internal(resolved, rest, out, depth + 1);
         vnode_decref(resolved);
         return retval;
     }
 
-    out[0] = resolved;
+    *out = resolved;
 
     return 0;
 }
@@ -95,12 +95,12 @@ static int resolve_internal(struct vnode* restrict stem, const char* restrict pa
 
     vnode_incref(current);
 
-    while(chrptr[0]) {
-        while(chrptr[0] == PATH_SEPARATOR) {
+    while(*chrptr) {
+        while(*chrptr == PATH_SEPARATOR) {
             chrptr += 1;
         }
 
-        if(chrptr[0] == 0) {
+        if(*chrptr == 0) {
             break;
         }
 
@@ -176,7 +176,7 @@ static int resolve_internal(struct vnode* restrict stem, const char* restrict pa
         current = next;
     }
 
-    out[0] = current;
+    *out = current;
 
     return 0;
 }

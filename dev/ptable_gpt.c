@@ -119,7 +119,7 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
 
         memcpy(&gpt->header, &header, sizeof(struct gpt_header));
 
-        ptdata[0] = gpt;
+        *ptdata = gpt;
 
         return 0;
     }
@@ -159,7 +159,7 @@ static int gpt_detect(const struct blk_device* restrict device, void** restrict 
         return retval;
     }
 
-    ptdata[0] = gpt;
+    *ptdata = gpt;
 
     return 0;
 }

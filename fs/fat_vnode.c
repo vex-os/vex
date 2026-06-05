@@ -46,8 +46,8 @@ static bool check_shortpath_char(char c)
         return true;
     }
 
-    for(const char* it = ok; it[0]; ++it) {
-        if(c == it[0]) {
+    for(const char* it = ok; *it; ++it) {
+        if(c == *it) {
             return true;
         }
     }
@@ -58,12 +58,12 @@ static bool check_shortpath_char(char c)
 static void shortpath_parts(const char* restrict filename, char stem[6], unsigned* restrict stem_len, char ext[3],
     unsigned* restrict ext_len)
 {
-    stem_len[0] = 0;
-    ext_len[0] = 0;
+    *stem_len = 0;
+    *ext_len = 0;
 
     const char* last_dot = nullptr;
-    for(const char* it = filename; it[0]; ++it) {
-        if(it[0] == '.') {
+    for(const char* it = filename; *it; ++it) {
+        if(*it == '.') {
             last_dot = it;
         }
     }
@@ -77,30 +77,30 @@ static void shortpath_parts(const char* restrict filename, char stem[6], unsigne
         stem_end = last_dot;
     }
 
-    for(const char* it = filename; it != stem_end && stem_len[0] < 6; ++it) {
-        char chr = toupper(it[0]);
+    for(const char* it = filename; it != stem_end && *stem_len < 6; ++it) {
+        char chr = toupper(*it);
 
         if(chr == ' ' || chr == '.') {
             continue;
         }
 
         if(check_shortpath_char(chr)) {
-            stem[stem_len[0]] = chr;
-            stem_len[0] += 1;
+            stem[*stem_len] = chr;
+            *stem_len += 1;
         }
     }
 
     if(last_dot) {
-        for(const char* it = last_dot + 1; it[0] && ext_len[0] < 3; ++it) {
-            char chr = toupper(it[0]);
+        for(const char* it = last_dot + 1; *it && *ext_len < 3; ++it) {
+            char chr = toupper(*it);
 
             if(chr == ' ') {
                 continue;
             }
 
             if(check_shortpath_char(chr)) {
-                ext[ext_len[0]] = chr;
-                ext_len[0] += 1;
+                ext[*ext_len] = chr;
+                *ext_len += 1;
             }
         }
     }
@@ -211,7 +211,8 @@ static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict na
             continue;
         }
 
-        out[0] = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1); // fat_dirent_read increments the offset
+        *out = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1); // fat_dirent_read increments the offset
+
         return 0;
     }
 
@@ -412,7 +413,7 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     out_node->fs = node->fs;
     out_node->nodenumber = fat_nodenumber(fs, context->first_cluster, slot_offset + num_lfn);
 
-    out[0] = out_node;
+    *out = out_node;
 
     return 0;
 }

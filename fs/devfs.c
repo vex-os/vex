@@ -63,7 +63,7 @@ void devfs_remove(const char* restrict name)
 
     spinlock_acquire(&state->lock);
 
-    for(struct devfs_node** prev = &state->head; *prev; prev = &(prev[0])->next) {
+    for(struct devfs_node** prev = &state->head; *prev; prev = &((**prev).next)) {
         struct devfs_node* it = *prev;
 
         if(0 == strcmp(it->name, name)) {

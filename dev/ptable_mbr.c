@@ -65,7 +65,7 @@ static int mbr_detect(const struct blk_device* restrict device, void** restrict 
 
         memcpy(sector_copy, &sector, sizeof(struct mbr_sector));
 
-        ptdata[0] = sector_copy;
+        *ptdata = sector_copy;
 
         return 0;
     }

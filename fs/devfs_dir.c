@@ -15,7 +15,7 @@ static int devfs_dir_lookup(struct vnode* restrict node, const char* restrict na
 
     for(struct devfs_node* it = state->head; it; it = it->next) {
         if(0 == strcmp(it->name, name)) {
-            out[0] = (ino_t)((uintptr_t)(it->node));
+            *out = (uintptr_t)(it->node);
             spinlock_release(&state->lock);
             return 0;
         }
