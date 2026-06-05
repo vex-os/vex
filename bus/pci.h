@@ -196,20 +196,20 @@ uint16_t pci_bar_read16(struct pci_bar* restrict bar, uintptr_t offset);
 uint32_t pci_bar_read32(struct pci_bar* restrict bar, uintptr_t offset);
 uint64_t pci_bar_read64(struct pci_bar* restrict bar, uintptr_t offset);
 
-void pci_bar_read8_string(struct pci_bar* restrict bar, uintptr_t offset, uint8_t* restrict data, size_t count);
-void pci_bar_read16_string(struct pci_bar* restrict bar, uintptr_t offset, uint16_t* restrict data, size_t count);
-void pci_bar_read32_string(struct pci_bar* restrict bar, uintptr_t offset, uint32_t* restrict data, size_t count);
-void pci_bar_read64_string(struct pci_bar* restrict bar, uintptr_t offset, uint64_t* restrict data, size_t count);
+void pci_bar_read8s(struct pci_bar* restrict bar, uintptr_t offset, uint8_t* restrict data, size_t count);
+void pci_bar_read16s(struct pci_bar* restrict bar, uintptr_t offset, uint16_t* restrict data, size_t count);
+void pci_bar_read32s(struct pci_bar* restrict bar, uintptr_t offset, uint32_t* restrict data, size_t count);
+void pci_bar_read64s(struct pci_bar* restrict bar, uintptr_t offset, uint64_t* restrict data, size_t count);
 
 void pci_bar_write8(struct pci_bar* restrict bar, uintptr_t offset, uint8_t value);
 void pci_bar_write16(struct pci_bar* restrict bar, uintptr_t offset, uint16_t value);
 void pci_bar_write32(struct pci_bar* restrict bar, uintptr_t offset, uint32_t value);
 void pci_bar_write64(struct pci_bar* restrict bar, uintptr_t offset, uint64_t value);
 
-void pci_bar_write8_string(struct pci_bar* restrict bar, uintptr_t offset, const uint8_t* restrict data, size_t count);
-void pci_bar_write16_string(struct pci_bar* restrict bar, uintptr_t offset, const uint16_t* restrict data, size_t count);
-void pci_bar_write32_string(struct pci_bar* restrict bar, uintptr_t offset, const uint32_t* restrict data, size_t count);
-void pci_bar_write64_string(struct pci_bar* restrict bar, uintptr_t offset, const uint64_t* restrict data, size_t count);
+void pci_bar_write8s(struct pci_bar* restrict bar, uintptr_t offset, const uint8_t* restrict data, size_t count);
+void pci_bar_write16s(struct pci_bar* restrict bar, uintptr_t offset, const uint16_t* restrict data, size_t count);
+void pci_bar_write32s(struct pci_bar* restrict bar, uintptr_t offset, const uint32_t* restrict data, size_t count);
+void pci_bar_write64s(struct pci_bar* restrict bar, uintptr_t offset, const uint64_t* restrict data, size_t count);
 
 /// Returns the config space offset of the capability with the given ID,
 /// or 0 if not found. Requires PCI_STS_CAP_LIST set in status register;

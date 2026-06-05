@@ -9,7 +9,7 @@
 #define FAT32_EOC  UINT32_C(0x0FFFFFF8)
 #define FAT32_MASK UINT32_C(0x0FFFFFFF)
 
-static uint16_t fat12_read_entry(const struct fat_vfs_context* restrict context, uintptr_t cluster)
+static uint16_t fat12_get(const struct fat_vfs_context* restrict context, uintptr_t cluster)
 {
     size_t offset = cluster + (cluster >> 1);
     uint16_t data;
@@ -26,7 +26,7 @@ static uint16_t fat12_read_entry(const struct fat_vfs_context* restrict context,
     }
 }
 
-static void fat12_write_entry(struct fat_vfs_context* restrict context, uintptr_t cluster, uint16_t value)
+static void fat12_set(struct fat_vfs_context* restrict context, uintptr_t cluster, uint16_t value)
 {
     size_t offset = cluster + (cluster >> 1);
     uint16_t data;
@@ -122,8 +122,8 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
         size_t count = (context->cache_size * 2) / 3;
 
         for(size_t i = 2; i < count; i++) {
-            if(0 == fat12_read_entry(context, i)) {
-                fat12_write_entry(context, i, 0x0FFF);
+            if(0 == fat12_get(context, i)) {
+                fat12_set(context, i, 0x0FFF);
                 return i;
             }
         }
@@ -163,7 +163,7 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
 void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluster, uintptr_t next)
 {
     if(context->filesystem_type == FAT_TYPE_12) {
-        fat12_write_entry(context, cluster, next);
+        fat12_set(context, cluster, next);
     }
     else if(context->filesystem_type == FAT_TYPE_16) {
         uint16_t data16 = htole16(next);
@@ -180,7 +180,7 @@ void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluste
 void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluster)
 {
     if(context->filesystem_type == FAT_TYPE_12) {
-        fat12_write_entry(context, cluster, 0);
+        fat12_set(context, cluster, 0);
     }
     else if(context->filesystem_type == FAT_TYPE_16) {
         uint16_t zero16 = 0;

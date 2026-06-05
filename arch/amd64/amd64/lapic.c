@@ -29,7 +29,7 @@ void lapic_write(uint32_t reg, uint32_t value)
     lapic_virtual_base[reg] = value;
 }
 
-void lapic_send_broadcast_ipi(uint8_t vector)
+void lapic_broadcast_ipi(uint8_t vector)
 {
     if(lapic_virtual_base) {
         while(lapic_read(LAPIC_REG_ICR_LO) & UINT32_C(0x00001000)) {
@@ -43,18 +43,18 @@ void lapic_send_broadcast_ipi(uint8_t vector)
 
 define_initcall(amd64_lapic, INITCALL_STAGE_SMP_IREQ, INITCALL_ORDER_FIRST)
 {
-    uint64_t lapic_base_msr = msr_read(MSR_IA32_APIC_BASE);
-    strict_kassert_text(lapic_base_msr & MSR_APIC_BASE_ENABLE, "local apic is globally disabled");
+    uint64_t msr = msr_read(MSR_IA32_APIC_BASE);
+    strict_kassert_text(msr & MSR_APIC_BASE_ENABLE, "local apic is globally disabled");
 
-    uintptr_t lapic_phys = lapic_base_msr & MSR_APIC_BASE_PHYSMASK;
+    uintptr_t lapic_phys = msr & MSR_APIC_BASE_PHYSMASK;
     lapic_virtual_base = phys_to_virt(lapic_phys);
 
     int retval = vmm_map(&sys_pagemap, (uintptr_t)lapic_virtual_base, lapic_phys, VPROT_RW | VPROT_NOCACHE);
     strict_kassert_text(retval == 0 || retval == EEXIST, "vmm_map failed");
 
-    uint32_t lapic_svr_value = lapic_read(LAPIC_REG_SVR);
-    lapic_svr_value |= LAPIC_SVR_ENABLE;
-    lapic_svr_value |= LAPIC_SPURIOUS_VECTOR;
+    uint32_t svr = lapic_read(LAPIC_REG_SVR);
+    svr |= LAPIC_SVR_ENABLE;
+    svr |= LAPIC_SPURIOUS_VECTOR;
 
-    lapic_write(LAPIC_REG_SVR, lapic_svr_value);
+    lapic_write(LAPIC_REG_SVR, svr);
 }

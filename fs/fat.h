@@ -188,7 +188,7 @@ int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t c
     const struct fat_dirent* restrict entry);
 int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
     const struct fat_dir_entry* restrict entry);
-int fat_dirent_find_free(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset);
+int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset);
 
 static __always_inline inline uintptr_t fat_cluster_lba(const struct fat_vfs_context* restrict context, uintptr_t cluster)
 {

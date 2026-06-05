@@ -62,7 +62,7 @@ static void ioapic_write(struct ioapic_data* data, uint32_t index, uint32_t val)
     data->base[IOAPIC_MMIO_WINDOW] = val;
 }
 
-static struct rte_entry ioapic_read_rte(struct ioapic_data* data, uint8_t irq)
+static struct rte_entry ioapic_get_rte(struct ioapic_data* data, uint8_t irq)
 {
     uint32_t index = IOAPIC_REG_TBL_BASE + irq * IOAPIC_REG_TBL_STRIDE;
 
@@ -75,7 +75,7 @@ static struct rte_entry ioapic_read_rte(struct ioapic_data* data, uint8_t irq)
     return entry;
 }
 
-static void ioapic_write_rte(struct ioapic_data* data, uint8_t irq, struct rte_entry entry)
+static void ioapic_set_rte(struct ioapic_data* data, uint8_t irq, struct rte_entry entry)
 {
     uint64_t raw;
     memcpy(&raw, &entry, sizeof(raw));
@@ -91,10 +91,10 @@ static void ioapic_mask(struct intctl* restrict controller, uint32_t gsi)
 
     uint8_t irq = gsi - controller->gsi_base;
 
-    struct rte_entry entry = ioapic_read_rte(data, irq);
+    struct rte_entry entry = ioapic_get_rte(data, irq);
     entry.masked = 1;
 
-    ioapic_write_rte(data, irq, entry);
+    ioapic_set_rte(data, irq, entry);
 }
 
 static void ioapic_unmask(struct intctl* restrict controller, uint32_t gsi)
@@ -103,10 +103,10 @@ static void ioapic_unmask(struct intctl* restrict controller, uint32_t gsi)
 
     uint8_t irq = gsi - controller->gsi_base;
 
-    struct rte_entry entry = ioapic_read_rte(data, irq);
+    struct rte_entry entry = ioapic_get_rte(data, irq);
     entry.masked = 0;
 
-    ioapic_write_rte(data, irq, entry);
+    ioapic_set_rte(data, irq, entry);
 }
 
 static void ioapic_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
@@ -121,7 +121,7 @@ static void ioapic_route(struct intctl* restrict controller, uint32_t gsi, uint8
     entry.active_low = (polarity == ACTIVE_LOW);
     entry.masked = 1;
 
-    ioapic_write_rte(data, gsi - controller->gsi_base, entry);
+    ioapic_set_rte(data, gsi - controller->gsi_base, entry);
 }
 
 static const struct intctl_ops ioapic_ops = {
@@ -162,7 +162,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         strict_kassert_text(controller->identifier, "kasprintf failed");
 
         for(uint8_t i = 0; i < controller->gsi_count; ++i) {
-            ioapic_write_rte(data, i, (struct rte_entry) { .masked = 1 });
+            ioapic_set_rte(data, i, (struct rte_entry) { .masked = 1 });
         }
 
         if(intctl_register(controller)) {
