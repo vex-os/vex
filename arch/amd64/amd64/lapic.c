@@ -37,7 +37,7 @@ void lapic_send_broadcast_ipi(uint8_t vector)
         }
 
         lapic_write(LAPIC_REG_ICR_HI, UINT32_C(0));
-        lapic_write(LAPIC_REG_ICR_LO, (uint32_t)vector | UINT32_C(0x000C4000));
+        lapic_write(LAPIC_REG_ICR_LO, vector | UINT32_C(0x000C4000));
     }
 }
 
