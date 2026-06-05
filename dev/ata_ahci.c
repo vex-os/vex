@@ -191,16 +191,16 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
     memset((void*)fis, 0, sizeof(struct ata_fis_h2d));
 
     if(write) {
-        header->flags = host_to_LE16((UINT16_C(1) << 6) | 5); // Write, CFL=5
+        header->flags = htole16((UINT16_C(1) << 6) | 5); // Write, CFL=5
     }
     else {
-        header->flags = host_to_LE16(5); // CFL=5
+        header->flags = htole16(5); // CFL=5
     }
 
-    header->prdtl = host_to_LE16(1);
+    header->prdtl = htole16(1);
     header->prdbc = 0;
-    header->ctba = host_to_LE32(cmdtable_phys);
-    header->ctbau = host_to_LE32(cmdtable_phys >> 32);
+    header->ctba = htole32(cmdtable_phys);
+    header->ctbau = htole32(cmdtable_phys >> 32);
     header->reserved[0] = 0;
     header->reserved[1] = 0;
     header->reserved[2] = 0;
@@ -219,10 +219,10 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
     fis->count_lo = count >> 0;
     fis->count_hi = count >> 8;
 
-    prdt->dba = host_to_LE32(buffer_phys);
-    prdt->dbau = host_to_LE32(buffer_phys >> 32);
+    prdt->dba = htole32(buffer_phys);
+    prdt->dbau = htole32(buffer_phys >> 32);
     prdt->reserved = 0;
-    prdt->dbc = host_to_LE32(512 - 1);
+    prdt->dbc = htole32(512 - 1);
 }
 
 static int ahci_issue(struct ahci_port* restrict port, uintptr_t lba)
@@ -291,16 +291,16 @@ static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_ty
     memset((void*)fis, 0, sizeof(struct ata_fis_h2d));
 
     if(write) {
-        header->flags = host_to_LE16((UINT16_C(1) << 6) | (UINT16_C(1) << 5) | 5); // Write, ATAPI, CFL=5
+        header->flags = htole16((UINT16_C(1) << 6) | (UINT16_C(1) << 5) | 5); // Write, ATAPI, CFL=5
     }
     else {
-        header->flags = host_to_LE16((UINT16_C(1) << 5) | 5); // ATAPI, CFL=5
+        header->flags = htole16((UINT16_C(1) << 5) | 5); // ATAPI, CFL=5
     }
 
-    header->prdtl = host_to_LE16(byte_count > 0 ? 1 : 0);
+    header->prdtl = htole16(byte_count > 0 ? 1 : 0);
     header->prdbc = 0;
-    header->ctba = host_to_LE32(cmdtable_phys);
-    header->ctbau = host_to_LE32(cmdtable_phys >> 32);
+    header->ctba = htole32(cmdtable_phys);
+    header->ctbau = htole32(cmdtable_phys >> 32);
     header->reserved[0] = 0;
     header->reserved[1] = 0;
     header->reserved[2] = 0;
@@ -316,10 +316,10 @@ static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_ty
     memcpy((void*)atapi_area, cdb, sizeof(atapi_cdb_type));
 
     if(byte_count > 0) {
-        prdt->dba = host_to_LE32(buffer_phys);
-        prdt->dbau = host_to_LE32(buffer_phys >> 32);
+        prdt->dba = htole32(buffer_phys);
+        prdt->dbau = htole32(buffer_phys >> 32);
         prdt->reserved = 0;
-        prdt->dbc = host_to_LE32(byte_count - 1);
+        prdt->dbc = htole32(byte_count - 1);
     }
 }
 

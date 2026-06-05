@@ -24,13 +24,13 @@ static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
     struct fat_fsinfo_fat32* info = (struct fat_fsinfo_fat32*)(context->bounce);
 
     bool fsinfo_valid = true;
-    fsinfo_valid = fsinfo_valid && LE32_to_host(info->lead_signature) == UINT32_C(0x41615252);
-    fsinfo_valid = fsinfo_valid && LE32_to_host(info->struct_signature) == UINT32_C(0x61417272);
-    fsinfo_valid = fsinfo_valid && LE32_to_host(info->trail_signature) == UINT32_C(0xAA550000);
+    fsinfo_valid = fsinfo_valid && le32toh(info->lead_signature) == UINT32_C(0x41615252);
+    fsinfo_valid = fsinfo_valid && le32toh(info->struct_signature) == UINT32_C(0x61417272);
+    fsinfo_valid = fsinfo_valid && le32toh(info->trail_signature) == UINT32_C(0xAA550000);
 
     if(fsinfo_valid) {
-        info->free_count = host_to_LE32(UINT32_C(0xFFFFFFFF));
-        info->next_free = host_to_LE32(UINT32_C(0xFFFFFFFF));
+        info->free_count = htole32(UINT32_C(0xFFFFFFFF));
+        info->next_free = htole32(UINT32_C(0xFFFFFFFF));
 
         blk_device_write(context->device, context->fsinfo_lba, 1, context->bounce);
     }
@@ -57,7 +57,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     struct fat_bootparams* base = &boot->fat1X.base;
 
-    size_t sector_size = LE16_to_host(base->sector_size);
+    size_t sector_size = le16toh(base->sector_size);
 
     if(sector_size != device->sector_size || base->cluster_size == 0) {
         kfree(boot);
@@ -67,22 +67,22 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     size_t fat_size;
     size_t total_sectors;
 
-    if(LE16_to_host(base->table_size_16)) {
-        fat_size = LE16_to_host(base->table_size_16);
+    if(le16toh(base->table_size_16)) {
+        fat_size = le16toh(base->table_size_16);
     }
     else {
-        fat_size = LE32_to_host(boot->fat32.table_size_32);
+        fat_size = le32toh(boot->fat32.table_size_32);
     }
 
-    if(LE16_to_host(base->total_sectors_16)) {
-        total_sectors = LE16_to_host(base->total_sectors_16);
+    if(le16toh(base->total_sectors_16)) {
+        total_sectors = le16toh(base->total_sectors_16);
     }
     else {
-        total_sectors = LE32_to_host(base->total_sectors_32);
+        total_sectors = le32toh(base->total_sectors_32);
     }
 
-    size_t root_entries = LE16_to_host(base->root_entries);
-    size_t reserved_sectors = LE16_to_host(base->reserved_sectors);
+    size_t root_entries = le16toh(base->root_entries);
+    size_t reserved_sectors = le16toh(base->reserved_sectors);
 
     size_t rootdir_sectors = root_entries * 32;
     rootdir_sectors += sector_size - 1;
@@ -139,7 +139,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     }
 
     if(filesystem_type == FAT_TYPE_32) {
-        context->root_cluster = LE32_to_host(boot->fat32.root_cluster);
+        context->root_cluster = le32toh(boot->fat32.root_cluster);
     }
     else {
         context->root_cluster = 0;
@@ -155,7 +155,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     context->num_tables = base->tables_count;
 
     if(filesystem_type == FAT_TYPE_32) {
-        context->fsinfo_lba = LE16_to_host(boot->fat32.fs_info);
+        context->fsinfo_lba = le16toh(boot->fat32.fs_info);
     }
     else {
         context->fsinfo_lba = 0;
@@ -240,8 +240,8 @@ static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
     const struct fat_dir_entry* raw_entry = (const struct fat_dir_entry*)(context->bounce + byte_offset);
 
     uintptr_t cluster = 0;
-    cluster |= (uintptr_t)LE16_to_host(raw_entry->first_cluster_hi) << 16;
-    cluster |= (uintptr_t)LE16_to_host(raw_entry->first_cluster_lo);
+    cluster |= (uintptr_t)le16toh(raw_entry->first_cluster_hi) << 16;
+    cluster |= (uintptr_t)le16toh(raw_entry->first_cluster_lo);
 
     struct fat_vnode_context* node_context = slab_alloc(sizeof(struct fat_vnode_context));
 
@@ -278,7 +278,7 @@ static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
 
     node_context->fs_ctx = context;
     node_context->first_cluster = cluster;
-    node_context->size_bytes = LE32_to_host(raw_entry->file_size);
+    node_context->size_bytes = le32toh(raw_entry->file_size);
     node_context->dir_cluster = dir_cluster;
     node_context->dir_offset = dir_offset;
 
