@@ -190,7 +190,7 @@ int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t 
     const struct fat_dir_entry* restrict entry);
 int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset);
 
-static __always_inline inline uintptr_t fat_cluster_lba(const struct fat_vfs_context* restrict context, uintptr_t cluster)
+static __always_inline uintptr_t fat_cluster_lba(const struct fat_vfs_context* restrict context, uintptr_t cluster)
 {
     return context->data_start + (cluster - 2) * context->cluster_size_s;
 }

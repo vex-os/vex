@@ -31,7 +31,7 @@ struct interrupt_frame {
     } amd64;
 } __packed;
 
-static __always_inline inline bool disable_interrupts(void)
+static __always_inline bool disable_interrupts(void)
 {
     uint64_t rflags;
     asm volatile("pushfq");
@@ -40,7 +40,7 @@ static __always_inline inline bool disable_interrupts(void)
     return rflags & UINT64_C(0x0000000000000200);
 }
 
-static __always_inline inline bool enable_interrupts(void)
+static __always_inline bool enable_interrupts(void)
 {
     uint64_t rflags;
     asm volatile("pushfq");
@@ -49,7 +49,7 @@ static __always_inline inline bool enable_interrupts(void)
     return rflags & UINT64_C(0x0000000000000200);
 }
 
-static __always_inline inline void restore_interrupts(bool state)
+static __always_inline void restore_interrupts(bool state)
 {
     if(state) {
         asm volatile("sti");

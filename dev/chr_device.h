@@ -36,15 +36,14 @@ int chr_device_register_custom(struct chr_device* restrict device, const char* r
 int chr_device_unregister(struct chr_device* restrict device);
 const struct chr_device* chr_device_find(const char* restrict name) __nodiscard;
 
-static __always_inline inline ssize_t chr_device_read(const struct chr_device* restrict device, size_t offset, void* restrict buffer,
-    size_t sz)
+static __always_inline ssize_t chr_device_read(const struct chr_device* restrict device, size_t offset, void* restrict buffer, size_t sz)
 {
     if(device->ops->read == nullptr)
         return -ENOSYS;
     return device->ops->read(device, offset, buffer, sz);
 }
 
-static __always_inline inline ssize_t chr_device_write(const struct chr_device* restrict device, size_t offset, const void* restrict buffer,
+static __always_inline ssize_t chr_device_write(const struct chr_device* restrict device, size_t offset, const void* restrict buffer,
     size_t sz)
 {
     if(device->ops->write == nullptr)
@@ -52,7 +51,7 @@ static __always_inline inline ssize_t chr_device_write(const struct chr_device* 
     return device->ops->write(device, offset, buffer, sz);
 }
 
-static __always_inline inline int chr_device_ioctl(const struct chr_device* restrict device, unsigned request, void* restrict arg)
+static __always_inline int chr_device_ioctl(const struct chr_device* restrict device, unsigned request, void* restrict arg)
 {
     if(device->ops->ioctl == nullptr)
         return -ENOTTY;

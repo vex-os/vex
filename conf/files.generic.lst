@@ -5,7 +5,7 @@ bus/acpi.c
 bus/isa.c
 bus/pci.c
 
-core/assert.c
+core/assert.c optional ENABLE_ASSERTIONS
 core/cmdline.c
 core/console.c
 core/fbcons.c optional fbcons

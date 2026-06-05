@@ -47,22 +47,22 @@ void vmm_pagemap_free(struct vmm_pagemap* restrict vm);
 void vmm_pagemap_zero(struct vmm_pagemap* restrict vm);
 void vmm_pagemap_copy_kernel(struct vmm_pagemap* restrict dest, const struct vmm_pagemap* restrict stem);
 
-static __always_inline __nodiscard inline vmm_entry_type* vmm_pagemap_root(const struct vmm_pagemap* restrict vm, uintptr_t virt)
+static __always_inline __nodiscard vmm_entry_type* vmm_pagemap_root(const struct vmm_pagemap* restrict vm, uintptr_t virt)
 {
     return vm->amd64.cr3_virt;
 }
 
-static __always_inline __nodiscard inline bool vmm_entry_valid(vmm_entry_type entry)
+static __always_inline __nodiscard bool vmm_entry_valid(vmm_entry_type entry)
 {
     return entry & AMD64_VMM_PML_PRESENT;
 }
 
-static __always_inline __nodiscard inline uintptr_t vmm_entry_address(vmm_entry_type entry)
+static __always_inline __nodiscard uintptr_t vmm_entry_address(vmm_entry_type entry)
 {
     return entry & AMD64_VMM_ADDRESS_MASK;
 }
 
-static __always_inline __nodiscard inline unsigned vmm_entry_vprot(vmm_entry_type entry)
+static __always_inline __nodiscard unsigned vmm_entry_vprot(vmm_entry_type entry)
 {
     unsigned vprot = VPROT_READ;
     if(entry & AMD64_VMM_PML_WRITE)
@@ -76,7 +76,7 @@ static __always_inline __nodiscard inline unsigned vmm_entry_vprot(vmm_entry_typ
     return vprot;
 }
 
-static __always_inline __nodiscard inline vmm_entry_type vmm_entry_init(uintptr_t address, unsigned vprot)
+static __always_inline __nodiscard vmm_entry_type vmm_entry_init(uintptr_t address, unsigned vprot)
 {
     vmm_entry_type result = VMM_ENTRY_NULL;
 
@@ -96,7 +96,7 @@ static __always_inline __nodiscard inline vmm_entry_type vmm_entry_init(uintptr_
     return result;
 }
 
-static __always_inline inline void vmm_switch(const struct vmm_pagemap* restrict vm)
+static __always_inline void vmm_switch(const struct vmm_pagemap* restrict vm)
 {
     asm volatile("movq %0, %%cr3" ::"r"(vm->amd64.cr3_phys) : "memory");
 }

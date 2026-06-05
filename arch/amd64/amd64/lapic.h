@@ -16,12 +16,12 @@ uint32_t lapic_read(uint32_t reg);
 void lapic_write(uint32_t reg, uint32_t value);
 void lapic_broadcast_ipi(uint8_t vector);
 
-static __always_inline __nodiscard inline uint32_t lapic_query_id(void)
+static __always_inline __nodiscard uint32_t lapic_query_id(void)
 {
     return lapic_read(LAPIC_REG_ID) >> 24;
 }
 
-static __always_inline inline void lapic_send_eoi(void)
+static __always_inline void lapic_send_eoi(void)
 {
     lapic_write(LAPIC_REG_EOI, 0);
 }

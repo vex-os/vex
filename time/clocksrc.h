@@ -43,32 +43,32 @@ int clocksrc_unregister(struct clocksrc* restrict src);
 struct clocksrc* active_clocksrc(void) __nodiscard;
 uint64_t clocksrc_read_nsec(void) __nodiscard;
 
-static __always_inline inline int clocksrc_register_hz(struct clocksrc* restrict src, uint64_t hz)
+static __always_inline int clocksrc_register_hz(struct clocksrc* restrict src, uint64_t hz)
 {
     return clocksrc_register_internal(src, UINT64_C(1), hz);
 }
 
-static __always_inline inline int clocksrc_register_khz(struct clocksrc* restrict src, uint64_t khz)
+static __always_inline int clocksrc_register_khz(struct clocksrc* restrict src, uint64_t khz)
 {
     return clocksrc_register_internal(src, UINT64_C(1000), khz);
 }
 
-static __always_inline inline int clocksrc_register_mhz(struct clocksrc* restrict src, uint64_t mhz)
+static __always_inline int clocksrc_register_mhz(struct clocksrc* restrict src, uint64_t mhz)
 {
     return clocksrc_register_internal(src, UINT64_C(1000000), mhz);
 }
 
-static __always_inline inline int clocksrc_calibrate_hz(struct clocksrc* restrict src, uint64_t hz)
+static __always_inline int clocksrc_calibrate_hz(struct clocksrc* restrict src, uint64_t hz)
 {
     return clocksrc_calibrate_internal(src, UINT64_C(1), hz);
 }
 
-static __always_inline inline int clocksrc_calibrate_khz(struct clocksrc* restrict src, uint64_t khz)
+static __always_inline int clocksrc_calibrate_khz(struct clocksrc* restrict src, uint64_t khz)
 {
     return clocksrc_calibrate_internal(src, UINT64_C(1000), khz);
 }
 
-static __always_inline inline int clocksrc_calibrate_mhz(struct clocksrc* restrict src, uint64_t mhz)
+static __always_inline int clocksrc_calibrate_mhz(struct clocksrc* restrict src, uint64_t mhz)
 {
     return clocksrc_calibrate_internal(src, UINT64_C(1000000), mhz);
 }
