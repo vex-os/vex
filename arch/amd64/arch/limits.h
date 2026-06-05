@@ -3,6 +3,7 @@
 #pragma once
 
 #define PAGE_SIZE  4096U
+#define PAGE_MAX   4095U
 #define PAGE_SHIFT 12U
 
 #endif /* F406FE86_218A_440A_8A7E_4BC446CA87EC */

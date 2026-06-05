@@ -123,7 +123,6 @@ void __noreturn kmain(void)
 
     vfs_mount("devfs", "/dev", nullptr, nullptr);
 
-    // создаём usr/local/bin в FAT
     struct vnode* usr_node = nullptr;
     struct vnode* local_node = nullptr;
     struct vnode* bin_node = nullptr;
@@ -132,7 +131,8 @@ void __noreturn kmain(void)
         if(0 == vnode_create(root_node, "usr", VNODE_DIRECTORY, &usr_node)) {
             if(0 == vnode_create(usr_node, "local", VNODE_DIRECTORY, &local_node)) {
                 vnode_create(local_node, "bin", VNODE_DIRECTORY, &bin_node);
-                if(bin_node) vnode_decref(bin_node);
+                if(bin_node)
+                    vnode_decref(bin_node);
                 vnode_decref(local_node);
             }
             vnode_decref(usr_node);
