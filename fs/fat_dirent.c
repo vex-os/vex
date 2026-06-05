@@ -120,7 +120,10 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
             return -ENOENT;
         }
 
-        if(entry_raw.dir.name[0] == 0xE5) {
+        if(entry_raw.dir.name[0] == 0x05) {
+            entry_raw.dir.name[0] = 0xE5;
+        }
+        else if(entry_raw.dir.name[0] == 0xE5) {
             num_ldir = 0;
             continue;
         }
@@ -129,15 +132,17 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
             const struct fat_ldir_entry* ldir = &entry_raw.ldir;
             uint8_t ord = ldir->order & ~UINT8_C(0x40);
 
-            // Discard the accumulator on any invalid or overflow entry
             if(ord == 0 || ord > FAT_LFN_MAX_SEGMENTS || ldir->type != 0) {
                 num_ldir = 0;
                 continue;
             }
 
             if(ldir->order & UINT8_C(0x40)) {
-                // This is the last LFN segment (stored first on disk); reset accumulator
                 num_ldir = 0;
+            }
+            else if(num_ldir == 0 || ord != (uint8_t)(ldirs[num_ldir - 1].order & ~UINT8_C(0x40)) - 1) {
+                num_ldir = 0;
+                continue;
             }
 
             if(num_ldir < FAT_LFN_MAX_SEGMENTS) {
@@ -151,7 +156,6 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
         else {
             memcpy(&entry->base, &entry_raw.dir, sizeof(struct fat_dir_entry));
 
-            // Discard LFN segments if the checksum doesn't match the 8.3 entry
             if(num_ldir > 0) {
                 uint8_t expected = ldir_checksum(&entry->base);
 
@@ -349,17 +353,21 @@ int fat_dirent_find_free(struct fat_vfs_context* restrict context, uintptr_t clu
                 return -ENOSPC;
             }
 
-            // Zero the new cluster via bounce buffer so it reads as empty
             memset(context->bounce, 0, context->sector_size);
+
             uintptr_t new_lba = fat_cluster_lba(context, new_cluster);
 
             for(size_t s = 0; s < context->cluster_size_s; s++) {
-                blk_device_write(context->device, new_lba + s, 1, context->bounce);
+                retval = blk_device_write(context->device, new_lba + s, 1, context->bounce);
+
+                if(retval < 0) {
+                    fat_cluster_free(context, new_cluster);
+                    return retval;
+                }
             }
 
             fat_cluster_link(context, tail, new_cluster);
 
-            // Retry the same offset — read_entry can now traverse the extended chain
             retval = read_entry(context, cluster, offset, &raw);
 
             if(retval < 0) {
