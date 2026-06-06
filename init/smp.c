@@ -27,8 +27,6 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
     //     panic("test panic from hart %u", this_hart()->index);
     // }
 
-    pr_verbose("smp: hart %u ready", this_hart()->index);
-
     atomic_fetch_add(&ready_count, UINT64_C(1), ATOMIC_RELEASE);
 
     enable_interrupts();
@@ -48,8 +46,6 @@ define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_LAST)
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
-    pr_verbose("smp: hart %u ready", this_hart()->index);
-
     atomic_store_n(&ready_count, UINT64_C(1), ATOMIC_RELAXED);
 
     for(uint64_t i = 0; i < hart_count; ++i) {
@@ -62,5 +58,5 @@ define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_LAST)
         yield_hart();
     }
 
-    pr_notice("smp: %llu harts online", (unsigned long long)(hart_count));
+    pr_inform("smp: %llu harts online", (unsigned long long)(hart_count));
 }

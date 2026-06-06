@@ -63,6 +63,4 @@ define_initcall(amd64_lapic, INITCALL_STAGE_SMP_IREQ, INITCALL_ORDER_FIRST)
     svr |= LAPIC_SPURIOUS_VECTOR;
 
     lapic_write(LAPIC_REG_SVR, svr);
-
-    pr_notice("lapic: enabled at %p", (void*)(lapic_phys));
 }

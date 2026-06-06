@@ -1,4 +1,4 @@
-#include <core/kprintf.h>
+#include <core/panic.h>
 #include <dev/chr_name.h>
 #include <init/initcall.h>
 #include <lib/string.h>
@@ -9,7 +9,7 @@ static struct chr_name* chr_name_head = nullptr;
 
 struct chr_name* chr_name_tty;
 struct chr_name* chr_name_pty;
-struct chr_name* chr_name_fbdev;
+struct chr_name* chr_name_fbd;
 
 struct chr_name* chr_name_query(const char* restrict prefix)
 {
@@ -52,9 +52,14 @@ define_initcall(chr_name_predefined, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_LATE
 {
     chr_name_tty = chr_name_query(CHR_NAME_PREFIX_TTY);
     chr_name_pty = chr_name_query(CHR_NAME_PREFIX_PTY);
-    chr_name_fbdev = chr_name_query(CHR_NAME_PREFIX_FBDEV);
+    chr_name_fbd = chr_name_query(CHR_NAME_PREFIX_FBD);
 
-    if(!chr_name_tty || !chr_name_pty || !chr_name_fbdev) {
-        pr_warning("chr_name: out of memory");
+    bool oom = false;
+    oom = oom || chr_name_tty == nullptr;
+    oom = oom || chr_name_pty == nullptr;
+    oom = oom || chr_name_fbd == nullptr;
+
+    if(oom) {
+        panic("chr_name: out of memory");
     }
 }

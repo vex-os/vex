@@ -4,9 +4,9 @@
 
 #include <core/cdefs.h>
 
-#define CHR_NAME_PREFIX_TTY   "tty"
-#define CHR_NAME_PREFIX_PTY   "pty"
-#define CHR_NAME_PREFIX_FBDEV "fb"
+#define CHR_NAME_PREFIX_TTY "tty"
+#define CHR_NAME_PREFIX_PTY "pty"
+#define CHR_NAME_PREFIX_FBD "fbd"
 
 struct chr_name;
 struct chr_name_private {
@@ -21,7 +21,7 @@ struct chr_name {
 
 extern struct chr_name* chr_name_tty;
 extern struct chr_name* chr_name_pty;
-extern struct chr_name* chr_name_fbdev;
+extern struct chr_name* chr_name_fbd;
 
 struct chr_name* chr_name_query(const char* restrict prefix) __nodiscard;
 unsigned chr_name_increment(struct chr_name* restrict name) __nodiscard;
