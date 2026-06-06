@@ -4,4 +4,4 @@ override AR := x86_64-elf-ar
 
 override CPPFLAGS += -nostdlib
 
-include conf/envt.amd64.base.mk
+include config/envt.amd64.base.mk

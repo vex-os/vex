@@ -5,7 +5,7 @@ import os
 import sys
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-CONF_DIR = os.path.join(ROOT_DIR, 'conf')
+CONF_DIR = os.path.join(ROOT_DIR, 'config')
 
 # Current state of parsed config
 cur_arch = None
