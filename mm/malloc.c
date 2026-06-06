@@ -230,17 +230,26 @@ void* krealloc(void* restrict ptr, size_t sz)
         return nullptr;
     }
 
+    size_t aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
+    size_t old_length;
+
+    spinlock_acquire(&heap_lock);
+
     struct memblock* block = find_block_at((uintptr_t)ptr);
 
     if(block == nullptr) {
+        spinlock_release(&heap_lock);
         return nullptr;
     }
 
-    size_t aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
-
     if(block->length >= aligned_sz) {
+        spinlock_release(&heap_lock);
         return ptr;
     }
+
+    old_length = block->length;
+
+    spinlock_release(&heap_lock);
 
     void* new_ptr = kmalloc(aligned_sz);
 
@@ -248,7 +257,7 @@ void* krealloc(void* restrict ptr, size_t sz)
         return nullptr;
     }
 
-    memcpy(new_ptr, ptr, block->length);
+    memcpy(new_ptr, ptr, old_length);
     kfree(ptr);
 
     return new_ptr;
@@ -260,15 +269,16 @@ void kfree(void* restrict ptr)
         return;
     }
 
+    spinlock_acquire(&heap_lock);
+
     struct memblock* block = find_block_at((uintptr_t)ptr);
 
     if(block == nullptr || block->type == BLOCK_TYPE_FREE) {
+        spinlock_release(&heap_lock);
         panic("kfree: invalid or double free of %p", ptr);
     }
 
     block->type = BLOCK_TYPE_FREE;
-
-    spinlock_acquire(&heap_lock);
 
     coalesce(block);
 
@@ -323,7 +333,7 @@ char* kvasprintf(const char* restrict fmt, va_list ap)
     }
 
     memset(result, 0, length + 1);
-    vsnprintf(result, length, fmt, ap_copy);
+    vsnprintf(result, length + 1, fmt, ap_copy);
 
     va_end(ap_copy);
 

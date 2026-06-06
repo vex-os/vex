@@ -240,10 +240,10 @@ int vmm_map(struct vmm_pagemap* restrict vm, uintptr_t virt, uintptr_t phys, uns
     int retval;
 
     if(entry == nullptr) {
-        retval = ENOMEM;
+        retval = -ENOMEM;
     }
     else if(vmm_entry_valid(*entry)) {
-        retval = EEXIST;
+        retval = -EEXIST;
     }
     else {
         *entry = vmm_entry_init(page_align(phys), vprot);
@@ -263,10 +263,10 @@ int vmm_patch(struct vmm_pagemap* restrict vm, uintptr_t virt, unsigned vprot)
     int retval;
 
     if(entry == nullptr) {
-        retval = ENOMEM;
+        retval = -ENOMEM;
     }
     else if(!vmm_entry_valid(*entry)) {
-        retval = EINVAL;
+        retval = -EINVAL;
     }
     else {
         *entry = vmm_entry_init(vmm_entry_address(*entry), vprot);
@@ -286,10 +286,10 @@ int vmm_unmap(struct vmm_pagemap* restrict vm, uintptr_t virt)
     int retval;
 
     if(entry == nullptr) {
-        retval = ENOMEM;
+        retval = -ENOMEM;
     }
     else if(!vmm_entry_valid(*entry)) {
-        retval = EINVAL;
+        retval = -EINVAL;
     }
     else {
         *entry = VMM_ENTRY_NULL;
@@ -342,7 +342,7 @@ static int vmm_map_sys_memmap(const struct limine_memmap_entry* restrict entry)
     while(virt < virt_end) {
         int retval = vmm_map(&sys_pagemap, virt, phys, VPROT_RWX);
 
-        if(retval == 0 || retval == EEXIST) {
+        if(retval == 0 || retval == -EEXIST) {
             virt += PAGE_SIZE;
             phys += PAGE_SIZE;
             continue;
