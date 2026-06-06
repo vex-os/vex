@@ -605,8 +605,6 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         return -ENOMEM;
     }
 
-    memset(context, 0, sizeof(struct ahci_pci_context));
-
     pci_dev->ctxdata = context;
 
     pci_enable_busmaster(pci_dev);

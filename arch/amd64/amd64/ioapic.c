@@ -1,3 +1,4 @@
+#include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <init/initcall.h>
@@ -145,7 +146,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
 
         int retval = vmm_map(&sys_pagemap, (uintptr_t)(data->base), ioapic->address, VPROT_MMIO);
 
-        if(retval < 0) {
+        if(retval < 0 && retval != -EEXIST) {
             panic("ioapic: vmm_map: %s", strerror(retval));
         }
 

@@ -114,8 +114,6 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         return -ENOMEM;
     }
 
-    memset(context, 0, sizeof(struct fat_vfs_context));
-
     context->device = device;
     context->filesystem_type = filesystem_type;
 
