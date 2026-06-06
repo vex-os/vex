@@ -27,7 +27,7 @@ static void log_chr_event(unsigned event, const struct chr_device* restrict devi
 }
 #endif
 
-int chr_event_register_handler(chr_event_handler_type handler, void* restrict ctxdata)
+int chr_event_subscribe(chr_event_handler_type handler, void* restrict ctxdata)
 {
     struct event_handler* it;
 
@@ -52,7 +52,7 @@ int chr_event_register_handler(chr_event_handler_type handler, void* restrict ct
     return 0;
 }
 
-int chr_event_unregister_handler(chr_event_handler_type handler, void* restrict ctxdata)
+int chr_event_unsubscribe(chr_event_handler_type handler, void* restrict ctxdata)
 {
     struct event_handler* it;
     struct event_handler* prev = nullptr;

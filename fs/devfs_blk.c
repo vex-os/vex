@@ -249,7 +249,7 @@ void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict d
             return;
         }
 
-        int retval = devfs_insert(device->identifier, vnode);
+        int retval = devfs_insert(ctxdata, device->identifier, vnode);
 
         if(retval < 0) {
             vnode_decref(vnode);
@@ -259,7 +259,7 @@ void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict d
     }
 
     if(event == BLK_EVENT_MEDIA_DISCONNECTED || event == BLK_EVENT_PARTITION_REMOVED) {
-        devfs_remove(device->identifier);
+        devfs_remove(ctxdata, device->identifier);
         return;
     }
 }
