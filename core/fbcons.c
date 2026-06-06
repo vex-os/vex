@@ -417,7 +417,7 @@ static void fbcons_putchar(int character)
     do_redraw();
 }
 
-static void fbcons_write(struct console_driver* restrict driver, const void* restrict data, size_t sz)
+static void fbcons_write(struct console* restrict driver, const void* restrict data, size_t sz)
 {
     const char* psz = data;
 
@@ -426,11 +426,11 @@ static void fbcons_write(struct console_driver* restrict driver, const void* res
     }
 }
 
-static const struct console_driver_ops fbcons_ops = {
+static const struct console_ops fbcons_ops = {
     .write = &fbcons_write,
 };
 
-static struct console_driver fbcons_driver = {
+static struct console fbcons_driver = {
     .identifier = "fbcons",
     .consflags = CONSF_RECALL,
     .ops = &fbcons_ops,
@@ -470,7 +470,7 @@ define_initcall(fbcons, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_LAST)
 
                 do_clear();
 
-                console_driver_register(&fbcons_driver);
+                add_console(&fbcons_driver);
 
                 return;
             }

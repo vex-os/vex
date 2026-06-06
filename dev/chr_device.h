@@ -31,10 +31,11 @@ struct chr_device {
 
 extern struct chr_device* chr_devices_head;
 
-int chr_device_register(struct chr_device* restrict device, struct chr_name* restrict name);
-int chr_device_register_custom(struct chr_device* restrict device, const char* restrict name);
-int chr_device_unregister(struct chr_device* restrict device);
-const struct chr_device* chr_device_find(const char* restrict name) __nodiscard;
+int add_chr_device(struct chr_device* restrict device, struct chr_name* restrict name);
+int add_chr_device_named(struct chr_device* restrict device, const char* restrict name);
+int remove_chr_device(struct chr_device* restrict device);
+
+const struct chr_device* find_chr_device(const char* restrict name) __nodiscard;
 
 static __always_inline ssize_t chr_device_read(const struct chr_device* restrict device, size_t offset, void* restrict buffer, size_t sz)
 {

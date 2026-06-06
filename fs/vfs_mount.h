@@ -38,8 +38,8 @@ struct vfs_driver {
     const char* identifier;
 };
 
-int vfs_driver_register(struct vfs_driver* restrict driver);
-int vfs_driver_unregister(struct vfs_driver* restrict driver);
+int add_vfs_driver(struct vfs_driver* restrict driver);
+int remove_vfs_driver(struct vfs_driver* restrict driver);
 
 int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params);
 int vfs_unmount(const char* restrict path);

@@ -41,7 +41,7 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
     }
 
     if(byte_offset == 0 && (sz % sector_size) == 0) {
-        int retval = blk_device_read(device, lba, sz / sector_size, buffer);
+        int retval = blk_read(device, lba, sz / sector_size, buffer);
 
         if(retval < 0)
             return retval;
@@ -56,7 +56,7 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
         }
 
         spinlock_acquire(&context->bounce_lock);
-        int retval = blk_device_read(device, current, 1, context->bounce_buffer);
+        int retval = blk_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             spinlock_release(&context->bounce_lock);
@@ -73,7 +73,7 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
 
     if(remaining >= sector_size) {
         size_t full = remaining / sector_size;
-        int retval = blk_device_read(device, current, full, buffer_ptr);
+        int retval = blk_read(device, current, full, buffer_ptr);
 
         if(retval < 0) {
             return retval;
@@ -87,7 +87,7 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
     if(remaining > 0) {
         spinlock_acquire(&context->bounce_lock);
 
-        int retval = blk_device_read(device, current, 1, context->bounce_buffer);
+        int retval = blk_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             spinlock_release(&context->bounce_lock);
@@ -121,7 +121,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
     }
 
     if(byte_offset == 0 && (sz % sector_size) == 0) {
-        int retval = blk_device_write(device, lba, sz / sector_size, buffer);
+        int retval = blk_write(device, lba, sz / sector_size, buffer);
 
         if(retval < 0)
             return retval;
@@ -137,7 +137,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
 
         spinlock_acquire(&context->bounce_lock);
 
-        int retval = blk_device_read(device, current, 1, context->bounce_buffer);
+        int retval = blk_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             spinlock_release(&context->bounce_lock);
@@ -146,7 +146,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
 
         memcpy(context->bounce_buffer + byte_offset, buffer_ptr, chunk);
 
-        retval = blk_device_write(device, current, 1, context->bounce_buffer);
+        retval = blk_write(device, current, 1, context->bounce_buffer);
 
         spinlock_release(&context->bounce_lock);
 
@@ -161,7 +161,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
 
     if(remaining >= sector_size) {
         size_t full = remaining / sector_size;
-        int retval = blk_device_write(device, current, full, buffer_ptr);
+        int retval = blk_write(device, current, full, buffer_ptr);
 
         if(retval < 0) {
             return retval;
@@ -175,7 +175,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
     if(remaining > 0) {
         spinlock_acquire(&context->bounce_lock);
 
-        int retval = blk_device_read(device, current, 1, context->bounce_buffer);
+        int retval = blk_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             spinlock_release(&context->bounce_lock);
@@ -184,7 +184,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
 
         memcpy(context->bounce_buffer, buffer_ptr, remaining);
 
-        retval = blk_device_write(device, current, 1, context->bounce_buffer);
+        retval = blk_write(device, current, 1, context->bounce_buffer);
 
         spinlock_release(&context->bounce_lock);
 

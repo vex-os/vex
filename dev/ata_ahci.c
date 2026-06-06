@@ -514,7 +514,7 @@ static int ahci_port_register_ata(struct ahci_pci_context* restrict context, uns
     device->flags = 0;
     device->ctxdata = nullptr;
 
-    return blk_device_register_root(device, blk_name_ata, context->ata_iterator, port_num);
+    return add_blk_device_root(device, blk_name_ata, context->ata_iterator, port_num);
 }
 
 static int ahci_port_register_atapi(struct ahci_pci_context* restrict context, unsigned port_num)
@@ -532,7 +532,7 @@ static int ahci_port_register_atapi(struct ahci_pci_context* restrict context, u
     atapi_dev->base.sector_size = 0;
     atapi_dev->base.flags = 0;
 
-    return atapi_register(atapi_dev, blk_name_atapi, context->atapi_iterator, port_num);
+    return add_atapi_device(atapi_dev, blk_name_atapi, context->atapi_iterator, port_num);
 }
 
 static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
@@ -714,10 +714,10 @@ static void ahci_remove(struct pci_device* restrict pci_dev)
         uint32_t port_bit = UINT32_C(1) << port_num;
 
         if(context->ata_mask & port_bit) {
-            blk_device_unregister(&context->devices[port_num]);
+            remove_blk_device(&context->devices[port_num]);
         }
         else if(context->atapi_mask & port_bit) {
-            atapi_unregister(&context->atapi_devices[port_num]);
+            remove_atapi_device(&context->atapi_devices[port_num]);
         }
         else {
             continue;
@@ -752,5 +752,5 @@ static struct pci_driver ahci_driver = {
 
 define_initcall(ahci, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_MIDDLE)
 {
-    pci_driver_register(&ahci_driver);
+    add_pci_driver(&ahci_driver);
 }

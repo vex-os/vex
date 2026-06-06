@@ -78,7 +78,7 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
         return -ENOMEM;
     }
 
-    int retval = blk_device_read(device, header_lba, 1, sector);
+    int retval = blk_read(device, header_lba, 1, sector);
 
     if(retval < 0) {
         kfree(sector);
@@ -105,7 +105,7 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
         }
 
         size_t entries_lbas = (entries_size + device->sector_size - 1) / device->sector_size;
-        retval = blk_device_read(device, le64toh(header.entry_start_lba), entries_lbas, gpt->cached_entries);
+        retval = blk_read(device, le64toh(header.entry_start_lba), entries_lbas, gpt->cached_entries);
 
         if(retval < 0) {
             kfree(gpt);
@@ -130,7 +130,7 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
 static int gpt_detect(const struct blk_device* restrict device, void** restrict ptdata)
 {
     struct pmbr_sector sector;
-    int retval = blk_device_read(device, 0, 1, &sector);
+    int retval = blk_read(device, 0, 1, &sector);
 
     if(retval < 0) {
         return retval;
@@ -224,5 +224,5 @@ static struct blk_ptable gpt_ptable = {
 
 define_initcall(ptable_gpt, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_FIRST)
 {
-    blk_ptable_register(&gpt_ptable);
+    add_blk_ptable(&gpt_ptable);
 }

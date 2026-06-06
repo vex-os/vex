@@ -73,5 +73,5 @@ static struct pci_bus cf8_bus = {
 
 define_initcall(amd64_pci_cf8, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_FIRST)
 {
-    pci_bus_register(&cf8_bus);
+    add_pci_bus(&cf8_bus);
 }

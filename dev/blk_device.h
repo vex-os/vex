@@ -39,28 +39,28 @@ struct blk_device {
 
 extern struct blk_device* blk_devices_head;
 
-int blk_device_register_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index);
-int blk_device_register_part(struct blk_device* restrict device, const struct blk_device* restrict root, unsigned partition);
-int blk_device_register_custom(struct blk_device* restrict device);
-int blk_device_unregister(struct blk_device* restrict device);
-const struct blk_device* blk_device_find(const char* restrict name) __nodiscard;
+int add_blk_device_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index);
+int add_blk_device_part(struct blk_device* restrict device, const struct blk_device* restrict root, unsigned partition);
+int add_blk_device_named(struct blk_device* restrict device);
+int remove_blk_device(struct blk_device* restrict device);
 
-static __always_inline int blk_device_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+const struct blk_device* find_blk_device(const char* restrict name) __nodiscard;
+
+static __always_inline int blk_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT))
         return -ENODEV;
     return device->ops->read(device, lba, count, buffer);
 }
 
-static __always_inline int blk_device_write(const struct blk_device* restrict device, uintptr_t lba, size_t count,
-    const void* restrict buffer)
+static __always_inline int blk_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT))
         return -ENODEV;
     return device->ops->write(device, lba, count, buffer);
 }
 
-static __always_inline int blk_device_flush(const struct blk_device* restrict device)
+static __always_inline int blk_flush(const struct blk_device* restrict device)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT))
         return -ENODEV;

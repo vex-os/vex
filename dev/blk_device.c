@@ -25,7 +25,7 @@ static int blk_device_register_internal(struct blk_device* restrict device)
     return 0;
 }
 
-int blk_device_register_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index)
+int add_blk_device_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index)
 {
     device->priv.name = name;
     device->priv.name_iterator = iterator;
@@ -36,7 +36,7 @@ int blk_device_register_root(struct blk_device* restrict device, struct blk_name
     return blk_device_register_internal(device);
 }
 
-int blk_device_register_part(struct blk_device* restrict device, const struct blk_device* restrict root, unsigned partition)
+int add_blk_device_part(struct blk_device* restrict device, const struct blk_device* restrict root, unsigned partition)
 {
     device->priv.name = root->priv.name;
     device->priv.name_iterator = root->priv.name_iterator;
@@ -47,7 +47,7 @@ int blk_device_register_part(struct blk_device* restrict device, const struct bl
     return blk_device_register_internal(device);
 }
 
-int blk_device_register_custom(struct blk_device* restrict device)
+int add_blk_device_named(struct blk_device* restrict device)
 {
     device->priv.name = nullptr;
     device->priv.name_iterator = 0;
@@ -55,7 +55,7 @@ int blk_device_register_custom(struct blk_device* restrict device)
     return blk_device_register_internal(device);
 }
 
-int blk_device_unregister(struct blk_device* restrict device)
+int remove_blk_device(struct blk_device* restrict device)
 {
     if(blk_devices_head == device) {
         blk_devices_head = device->priv.next;
@@ -91,7 +91,7 @@ int blk_device_unregister(struct blk_device* restrict device)
     return 0;
 }
 
-const struct blk_device* blk_device_find(const char* restrict name)
+const struct blk_device* find_blk_device(const char* restrict name)
 {
     struct blk_device* it;
 

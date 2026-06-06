@@ -81,7 +81,7 @@ define_initcall(hpet_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
 
             hpet_clocksrc.mask = CLOCKSRC_MASK_64;
 
-            clocksrc_register_internal(&hpet_clocksrc, UINT64_C(1), UINT64_C(1000000000000000) / hpet_period_fsec);
+            add_clocksrc_raw(&hpet_clocksrc, UINT64_C(1), UINT64_C(1000000000000000) / hpet_period_fsec);
         }
     }
 }

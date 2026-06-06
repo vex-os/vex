@@ -167,7 +167,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
             ioapic_set_rte(data, i, (struct rte_entry) { .masked = 1 });
         }
 
-        retval = intctl_register(controller);
+        retval = add_intctl(controller);
 
         if(retval < 0) {
             panic("ioapic: %s", strerror(retval));

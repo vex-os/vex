@@ -160,7 +160,7 @@ static void bar_unmap_mmio(struct pci_device* restrict device, unsigned bar_inde
     }
 }
 
-int pci_bus_register(struct pci_bus* restrict bus)
+int add_pci_bus(struct pci_bus* restrict bus)
 {
     for(struct pci_bus* it = bus_head; it; it = it->priv.next) {
         if(it == bus) {
@@ -177,7 +177,7 @@ int pci_bus_register(struct pci_bus* restrict bus)
     return 0;
 }
 
-int pci_bus_unregister(struct pci_bus* restrict bus)
+int remove_pci_bus(struct pci_bus* restrict bus)
 {
     if(bus_head == bus) {
         bus_head = bus->priv.next;
@@ -215,7 +215,7 @@ int pci_bus_unregister(struct pci_bus* restrict bus)
     return 0;
 }
 
-int pci_driver_register(struct pci_driver* restrict driver)
+int add_pci_driver(struct pci_driver* restrict driver)
 {
     for(struct pci_driver* it = driver_head; it; it = it->priv.next) {
         if(it == driver) {
@@ -235,7 +235,7 @@ int pci_driver_register(struct pci_driver* restrict driver)
     return 0;
 }
 
-int pci_driver_unregister(struct pci_driver* restrict driver)
+int remove_pci_driver(struct pci_driver* restrict driver)
 {
     if(driver_head == driver) {
         driver_head = driver->priv.next;
@@ -574,7 +574,7 @@ int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handle
         return -ENODEV;
     }
 
-    unsigned ireq_number = ireq_handler_register(UINT_MAX, handler, ctxdata);
+    unsigned ireq_number = add_ireq_handler(UINT_MAX, handler, ctxdata);
 
     if(ireq_number == UINT_MAX) {
         return -ENOMEM;
@@ -601,7 +601,7 @@ void pci_release_irq(struct pci_device* restrict device)
         intctl_mask(controller, int_line);
     }
 
-    ireq_handler_unregister(device->priv.ireq_number);
+    remove_ireq_handler(device->priv.ireq_number);
 
     device->priv.ireq_number = UINT_MAX;
 }

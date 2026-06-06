@@ -348,7 +348,7 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
         memset(fs->bounce, 0, fs->sector_size);
 
         for(size_t s = 0; s < fs->cluster_size_s; s++) {
-            retval = blk_device_write(fs->device, dir_lba + s, 1, fs->bounce);
+            retval = blk_write(fs->device, dir_lba + s, 1, fs->bounce);
 
             if(retval < 0) {
                 fat_cluster_free(fs, first_cluster);
@@ -454,7 +454,7 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
 
         while(remaining > 0 && sector_index < fs->cluster_size_s) {
             uintptr_t lba = sector_index + fat_cluster_lba(fs, cluster);
-            int retval = blk_device_read(fs->device, lba, 1, fs->bounce);
+            int retval = blk_read(fs->device, lba, 1, fs->bounce);
 
             if(retval < 0) {
                 if(done > 0)
@@ -554,7 +554,7 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
             int retval;
 
             if(offset_in_sector > 0 || chunk < fs->sector_size) {
-                retval = blk_device_read(fs->device, lba, 1, fs->bounce);
+                retval = blk_read(fs->device, lba, 1, fs->bounce);
 
                 if(retval < 0) {
                     if(done > 0)
@@ -565,7 +565,7 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
 
             memcpy(fs->bounce + offset_in_sector, (const uint8_t*)buffer + done, chunk);
 
-            retval = blk_device_write(fs->device, lba, 1, fs->bounce);
+            retval = blk_write(fs->device, lba, 1, fs->bounce);
 
             if(retval < 0) {
                 if(done > 0)

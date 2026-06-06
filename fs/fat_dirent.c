@@ -36,7 +36,7 @@ static int read_entry(const struct fat_vfs_context* restrict context, uintptr_t 
         lba = sector + fat_cluster_lba(context, cluster);
     }
 
-    int retval = blk_device_read(context->device, lba, 1, context->bounce);
+    int retval = blk_read(context->device, lba, 1, context->bounce);
 
     if(retval < 0) {
         return retval;
@@ -79,7 +79,7 @@ static int write_entry(const struct fat_vfs_context* restrict context, uintptr_t
         lba = sector + fat_cluster_lba(context, cluster);
     }
 
-    int retval = blk_device_read(context->device, lba, 1, context->bounce);
+    int retval = blk_read(context->device, lba, 1, context->bounce);
 
     if(retval < 0) {
         return retval;
@@ -87,7 +87,7 @@ static int write_entry(const struct fat_vfs_context* restrict context, uintptr_t
 
     memcpy(context->bounce + sizeof(union fat_entry) * (offset % entries_per_sector), entry, sizeof(union fat_entry));
 
-    return blk_device_write(context->device, lba, 1, context->bounce);
+    return blk_write(context->device, lba, 1, context->bounce);
 }
 
 static uint8_t ldir_checksum(const struct fat_dir_entry* restrict entry)
@@ -366,7 +366,7 @@ int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster
             uintptr_t lba = fat_cluster_lba(context, new_cluster);
 
             for(size_t s = 0; s < context->cluster_size_s; s++) {
-                retval = blk_device_write(context->device, lba + s, 1, context->bounce);
+                retval = blk_write(context->device, lba + s, 1, context->bounce);
 
                 if(retval < 0) {
                     fat_cluster_free(context, new_cluster);

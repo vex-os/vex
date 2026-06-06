@@ -35,7 +35,7 @@ struct intctl {
     void* ctxdata;
 };
 
-int intctl_register(struct intctl* restrict controller);
+int add_intctl(struct intctl* restrict controller);
 struct intctl* find_intctl(uint32_t gsi) __nodiscard;
 
 void intctl_mask(struct intctl* restrict controller, uint32_t gsi);

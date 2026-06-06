@@ -17,7 +17,7 @@ static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
         return;
     }
 
-    if(blk_device_read(context->device, context->fsinfo_lba, 1, context->bounce)) {
+    if(blk_read(context->device, context->fsinfo_lba, 1, context->bounce)) {
         return;
     }
 
@@ -32,7 +32,7 @@ static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
         info->free_count = htole32(UINT32_C(0xFFFFFFFF));
         info->next_free = htole32(UINT32_C(0xFFFFFFFF));
 
-        blk_device_write(context->device, context->fsinfo_lba, 1, context->bounce);
+        blk_write(context->device, context->fsinfo_lba, 1, context->bounce);
     }
 }
 
@@ -48,7 +48,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         return -ENOMEM;
     }
 
-    int retval = blk_device_read(device, 0, 1, boot);
+    int retval = blk_read(device, 0, 1, boot);
 
     if(retval < 0) {
         kfree(boot);
@@ -177,7 +177,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         return -ENOMEM;
     }
 
-    retval = blk_device_read(device, context->table_start, fat_size, context->cache);
+    retval = blk_read(device, context->table_start, fat_size, context->cache);
 
     if(retval < 0) {
         kfree(boot);
@@ -229,7 +229,7 @@ static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
     uintptr_t lba = nodenumber >> 32;
     uintptr_t byte_offset = nodenumber & 0xFFFFFFFF;
 
-    int retval = blk_device_read(context->device, lba, 1, context->bounce);
+    int retval = blk_read(context->device, lba, 1, context->bounce);
 
     if(retval < 0) {
         return retval;
@@ -312,7 +312,7 @@ static int fat_sync(struct vfs* restrict fs)
 
     for(unsigned i = 0; i < context->num_tables; i++) {
         uintptr_t lba = context->table_start + i * context->table_size_s;
-        int retval = blk_device_write(context->device, lba, num_sectors, context->cache);
+        int retval = blk_write(context->device, lba, num_sectors, context->cache);
 
         if(retval < 0) {
             return retval;
@@ -338,5 +338,5 @@ static struct vfs_driver fat_vfs_driver = {
 
 define_initcall(fat, INITCALL_STAGE_BSP_VFS, INITCALL_ORDER_EARLY)
 {
-    vfs_driver_register(&fat_vfs_driver);
+    add_vfs_driver(&fat_vfs_driver);
 }

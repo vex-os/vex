@@ -138,23 +138,23 @@ void uacpi_kernel_reset_event(uacpi_handle handle)
 
 uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void)
 {
-    return clocksrc_read_nsec();
+    return clocksrc_nsec();
 }
 
 void uacpi_kernel_stall(uacpi_u8 usec)
 {
-    uacpi_u64 deadline = clocksrc_read_nsec() + usec * UINT64_C(1000);
+    uacpi_u64 deadline = clocksrc_nsec() + usec * UINT64_C(1000);
 
-    while(clocksrc_read_nsec() < deadline) {
+    while(clocksrc_nsec() < deadline) {
         yield_hart();
     }
 }
 
 void uacpi_kernel_sleep(uacpi_u64 msec)
 {
-    uacpi_u64 deadline = clocksrc_read_nsec() + msec * UINT64_C(1000000);
+    uacpi_u64 deadline = clocksrc_nsec() + msec * UINT64_C(1000000);
 
-    while(clocksrc_read_nsec() < deadline) {
+    while(clocksrc_nsec() < deadline) {
         yield_hart();
     }
 }
@@ -270,7 +270,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
     trampoline->ctx = ctx;
     trampoline->gsi = gsi;
 
-    unsigned ireq_number = ireq_handler_register(UINT_MAX, &acpi_irq_dispatch, trampoline);
+    unsigned ireq_number = add_ireq_handler(UINT_MAX, &acpi_irq_dispatch, trampoline);
 
     if(ireq_number == UINT_MAX) {
         kfree(trampoline);
@@ -298,7 +298,7 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler ha
         intctl_mask(controller, trampoline->gsi);
     }
 
-    ireq_handler_unregister(trampoline->ireq_number);
+    remove_ireq_handler(trampoline->ireq_number);
     kfree(trampoline);
 
     return UACPI_STATUS_OK;

@@ -28,7 +28,7 @@ static int part_read(const struct blk_device* restrict device, uintptr_t lba, si
 
     if(lba + count > part->lba_count)
         return -EINVAL;
-    return blk_device_read(part->root, part->lba_start + lba, count, buffer);
+    return blk_read(part->root, part->lba_start + lba, count, buffer);
 }
 
 static int part_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
@@ -37,14 +37,14 @@ static int part_write(const struct blk_device* restrict device, uintptr_t lba, s
 
     if(lba + count > part->lba_count)
         return -EINVAL;
-    return blk_device_write(part->root, part->lba_start + lba, count, buffer);
+    return blk_write(part->root, part->lba_start + lba, count, buffer);
 }
 
 static int part_flush(const struct blk_device* restrict device)
 {
     const struct blk_part_device* part = (const struct blk_part_device*)(device);
 
-    return blk_device_flush(part->root);
+    return blk_flush(part->root);
 }
 
 static void part_release(const struct blk_device* restrict device)
@@ -79,7 +79,7 @@ static void disk_state_remove_parts(struct blk_disk_state* restrict state)
 
         blk_event_notify(BLK_EVENT_PARTITION_REMOVED, &it->base);
 
-        blk_device_unregister(&it->base);
+        remove_blk_device(&it->base);
 
         it = next;
     }
@@ -135,7 +135,7 @@ static void probe_device(const struct blk_device* restrict device)
             part->base.flags = BLK_FLAG_PARTITION | (device->flags & BLK_FLAG_PRESENT);
             part->base.ctxdata = nullptr;
 
-            if(blk_device_register_part(&part->base, device, info.part_index)) {
+            if(add_blk_device_part(&part->base, device, info.part_index)) {
                 kfree(part);
                 continue;
             }
@@ -193,7 +193,7 @@ static void handle_blk_event(unsigned event, const struct blk_device* restrict d
     }
 }
 
-int blk_ptable_register(struct blk_ptable* restrict ptable)
+int add_blk_ptable(struct blk_ptable* restrict ptable)
 {
     struct blk_ptable* it;
 
@@ -209,7 +209,7 @@ int blk_ptable_register(struct blk_ptable* restrict ptable)
     return 0;
 }
 
-int blk_ptable_unregister(struct blk_ptable* restrict ptable)
+int remove_blk_ptable(struct blk_ptable* restrict ptable)
 {
     struct blk_ptable* it;
     struct blk_ptable* prev = nullptr;
@@ -231,7 +231,7 @@ int blk_ptable_unregister(struct blk_ptable* restrict ptable)
     return -ENODEV;
 }
 
-int blk_ptable_rescan(const struct blk_device* restrict device)
+int rescan_partitions(const struct blk_device* restrict device)
 {
     struct blk_disk_state* state;
 
