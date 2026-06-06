@@ -37,7 +37,7 @@ mkdir -p include/uapi uacpi
 
 srcdir="$(find "${tmpdir}" -maxdepth 1 -mindepth 1 -type d | head -n1)"
 
-cp -rv "${srcdir}/include/uacpi/." include/uapi/
+cp -rv "${srcdir}/include/uacpi/." include/uacpi/
 find "${srcdir}/source" -name '*.c' -exec cp -v {} uacpi/ \;
 
 exit 0
