@@ -417,7 +417,7 @@ static void fbcons_putchar(int character)
     do_redraw();
 }
 
-static void fbcons_write(struct console* restrict driver, const void* restrict data, size_t sz)
+static void fbcons_write(struct console* restrict cons, const void* restrict data, size_t sz)
 {
     const char* psz = data;
 
