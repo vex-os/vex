@@ -197,12 +197,12 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
     return sz;
 }
 
-static int devfs_blk_stat(struct vnode* restrict node, struct __k_stat* restrict out)
+static int devfs_blk_stat(struct vnode* restrict node, struct k_stat* restrict out)
 {
     const struct devfs_blk_context* context = node->ctxdata;
     const struct blk_device* device = context->device;
 
-    memset(out, 0, sizeof(struct __k_stat));
+    memset(out, 0, sizeof(struct k_stat));
 
     out->st_mode = S_IFBLK | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 

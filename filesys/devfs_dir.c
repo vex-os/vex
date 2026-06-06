@@ -48,9 +48,9 @@ static int devfs_dir_iterate(struct vnode* restrict node, struct dirent* restric
     return -ENOENT;
 }
 
-static int devfs_dir_stat(struct vnode* restrict node, struct __k_stat* restrict out)
+static int devfs_dir_stat(struct vnode* restrict node, struct k_stat* restrict out)
 {
-    memset(out, 0, sizeof(struct __k_stat));
+    memset(out, 0, sizeof(struct k_stat));
 
     out->st_mode = S_IFDIR | S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
 

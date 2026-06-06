@@ -179,7 +179,7 @@ static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restric
 static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
 static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, uintptr_t offset);
 static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, uintptr_t offset);
-static int fat_vnode_stat(struct vnode* restrict node, struct __k_stat* restrict out);
+static int fat_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out);
 
 const struct vnode_ops fat_vnode_ops = {
     .release = &fat_vnode_release,
@@ -616,12 +616,12 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
     return done;
 }
 
-static int fat_vnode_stat(struct vnode* restrict node, struct __k_stat* restrict out)
+static int fat_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
 
-    memset(out, 0, sizeof(struct __k_stat));
+    memset(out, 0, sizeof(struct k_stat));
 
     out->st_ino = node->nodenumber;
     out->st_uid = fs->param_uid;

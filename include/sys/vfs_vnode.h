@@ -67,7 +67,7 @@ int vnode_close(struct vnode* restrict node);
 ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, uintptr_t offset);
 ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, uintptr_t offset);
 ssize_t vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz);
-int vnode_stat(struct vnode* restrict node, struct __k_stat* restrict out);
+int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out);
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, void* restrict argument);
 
 #endif /* EAAEA97D_DF46_4C1D_9BCC_3810B6FA33F7 */

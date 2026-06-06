@@ -38,9 +38,9 @@ static int devfs_chr_ioctl(struct vnode* restrict node, unsigned request, void* 
     return chr_device_ioctl(context->device, request, arg);
 }
 
-static int devfs_chr_stat(struct vnode* restrict node, struct __k_stat* restrict out)
+static int devfs_chr_stat(struct vnode* restrict node, struct k_stat* restrict out)
 {
-    memset(out, 0, sizeof(struct __k_stat));
+    memset(out, 0, sizeof(struct k_stat));
 
     out->st_mode = S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 

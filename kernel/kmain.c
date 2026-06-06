@@ -61,7 +61,7 @@ static void fat_t1_short_write_read(struct vnode* restrict testdir)
     fat_check(nr == (ssize_t)len, "T1 read length");
     fat_check(memcmp(fat_rbuf, content, len) == 0, "T1 read content");
 
-    struct __k_stat st;
+    struct k_stat st;
     vnode_stat(file, &st);
     fat_check((size_t)st.st_size == len, "T1 stat size");
 
@@ -119,7 +119,7 @@ static void fat_t3_multicluster(struct vnode* restrict testdir)
     fat_check(nr == FAT_TEST_BUF, "T3 read back 32KB");
     fat_check(memcmp(fat_rbuf, fat_wbuf, FAT_TEST_BUF) == 0, "T3 data matches");
 
-    struct __k_stat st;
+    struct k_stat st;
     vnode_stat(file, &st);
     fat_check((int)st.st_size == FAT_TEST_BUF, "T3 stat size 32KB");
 
@@ -286,9 +286,9 @@ static void fat_t8_chain_extend(struct vnode* restrict testdir)
         off += chunk;
     }
 
-    fat_check(write_ok, "T8 wrote 8×4KB in chain");
+    fat_check(write_ok, "T8 wrote 8x4KB in chain");
 
-    struct __k_stat st;
+    struct k_stat st;
     vnode_stat(file, &st);
     fat_check((size_t)st.st_size == (size_t)(chunk * passes), "T8 stat size after chain writes");
 
@@ -349,7 +349,7 @@ static void fat_t9_first_write_cluster(struct vnode* restrict testdir)
     if(found == nullptr)
         return;
 
-    struct __k_stat st;
+    struct k_stat st;
     vnode_stat(found, &st);
     fat_check((size_t)st.st_size == len, "T9 stat size after reopen");
 
@@ -396,7 +396,7 @@ static volatile __used __section(".limine_requests_end") uint64_t limine_request
 static void recurse_dir(struct vnode* restrict node, const char* restrict path)
 {
     struct dirent entry;
-    struct __k_stat stat;
+    struct k_stat stat;
     size_t index = 0;
 
     while(0 == vnode_iterate(node, &entry, index++)) {
@@ -432,7 +432,7 @@ static void recurse_dir(struct vnode* restrict node, const char* restrict path)
                 break;
         }
 
-        memset(&stat, 0, sizeof(struct __k_stat));
+        memset(&stat, 0, sizeof(struct k_stat));
         struct vnode* entry_node;
 
         if(0 == path_resolve_at(node, entry.name, &entry_node)) {

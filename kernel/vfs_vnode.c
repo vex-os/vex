@@ -213,7 +213,7 @@ ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, si
     return node->ops->write(node, buffer, sz, offset);
 }
 
-int vnode_stat(struct vnode* restrict node, struct __k_stat* restrict out)
+int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
 {
     kassert(node);
 

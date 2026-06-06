@@ -3,9 +3,8 @@
 #pragma once
 
 #include <sys/cdefs.h>
+#include <sys/statvfs.h>
 #include <sys/types.h>
-
-struct __k_statvfs;
 
 struct cmdline;
 struct blk_device;
@@ -14,7 +13,7 @@ struct vnode;
 struct vfs;
 struct vfs_ops {
     int (*mount)(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params);
-    int (*statvfs)(struct vfs* restrict fs, struct __k_statvfs* restrict out);
+    int (*statvfs)(struct vfs* restrict fs, struct k_statvfs* restrict out);
     int (*fillnode)(struct vfs* restrict fs, struct vnode* restrict node);
     int (*unmount)(struct vfs* restrict fs);
     int (*sync)(struct vfs* restrict fs);
