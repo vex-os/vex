@@ -176,6 +176,6 @@ define_initcall(slab, INITCALL_STAGE_BSP_SLAB, INITCALL_ORDER_MIDDLE)
             panic("slab: out of memory");
         }
 
-        pr_debug("slab: slab[%zu]: head=%p, blocksize=%zu", i, slabs[i].head, slabs[i].blocksize);
+        pr_verbose("slab: slab[%zu]: head=%p, blocksize=%zu", i, slabs[i].head, slabs[i].blocksize);
     }
 }

@@ -7,7 +7,7 @@ void invoke_initcalls(const struct initcall_entry* restrict start, const struct 
 
     for(it = start; it < end; it += 1) {
 #if INITCALL_LOGGING
-        pr_debug("initcall: calling %s <%p>", it->name, (const void*)(it->func));
+        pr_verbose("initcall: calling %s <%p>", it->name, (const void*)(it->func));
 #endif
 
         it->func();

@@ -20,31 +20,31 @@ static void blk_event_log(unsigned event, const struct blk_device* restrict devi
 
     switch(event) {
         case BLK_EVENT_DEVICE_ADDED:
-            pr_debug("blk_event: device added: %s", device->identifier);
+            pr_verbose("blk_event: device added: %s", device->identifier);
             break;
 
         case BLK_EVENT_DEVICE_REMOVED:
-            pr_debug("blk_event: device removed: %s", device->identifier);
+            pr_verbose("blk_event: device removed: %s", device->identifier);
             break;
 
         case BLK_EVENT_MEDIA_CONNECTED:
             hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), device->sector_count * device->sector_size);
-            pr_debug("blk_event: media connected: %s: %s [%zu/%zu]", device->identifier, hrsize_buffer, device->sector_count,
+            pr_verbose("blk_event: media connected: %s: %s [%zu/%zu]", device->identifier, hrsize_buffer, device->sector_count,
                 device->sector_size);
             break;
 
         case BLK_EVENT_MEDIA_DISCONNECTED:
-            pr_debug("blk_event: media disconnected: %s", device->identifier);
+            pr_verbose("blk_event: media disconnected: %s", device->identifier);
             break;
 
         case BLK_EVENT_PARTITION_ADDED:
             hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), device->sector_count * device->sector_size);
-            pr_debug("blk_event: partition added: %s: %s [%zu/%zu]", device->identifier, hrsize_buffer, device->sector_count,
+            pr_verbose("blk_event: partition added: %s: %s [%zu/%zu]", device->identifier, hrsize_buffer, device->sector_count,
                 device->sector_size);
             break;
 
         case BLK_EVENT_PARTITION_REMOVED:
-            pr_debug("blk_event: partition removed: %s", device->identifier);
+            pr_verbose("blk_event: partition removed: %s", device->identifier);
             break;
     }
 }

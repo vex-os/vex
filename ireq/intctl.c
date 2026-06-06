@@ -15,7 +15,7 @@ int intctl_register(struct intctl* restrict controller)
 
     size_t gsi_base = controller->gsi_base;
     size_t gsi_count = controller->gsi_count;
-    pr_debug("intctl: adding %s: gsi_base=%zu, gsi_count=%zu", controller->identifier, gsi_base, gsi_count);
+    pr_verbose("intctl: adding %s: gsi_base=%zu, gsi_count=%zu", controller->identifier, gsi_base, gsi_count);
 
     controller->priv.next = intctl_head;
     intctl_head = controller;

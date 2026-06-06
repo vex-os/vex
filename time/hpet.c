@@ -70,7 +70,7 @@ define_initcall(hpet_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
             hpet_period_fsec >>= HPET_CAPS_PERIOD_SHIFT;
 
             if(hpet_period_fsec == 0 || hpet_period_fsec > HPET_PERIOD_MAX) {
-                pr_debug("hpet: invalid counter period %llu fs", (unsigned long long)(hpet_period_fsec));
+                pr_verbose("hpet: invalid counter period %llu fs", (unsigned long long)(hpet_period_fsec));
                 return;
             }
 
