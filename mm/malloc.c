@@ -215,19 +215,7 @@ void* kmalloc(size_t sz)
 
     spinlock_release(&heap_lock);
 
-    return (void*)block->address;
-}
-
-void* kcalloc(size_t count, size_t sz)
-{
-    size_t total = count * sz;
-    void* ptr = kmalloc(total);
-
-    if(ptr) {
-        memset(ptr, 0, total);
-    }
-
-    return ptr;
+    return memset((void*)(block->address), 0, sz);
 }
 
 void* krealloc(void* restrict ptr, size_t sz)
@@ -276,7 +264,6 @@ void kfree(void* restrict ptr)
 
     if(block == nullptr || block->type == BLOCK_TYPE_FREE) {
         panic("kfree: invalid or double free of %p", ptr);
-        unreachable();
     }
 
     block->type = BLOCK_TYPE_FREE;
@@ -328,7 +315,7 @@ char* kvasprintf(const char* restrict fmt, va_list ap)
         return nullptr;
     }
 
-    char* result = kcalloc(1, length + 1);
+    char* result = kmalloc(length + 1);
 
     if(result == nullptr) {
         va_end(ap_copy);

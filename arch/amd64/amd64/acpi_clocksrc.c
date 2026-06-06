@@ -1,8 +1,9 @@
 #include <amd64/pmio.h>
-#include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
+#include <core/panic.h>
 #include <init/initcall.h>
+#include <lib/string.h>
 #include <mm/hhdm.h>
 #include <mm/malloc.h>
 #include <mm/vmm.h>
@@ -45,48 +46,63 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
     uacpi_table table;
     uacpi_status status = uacpi_table_find_by_signature(ACPI_FADT_SIGNATURE, &table);
 
-    if(uacpi_likely_success(status)) {
-        struct acpi_fadt* fadt = (struct acpi_fadt*)(table.hdr);
+    if(uacpi_unlikely_error(status)) {
+        pr_debug("acpi: no ACPI PM-timer present");
+        return;
+    }
 
-        struct acpi_clocksrc_privdata* priv = kmalloc(sizeof(struct acpi_clocksrc_privdata));
-        strict_kassert_text(priv, "out of memory");
+    struct acpi_fadt* fadt = (struct acpi_fadt*)(table.hdr);
+    struct acpi_clocksrc_privdata* priv = kmalloc(sizeof(struct acpi_clocksrc_privdata));
 
-        priv->mmio = nullptr;
-        priv->pmio = 0;
+    if(priv == nullptr) {
+        pr_warning("acpi: out of memory");
+        return;
+    }
 
-        if(fadt->x_pm_tmr_blk.address) {
-            if(fadt->x_pm_tmr_blk.address_space_id == ACPI_AS_ID_SYS_MEM) {
-                void* virt = phys_to_virt(fadt->x_pm_tmr_blk.address);
+    priv->mmio = nullptr;
+    priv->pmio = 0;
 
-                int retval = vmm_map(&sys_pagemap, (uintptr_t)virt, fadt->x_pm_tmr_blk.address, VPROT_RW | VPROT_NOCACHE);
-                strict_kassert_text(retval == 0 || retval == EEXIST, "mmio map failed");
+    if(fadt->x_pm_tmr_blk.address) {
+        if(fadt->x_pm_tmr_blk.address_space_id == ACPI_AS_ID_SYS_MEM) {
+            priv->mmio = phys_to_virt(fadt->x_pm_tmr_blk.address);
 
-                priv->mmio = virt;
+            int retval = vmm_map(&sys_pagemap, (uintptr_t)(priv->mmio), fadt->x_pm_tmr_blk.address, VPROT_MMIO);
+
+            if(retval < 0) {
+                pr_warning("acpi: vmm_map failed: %s", strerror(retval));
+
+                kfree(priv);
+
+                return;
             }
-            else {
-                priv->pmio = fadt->x_pm_tmr_blk.address;
-            }
-        }
-        else if(fadt->pm_tmr_blk) {
-            priv->pmio = fadt->pm_tmr_blk;
         }
         else {
-            uacpi_table_unref(&table);
-            kfree(priv);
-            return;
+            priv->pmio = fadt->x_pm_tmr_blk.address;
         }
-
-        if(fadt->flags & ACPI_TMR_VAL_EXT) {
-            acpi_clocksrc.mask = CLOCKSRC_MASK_32;
-        }
-        else {
-            acpi_clocksrc.mask = CLOCKSRC_MASK_24;
-        }
-
-        acpi_clocksrc.ctxdata = priv;
-
-        clocksrc_register_hz(&acpi_clocksrc, ACPI_CLOCKSRC_FREQ_HZ);
+    }
+    else if(fadt->pm_tmr_blk) {
+        priv->pmio = fadt->pm_tmr_blk;
+    }
+    else {
+        pr_debug("acpi: no ACPI PM-timer present");
 
         uacpi_table_unref(&table);
+
+        kfree(priv);
+
+        return;
     }
+
+    if(fadt->flags & ACPI_TMR_VAL_EXT) {
+        acpi_clocksrc.mask = CLOCKSRC_MASK_32;
+    }
+    else {
+        acpi_clocksrc.mask = CLOCKSRC_MASK_24;
+    }
+
+    acpi_clocksrc.ctxdata = priv;
+
+    clocksrc_register_hz(&acpi_clocksrc, ACPI_CLOCKSRC_FREQ_HZ);
+
+    uacpi_table_unref(&table);
 }

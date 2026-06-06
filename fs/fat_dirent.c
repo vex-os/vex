@@ -355,26 +355,26 @@ int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster
                 tail = next;
             }
 
-            uintptr_t cluster = fat_cluster_alloc(context);
+            uintptr_t new_cluster = fat_cluster_alloc(context);
 
-            if(cluster == UINTPTR_MAX) {
+            if(new_cluster == UINTPTR_MAX) {
                 return -ENOSPC;
             }
 
             memset(context->bounce, 0, context->sector_size);
 
-            uintptr_t lba = fat_cluster_lba(context, cluster);
+            uintptr_t lba = fat_cluster_lba(context, new_cluster);
 
             for(size_t s = 0; s < context->cluster_size_s; s++) {
                 retval = blk_device_write(context->device, lba + s, 1, context->bounce);
 
                 if(retval < 0) {
-                    fat_cluster_free(context, cluster);
+                    fat_cluster_free(context, new_cluster);
                     return retval;
                 }
             }
 
-            fat_cluster_link(context, tail, cluster);
+            fat_cluster_link(context, tail, new_cluster);
 
             retval = read_entry(context, cluster, offset, &raw);
 

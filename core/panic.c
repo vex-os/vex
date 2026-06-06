@@ -9,7 +9,6 @@ void __noreturn fpanic(const char* restrict file, unsigned long line, const char
     va_list ap;
     va_start(ap, fmt);
     fvpanic(file, line, fmt, ap);
-    unreachable();
 }
 
 void __noreturn fvpanic(const char* restrict file, unsigned long line, const char* restrict fmt, va_list ap)
@@ -29,6 +28,4 @@ void __noreturn fvpanic(const char* restrict file, unsigned long line, const cha
         stop_hart();
         continue;
     }
-
-    unreachable();
 }

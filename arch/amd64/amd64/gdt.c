@@ -1,8 +1,8 @@
 #include <amd64/gdt.h>
 #include <arch/hart.h>
-#include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
+#include <core/panic.h>
 #include <init/initcall.h>
 #include <lib/string.h>
 #include <mm/malloc.h>
@@ -106,8 +106,10 @@ void gdt_install_tss(struct amd64_gdt* restrict gdt, uintptr_t tss_base, size_t 
 define_initcall(amd64_gdt, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_EARLY)
 {
     struct amd64_gdt* gdt = kmalloc(sizeof(struct amd64_gdt));
-    strict_kassert_text(gdt, "out of memory");
-    memset(gdt, 0, sizeof(struct amd64_gdt));
+
+    if(gdt == nullptr) {
+        panic("out of memory");
+    }
 
     struct hart_local* hart = this_hart();
     hart->amd64.gdt = gdt;

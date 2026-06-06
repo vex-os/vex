@@ -2,7 +2,6 @@
 #include <amd64/idt.h>
 #include <arch/hart.h>
 #include <arch/interrupts.h>
-#include <core/assert.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <init/initcall.h>
@@ -70,7 +69,6 @@ void __used amd64_isr_handler(struct interrupt_frame* restrict frame, uint64_t i
 {
     disable_interrupts();
     panic("idt: isr_handler %02zX", (size_t)intvec);
-    unreachable();
 }
 
 static void set_entry(struct idt_entry* restrict entry, bool trap, uint16_t selector, const void* restrict pfn)
@@ -123,8 +121,10 @@ void unset_idt_entry(unsigned vector)
 define_initcall(amd64_idt, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_EARLY)
 {
     struct amd64_idt* idt = kmalloc(sizeof(struct amd64_idt));
-    strict_kassert_text(idt, "out of memory");
-    memset(idt, 0, sizeof(*idt));
+
+    if(idt == nullptr) {
+        panic("out of memory");
+    }
 
     struct hart_local* hart = this_hart();
     hart->amd64.idt = idt;

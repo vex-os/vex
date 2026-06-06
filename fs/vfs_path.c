@@ -1,4 +1,4 @@
-#include <core/assert.h>
+#include <core/assert.h> // kassert
 #include <fs/vfs_mount.h>
 #include <fs/vfs_path.h>
 #include <fs/vfs_vnode.h>
@@ -86,9 +86,9 @@ static int resolve_internal(struct vnode* restrict stem, const char* restrict pa
 {
     char component[PATH_NAME_SIZE];
 
-    weak_kassert_text(stem, "invalid stem pointer");
-    weak_kassert_text(path, "invalid path pointer");
-    weak_kassert_text(out, "invalid out pointer");
+    kassert(stem);
+    kassert(path);
+    kassert(out);
 
     const char* chrptr = path;
     struct vnode* current = stem;
@@ -183,8 +183,8 @@ static int resolve_internal(struct vnode* restrict stem, const char* restrict pa
 
 int path_resolve(const char* restrict path, struct vnode** restrict out)
 {
-    weak_kassert_text(path, "invalid path pointer");
-    weak_kassert_text(out, "invalid out pointer");
+    kassert(path);
+    kassert(out);
 
     struct vnode* root = nullptr;
     int retval = vfs_get_root(&root);
@@ -205,9 +205,9 @@ int path_resolve(const char* restrict path, struct vnode** restrict out)
 
 int path_resolve_at(struct vnode* restrict stem, const char* restrict path, struct vnode** restrict out)
 {
-    weak_kassert_text(stem, "invalid stem poiner");
-    weak_kassert_text(path, "invalid path pointer");
-    weak_kassert_text(out, "invalid out pointer");
+    kassert(stem);
+    kassert(path);
+    kassert(out);
 
     if(path[0] == PATH_SEPARATOR) {
         return path_resolve(path, out);

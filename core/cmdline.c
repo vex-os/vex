@@ -1,4 +1,3 @@
-#include <core/assert.h>
 #include <core/cmdline.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
@@ -133,7 +132,15 @@ define_initcall(sys_cmdline_preserve, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_LA
 {
     if(sys_cmdline.buffer) {
         char* buffer_copy = kmalloc(sys_cmdline.length);
-        strict_kassert_text(buffer_copy, "out of memory");
+
+        if(buffer_copy == nullptr) {
+            pr_warning("cmdline: out of memory");
+
+            sys_cmdline.buffer = nullptr;
+            sys_cmdline.length = 0;
+
+            return;
+        }
 
         memset(buffer_copy, 0, sys_cmdline.length);
         memcpy(buffer_copy, sys_cmdline.buffer, sys_cmdline.length);

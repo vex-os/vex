@@ -1,4 +1,4 @@
-#include <core/assert.h>
+#include <core/assert.h> // kassert
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <core/spinlock.h>
@@ -44,8 +44,8 @@ static bool expand_slab(struct slab* restrict sl)
     size_t header;
     size_t count, gap;
 
-    weak_kassert((sl->blocksize / sizeof(void*)) >= 1U);
-    weak_kassert((sl->blocksize % sizeof(void*)) == 0U);
+    kassert((sl->blocksize / sizeof(void*)) >= 1U);
+    kassert((sl->blocksize % sizeof(void*)) == 0U);
 
     sl->head = pslab_alloc_virt();
 
@@ -163,14 +163,18 @@ define_initcall(slab, INITCALL_STAGE_BSP_SLAB, INITCALL_ORDER_MIDDLE)
     size_t npages = page_count(slabs_count * sizeof(struct slab));
 
     slabs = pdma_alloc_virt(npages);
-    strict_kassert_text(slabs, "out of memory");
+    if(slabs == nullptr) {
+        panic("slab: out of memory");
+    }
 
     for(size_t i = 0U; i < slabs_count; ++i) {
         slabs[i].blocksize = SLAB_BLOCKSIZE(i);
         slabs[i].head = nullptr;
 
         bool result = expand_slab(&slabs[i]);
-        strict_kassert_text(result, "out of memory");
+        if(!result) {
+            panic("slab: out of memory");
+        }
 
         pr_debug("slab: slab[%zu]: head=%p, blocksize=%zu", i, slabs[i].head, slabs[i].blocksize);
     }

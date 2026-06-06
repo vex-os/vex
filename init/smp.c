@@ -27,7 +27,6 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 
     // if(this_hart()->index == 1) {
     //     panic("test panic from hart %u", this_hart()->index);
-    //     unreachable();
     // }
 
     atomic_fetch_add(&smp_ready_count, UINT64_C(1), ATOMIC_RELEASE);
@@ -37,15 +36,12 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
     for(;;) {
         stop_hart();
     }
-
-    unreachable();
 }
 
 define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_LAST)
 {
     if(mp_request.response == nullptr) {
         panic("bootloader did not provide multicore information");
-        unreachable();
     }
 
     smp_cpu_count = mp_request.response->cpu_count;

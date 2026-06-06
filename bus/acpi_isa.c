@@ -1,5 +1,4 @@
 #include <bus/isa.h>
-#include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <init/initcall.h>
@@ -117,7 +116,14 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
     }
 
     device->identifier = kstrdup(info->hid.value);
-    strict_kassert_text(device->identifier, "out of memory");
+
+    if(device->identifier == nullptr) {
+        pr_warning("acpi_isa: out of memory");
+
+        uacpi_free_namespace_node_info(info);
+
+        return UACPI_ITERATION_DECISION_CONTINUE;
+    }
 
     struct parse_context context;
     context.num_resources = 0;

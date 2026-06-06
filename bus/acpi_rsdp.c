@@ -15,7 +15,6 @@ define_initcall(acpi_rsdp, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_LAST)
 {
     if(rsdp_request.response == nullptr || rsdp_request.response->address == 0) {
         panic("bootloader did not provide RSDP information");
-        unreachable();
     }
 
     rsdp_address = virt_to_phys(rsdp_request.response->address);

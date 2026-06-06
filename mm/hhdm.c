@@ -14,7 +14,6 @@ define_initcall(hhdm, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_FIRST)
 {
     if(hhdm_request.response == nullptr) {
         panic("bootloader did not provide HHDM information");
-        unreachable();
     }
 
     hhdm_base = hhdm_request.response->offset;

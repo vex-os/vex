@@ -1,4 +1,4 @@
-#include <core/assert.h>
+#include <core/assert.h> // kassert
 #include <core/atomic.h>
 #include <core/spinlock.h>
 #include <fs/vfs_mount.h>
@@ -16,8 +16,8 @@ static __always_inline struct vnode* resolve_mount(struct vnode* node)
 
 static struct vnode* alloc_internal(struct vfs* restrict fs, ino_t nodenumber, const struct vnode_ops* restrict ops)
 {
-    weak_kassert_text(fs, "invalid fs pointer");
-    weak_kassert_text(ops, "invalid ops pointer");
+    kassert(fs);
+    kassert(ops);
 
     struct vnode* result = slab_calloc(1, sizeof(struct vnode));
 
@@ -36,7 +36,7 @@ static struct vnode* alloc_internal(struct vfs* restrict fs, ino_t nodenumber, c
 
 struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict ops, void* ctxdata)
 {
-    weak_kassert_text(ops, "invalid ops pointer");
+    kassert(ops);
 
     struct vnode* result = slab_calloc(1, sizeof(struct vnode));
 
@@ -55,14 +55,14 @@ struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict op
 
 void vnode_incref(struct vnode* restrict node)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     atomic_fetch_add(&node->refcount, 1, ATOMIC_RELAXED);
 }
 
 bool vnode_decref(struct vnode* restrict node)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     unsigned prev = atomic_fetch_sub(&node->refcount, 1, ATOMIC_ACQ_REL);
 
@@ -77,7 +77,7 @@ bool vnode_decref(struct vnode* restrict node)
 
 int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     node = resolve_mount(node);
 
@@ -138,7 +138,7 @@ int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct 
 
 int vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     node = resolve_mount(node);
 
@@ -149,7 +149,7 @@ int vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size
 
 int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     node = resolve_mount(node);
 
@@ -160,7 +160,7 @@ int vnode_create(struct vnode* restrict node, const char* restrict name, unsigne
 
 int vnode_unlink(struct vnode* restrict node, const char* restrict name)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     node = resolve_mount(node);
 
@@ -171,7 +171,7 @@ int vnode_unlink(struct vnode* restrict node, const char* restrict name)
 
 int vnode_open(struct vnode* restrict node, unsigned mode)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     node = resolve_mount(node);
 
@@ -182,7 +182,7 @@ int vnode_open(struct vnode* restrict node, unsigned mode)
 
 int vnode_close(struct vnode* restrict node)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     node = resolve_mount(node);
 
@@ -193,7 +193,7 @@ int vnode_close(struct vnode* restrict node)
 
 ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, uintptr_t offset)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     node = resolve_mount(node);
 
@@ -204,7 +204,7 @@ ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz
 
 ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, uintptr_t offset)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     node = resolve_mount(node);
 
@@ -215,7 +215,7 @@ ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, si
 
 int vnode_stat(struct vnode* restrict node, struct __k_stat* restrict out)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     node = resolve_mount(node);
 
@@ -226,7 +226,7 @@ int vnode_stat(struct vnode* restrict node, struct __k_stat* restrict out)
 
 ssize_t vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     if(node->ops->readlink == nullptr)
         return -ENOSYS;
@@ -235,7 +235,7 @@ ssize_t vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t s
 
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, void* restrict argument)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     node = resolve_mount(node);
 

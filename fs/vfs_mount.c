@@ -211,7 +211,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
 
 int vfs_unmount(const char* restrict path)
 {
-    weak_kassert_text(path, "invalid path pointer");
+    kassert(path);
 
     spinlock_acquire(&mounts_lock);
 
@@ -267,7 +267,7 @@ int vfs_unmount(const char* restrict path)
 
 int vfs_sync(const char* restrict path)
 {
-    weak_kassert_text(path, "invalid path pointer");
+    kassert(path);
 
     spinlock_acquire(&mounts_lock);
 
@@ -292,7 +292,7 @@ int vfs_sync(const char* restrict path)
 
 struct vfs* vfs_find_mount_for(struct vnode* restrict node)
 {
-    weak_kassert_text(node, "invalid node pointer");
+    kassert(node);
 
     spinlock_acquire(&mounts_lock);
 
@@ -317,7 +317,7 @@ struct vfs* vfs_find_mount_for(struct vnode* restrict node)
 
 int vfs_get_root(struct vnode** restrict out)
 {
-    weak_kassert_text(out, "invalid output pointer");
+    kassert(out);
 
     spinlock_acquire(&mounts_lock);
 
