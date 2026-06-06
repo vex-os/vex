@@ -1,0 +1,9 @@
+filesys/devfs.c
+filesys/devfs_blk.c
+filesys/devfs_chr.c
+filesys/devfs_dir.c
+
+filesys/fat.c
+filesys/fat_cluster.c
+filesys/fat_dirent.c
+filesys/fat_vnode.c
