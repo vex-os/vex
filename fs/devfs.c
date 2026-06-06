@@ -13,15 +13,9 @@
 #include <lib/strings.h>
 #include <mm/slab.h>
 
-struct vfs* devfs_instance = nullptr;
-
-int devfs_insert(const char* restrict name, struct vnode* restrict node)
+int devfs_insert(struct vfs* restrict fs, const char* restrict name, struct vnode* restrict node)
 {
-    if(devfs_instance == nullptr) {
-        return -ENODEV;
-    }
-
-    struct devfs_state* state = devfs_instance->root->ctxdata;
+    struct devfs_state* state = fs->root->ctxdata;
     struct devfs_node* entry = slab_alloc(sizeof(struct devfs_node));
 
     if(entry == nullptr) {
@@ -31,7 +25,7 @@ int devfs_insert(const char* restrict name, struct vnode* restrict node)
     memset(entry, 0, sizeof(struct devfs_node));
     kstrncpy(entry->name, name, sizeof(entry->name));
 
-    node->fs = devfs_instance;
+    node->fs = fs;
     node->nodenumber = (ino_t)(uintptr_t)node;
 
     int retval = vcache_insert(node);
@@ -53,13 +47,9 @@ int devfs_insert(const char* restrict name, struct vnode* restrict node)
     return 0;
 }
 
-void devfs_remove(const char* restrict name)
+void devfs_remove(struct vfs* restrict fs, const char* restrict name)
 {
-    if(devfs_instance == nullptr) {
-        return;
-    }
-
-    struct devfs_state* state = devfs_instance->root->ctxdata;
+    struct devfs_state* state = fs->root->ctxdata;
 
     spinlock_acquire(&state->lock);
 
@@ -102,22 +92,23 @@ static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     fs->root = root;
     fs->ctxdata = state;
 
-    devfs_instance = fs;
-
     for(const struct blk_device* blk = blk_devices_head; blk; blk = blk->priv.next) {
         if(BLK_FLAG_PRESENT == (blk->flags & (BLK_FLAG_PRESENT | BLK_FLAG_HIDDEN))) {
             if(blk->flags & BLK_FLAG_PARTITION) {
-                devfs_blk_event_handler(BLK_EVENT_PARTITION_ADDED, blk, nullptr);
+                devfs_blk_event_handler(BLK_EVENT_PARTITION_ADDED, blk, fs);
             }
             else {
-                devfs_blk_event_handler(BLK_EVENT_MEDIA_CONNECTED, blk, nullptr);
+                devfs_blk_event_handler(BLK_EVENT_MEDIA_CONNECTED, blk, fs);
             }
         }
     }
 
     for(const struct chr_device* chr = chr_devices_head; chr; chr = chr->priv.next) {
-        devfs_chr_event_handler(CHR_EVENT_DEVICE_ADDED, chr, nullptr);
+        devfs_chr_event_handler(CHR_EVENT_DEVICE_ADDED, chr, fs);
     }
+
+    blk_event_subscribe(&devfs_blk_event_handler, fs);
+    chr_event_subscribe(&devfs_chr_event_handler, fs);
 
     return 0;
 }
@@ -140,7 +131,8 @@ static int devfs_unmount(struct vfs* restrict fs)
 
     slab_free(state);
 
-    devfs_instance = nullptr;
+    blk_event_unsubscribe(&devfs_blk_event_handler, fs);
+    chr_event_unsubscribe(&devfs_chr_event_handler, fs);
 
     return 0;
 }
@@ -158,6 +150,4 @@ static struct vfs_driver devfs_driver = {
 define_initcall(devfs, INITCALL_STAGE_BSP_VFS, INITCALL_ORDER_EARLY)
 {
     vfs_driver_register(&devfs_driver);
-    blk_event_subscribe(&devfs_blk_event_handler, nullptr);
-    chr_event_register_handler(&devfs_chr_event_handler, nullptr);
 }

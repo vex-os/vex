@@ -72,7 +72,7 @@ void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict d
             return;
         }
 
-        int retval = devfs_insert(device->identifier, vnode);
+        int retval = devfs_insert(ctxdata, device->identifier, vnode);
 
         if(retval < 0) {
             vnode_decref(vnode);
@@ -82,7 +82,7 @@ void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict d
     }
 
     if(event == CHR_EVENT_DEVICE_REMOVED) {
-        devfs_remove(device->identifier);
+        devfs_remove(ctxdata, device->identifier);
         return;
     }
 }

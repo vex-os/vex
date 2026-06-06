@@ -8,6 +8,7 @@
 
 struct blk_device;
 struct chr_device;
+struct vfs;
 
 struct devfs_node {
     char name[PATH_NAME_SIZE];
@@ -20,11 +21,10 @@ struct devfs_state {
     struct devfs_node* head;
 };
 
-extern struct vfs* devfs_instance;
 extern const struct vnode_ops devfs_dir_ops;
 
-extern int devfs_insert(const char* restrict name, struct vnode* restrict node);
-extern void devfs_remove(const char* restrict name);
+extern int devfs_insert(struct vfs* restrict fs, const char* restrict name, struct vnode* restrict node);
+extern void devfs_remove(struct vfs* restrict fs, const char* restrict name);
 
 extern void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict device, void* restrict ctxdata);
 extern void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict device, void* restrict ctxdata);

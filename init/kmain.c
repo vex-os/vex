@@ -28,10 +28,10 @@ static void fat_check(bool ok, const char* name)
 
     if(ok) {
         fat_tests_passed++;
-        pr_inform("FAT [PASS] %s", name);
+        pr_verbose("FAT [PASS] %s", name);
     }
     else {
-        pr_warning("FAT [FAIL] %s", name);
+        pr_inform("FAT [FAIL] %s", name);
     }
 }
 
@@ -479,20 +479,29 @@ void __noreturn kmain(void)
     vfs_mount("fat", "/", blk_device_find("ada0n1p1"), nullptr);
 
     struct vnode* root_node = nullptr;
-    struct vnode* dev_node = nullptr;
+    struct vnode* dev1_node = nullptr;
+    struct vnode* dev2_node = nullptr;
 
     if(0 == vfs_get_root(&root_node)) {
-        vnode_create(root_node, "dev", VNODE_DIRECTORY, &dev_node);
+        vnode_create(root_node, "dev", VNODE_DIRECTORY, &dev1_node);
+        vnode_create(root_node, "dev2", VNODE_DIRECTORY, &dev2_node);
         vnode_decref(root_node);
 
-        if(dev_node != nullptr) {
-            vnode_decref(dev_node);
+        if(dev1_node != nullptr) {
+            vnode_decref(dev1_node);
+        }
+
+        if(dev2_node != nullptr) {
+            vnode_decref(dev2_node);
         }
     }
 
     vfs_sync("/");
 
     vfs_mount("devfs", "/dev", nullptr, nullptr);
+    vfs_mount("devfs", "/dev2", nullptr, nullptr);
+
+    recurse_root();
 
     struct vnode* usr_node = nullptr;
     struct vnode* local_node = nullptr;
@@ -519,8 +528,6 @@ void __noreturn kmain(void)
     }
 
     vfs_sync("/");
-
-    recurse_root();
 
     struct vnode* root = nullptr;
     struct vnode* a = nullptr;
