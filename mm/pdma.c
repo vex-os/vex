@@ -1,5 +1,4 @@
 #include <arch/limits.h>
-#include <core/assert.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <core/spinlock.h>
@@ -173,7 +172,9 @@ define_initcall(pdma, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_FIRST)
         }
     }
 
-    strict_kassert_text(pdma_bitmap, "out of memory");
+    if(pdma_bitmap == nullptr) {
+        panic("pdma: out of memory");
+    }
 
     bitmap_range_clear(pdma_bitmap, 0U, pdma_numpages - 1U);
 

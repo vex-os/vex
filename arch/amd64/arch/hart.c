@@ -3,10 +3,10 @@
 #include <arch/hart.h>
 #include <arch/interrupts.h>
 #include <arch/ireq.h>
-#include <core/assert.h>
 #include <core/atomic.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
+#include <core/panic.h>
 #include <init/initcall.h>
 #include <ireq/dispatch.h>
 #include <lib/string.h>
@@ -37,14 +37,15 @@ void broadcast_panic_ipi(void)
 define_initcall(amd64_hart, INITCALL_STAGE_SMP_HART, INITCALL_ORDER_FIRST)
 {
     struct hart_local* hart = kmalloc(sizeof(struct hart_local));
-    strict_kassert_text(hart, "out of memory");
 
-    memset(hart, 0, sizeof(struct hart_local));
+    if(hart == nullptr) {
+        panic("out of memory");
+    }
 
     hart->self = hart;
     hart->index = atomic_fetch_add(&hart_count, 1, ATOMIC_RELAXED);
 
-    msr_write(MSR_GS_BASE, (uint64_t)hart);
+    wrmsr(MSR_GS_BASE, (uint64_t)hart);
 }
 
 define_initcall(amd64_panic_halt, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_MIDDLE)

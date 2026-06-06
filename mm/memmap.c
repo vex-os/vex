@@ -13,7 +13,6 @@ define_initcall(init_memmap, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_FIRST)
 {
     if(memmap_request.response == nullptr || memmap_request.response->entry_count == 0) {
         panic("no valid memory map provided by bootloader");
-        unreachable();
     }
 
     memmap = memmap_request.response;

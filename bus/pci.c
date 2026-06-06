@@ -323,7 +323,7 @@ void pci_cfg_write32(struct pci_device* restrict device, uintptr_t offset, uint3
 
 struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_index)
 {
-    weak_kassert(bar_index < 6);
+    kassert(bar_index < 6);
 
     if(device->priv.bars_mapped & (1U << bar_index)) {
         return &device->priv.bars[bar_index];
@@ -357,7 +357,7 @@ struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_ind
 
 void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index)
 {
-    weak_kassert(bar_index < 6);
+    kassert(bar_index < 6);
 
     if(device->priv.bars_mapped && (1U << bar_index)) {
         struct pci_bar* bar = &device->priv.bars[bar_index];
@@ -434,7 +434,7 @@ void pci_bar_read32s(struct pci_bar* restrict bar, uintptr_t offset, uint32_t* r
 
 void pci_bar_read64s(struct pci_bar* restrict bar, uintptr_t offset, uint64_t* restrict data, size_t count)
 {
-    weak_kassert(bar->type == PCI_BAR_TYPE_MMIO);
+    kassert(bar->type == PCI_BAR_TYPE_MMIO);
 
     for(size_t i = 0; i < count; ++i) {
         data[i] = bar->mmio.virt64[(offset / 8) + i];
@@ -473,7 +473,7 @@ void pci_bar_write32(struct pci_bar* restrict bar, uintptr_t offset, uint32_t va
 
 void pci_bar_write64(struct pci_bar* restrict bar, uintptr_t offset, uint64_t value)
 {
-    weak_kassert(bar->type == PCI_BAR_TYPE_MMIO);
+    kassert(bar->type == PCI_BAR_TYPE_MMIO);
 
     bar->mmio.virt64[offset / 8] = value;
 }
@@ -518,7 +518,7 @@ void pci_bar_write32s(struct pci_bar* restrict bar, uintptr_t offset, const uint
 
 void pci_bar_write64s(struct pci_bar* restrict bar, uintptr_t offset, const uint64_t* restrict data, size_t count)
 {
-    weak_kassert(bar->type == PCI_BAR_TYPE_MMIO);
+    kassert(bar->type == PCI_BAR_TYPE_MMIO);
 
     for(size_t i = 0; i < count; ++i) {
         bar->mmio.virt64[(offset / 8) + i] = data[i];

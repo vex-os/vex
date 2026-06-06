@@ -1,7 +1,7 @@
 #include <amd64/gdt.h>
 #include <arch/hart.h>
-#include <core/assert.h>
 #include <core/kprintf.h>
+#include <core/panic.h>
 #include <init/initcall.h>
 #include <lib/string.h>
 #include <mm/malloc.h>
@@ -19,8 +19,10 @@ struct amd64_tss {
 define_initcall(amd64_tss, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_MIDDLE)
 {
     struct amd64_tss* tss = kmalloc(sizeof(struct amd64_tss));
-    strict_kassert_text(tss, "out of memory");
-    memset(tss, 0, sizeof(*tss));
+
+    if(tss == nullptr) {
+        panic("out of memory");
+    }
 
     tss->iomap_base = sizeof(*tss);
 

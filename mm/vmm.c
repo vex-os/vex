@@ -1,4 +1,3 @@
-#include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/linker.h>
@@ -361,22 +360,37 @@ define_initcall(init_vmm, INITCALL_STAGE_BSP_VMM, INITCALL_ORDER_MIDDLE)
     sys_pagemap.levels = vmm_detect_levels();
 
     int retval = vmm_pagemap_alloc(&sys_pagemap);
-    strict_kassert_text(retval == 0, "out of memory");
+
+    if(retval < 0) {
+        panic("vmm: out of memory");
+    }
 
     vmm_pagemap_zero(&sys_pagemap);
 
     retval = vmm_map_sys_section(&text_start, &text_end, VPROT_RX);
-    strict_kassert_text(retval == 0, "failed to map kernel.text");
+
+    if(retval < 0) {
+        panic("vmm: failed to map kernel.text");
+    }
 
     retval = vmm_map_sys_section(&rodata_start, &rodata_end, VPROT_READ);
-    strict_kassert_text(retval == 0, "failed to map kernel.rodata");
+
+    if(retval < 0) {
+        panic("vmm: failed to map kernel.rodata");
+    }
 
     retval = vmm_map_sys_section(&data_start, &data_end, VPROT_RW);
-    strict_kassert_text(retval == 0, "failed to map kernel.data");
+
+    if(retval < 0) {
+        panic("vmm: failed to map kernel.data");
+    }
 
     for(size_t i = 0; i < memmap->entry_count; ++i) {
         retval = vmm_map_sys_memmap(memmap->entries[i]);
-        strict_kassert_text(retval == 0, "failed to map memmap entry");
+
+        if(retval < 0) {
+            panic("vmm: failed to map memmap entry");
+        }
     }
 
     vmm_switch(&sys_pagemap);

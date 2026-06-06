@@ -15,7 +15,6 @@ define_initcall(kbase, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_FIRST)
 {
     if(kbase_request.response == nullptr) {
         panic("bootloader did not provide executable address information");
-        unreachable();
     }
 
     kbase_phys = kbase_request.response->physical_base;

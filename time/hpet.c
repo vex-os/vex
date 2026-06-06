@@ -1,7 +1,8 @@
-#include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
+#include <core/panic.h>
 #include <init/initcall.h>
+#include <lib/string.h>
 #include <mm/hhdm.h>
 #include <mm/vmm.h>
 #include <mm/vprot.h>
@@ -55,8 +56,11 @@ define_initcall(hpet_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
         if(hpet->address.address) {
             volatile uint64_t* mmio = phys_to_virt(hpet->address.address);
 
-            int retval = vmm_map(&sys_pagemap, (uintptr_t)mmio, hpet->address.address, VPROT_RW | VPROT_NOCACHE);
-            strict_kassert_text(retval == 0 || retval == EEXIST, "mmio map failed");
+            int retval = vmm_map(&sys_pagemap, (uintptr_t)mmio, hpet->address.address, VPROT_MMIO);
+
+            if(retval < 0 && retval != -EEXIST) {
+                panic("hpet: vmm_map: %s", strerror(retval));
+            }
 
             hpet_clocksrc.ctxdata = (void*)mmio; // this removes the volatile qualifier without a warning
 

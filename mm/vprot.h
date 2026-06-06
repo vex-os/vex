@@ -17,4 +17,6 @@
 #define VPROT_URWX (VPROT_READ | VPROT_WRITE | VPROT_EXEC | VPROT_USER) ///< User read-write-execute page
 #define VPROT_URX  (VPROT_READ | VPROT_EXEC | VPROT_USER)               ///< User read-execute page
 
+#define VPROT_MMIO (VPROT_RW | VPROT_NOCACHE)
+
 #endif /* AB66BCFE_D7D1_4116_8D38_EE7F447F0FD4 */

@@ -7,7 +7,6 @@
 #include <stdarg.h>
 
 void* kmalloc(size_t sz) __nodiscard;
-void* kcalloc(size_t count, size_t sz) __nodiscard;
 void* krealloc(void* restrict ptr, size_t sz) __nodiscard;
 void kfree(void* restrict ptr);
 

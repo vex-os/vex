@@ -1,4 +1,4 @@
-#include <core/assert.h>
+#include <core/kprintf.h>
 #include <dev/chr_name.h>
 #include <init/initcall.h>
 #include <lib/string.h>
@@ -54,7 +54,7 @@ define_initcall(chr_name_predefined, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_LATE
     chr_name_pty = chr_name_query(CHR_NAME_PREFIX_PTY);
     chr_name_fbdev = chr_name_query(CHR_NAME_PREFIX_FBDEV);
 
-    strict_kassert_text(chr_name_tty, "out of memory");
-    strict_kassert_text(chr_name_pty, "out of memory");
-    strict_kassert_text(chr_name_fbdev, "out of memory");
+    if(!chr_name_tty || !chr_name_pty || !chr_name_fbdev) {
+        pr_warning("chr_name: out of memory");
+    }
 }

@@ -255,7 +255,6 @@ static __always_inline void put_pixel(size_t offset, bool white)
 
         default:
             panic("fbcons: unsupported framebuffer depth");
-            unreachable();
     }
 }
 
@@ -462,7 +461,6 @@ define_initcall(fbcons, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_LAST)
 
                 if(vt_cells == nullptr) {
                     panic("fbcons: out of memory: vt_cells");
-                    unreachable();
                 }
 
                 cursor_xpos = 0U;

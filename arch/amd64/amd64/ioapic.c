@@ -1,4 +1,3 @@
-#include <core/assert.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <init/initcall.h>
@@ -12,13 +11,13 @@
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
 
-#define IOAPIC_MMIO_SELECT 0 ///< IOAPIC REGSEL (offset 0x00)
-#define IOAPIC_MMIO_WINDOW 4 ///< IOAPIC IOWIN  (offset 0x10)
+#define IOAPIC_MMIO_SELECT 0
+#define IOAPIC_MMIO_WINDOW 4
 
-#define IOAPIC_REG_ID         UINT32_C(0x00000000) ///< Bits 24-27: APIC ID for this I/O APIC
-#define IOAPIC_REG_VER        UINT32_C(0x00000001) ///< Bits 16-23: Maximum redirection entry, Bits 0-7: APIC version
-#define IOAPIC_REG_TBL_BASE   UINT32_C(0x00000010) ///< Redirection table base
-#define IOAPIC_REG_TBL_STRIDE UINT32_C(0x00000002) ///< Redirection table stride
+#define IOAPIC_REG_ID         UINT32_C(0x00000000)
+#define IOAPIC_REG_VER        UINT32_C(0x00000001)
+#define IOAPIC_REG_TBL_BASE   UINT32_C(0x00000010)
+#define IOAPIC_REG_TBL_STRIDE UINT32_C(0x00000002)
 
 #define RTE_DELIVERY_FIXED  0 ///< fixed
 #define RTE_DELIVERY_LOWEST 1 ///< lowest priority
@@ -28,16 +27,16 @@
 #define RTE_DELIVERY_EXTINT 7 ///< ExtINT
 
 struct rte_entry {
-    uint64_t vector : 8;        ///< Interrupt vector number
-    uint64_t delivery_mode : 3; ///< Delivery mode (RTE_DELIVERY constants)
-    uint64_t dest_logical : 1;  ///< If set, destination is a logical APIC ID
-    uint64_t delivery_stat : 1; ///< Read-only; if set, the APIC is still sending the interrupt
-    uint64_t active_low : 1;    ///< If set, the interrupt is active low; otherwise, active high
-    uint64_t remote_irr : 1;    ///< Read-only; if set, the APIC has received an interrupt and is waiting for an EOI
-    uint64_t level : 1;         ///< If set, the interrupt is level-triggered; otherwise, edge-triggered
-    uint64_t masked : 1;        ///< If set, the interrupt is masked aka disabled
-    uint64_t reserved : 39;     ///< Reserved for whatever reasons, I'm not kink-shaming anyone
-    uint64_t dest : 8;          ///< Destination APIC ID
+    uint64_t vector : 8;
+    uint64_t delivery_mode : 3;
+    uint64_t dest_logical : 1;
+    uint64_t delivery_stat : 1;
+    uint64_t active_low : 1;
+    uint64_t remote_irr : 1;
+    uint64_t level : 1;
+    uint64_t masked : 1;
+    uint64_t reserved : 39;
+    uint64_t dest : 8;
 } __packed;
 
 static_assert(8 == sizeof(struct rte_entry));
@@ -142,13 +141,13 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
             panic("ioapic: out of memory");
         }
 
-        void* virt = phys_to_virt(ioapic->address);
+        data->base = phys_to_virt(ioapic->address);
 
-        if(vmm_map(&sys_pagemap, (uintptr_t)virt, ioapic->address, VPROT_RW | VPROT_NOCACHE)) {
-            panic("ioapic: failed to map mmio at %p", (const void*)(uintptr_t)ioapic->address);
+        int retval = vmm_map(&sys_pagemap, (uintptr_t)(data->base), ioapic->address, VPROT_MMIO);
+
+        if(retval < 0) {
+            panic("ioapic: vmm_map: %s", strerror(retval));
         }
-
-        data->base = (volatile uint32_t*)(virt);
 
         uint32_t id = ioapic_read(data, IOAPIC_REG_ID) >> 24;
         uint32_t ver = ioapic_read(data, IOAPIC_REG_VER);
@@ -159,14 +158,19 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         controller->ctxdata = data;
 
         controller->identifier = kasprintf("ioapic%u", (unsigned)id);
-        strict_kassert_text(controller->identifier, "kasprintf failed");
+
+        if(!controller->identifier) {
+            panic("ioapic: out of memory");
+        }
 
         for(uint8_t i = 0; i < controller->gsi_count; ++i) {
             ioapic_set_rte(data, i, (struct rte_entry) { .masked = 1 });
         }
 
-        if(intctl_register(controller)) {
-            panic("ioapic: failed to register interrupt controller");
+        retval = intctl_register(controller);
+
+        if(retval < 0) {
+            panic("ioapic: %s", strerror(retval));
         }
     }
 
@@ -179,7 +183,7 @@ define_initcall(amd64_ioapic, INITCALL_STAGE_BSP_IREQ, INITCALL_ORDER_FIRST)
     uacpi_status status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);
 
     if(uacpi_unlikely_error(status)) {
-        panic("ioapic: acpi madt not found: %s", uacpi_status_to_string(status));
+        panic("ioapic: %s", uacpi_status_to_string(status));
     }
 
     uacpi_for_each_subtable(madt.hdr, sizeof(struct acpi_madt), &ioapic_madt_callback, nullptr);

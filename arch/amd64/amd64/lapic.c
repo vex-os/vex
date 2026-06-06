@@ -1,11 +1,11 @@
 #include <amd64/lapic.h>
 #include <amd64/msr.h>
 #include <arch/hart.h>
-#include <core/assert.h>
 #include <core/errno.h>
 #include <core/kprintf.h>
 #include <core/panic.h>
 #include <init/initcall.h>
+#include <lib/string.h>
 #include <mm/hhdm.h>
 #include <mm/page.h>
 #include <mm/vmm.h>
@@ -17,21 +17,21 @@
 #define LAPIC_SVR_ENABLE      UINT32_C(0x00000100)
 #define LAPIC_SPURIOUS_VECTOR UINT32_C(0x000000FF)
 
-static volatile uint32_t* lapic_virtual_base = nullptr;
+static volatile uint32_t* lapic_mmio = nullptr;
 
 uint32_t lapic_read(uint32_t reg)
 {
-    return lapic_virtual_base[reg];
+    return lapic_mmio[reg];
 }
 
 void lapic_write(uint32_t reg, uint32_t value)
 {
-    lapic_virtual_base[reg] = value;
+    lapic_mmio[reg] = value;
 }
 
 void lapic_broadcast_ipi(uint8_t vector)
 {
-    if(lapic_virtual_base) {
+    if(lapic_mmio) {
         while(lapic_read(LAPIC_REG_ICR_LO) & UINT32_C(0x00001000)) {
             yield_hart();
         }
@@ -43,14 +43,20 @@ void lapic_broadcast_ipi(uint8_t vector)
 
 define_initcall(amd64_lapic, INITCALL_STAGE_SMP_IREQ, INITCALL_ORDER_FIRST)
 {
-    uint64_t msr = msr_read(MSR_IA32_APIC_BASE);
-    strict_kassert_text(msr & MSR_APIC_BASE_ENABLE, "local apic is globally disabled");
+    uint64_t msr = rdmsr(MSR_IA32_APIC_BASE);
+
+    if(0 == (msr & MSR_APIC_BASE_ENABLE)) {
+        panic("local apic is globally disabled");
+    }
 
     uintptr_t lapic_phys = msr & MSR_APIC_BASE_PHYSMASK;
-    lapic_virtual_base = phys_to_virt(lapic_phys);
+    lapic_mmio = phys_to_virt(lapic_phys);
 
-    int retval = vmm_map(&sys_pagemap, (uintptr_t)lapic_virtual_base, lapic_phys, VPROT_RW | VPROT_NOCACHE);
-    strict_kassert_text(retval == 0 || retval == EEXIST, "vmm_map failed");
+    int retval = vmm_map(&sys_pagemap, (uintptr_t)(lapic_mmio), lapic_phys, VPROT_MMIO);
+
+    if(retval < 0 && retval != -EEXIST) {
+        panic("lapic: vmm_map: %s", strerror(retval));
+    }
 
     uint32_t svr = lapic_read(LAPIC_REG_SVR);
     svr |= LAPIC_SVR_ENABLE;
