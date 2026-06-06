@@ -156,12 +156,12 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
     while(port_read(port, PORT_REG_CI) & 1) {
         if(port_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
             unsigned long tfd = port_read(port, PORT_REG_TFD);
-            pr_verbose("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)lba, tfd);
+            pr_verbose("ahci: poll error: lba=%zu tfd=%08lX", (size_t)(lba), tfd);
             return -EIO;
         }
 
         if(counter >= AHCI_POLL_TIMEOUT) {
-            pr_verbose("ahci: poll timeout at LBA %zu", (size_t)lba);
+            pr_verbose("ahci: poll timeout: lba=%zu", (size_t)(lba));
             return -EIO;
         }
 
@@ -526,7 +526,7 @@ static int ahci_port_register_atapi(struct ahci_pci_context* restrict context, u
 static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
 {
     if(ahci_port_init(context, abar, port_num)) {
-        pr_verbose("ahci: out of DMA memory for port %u", port_num);
+        pr_verbose("ahci: out of memory");
         return;
     }
 
@@ -534,7 +534,7 @@ static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struc
     struct ahci_port* port = &context->ports[port_num];
 
     if(ahci_identify(port, identify)) {
-        pr_verbose("ahci: identify failed on port %u", port_num);
+        pr_verbose("ahci: identify failed: port=%p::%u", context, port_num);
         ahci_port_teardown(port);
         return;
     }
@@ -552,7 +552,7 @@ static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struc
 
     char model[41];
     ata_identify_string(&identify[ATA_IDENTIFY_MODEL_FIELD], ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
-    pr_verbose("ahci: port %u: %s (%zu sectors)", port_num, model, device->sector_count);
+    pr_verbose("ahci: port %p::%u: model=<%s> sector_count=%zu", context, port_num, model, device->sector_count);
 
     blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, device);
 }
@@ -560,7 +560,7 @@ static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struc
 static void ahci_port_probe_atapi(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
 {
     if(ahci_port_init(context, abar, port_num)) {
-        pr_verbose("ahci: out of DMA memory for ATAPI port %u", port_num);
+        pr_verbose("ahci: out of memory");
         return;
     }
 
@@ -581,7 +581,7 @@ static void ahci_port_probe_atapi(struct ahci_pci_context* restrict context, str
     size_t sector_size;
 
     if(ahci_atapi_capacity(port, &sector_count, &sector_size)) {
-        pr_verbose("ahci: ATAPI port %u: no media or read capacity failed", port_num);
+        pr_verbose("ahci: atapi port %p::%u: no media present", context, port_num);
         ahci_port_teardown(port);
         return;
     }
@@ -591,7 +591,7 @@ static void ahci_port_probe_atapi(struct ahci_pci_context* restrict context, str
     atapi_dev->base.flags = BLK_FLAG_PRESENT;
     atapi_dev->base.ctxdata = port;
 
-    pr_verbose("ahci: port %u ATAPI: %s (%zu sectors of %zu bytes)", port_num, model, sector_count, sector_size);
+    pr_verbose("ahci: atapi port %p::%u: model=<%s> sector_count=%zu sector_size=%zu", context, port_num, model, sector_count, sector_size);
 
     blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, &atapi_dev->base);
 }
@@ -601,7 +601,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
     struct ahci_pci_context* context = kmalloc(sizeof(struct ahci_pci_context));
 
     if(context == nullptr) {
-        pr_verbose("ahci: out of memory for context");
+        pr_verbose("ahci: out of memory");
         return -ENOMEM;
     }
 
@@ -612,9 +612,12 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
     struct pci_bar* abar = pci_bar_map(pci_dev, 5);
 
     if(abar == nullptr) {
-        pr_verbose("ahci: pci_bar_map failed for ABAR");
+        pr_verbose("ahci: pci_bar_map failed");
+
         kfree(context);
+
         pci_dev->ctxdata = nullptr;
+
         return -ENOMEM;
     }
 
@@ -625,7 +628,6 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
     }
 
     uint32_t ahci_pi = pci_bar_read32(abar, HBA_PI);
-
     unsigned iterator = blk_name_increment(blk_name_ata);
 
     for(unsigned port_num = 0; port_num < 32; port_num += 1) {

@@ -26,7 +26,7 @@ static void pslab_add_region(uintptr_t start, size_t length)
         pslab_numpages += 1U;
     }
 
-    pr_verbose("pslab: adding region: [%p..%p]", (const void*)start, (const void*)(start + length - 1U));
+    pr_verbose("pslab: adding region: start=%p end=%p", (const void*)(start), (const void*)(start + length - 1U));
 }
 
 uintptr_t pslab_alloc(void)

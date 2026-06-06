@@ -1,4 +1,4 @@
-#include <core/kprintf.h>
+#include <core/panic.h>
 #include <dev/blk_name.h>
 #include <init/initcall.h>
 #include <lib/string.h>
@@ -56,7 +56,13 @@ define_initcall(blk_name_predefined, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_LATE
     blk_name_nvme = blk_name_query(BLK_NAME_PREFIX_NVME);
     blk_name_virtio = blk_name_query(BLK_NAME_PREFIX_VIRTIO);
 
-    if(!blk_name_ata || !blk_name_atapi || !blk_name_nvme || !blk_name_virtio) {
-        pr_warning("blk_name: out of memory");
+    bool oom = false;
+    oom = oom || blk_name_ata == nullptr;
+    oom = oom || blk_name_atapi == nullptr;
+    oom = oom || blk_name_nvme == nullptr;
+    oom = oom || blk_name_virtio == nullptr;
+
+    if(oom) {
+        panic("blk_name: out of memory");
     }
 }

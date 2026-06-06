@@ -2,7 +2,6 @@
 #include <bus/isa.h>
 #include <core/assert.h>
 #include <core/errno.h>
-#include <core/kprintf.h>
 #include <core/panic.h>
 #include <core/pmio.h>
 #include <init/initcall.h>
@@ -109,8 +108,6 @@ int isa_device_unregister(struct isa_device* restrict device)
         device->priv.driver = nullptr;
     }
 
-    pr_verbose("isa: removing device: %s", device->identifier);
-
     return 0;
 }
 
@@ -120,10 +117,6 @@ int isa_driver_register(struct isa_driver* restrict driver)
         if(it == driver) {
             return -EEXIST;
         }
-    }
-
-    if(driver->identifier[0]) {
-        pr_verbose("isa: adding driver: %s", driver->identifier);
     }
 
     driver->priv.next = driver_head;
@@ -167,8 +160,6 @@ int isa_driver_unregister(struct isa_driver* restrict driver)
             }
         }
     }
-
-    pr_verbose("isa: removing driver: %s", driver->identifier);
 
     return 0;
 }

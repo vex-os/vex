@@ -54,7 +54,7 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
     struct acpi_clocksrc_privdata* priv = kmalloc(sizeof(struct acpi_clocksrc_privdata));
 
     if(priv == nullptr) {
-        pr_warning("acpi: out of memory");
+        pr_warning("acpi_clocksrc: out of memory");
         return;
     }
 
@@ -68,7 +68,7 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
             int retval = vmm_map(&sys_pagemap, (uintptr_t)(priv->mmio), fadt->x_pm_tmr_blk.address, VPROT_MMIO);
 
             if(retval < 0 && retval != -EEXIST) {
-                pr_warning("acpi: vmm_map failed: %s", strerror(retval));
+                pr_warning("acpi_clocksrc: vmm_map failed: %s", strerror(retval));
 
                 kfree(priv);
 
@@ -100,8 +100,6 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
     acpi_clocksrc.ctxdata = priv;
 
     clocksrc_register_hz(&acpi_clocksrc, ACPI_CLOCKSRC_FREQ_HZ);
-
-    pr_notice("acpi: PM-timer registered (%s)", priv->mmio ? "mmio" : "pmio");
 
     uacpi_table_unref(&table);
 }

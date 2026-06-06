@@ -56,13 +56,13 @@ define_initcall(hpet_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
         if(hpet->address.address) {
             volatile uint64_t* mmio = phys_to_virt(hpet->address.address);
 
-            int retval = vmm_map(&sys_pagemap, (uintptr_t)mmio, hpet->address.address, VPROT_MMIO);
+            int retval = vmm_map(&sys_pagemap, (uintptr_t)(mmio), hpet->address.address, VPROT_MMIO);
 
             if(retval < 0 && retval != -EEXIST) {
                 panic("hpet: vmm_map: %s", strerror(retval));
             }
 
-            hpet_clocksrc.ctxdata = (void*)mmio; // this removes the volatile qualifier without a warning
+            hpet_clocksrc.ctxdata = (void*)(mmio); // this removes the volatile qualifier without a warning
 
             uacpi_table_unref(&table);
 

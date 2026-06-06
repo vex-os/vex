@@ -228,7 +228,7 @@ uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* reques
 
     if(request->type == UACPI_FIRMWARE_REQUEST_TYPE_FATAL) {
         unsigned long long arg = request->fatal.arg;
-        pr_verbose("uacpi: AML fatal: type=0x%x code=0x%x arg=0x%llx", request->fatal.type, request->fatal.code, arg);
+        pr_verbose("uacpi: AML fatal: type=0x%02X code=0x%04X arg=0x%llx", request->fatal.type, (unsigned)(request->fatal.code), arg);
         return UACPI_STATUS_OK;
     }
 
