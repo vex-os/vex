@@ -47,7 +47,6 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
     uacpi_status status = uacpi_table_find_by_signature(ACPI_FADT_SIGNATURE, &table);
 
     if(uacpi_unlikely_error(status)) {
-        pr_verbose("acpi: no ACPI PM-timer present");
         return;
     }
 
@@ -84,8 +83,6 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
         priv->pmio = fadt->pm_tmr_blk;
     }
     else {
-        pr_verbose("acpi: no ACPI PM-timer present");
-
         uacpi_table_unref(&table);
 
         kfree(priv);
@@ -103,6 +100,8 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
     acpi_clocksrc.ctxdata = priv;
 
     clocksrc_register_hz(&acpi_clocksrc, ACPI_CLOCKSRC_FREQ_HZ);
+
+    pr_notice("acpi: PM-timer registered (%s)", priv->mmio ? "mmio" : "pmio");
 
     uacpi_table_unref(&table);
 }

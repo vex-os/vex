@@ -171,8 +171,6 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
     }
 
     if(port_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
-        unsigned long tfd = port_read(port, PORT_REG_TFD);
-        pr_verbose("ahci: poll error at LBA %zu (TFD=%08lX)", (size_t)lba, tfd);
         return -EIO;
     }
 

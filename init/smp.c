@@ -14,8 +14,8 @@ static volatile __used __section(".limine_requests") struct limine_mp_request mp
     .revision = 0,
 };
 
-static uint64_t smp_cpu_count = 0;
-static volatile uint64_t smp_ready_count = 0;
+static uint64_t hart_count = 0;
+static volatile uint64_t ready_count = 0;
 
 static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 {
@@ -23,13 +23,11 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
-    pr_verbose("smp: hart %u ready", this_hart()->index);
-
     // if(this_hart()->index == 1) {
     //     panic("test panic from hart %u", this_hart()->index);
     // }
 
-    atomic_fetch_add(&smp_ready_count, UINT64_C(1), ATOMIC_RELEASE);
+    atomic_fetch_add(&ready_count, UINT64_C(1), ATOMIC_RELEASE);
 
     enable_interrupts();
 
@@ -44,21 +42,23 @@ define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_LAST)
         panic("bootloader did not provide multicore information");
     }
 
-    smp_cpu_count = mp_request.response->cpu_count;
+    hart_count = mp_request.response->cpu_count;
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
     pr_verbose("smp: hart %u ready", this_hart()->index);
 
-    atomic_store_n(&smp_ready_count, UINT64_C(1), ATOMIC_RELAXED);
+    atomic_store_n(&ready_count, UINT64_C(1), ATOMIC_RELAXED);
 
-    for(uint64_t i = 0; i < smp_cpu_count; ++i) {
+    for(uint64_t i = 0; i < hart_count; ++i) {
         atomic_store_n(&mp_request.response->cpus[i]->goto_address, &smp_entry, ATOMIC_RELEASE);
     }
 
     enable_interrupts();
 
-    while(atomic_load_n(&smp_ready_count, ATOMIC_ACQUIRE) < smp_cpu_count) {
+    while(atomic_load_n(&ready_count, ATOMIC_ACQUIRE) < hart_count) {
         yield_hart();
     }
+
+    pr_notice("smp: %llu harts online", (unsigned long long)(hart_count));
 }

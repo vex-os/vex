@@ -476,8 +476,6 @@ void __noreturn kmain(void)
 
     enable_interrupts();
 
-    pr_inform("hanging around...");
-
     vfs_mount("fat", "/", blk_device_find("ada0n1p1"), nullptr);
 
     struct vnode* root_node = nullptr;
@@ -588,6 +586,8 @@ void __noreturn kmain(void)
     }
 
     vnode_decref(root);
+
+    pr_emerg("hanging around...");
 
     for(;;) {
         stop_hart();
