@@ -2,7 +2,7 @@
 #include <core/console.h>
 #include <init/initcall.h>
 
-static void bxcons_write(struct console* restrict driver, const void* restrict data, size_t size)
+static void bxcons_write(struct console* restrict cons, const void* restrict data, size_t size)
 {
     const char* psz = data;
 
