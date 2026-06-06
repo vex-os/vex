@@ -1,0 +1,7 @@
+#include <sys/assert.h>
+#include <sys/panic.h>
+
+void assert_fail(const char* restrict file, unsigned long line, const char* restrict func, const char* restrict expr)
+{
+    panic("assertion failed: [%s] at %s:%lu in function %s", expr, file, line, func);
+}

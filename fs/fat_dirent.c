@@ -1,9 +1,10 @@
-#include <core/endian.h>
-#include <core/errno.h>
-#include <dev/blk_device.h>
-#include <fs/fat.h>
-#include <lib/ctype.h>
-#include <lib/string.h>
+#include <ctype.h>
+#include <string.h>
+#include <sys/blk_device.h>
+#include <sys/endian.h>
+#include <sys/errno.h>
+
+#include "fat.h"
 
 static int read_entry(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, union fat_entry* restrict entry)
 {
@@ -184,7 +185,7 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
         for(unsigned i = num_ldir; i > 0 && !done; --i) {
             const struct fat_ldir_entry* ldir = &ldirs[i - 1];
 
-            for(unsigned j = 0; j < 5 && name_pos < PATH_NAME_SIZE && !done; ++j) {
+            for(unsigned j = 0; j < 5 && name_pos < NAME_SIZE && !done; ++j) {
                 uint16_t ch = le16toh(ldir->name_1[j]);
                 if(ch == 0x0000 || ch == 0xFFFF) {
                     done = true;
@@ -195,7 +196,7 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
                 name_pos += 1;
             }
 
-            for(unsigned j = 0; j < 6 && name_pos < PATH_NAME_SIZE && !done; ++j) {
+            for(unsigned j = 0; j < 6 && name_pos < NAME_SIZE && !done; ++j) {
                 uint16_t ch = le16toh(ldir->name_2[j]);
                 if(ch == 0x0000 || ch == 0xFFFF) {
                     done = true;
@@ -206,7 +207,7 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
                 name_pos += 1;
             }
 
-            for(unsigned j = 0; j < 2 && name_pos < PATH_NAME_SIZE && !done; ++j) {
+            for(unsigned j = 0; j < 2 && name_pos < NAME_SIZE && !done; ++j) {
                 uint16_t ch = le16toh(ldir->name_3[j]);
                 if(ch == 0x0000 || ch == 0xFFFF) {
                     done = true;
@@ -243,7 +244,7 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
 int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
     const struct fat_dirent* restrict entry)
 {
-    size_t name_length = strnlen(entry->full_name, PATH_NAME_MAX);
+    size_t name_length = strnlen(entry->full_name, NAME_MAX);
     uint8_t checksum = ldir_checksum(&entry->base);
     unsigned num_ldir = (name_length + 12) / 13;
     union fat_entry raw_entry;

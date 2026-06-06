@@ -1,8 +1,9 @@
-#include <core/endian.h>
-#include <core/errno.h>
-#include <dev/blk_device.h>
-#include <fs/fat.h>
-#include <lib/string.h>
+#include <string.h>
+#include <sys/blk_device.h>
+#include <sys/endian.h>
+#include <sys/errno.h>
+
+#include "fat.h"
 
 #define FAT12_EOC  UINT16_C(0xFF8)
 #define FAT16_EOC  UINT16_C(0xFFF8)

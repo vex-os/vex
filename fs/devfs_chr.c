@@ -1,11 +1,12 @@
-#include <core/errno.h>
-#include <dev/chr_device.h>
-#include <dev/chr_event.h>
-#include <fs/devfs.h>
-#include <fs/stat.h>
-#include <fs/vfs_vnode.h>
-#include <lib/string.h>
-#include <mm/slab.h>
+#include <string.h>
+#include <sys/chr_device.h>
+#include <sys/chr_event.h>
+#include <sys/errno.h>
+#include <sys/slab.h>
+#include <sys/stat.h>
+#include <sys/vfs_vnode.h>
+
+#include "devfs.h"
 
 struct devfs_chr_context {
     const struct chr_device* device;

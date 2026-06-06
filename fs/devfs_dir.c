@@ -1,11 +1,12 @@
-#include <core/errno.h>
-#include <core/spinlock.h>
-#include <fs/devfs.h>
-#include <fs/stat.h>
-#include <fs/vfs_dirent.h>
-#include <fs/vfs_vnode.h>
-#include <lib/string.h>
-#include <lib/strings.h>
+#include <string.h>
+#include <strings.h>
+#include <sys/errno.h>
+#include <sys/spinlock.h>
+#include <sys/stat.h>
+#include <sys/vfs_dirent.h>
+#include <sys/vfs_vnode.h>
+
+#include "devfs.h"
 
 static int devfs_dir_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
 {
@@ -22,6 +23,7 @@ static int devfs_dir_lookup(struct vnode* restrict node, const char* restrict na
     }
 
     spinlock_release(&state->lock);
+
     return -ENOENT;
 }
 
@@ -42,6 +44,7 @@ static int devfs_dir_iterate(struct vnode* restrict node, struct dirent* restric
     }
 
     spinlock_release(&state->lock);
+
     return -ENOENT;
 }
 

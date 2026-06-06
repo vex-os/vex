@@ -14,11 +14,8 @@
         "asm=__asm__"
       ],
       "includePath": [
-        "${workspaceFolder}/arch/amd64/pub",
-        "${workspaceFolder}/arch/amd64",
-        "${workspaceFolder}/ext",
-        "${workspaceFolder}/pub",
-        "${workspaceFolder}"
+        "${workspaceFolder}/arch/amd64/include",
+        "${workspaceFolder}/include"
       ],
       "compilerArgs": [
         "-ffreestanding",

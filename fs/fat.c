@@ -1,15 +1,16 @@
-#include <core/cmdline.h>
-#include <core/endian.h>
-#include <core/errno.h>
-#include <dev/blk_device.h>
-#include <fs/fat.h>
-#include <fs/vfs_mount.h>
-#include <fs/vfs_vnode.h>
-#include <init/initcall.h>
-#include <lib/stdlib.h>
-#include <lib/string.h>
-#include <mm/malloc.h>
-#include <mm/slab.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/blk_device.h>
+#include <sys/cmdline.h>
+#include <sys/endian.h>
+#include <sys/errno.h>
+#include <sys/initcall.h>
+#include <sys/malloc.h>
+#include <sys/slab.h>
+#include <sys/vfs_mount.h>
+#include <sys/vfs_vnode.h>
+
+#include "fat.h"
 
 static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
 {

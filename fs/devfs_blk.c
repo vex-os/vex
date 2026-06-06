@@ -1,13 +1,14 @@
-#include <core/errno.h>
-#include <core/spinlock.h>
-#include <dev/blk_device.h>
-#include <dev/blk_event.h>
-#include <fs/devfs.h>
-#include <fs/stat.h>
-#include <fs/vfs_vnode.h>
-#include <lib/string.h>
-#include <mm/malloc.h>
-#include <mm/slab.h>
+#include <string.h>
+#include <sys/blk_device.h>
+#include <sys/blk_event.h>
+#include <sys/errno.h>
+#include <sys/malloc.h>
+#include <sys/slab.h>
+#include <sys/spinlock.h>
+#include <sys/stat.h>
+#include <sys/vfs_vnode.h>
+
+#include "devfs.h"
 
 struct devfs_blk_context {
     const struct blk_device* device;
