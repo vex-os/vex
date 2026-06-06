@@ -389,6 +389,7 @@ uint32_t pci_bar_read32(struct pci_bar* restrict bar, uintptr_t offset)
 
 uint64_t pci_bar_read64(struct pci_bar* restrict bar, uintptr_t offset)
 {
+    kassert(bar->type == PCI_BAR_TYPE_MMIO);
     return bar->mmio.virt64[offset / 8];
 }
 
