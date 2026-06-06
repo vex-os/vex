@@ -48,7 +48,10 @@ int chr_device_register_custom(struct chr_device* restrict device, const char* r
 
 int chr_device_unregister(struct chr_device* restrict device)
 {
-    for(struct chr_device* it = chr_devices_head, * prev = nullptr; it; prev = it, it = it->priv.next) {
+    struct chr_device* it;
+    struct chr_device* prev = nullptr;
+
+    for(it = chr_devices_head; it; prev = it, it = it->priv.next) {
         if(it == device) {
             if(prev) {
                 prev->priv.next = it->priv.next;

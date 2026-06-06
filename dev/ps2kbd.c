@@ -46,10 +46,10 @@ static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame,
     uint8_t scancode = pmio_read8(&data_res->pmio, 0);
 
     if(scancode & 0x80) {
-        pr_inform("ps2kbd: key up   scancode=0x%02X", (unsigned)(scancode & 0x7F));
+        pr_verbose("ps2kbd: key up   scancode=0x%02X", (unsigned)(scancode & 0x7F));
     }
     else {
-        pr_inform("ps2kbd: key down scancode=0x%02X", (unsigned)scancode);
+        pr_verbose("ps2kbd: key down scancode=0x%02X", (unsigned)scancode);
     }
 }
 

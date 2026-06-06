@@ -172,6 +172,8 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         if(retval < 0) {
             panic("ioapic: %s", strerror(retval));
         }
+
+        pr_notice("%s: gsi [%u..%u]", controller->identifier, controller->gsi_base, controller->gsi_base + controller->gsi_count - 1);
     }
 
     return UACPI_ITERATION_DECISION_CONTINUE;
