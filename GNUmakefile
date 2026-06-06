@@ -13,9 +13,9 @@ CONFIGURATION ?= default
 CONFIGURATION_MK := .configuration.mk
 -include ${CONFIGURATION_MK}
 
-${CONFIGURATION_MK}: conf/config.${CONFIGURATION}.conf Configure.py
+${CONFIGURATION_MK}: conf/config.${CONFIGURATION}.conf configure.py
 	@printf "  CONF\t%s\n" "conf/${CONFIGURATION}.conf"
-	@${PYTHON} Configure.py ${CONFIGURATION}
+	@${PYTHON} configure.py ${CONFIGURATION}
 
 ARCH ?= amd64
 ENVT ?= clang
