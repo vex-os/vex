@@ -32,8 +32,8 @@ ${downloader} "${tmpfile}" "${archive_url}"
 
 tar -xzf "${tmpfile}" -C "${tmpdir}"
 
-rm -rfv include/uapi uacpi
-mkdir -p include/uapi uacpi
+rm -rfv include/uacpi uacpi
+mkdir -p include/uacpi uacpi
 
 srcdir="$(find "${tmpdir}" -maxdepth 1 -mindepth 1 -type d | head -n1)"
 
