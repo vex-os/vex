@@ -44,7 +44,7 @@ static void add_region(uintptr_t start, size_t length)
 
     bitmap_range_set(pdma_bitmap, page, page + npages - 1U);
 
-    pr_verbose("pdma: adding region: start=%p end=%p", (const void*)(start), (const void*)(start + length - 1U));
+    pr_verbose("pdma: adding region: start=%p end=%p", (void*)(start), (void*)(start + length - 1U));
 }
 
 uintptr_t pdma_alloc(size_t numpages)
