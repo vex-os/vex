@@ -142,7 +142,6 @@ define_initcall(sys_cmdline_preserve, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_LA
             return;
         }
 
-        memset(buffer_copy, 0, sys_cmdline.length);
         memcpy(buffer_copy, sys_cmdline.buffer, sys_cmdline.length);
 
         sys_cmdline.buffer = buffer_copy;
