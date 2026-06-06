@@ -149,5 +149,5 @@ static struct vfs_driver devfs_driver = {
 
 define_initcall(devfs, INITCALL_STAGE_BSP_VFS, INITCALL_ORDER_EARLY)
 {
-    vfs_driver_register(&devfs_driver);
+    add_vfs_driver(&devfs_driver);
 }

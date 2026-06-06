@@ -99,7 +99,7 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
 
     acpi_clocksrc.ctxdata = priv;
 
-    clocksrc_register_hz(&acpi_clocksrc, ACPI_CLOCKSRC_FREQ_HZ);
+    add_clocksrc_hz(&acpi_clocksrc, ACPI_CLOCKSRC_FREQ_HZ);
 
     uacpi_table_unref(&table);
 }

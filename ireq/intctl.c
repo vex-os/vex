@@ -5,7 +5,7 @@
 
 static struct intctl* intctl_head = nullptr;
 
-int intctl_register(struct intctl* restrict controller)
+int add_intctl(struct intctl* restrict controller)
 {
     for(struct intctl* it = intctl_head; it; it = it->priv.next) {
         if(it == controller) {

@@ -61,7 +61,7 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
     spinlock_acquire(&kprintf_lock);
 
     if(sv <= loglevel) {
-        uint64_t timestamp = clocksrc_read_nsec();
+        uint64_t timestamp = clocksrc_nsec();
         uint64_t timestamp_s = timestamp / UINT64_C(1000000000);
         uint64_t timestamp_msx = (timestamp / UINT64_C(100000)) % UINT64_C(10000);
 

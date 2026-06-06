@@ -17,7 +17,7 @@ void __noreturn fvpanic(const char* restrict file, unsigned long line, const cha
 
     disable_interrupts();
 
-    console_unblank_all();
+    console_unblank();
 
     pr_emerg("kernel panic at %s:%lu", file, line);
 

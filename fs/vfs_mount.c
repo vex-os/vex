@@ -35,7 +35,7 @@ static struct vfs_driver* find_driver(const char* restrict name)
     return nullptr;
 }
 
-int vfs_driver_register(struct vfs_driver* restrict driver)
+int add_vfs_driver(struct vfs_driver* restrict driver)
 {
     if(driver == nullptr || driver->ops == nullptr) {
         return -EINVAL;
@@ -64,7 +64,7 @@ int vfs_driver_register(struct vfs_driver* restrict driver)
     return 0;
 }
 
-int vfs_driver_unregister(struct vfs_driver* restrict driver)
+int remove_vfs_driver(struct vfs_driver* restrict driver)
 {
     struct vfs_driver** prev;
 
@@ -119,7 +119,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         cmdl.buffer = kstrdup(params);
 
         if(cmdl.buffer) {
-            cmdline_parse(&cmdl, cmdl.buffer, 1 + strlen(params));
+            parse_cmdline(&cmdl, cmdl.buffer, 1 + strlen(params));
         }
     }
 

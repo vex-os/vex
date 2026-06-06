@@ -15,7 +15,7 @@ static volatile __used __section(".limine_requests") struct limine_executable_cm
     .revision = 0,
 };
 
-int cmdline_parse(struct cmdline* restrict cmdl, char* restrict buffer, size_t length)
+int parse_cmdline(struct cmdline* restrict cmdl, char* restrict buffer, size_t length)
 {
     cmdl->buffer = nullptr;
     cmdl->length = 0;
@@ -118,7 +118,7 @@ define_initcall(sys_cmdline_parse, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_M
         sys_cmdline.buffer = cmdline_request.response->cmdline;
         sys_cmdline.length = 1 + strlen(sys_cmdline.buffer);
 
-        int retval = cmdline_parse(&sys_cmdline, sys_cmdline.buffer, sys_cmdline.length);
+        int retval = parse_cmdline(&sys_cmdline, sys_cmdline.buffer, sys_cmdline.length);
 
         if(retval < 0) {
             pr_warning("cmdline: parse error: %s", strerror(retval));

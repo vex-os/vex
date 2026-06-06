@@ -6,16 +6,16 @@
 #include <lib/string.h>
 
 static spinlock_type console_lock = SPINLOCK_INIT;
-static struct console_driver* console_head = nullptr;
+static struct console* console_head = nullptr;
 
-int console_driver_register(struct console_driver* restrict driver)
+int add_console(struct console* restrict cons)
 {
-    struct console_driver* it;
+    struct console* it;
 
     spinlock_acquire(&console_lock);
 
     for(it = console_head; it; it = it->priv.next) {
-        if(it == driver) {
+        if(it == cons) {
             spinlock_release(&console_lock);
             return -EEXIST;
         }
@@ -23,66 +23,66 @@ int console_driver_register(struct console_driver* restrict driver)
 
     spinlock_release(&console_lock);
 
-    pr_verbose("console: adding %s", driver->identifier);
+    pr_verbose("console: adding %s", cons->identifier);
 
-    if(driver->ops->init) {
-        driver->ops->init(driver);
+    if(cons->ops->init) {
+        cons->ops->init(cons);
     }
 
-    if(driver->ops->unblank) {
-        driver->ops->unblank(driver);
+    if(cons->ops->unblank) {
+        cons->ops->unblank(cons);
     }
 
-    if(driver->ops->write && (driver->consflags & CONSF_RECALL)) {
+    if(cons->ops->write && (cons->consflags & CONSF_RECALL)) {
         const char* kptr;
         size_t ksz;
 
         kptr = &kp_buffer[kp_writepos];
         ksz = strnlen(kptr, KP_BUFSIZE - kp_writepos);
-        driver->ops->write(driver, kptr, ksz);
+        cons->ops->write(cons, kptr, ksz);
 
         kptr = &kp_buffer[0];
         ksz = strnlen(kptr, kp_writepos);
-        driver->ops->write(driver, kptr, ksz);
+        cons->ops->write(cons, kptr, ksz);
     }
 
     spinlock_acquire(&console_lock);
 
-    driver->priv.next = console_head;
-    console_head = driver;
+    cons->priv.next = console_head;
+    console_head = cons;
 
     spinlock_release(&console_lock);
 
     return 0;
 }
 
-int console_driver_unregister(struct console_driver* restrict driver)
+int remove_console(struct console* restrict cons)
 {
-    struct console_driver* it;
+    struct console* it;
 
     spinlock_acquire(&console_lock);
 
-    if(console_head == driver) {
+    if(console_head == cons) {
         console_head = console_head->priv.next;
 
         spinlock_release(&console_lock);
 
-        pr_verbose("console: removing %s", driver->identifier);
+        pr_verbose("console: removing %s", cons->identifier);
 
         return 0;
     }
 
-    struct console_driver* prev = nullptr;
+    struct console* prev = nullptr;
 
     for(it = console_head; it; it = it->priv.next) {
-        if(it == driver) {
+        if(it == cons) {
             if(prev) {
                 prev->priv.next = it->priv.next;
             }
 
             spinlock_release(&console_lock);
 
-            pr_verbose("console: removing %s", driver->identifier);
+            pr_verbose("console: removing %s", cons->identifier);
 
             return 0;
         }
@@ -97,7 +97,7 @@ int console_driver_unregister(struct console_driver* restrict driver)
 
 void console_write(const void* restrict data, size_t size)
 {
-    struct console_driver* it;
+    struct console* it;
 
     spinlock_acquire(&console_lock);
 
@@ -112,9 +112,9 @@ void console_write(const void* restrict data, size_t size)
     spinlock_release(&console_lock);
 }
 
-void console_unblank_all(void)
+void console_unblank(void)
 {
-    struct console_driver* it;
+    struct console* it;
 
     spinlock_acquire(&console_lock);
 

@@ -50,6 +50,6 @@ define_initcall(amd64_hart, INITCALL_STAGE_SMP_HART, INITCALL_ORDER_FIRST)
 
 define_initcall(amd64_panic_halt, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_MIDDLE)
 {
-    panic_ipi_vector = ireq_handler_register(UINT_MAX, &panic_halt_handler, nullptr);
+    panic_ipi_vector = add_ireq_handler(UINT_MAX, &panic_halt_handler, nullptr);
     panic_ipi_vector += ARCH_IREQ_BASE;
 }

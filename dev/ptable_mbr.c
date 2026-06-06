@@ -36,7 +36,7 @@ static_assert(512 == sizeof(struct mbr_sector)); // shutcho damn mouth it's not 
 static int mbr_detect(const struct blk_device* restrict device, void** restrict ptdata)
 {
     struct mbr_sector sector;
-    int retval = blk_device_read(device, 0, 1, &sector);
+    int retval = blk_read(device, 0, 1, &sector);
 
     if(retval < 0) {
         return retval;
@@ -119,5 +119,5 @@ static struct blk_ptable mbr_ptable = {
 
 define_initcall(ptable_mbr, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_FIRST)
 {
-    blk_ptable_register(&mbr_ptable);
+    add_blk_ptable(&mbr_ptable);
 }

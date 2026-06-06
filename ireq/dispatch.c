@@ -14,7 +14,7 @@ struct ireq_entry {
 
 static struct ireq_entry ireq_table[IREQ_TABLE_SIZE] = { 0 };
 
-unsigned ireq_handler_register(unsigned desired_number, ireq_handler_type handler, void* restrict ctxdata)
+unsigned add_ireq_handler(unsigned desired_number, ireq_handler_type handler, void* restrict ctxdata)
 {
     if(desired_number < IREQ_TABLE_SIZE && ireq_table[desired_number].handler == nullptr) {
         ireq_table[desired_number].handler = handler;
@@ -33,7 +33,7 @@ unsigned ireq_handler_register(unsigned desired_number, ireq_handler_type handle
     return UINT_MAX;
 }
 
-void ireq_handler_unregister(unsigned number)
+void remove_ireq_handler(unsigned number)
 {
     ireq_table[number].handler = nullptr;
     ireq_table[number].ctxdata = nullptr;

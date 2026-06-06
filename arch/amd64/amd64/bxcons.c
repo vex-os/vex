@@ -2,7 +2,7 @@
 #include <core/console.h>
 #include <init/initcall.h>
 
-static void bxcons_write(struct console_driver* restrict driver, const void* restrict data, size_t size)
+static void bxcons_write(struct console* restrict driver, const void* restrict data, size_t size)
 {
     const char* psz = data;
 
@@ -11,11 +11,11 @@ static void bxcons_write(struct console_driver* restrict driver, const void* res
     }
 }
 
-static const struct console_driver_ops bxcons_ops = {
+static const struct console_ops bxcons_ops = {
     .write = &bxcons_write,
 };
 
-static struct console_driver bxcons_driver = {
+static struct console bxcons_driver = {
     .ops = &bxcons_ops,
     .identifier = "bxcons",
     .consflags = CONSF_RECALL,
@@ -24,6 +24,6 @@ static struct console_driver bxcons_driver = {
 define_initcall(amd64_bxcons, INITCALL_STAGE_BSP_EARLY, INITCALL_ORDER_FIRST)
 {
     if(0xE9 == pmread8(0xE9)) {
-        console_driver_register(&bxcons_driver);
+        add_console(&bxcons_driver);
     }
 }

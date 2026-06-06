@@ -66,11 +66,11 @@ struct isa_driver {
     const char* identifier;
 };
 
-int isa_device_register(struct isa_device* restrict device);
-int isa_device_unregister(struct isa_device* restrict device);
+int add_isa_device(struct isa_device* restrict device);
+int remove_isa_device(struct isa_device* restrict device);
 
-int isa_driver_register(struct isa_driver* restrict driver);
-int isa_driver_unregister(struct isa_driver* restrict driver);
+int add_isa_driver(struct isa_driver* restrict driver);
+int remove_isa_driver(struct isa_driver* restrict driver);
 
 struct isa_resource* isa_get_resource(struct isa_device* restrict device, unsigned type, unsigned index) __nodiscard;
 

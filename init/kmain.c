@@ -476,7 +476,7 @@ void __noreturn kmain(void)
 
     enable_interrupts();
 
-    vfs_mount("fat", "/", blk_device_find("ada0n1p1"), nullptr);
+    vfs_mount("fat", "/", find_blk_device("ada0n1p1"), nullptr);
 
     struct vnode* root_node = nullptr;
     struct vnode* dev1_node = nullptr;

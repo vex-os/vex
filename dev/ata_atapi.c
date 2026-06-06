@@ -64,14 +64,14 @@ static const struct blk_device_ops atapi_blk_device_ops = {
     .flush = &atapi_flush,
 };
 
-int atapi_register(struct atapi_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index)
+int add_atapi_device(struct atapi_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index)
 {
     device->base.ops = &atapi_blk_device_ops;
 
-    return blk_device_register_root(&device->base, name, iterator, index);
+    return add_blk_device_root(&device->base, name, iterator, index);
 }
 
-void atapi_unregister(struct atapi_device* restrict device)
+void remove_atapi_device(struct atapi_device* restrict device)
 {
-    blk_device_unregister(&device->base);
+    remove_blk_device(&device->base);
 }

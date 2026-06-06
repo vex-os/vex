@@ -26,7 +26,7 @@ static int chr_device_register_internal(struct chr_device* restrict device)
     return 0;
 }
 
-int chr_device_register(struct chr_device* restrict device, struct chr_name* restrict name)
+int add_chr_device(struct chr_device* restrict device, struct chr_name* restrict name)
 {
     device->priv.name = name;
     device->priv.name_iterator = 0;
@@ -36,7 +36,7 @@ int chr_device_register(struct chr_device* restrict device, struct chr_name* res
     return chr_device_register_internal(device);
 }
 
-int chr_device_register_custom(struct chr_device* restrict device, const char* restrict name)
+int add_chr_device_named(struct chr_device* restrict device, const char* restrict name)
 {
     device->priv.name = nullptr;
     device->priv.name_iterator = 0;
@@ -46,7 +46,7 @@ int chr_device_register_custom(struct chr_device* restrict device, const char* r
     return chr_device_register_internal(device);
 }
 
-int chr_device_unregister(struct chr_device* restrict device)
+int remove_chr_device(struct chr_device* restrict device)
 {
     struct chr_device* it;
     struct chr_device* prev = nullptr;
@@ -69,7 +69,7 @@ int chr_device_unregister(struct chr_device* restrict device)
     return -ENODEV;
 }
 
-const struct chr_device* chr_device_find(const char* restrict name)
+const struct chr_device* find_chr_device(const char* restrict name)
 {
     struct chr_device* it;
 

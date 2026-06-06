@@ -16,7 +16,7 @@ static void compute_mult_shift(struct clocksrc* restrict src, uint64_t scale, ui
     src->priv.mult = (NSEC_PER_SEC << src->priv.shift) / freq;
 }
 
-int clocksrc_register_internal(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
+int add_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
 {
     struct clocksrc* it;
 
@@ -44,7 +44,7 @@ int clocksrc_register_internal(struct clocksrc* restrict src, uint64_t scale, ui
     return 0;
 }
 
-int clocksrc_calibrate_internal(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
+int calibrate_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
 {
     struct clocksrc* it;
 
@@ -58,7 +58,7 @@ int clocksrc_calibrate_internal(struct clocksrc* restrict src, uint64_t scale, u
     return -ENOENT;
 }
 
-int clocksrc_unregister(struct clocksrc* restrict src)
+int remove_clocksrc(struct clocksrc* restrict src)
 {
     struct clocksrc* it;
 
@@ -104,7 +104,7 @@ struct clocksrc* active_clocksrc(void)
     return clocksrc_active;
 }
 
-uint64_t clocksrc_read_nsec(void)
+uint64_t clocksrc_nsec(void)
 {
     if(clocksrc_active == nullptr) {
         return UINT64_C(0);

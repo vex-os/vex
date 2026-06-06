@@ -152,7 +152,7 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
 
     pr_verbose("acpi_isa: found %s: num_resources=%u", device->identifier, context.num_resources);
 
-    isa_device_register(device);
+    add_isa_device(device);
 
     uacpi_free_namespace_node_info(info);
 
