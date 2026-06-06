@@ -64,7 +64,7 @@ bool cmdline_contains(const struct cmdline* restrict cmdl, const char* restrict 
                 return true;
             }
 
-            if(token_size > option_size && token[option_size] == '-' && 0 == strncasecmp(token, option, option_size)) {
+            if(token_size > option_size && token[option_size] == '=' && 0 == strncasecmp(token, option, option_size)) {
                 return true;
             }
 
