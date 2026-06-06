@@ -144,7 +144,7 @@ static void* bar_map_mmio(struct pci_device* restrict device, unsigned bar_index
     size_t size = bar_length(device, bar_index);
 
     for(size_t i = 0; i < size; i += PAGE_SIZE) {
-        vmm_map(&sys_pagemap, (uintptr_t)phys_to_virt(phys + i), phys + i, VPROT_RW | VPROT_NOCACHE);
+        vmm_map(&sys_pagemap, (uintptr_t)phys_to_virt(phys + i), phys + i, VPROT_MMIO);
     }
 
     return phys_to_virt(phys);
@@ -359,7 +359,7 @@ void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index)
 {
     kassert(bar_index < 6);
 
-    if(device->priv.bars_mapped && (1U << bar_index)) {
+    if(device->priv.bars_mapped & (1U << bar_index)) {
         struct pci_bar* bar = &device->priv.bars[bar_index];
 
         if(bar->type == PCI_BAR_TYPE_MMIO) {

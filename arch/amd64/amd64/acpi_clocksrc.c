@@ -68,7 +68,7 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
 
             int retval = vmm_map(&sys_pagemap, (uintptr_t)(priv->mmio), fadt->x_pm_tmr_blk.address, VPROT_MMIO);
 
-            if(retval < 0) {
+            if(retval < 0 && retval != -EEXIST) {
                 pr_warning("acpi: vmm_map failed: %s", strerror(retval));
 
                 kfree(priv);
