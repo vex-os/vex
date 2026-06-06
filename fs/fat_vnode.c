@@ -1,15 +1,16 @@
-#include <core/endian.h>
-#include <core/errno.h>
-#include <dev/blk_device.h>
-#include <fs/fat.h>
-#include <fs/stat.h>
-#include <fs/vfs_dirent.h>
-#include <fs/vfs_mount.h>
-#include <fs/vfs_vnode.h>
-#include <lib/ctype.h>
-#include <lib/string.h>
-#include <lib/strings.h>
-#include <mm/slab.h>
+#include <ctype.h>
+#include <string.h>
+#include <strings.h>
+#include <sys/blk_device.h>
+#include <sys/endian.h>
+#include <sys/errno.h>
+#include <sys/slab.h>
+#include <sys/stat.h>
+#include <sys/vfs_dirent.h>
+#include <sys/vfs_mount.h>
+#include <sys/vfs_vnode.h>
+
+#include "fat.h"
 
 static ino_t fat_nodenumber(const struct fat_vfs_context* restrict fs, uintptr_t dir_cluster, size_t index)
 {
@@ -72,7 +73,7 @@ static void shortname_parts(const char* restrict filename, char stem[6], unsigne
     const char* stem_end;
 
     if(last_dot == nullptr) {
-        stem_end = filename + strnlen(filename, PATH_NAME_SIZE);
+        stem_end = filename + strnlen(filename, NAME_SIZE);
     }
     else {
         stem_end = last_dot;
@@ -208,7 +209,7 @@ static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict na
             return retval;
         }
 
-        if(strncasecmp(dirent.full_name, name, PATH_NAME_MAX)) {
+        if(strncasecmp(dirent.full_name, name, NAME_MAX)) {
             continue;
         }
 
@@ -250,8 +251,8 @@ static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restric
             out->nodetype = VNODE_FILE;
         }
 
-        memset(out->name, 0, PATH_NAME_SIZE);
-        kstrncpy(out->name, entry.full_name, PATH_NAME_SIZE);
+        memset(out->name, 0, NAME_SIZE);
+        kstrncpy(out->name, entry.full_name, NAME_SIZE);
 
         return 0;
     }
@@ -274,7 +275,7 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
         return vnode_lookup(node, name, out);
     }
 
-    size_t name_len = strnlen(name, PATH_NAME_SIZE);
+    size_t name_len = strnlen(name, NAME_SIZE);
 
     unsigned num_lfn = name_len + 12;
     num_lfn /= 13;
@@ -320,7 +321,7 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
         return -ENOSPC;
     }
 
-    kstrncpy(dirent.full_name, name, PATH_NAME_SIZE);
+    kstrncpy(dirent.full_name, name, NAME_SIZE);
 
     if(type == VNODE_DIRECTORY) {
         dirent.base.attribute = FAT_ATTR_DIRECTORY;

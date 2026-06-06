@@ -1,17 +1,18 @@
-#include <core/errno.h>
-#include <core/spinlock.h>
-#include <dev/blk_device.h>
-#include <dev/blk_event.h>
-#include <dev/chr_device.h>
-#include <dev/chr_event.h>
-#include <fs/devfs.h>
-#include <fs/vfs_mount.h>
-#include <fs/vfs_vcache.h>
-#include <fs/vfs_vnode.h>
-#include <init/initcall.h>
-#include <lib/string.h>
-#include <lib/strings.h>
-#include <mm/slab.h>
+#include <string.h>
+#include <strings.h>
+#include <sys/blk_device.h>
+#include <sys/blk_event.h>
+#include <sys/chr_device.h>
+#include <sys/chr_event.h>
+#include <sys/errno.h>
+#include <sys/initcall.h>
+#include <sys/slab.h>
+#include <sys/spinlock.h>
+#include <sys/vfs_mount.h>
+#include <sys/vfs_vcache.h>
+#include <sys/vfs_vnode.h>
+
+#include "devfs.h"
 
 int devfs_insert(struct vfs* restrict fs, const char* restrict name, struct vnode* restrict node)
 {

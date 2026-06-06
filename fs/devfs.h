@@ -2,16 +2,16 @@
 #define B4D08648_671B_4E1D_9F33_80B21DA77044
 #pragma once
 
-#include <core/cdefs.h>
-#include <core/spinlock.h>
-#include <fs/vfs_path.h>
+#include <sys/cdefs.h>
+#include <sys/spinlock.h>
+#include <sys/vfs_path.h>
 
 struct blk_device;
 struct chr_device;
 struct vfs;
 
 struct devfs_node {
-    char name[PATH_NAME_SIZE];
+    char name[NAME_SIZE];
     struct devfs_node* next;
     struct vnode* node;
 };

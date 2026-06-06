@@ -1,10 +1,10 @@
-#include <arch/interrupts.h>
-#include <arch/ireq.h>
-#include <bus/isa.h>
-#include <core/errno.h>
-#include <core/kprintf.h>
-#include <init/initcall.h>
-#include <lib/string.h>
+#include <string.h>
+#include <sys.arch/intr.h>
+#include <sys.arch/ireq.h>
+#include <sys/errno.h>
+#include <sys/initcall.h>
+#include <sys/isa.h>
+#include <sys/kprintf.h>
 
 static void i8042_wait_write(struct pmio_region* restrict region)
 {
