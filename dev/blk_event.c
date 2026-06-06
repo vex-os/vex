@@ -29,7 +29,7 @@ static void blk_event_log(unsigned event, const struct blk_device* restrict devi
 
         case BLK_EVENT_MEDIA_CONNECTED:
             hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), device->sector_count * device->sector_size);
-            pr_verbose("blk_event: media connected: %s: %s [%zus x %zu]", device->identifier, hrsize_buffer, device->sector_count,
+            pr_verbose("blk_event: media connected: %s: %s [%zux%zu]", device->identifier, hrsize_buffer, device->sector_count,
                 device->sector_size);
             break;
 
@@ -39,7 +39,7 @@ static void blk_event_log(unsigned event, const struct blk_device* restrict devi
 
         case BLK_EVENT_PARTITION_ADDED:
             hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), device->sector_count * device->sector_size);
-            pr_verbose("blk_event: partition added: %s: %s [%zus x %zu]", device->identifier, hrsize_buffer, device->sector_count,
+            pr_verbose("blk_event: partition added: %s: %s [%zux%zu]", device->identifier, hrsize_buffer, device->sector_count,
                 device->sector_size);
             break;
 
