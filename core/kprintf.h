@@ -22,7 +22,7 @@
 #define KP_WARNING  4U ///< Warning messages, definitely recoverable
 #define KP_NOTICE   5U ///< Normal but important messages
 #define KP_INFORM   6U ///< Informational messages
-#define KP_DEBUG    7U ///< Debug-level messages
+#define KP_VERBOSE  7U ///< Debug-level messages
 
 extern size_t kp_writepos;
 extern char kp_buffer[KP_BUFSIZE];
@@ -38,6 +38,6 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap) __printflike(2,
 #define pr_warning(fmt, ...)  kprintf(KP_WARNING, (fmt), ##__VA_ARGS__)
 #define pr_notice(fmt, ...)   kprintf(KP_NOTICE, (fmt), ##__VA_ARGS__)
 #define pr_inform(fmt, ...)   kprintf(KP_INFORM, (fmt), ##__VA_ARGS__)
-#define pr_debug(fmt, ...)    kprintf(KP_DEBUG, (fmt), ##__VA_ARGS__)
+#define pr_verbose(fmt, ...)  kprintf(KP_VERBOSE, (fmt), ##__VA_ARGS__)
 
 #endif /* CF91645C_FD7B_4867_ACAF_DFEFD227B222 */

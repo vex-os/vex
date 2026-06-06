@@ -26,7 +26,7 @@ int clocksrc_register_internal(struct clocksrc* restrict src, uint64_t scale, ui
         }
     }
 
-    pr_debug("clocksrc: adding %s: rating=%u", src->identifier, src->rating);
+    pr_verbose("clocksrc: adding %s: rating=%u", src->identifier, src->rating);
 
     compute_mult_shift(src, scale, frequency);
     src->priv.last = src->ops->read(src) & src->mask;
@@ -38,7 +38,7 @@ int clocksrc_register_internal(struct clocksrc* restrict src, uint64_t scale, ui
     if(clocksrc_active == nullptr || src->rating > clocksrc_active->rating) {
         clocksrc_active = src;
 
-        pr_debug("clocksrc: %s is now active", src->identifier);
+        pr_verbose("clocksrc: %s is now active", src->identifier);
     }
 
     return 0;
@@ -92,7 +92,7 @@ int clocksrc_unregister(struct clocksrc* restrict src)
         }
 
         if(clocksrc_active) {
-            pr_debug("clocksrc: %s is now active", clocksrc_active->identifier);
+            pr_verbose("clocksrc: %s is now active", clocksrc_active->identifier);
         }
     }
 

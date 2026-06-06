@@ -86,8 +86,8 @@ define_initcall(kprintf_cmdline, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_LAS
     const char* argument = cmdline_argument(&sys_cmdline, "loglevel");
 
     if(argument) {
-        if(0 == strcasecmp(argument, "debug")) {
-            loglevel = KP_DEBUG;
+        if(0 == strcasecmp(argument, "verbose")) {
+            loglevel = KP_VERBOSE;
         }
         else if(0 == strcasecmp(argument, "inform")) {
             loglevel = KP_INFORM;

@@ -39,15 +39,15 @@ void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* msg)
             break;
 
         case UACPI_LOG_TRACE:
-            sv = KP_DEBUG;
+            sv = KP_VERBOSE;
             break;
 
         case UACPI_LOG_DEBUG:
-            sv = KP_DEBUG;
+            sv = KP_VERBOSE;
             break;
 
         default:
-            sv = KP_DEBUG;
+            sv = KP_VERBOSE;
             break;
     }
 
@@ -222,13 +222,13 @@ uacpi_status uacpi_kernel_pci_write32(uacpi_handle handle, uacpi_size off, uacpi
 uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* request)
 {
     if(request->type == UACPI_FIRMWARE_REQUEST_TYPE_BREAKPOINT) {
-        pr_debug("uacpi: AML breakpoint hit");
+        pr_verbose("uacpi: AML breakpoint hit");
         return UACPI_STATUS_OK;
     }
 
     if(request->type == UACPI_FIRMWARE_REQUEST_TYPE_FATAL) {
         unsigned long long arg = request->fatal.arg;
-        pr_debug("uacpi: AML fatal: type=0x%x code=0x%x arg=0x%llx", request->fatal.type, request->fatal.code, arg);
+        pr_verbose("uacpi: AML fatal: type=0x%x code=0x%x arg=0x%llx", request->fatal.type, request->fatal.code, arg);
         return UACPI_STATUS_OK;
     }
 

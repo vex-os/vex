@@ -150,7 +150,7 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
     device->priv.acpi_node = node;
     device->ctxdata = nullptr;
 
-    pr_debug("acpi_isa: device hid=%s resources=%u", device->identifier, context.num_resources);
+    pr_verbose("acpi_isa: device hid=%s resources=%u", device->identifier, context.num_resources);
 
     isa_device_register(device);
 
@@ -166,6 +166,6 @@ define_initcall(init_acpi_isa, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_LATE)
         nullptr);
 
     if(uacpi_unlikely_error(status)) {
-        pr_debug("acpi_isa: %s", uacpi_status_to_string(status));
+        pr_verbose("acpi_isa: %s", uacpi_status_to_string(status));
     }
 }

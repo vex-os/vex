@@ -95,7 +95,7 @@ static int ps2kbd_probe(struct isa_device* restrict device)
         return retval;
     }
 
-    pr_debug("ps2kbd: probed %s, command_byte=0x%02x", device->identifier, (unsigned)command_byte);
+    pr_verbose("ps2kbd: probed %s, command_byte=0x%02x", device->identifier, (unsigned)command_byte);
 
     return 0;
 }

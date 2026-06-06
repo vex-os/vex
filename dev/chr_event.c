@@ -17,11 +17,11 @@ static void log_chr_event(unsigned event, const struct chr_device* restrict devi
 {
     switch(event) {
         case CHR_EVENT_DEVICE_ADDED:
-            pr_debug("chr_event: device added: %s", device->identifier);
+            pr_verbose("chr_event: device added: %s", device->identifier);
             break;
 
         case CHR_EVENT_DEVICE_REMOVED:
-            pr_debug("chr_event: device removed: %s", device->identifier);
+            pr_verbose("chr_event: device removed: %s", device->identifier);
             break;
     }
 }
