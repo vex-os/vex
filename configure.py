@@ -145,37 +145,18 @@ def parse_filelist(path):
             if all(c in cur_options or c in cur_devices for c in conditions):
                 cur_filelist.add(source)
 
-def generate_makefile(path):
-    global cur_arch
-    global cur_envt
-    global cur_sysname
-    global cur_release
-    global cur_options
-    global cur_devices
-    global cur_filelist
-
-    with open(path, 'w') as f:
-        f.write(f"ARCH := {cur_arch}\n")
-        f.write(f"ENVT := {cur_envt}\n")
-        f.write(f"SYSNAME := {cur_sysname}\n")
-        f.write(f"RELEASE := {cur_release}\n")
-        for name, value in cur_options.items():
-            if value is True:
-                f.write(f"override CFLAGS += -D{name}\n")
-            else:
-                f.write(f"override CFLAGS += -D{name}={value}\n")
-        f.write(f"SOURCES :=\n")
-        for source in sorted(cur_filelist):
-            f.write(f"SOURCES += {source}\n")
-
 def main():
     config_name = sys.argv[1] if len(sys.argv) > 1 else "default"
     config_path = os.path.join(CONF_DIR, f"config.{config_name}.conf")
 
     parse_config(config_path)
 
-    parse_filelist(os.path.join(CONF_DIR, "files.generic.lst"))
-    parse_filelist(os.path.join(CONF_DIR, f"files.{cur_arch}.lst"))
+    parse_filelist(os.path.join(CONF_DIR, f"files.arch.{cur_arch}.lst"))
+    parse_filelist(os.path.join(CONF_DIR, f"files.device.lst"))
+    parse_filelist(os.path.join(CONF_DIR, f"files.filesys.lst"))
+    parse_filelist(os.path.join(CONF_DIR, f"files.kernel.lst"))
+    parse_filelist(os.path.join(CONF_DIR, f"files.libk.lst"))
+    parse_filelist(os.path.join(CONF_DIR, f"files.misc.lst"))
 
     config_path = os.path.join(ROOT_DIR, ".configuration.mk")
     config_date = datetime.now().strftime("%Y-%m-%d")
