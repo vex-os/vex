@@ -1,0 +1,14 @@
+fs/devfs.c
+fs/devfs_blk.c
+fs/devfs_chr.c
+fs/devfs_dir.c
+
+fs/echfs.c
+fs/echfs_block.c
+fs/echfs_dirent.c
+fs/echfs_vnode.c
+
+fs/fat.c
+fs/fat_cluster.c
+fs/fat_dirent.c
+fs/fat_vnode.c

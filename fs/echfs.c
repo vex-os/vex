@@ -64,6 +64,10 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 
     memset(context, 0, sizeof(struct echfs_vfs_context));
 
+    context->param_readonly = false;
+    context->param_readonly = context->param_readonly || cmdline_contains(params, "ro");
+    context->param_readonly = context->param_readonly || cmdline_contains(params, "readonly");
+
     context->device = device;
     context->block_size = block_size;
     context->sectors_per_block = sectors_per_block;

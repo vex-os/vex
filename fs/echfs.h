@@ -53,6 +53,8 @@ static_assert(256 == sizeof(struct echfs_dirent));
 struct echfs_vfs_context {
     const struct blk_device* device;
 
+    bool param_readonly;
+
     uint64_t block_size;
     uint64_t sectors_per_block;
     uint64_t total_blocks;
