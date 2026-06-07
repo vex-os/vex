@@ -12,25 +12,25 @@
 #define __k_S_IFSOCK ((__k_mode_t)(0x7000))
 #define __k_S_IFMT   ((__k_mode_t)(0xF000))
 
-#define __k_S_IRUSR ((__k_mode_t)(0x0001))
-#define __k_S_IWUSR ((__k_mode_t)(0x0002))
-#define __k_S_IXUSR ((__k_mode_t)(0x0004))
+#define __k_S_IXOTH ((__k_mode_t)(0x0001))
+#define __k_S_IWOTH ((__k_mode_t)(0x0002))
+#define __k_S_IROTH ((__k_mode_t)(0x0004))
 
-#define __k_S_IRGRP ((__k_mode_t)(0x0008))
+#define __k_S_IXGRP ((__k_mode_t)(0x0008))
 #define __k_S_IWGRP ((__k_mode_t)(0x0010))
-#define __k_S_IXGRP ((__k_mode_t)(0x0020))
+#define __k_S_IRGRP ((__k_mode_t)(0x0020))
 
-#define __k_S_IROTH ((__k_mode_t)(0x0040))
-#define __k_S_IWOTH ((__k_mode_t)(0x0080))
-#define __k_S_IXOTH ((__k_mode_t)(0x0100))
+#define __k_S_IXUSR ((__k_mode_t)(0x0040))
+#define __k_S_IWUSR ((__k_mode_t)(0x0080))
+#define __k_S_IRUSR ((__k_mode_t)(0x0100))
 
-#define __k_S_IRWXU (__k_S_IRUSR | __k_S_IWUSR | __k_S_IXUSR)
-#define __k_S_IRWXG (__k_S_IRGRP | __k_S_IWGRP | __k_S_IXGRP)
 #define __k_S_IRWXO (__k_S_IROTH | __k_S_IWOTH | __k_S_IXOTH)
+#define __k_S_IRWXG (__k_S_IRGRP | __k_S_IWGRP | __k_S_IXGRP)
+#define __k_S_IRWXU (__k_S_IRUSR | __k_S_IWUSR | __k_S_IXUSR)
 
-#define __k_S_ISUID ((__k_mode_t)(0x0200))
+#define __k_S_ISVTX ((__k_mode_t)(0x0200))
 #define __k_S_ISGID ((__k_mode_t)(0x0400))
-#define __k_S_ISVTX ((__k_mode_t)(0x0800))
+#define __k_S_ISUID ((__k_mode_t)(0x0800))
 
 struct __k_stat {
     __k_dev_t st_dev;

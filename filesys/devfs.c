@@ -45,6 +45,8 @@ int devfs_insert(struct vfs* restrict fs, const char* restrict name, struct vnod
 
     spinlock_release(&state->lock);
 
+    state->num_devices += 1;
+
     return 0;
 }
 
@@ -66,6 +68,8 @@ void devfs_remove(struct vfs* restrict fs, const char* restrict name)
             break;
         }
     }
+
+    state->num_devices -= 1;
 
     spinlock_release(&state->lock);
 }
@@ -114,6 +118,19 @@ static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     return 0;
 }
 
+static int devfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
+{
+    struct devfs_state* state = fs->ctxdata;
+
+    memset(out, 0, sizeof(struct k_statvfs));
+
+    out->f_files = state->num_devices;
+    out->f_fsid = (uint32_t)(uintptr_t)(fs);
+    out->f_namemax = NAME_MAX;
+
+    return 0;
+}
+
 static int devfs_unmount(struct vfs* restrict fs)
 {
     struct devfs_state* state = fs->ctxdata;
@@ -140,6 +157,7 @@ static int devfs_unmount(struct vfs* restrict fs)
 
 static const struct vfs_ops devfs_ops = {
     .mount = &devfs_mount,
+    .statvfs = &devfs_statvfs,
     .unmount = &devfs_unmount,
 };
 

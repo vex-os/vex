@@ -152,6 +152,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     context->sector_size = sector_size;
     context->table_size_s = fat_size;
     context->num_tables = base->tables_count;
+    context->cluster_count = cluster_count;
 
     if(filesystem_type == FAT_TYPE_32) {
         context->fsinfo_lba = le16toh(boot->fat32.fs_info);
@@ -223,6 +224,74 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     fs->root = root;
     fs->ctxdata = context;
+
+    return 0;
+}
+
+static int fat_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
+{
+    struct fat_vfs_context* context = fs->ctxdata;
+
+    memset(out, 0, sizeof(struct k_statvfs));
+
+    size_t free_clusters = 0;
+    size_t total = context->cluster_count;
+
+    if(context->filesystem_type == FAT_TYPE_32) {
+        const uint32_t* fat = (const uint32_t*)(context->cache);
+
+        for(size_t i = 2; i < total + 2; ++i) {
+            if((le32toh(fat[i]) & UINT32_C(0x0FFFFFFF)) == 0) {
+                free_clusters += 1;
+            }
+        }
+    }
+    else if(context->filesystem_type == FAT_TYPE_16) {
+        const uint16_t* fat = (const uint16_t*)(context->cache);
+
+        for(size_t i = 2; i < total + 2; ++i) {
+            if(le16toh(fat[i]) == 0) {
+                free_clusters += 1;
+            }
+        }
+    }
+    else {
+        for(size_t i = 2; i < total + 2; i++) {
+            size_t byte_off = i + i / 2;
+
+            uint16_t value = UINT16_C(0);
+            value |= context->cache[byte_off];
+            value |= ((uint16_t)context->cache[byte_off + 1] << 8);
+
+            if(i & 1) {
+                value >>= 4;
+            }
+            else {
+                value &= 0x0FFF;
+            }
+
+            if(value == 0) {
+                free_clusters += 1;
+            }
+        }
+    }
+
+    out->f_bsize = context->sector_size;
+    out->f_frsize = context->cluster_size_b;
+    out->f_blocks = total;
+    out->f_bfree = free_clusters;
+
+    if(!context->param_readonly) {
+        out->f_bavail = free_clusters;
+    }
+
+    out->f_fsid = (uint32_t)(uintptr_t)(fs);
+    out->f_flag = ST_NOSUID;
+    out->f_namemax = 255;
+
+    if(context->param_readonly) {
+        out->f_flag |= ST_RDONLY;
+    }
 
     return 0;
 }
@@ -341,6 +410,7 @@ static int fat_sync(struct vfs* restrict fs)
 
 static const struct vfs_ops fat_vfs_ops = {
     .mount = &fat_mount,
+    .statvfs = &fat_statvfs,
     .fillnode = &fat_fillnode,
     .unmount = &fat_unmount,
     .sync = &fat_sync,

@@ -19,6 +19,7 @@ struct devfs_node {
 struct devfs_state {
     spinlock_type lock;
     struct devfs_node* head;
+    size_t num_devices;
 };
 
 extern const struct vnode_ops devfs_dir_ops;
