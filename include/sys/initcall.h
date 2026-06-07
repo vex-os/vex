@@ -26,6 +26,7 @@
 #define INITCALL_STAGE_SMP_ARCH  ".smp.0100000" ///< [SMP] Arch-specific per-hart init (GDT/IDT load, TSS)
 #define INITCALL_STAGE_SMP_IREQ  ".smp.2100000" ///< [SMP] Local interrupt controller (LAPIC, etc.)
 #define INITCALL_STAGE_SMP_TIMER ".smp.2200000" ///< [SMP] Per-hart clockevents initialized (LAPIC timer, etc.)
+#define INITCALL_STAGE_SMP_LATE  ".smp.ff00000" ///< [SMP] Anything that can wait until the end of per-hart initialization
 
 #define INITCALL_ORDER_FIRST  ".0"
 #define INITCALL_ORDER_EARLY  ".3"

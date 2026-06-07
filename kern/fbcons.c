@@ -6,6 +6,7 @@
 #include <sys/kprintf.h>
 #include <sys/malloc.h>
 #include <sys/panic.h>
+
 #include <sys/sched.h>
 #include <sys/spinlock.h>
 
@@ -447,8 +448,9 @@ static spinlock_type firework_lock = SPINLOCK_INIT;
 #define FIREWORK_ROW(h) ((h) * 2 + 2)
 
 #define DEFINE_FIREWORK(h, s)                                                     \
-    static void __noreturn firework_task_##h##_##s(void)                          \
+    static int16_t firework_task_##h##_##s(void* ctxdata)                        \
     {                                                                             \
+        (void)ctxdata;                                                            \
         size_t i = (h + s);                                                       \
         for(;;) {                                                                 \
             if(!spinlock_try_acquire(&firework_lock)) {                           \
@@ -458,7 +460,7 @@ static spinlock_type firework_lock = SPINLOCK_INIT;
             render_cell(FIREWORK_COL(s), FIREWORK_ROW(h), firework_chars[i & 3]); \
             i += 1;                                                               \
             spinlock_release(&firework_lock);                                     \
-            sched_sleep_msec(500);                                                \
+            sched_sleep_msec(50 + 25 * h);                                        \
         }                                                                         \
     }
 
@@ -473,9 +475,9 @@ DEFINE_HART_FIREWORKS(1)
 DEFINE_HART_FIREWORKS(2)
 DEFINE_HART_FIREWORKS(3)
 
-define_initcall(fbcons_fireworks, INITCALL_STAGE_SMP_TIMER, INITCALL_ORDER_LATE)
+define_initcall(fbcons_fireworks, INITCALL_STAGE_SMP_LATE, INITCALL_ORDER_LATE)
 {
-    static void (* const all_entries[4][4])(void) = {
+    static task_entry_type const all_entries[4][4] = {
         { firework_task_0_0, firework_task_0_1, firework_task_0_2, firework_task_0_3 },
         { firework_task_1_0, firework_task_1_1, firework_task_1_2, firework_task_1_3 },
         { firework_task_2_0, firework_task_2_1, firework_task_2_2, firework_task_2_3 },
@@ -487,10 +489,10 @@ define_initcall(fbcons_fireworks, INITCALL_STAGE_SMP_TIMER, INITCALL_ORDER_LATE)
         return;
 
     for(size_t i = 0U; i < 4U; ++i) {
-        struct sched_task* task = create_task(nullptr, all_entries[hart_idx][i]);
+        struct sched_task* task = create_task(nullptr, all_entries[hart_idx][i], nullptr);
         if(task == nullptr)
             panic("fbcons: firework task alloc failed");
-        sched_enqueue(task);
+        enqueue_task(task);
     }
 }
 

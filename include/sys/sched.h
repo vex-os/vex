@@ -9,50 +9,49 @@
 struct vmm_pagemap;
 
 enum {
-    SCHED_TASK_READY,
-    SCHED_TASK_RUNNING,
-    SCHED_TASK_BLOCKED,
-    SCHED_TASK_ZOMBIE, // bruuuuuuuuh
+    TASK_WAIT,
+    TASK_EXEC,
+    TASK_DEAD,
 };
 
 struct sched_task;
 struct sched_process {
-    pid_t procnumber;
     struct sched_process* parent;
     struct sched_task* tasks;
     struct vmm_pagemap* vm;
+    pid_t pidnumber;
 };
 
 struct sched_task {
-    uint32_t tasknumber;
-    uint32_t state;
     uintptr_t kstack;
+
     struct sched_process* owner;
-    struct sched_task* ls_next;
-    struct sched_task* rq_next;
-    struct sched_task* sq_next;
-    uint64_t sleep_deadline_nsec;
+    struct sched_task* list_next;
+    struct sched_task* runq_next;
+
+    uint32_t state;
+    uint32_t id;
+
+    uint64_t deadline;
+
+    void* entry_ctxdata;
+    int16_t entry_retval;
 };
 
-static_assert(8 == offsetof(struct sched_task, kstack));
+static_assert(0 == offsetof(struct sched_task, kstack));
 
-void sched_switch(struct sched_task* restrict prev, struct sched_task* restrict next);
-void sched_tick(void);
+typedef int16_t (*task_entry_type)(void* restrict ctxdata);
 
-struct sched_task* create_task(struct sched_process* restrict owner, void (*entry)(void));
+void sched_do_switch(struct sched_task* restrict prev, struct sched_task* restrict next);
+void sched_do_preempt(void);
 
-void sched_enqueue(struct sched_task* restrict task);
+struct sched_task* create_task(struct sched_process* restrict owner, task_entry_type entry, void* restrict ctxdata);
+void destroy_task(struct sched_task* restrict task);
+void enqueue_task(struct sched_task* restrict task);
+
 void sched_yield(void);
 void sched_sleep_nsec(uint64_t nsec);
-
-static __always_inline void sched_sleep_usec(uint64_t usec)
-{
-    sched_sleep_nsec(usec * 1000);
-}
-
-static __always_inline void sched_sleep_msec(uint64_t msec)
-{
-    sched_sleep_nsec(msec * 1000000);
-}
+void sched_sleep_usec(uint64_t usec);
+void sched_sleep_msec(uint64_t msec);
 
 #endif /* F65619C6_8095_4DD9_89C5_319FEE71DB72 */

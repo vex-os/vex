@@ -13,47 +13,50 @@
 #include <sys/sched.h>
 #include <sys/slab.h>
 
-#define KSTACK_SIZE PAGE_SIZE
+#define STACK_SIZE PAGE_SIZE
 
 // We allocate tasks and processes using a faster slab allocator
 // compared to a slower general-purpose kmalloc, but we have to fit
 // into slab's limitation of only allowing up to quarter of a page for a size
 static_assert(sizeof(struct sched_task) <= (PAGE_SIZE / 4));
 
-static uint32_t next_tasknumber = 0;
+static uint32_t next_taskid = 0;
 
-static void wake_tasks(struct hart_local* restrict hart)
+static void push_tail(struct hart_local* restrict hart, struct sched_task* restrict task)
 {
-    uint64_t now = clocksrc_nsec();
+    task->runq_next = nullptr;
 
-    struct sched_task** queue = &hart->sq;
-
-    while(*queue) {
-        struct sched_task* task = *queue;
-
-        if(now >= task->sleep_deadline_nsec) {
-            *queue = task->sq_next;
-
-            task->sq_next = nullptr;
-            task->state = SCHED_TASK_READY;
-
-            task->rq_next = hart->rq;
-            hart->rq = task;
-        }
-        else {
-            queue = &task->sq_next;
-        }
+    if(hart->runq == nullptr) {
+        hart->runq = task;
+        return;
     }
+
+    struct sched_task* tail = hart->runq;
+
+    while(tail->runq_next) {
+        tail = tail->runq_next;
+    }
+
+    tail->runq_next = task;
 }
 
-static void __noreturn idle_task(void)
+void __used sched_task_exit(int16_t retval)
 {
-    for(;;) {
-        stop_hart();
-    }
+    struct hart_local* hart = this_hart();
+    struct sched_task* task = hart->task;
+
+    task->entry_retval = retval;
+    task->state = TASK_DEAD;
+
+    hart->task = hart->idle;
+    hart->idle->state = TASK_EXEC;
+
+    sched_do_switch(task, hart->idle);
+
+    unreachable();
 }
 
-struct sched_task* create_task(struct sched_process* restrict owner, void (*entry)(void))
+struct sched_task* create_task(struct sched_process* restrict owner, task_entry_type entry, void* restrict ctxdata)
 {
     struct sched_task* task = slab_alloc(sizeof(struct sched_task));
 
@@ -68,102 +71,95 @@ struct sched_task* create_task(struct sched_process* restrict owner, void (*entr
         return nullptr;
     }
 
-    task->tasknumber = atomic_fetch_add(&next_tasknumber, 1, ATOMIC_RELAXED);
-    task->state = SCHED_TASK_READY;
+    task->id = atomic_fetch_add(&next_taskid, 1, ATOMIC_RELAXED);
+    task->state = TASK_WAIT;
     task->owner = owner;
-    task->ls_next = nullptr;
-    task->rq_next = nullptr;
-    task->sq_next = nullptr;
+    task->list_next = nullptr;
+    task->runq_next = nullptr;
+    task->deadline = 0;
+    task->entry_ctxdata = ctxdata;
+    task->entry_retval = 0;
 
-    uintptr_t* stack_ptr = phys_to_virt(stack + KSTACK_SIZE);
-    stack_ptr = setup_task_stack(stack_ptr, entry);
+    uintptr_t* stack_ptr = phys_to_virt(stack + STACK_SIZE);
+    stack_ptr = setup_task_stack(stack_ptr, (void*)entry, ctxdata);
     task->kstack = (uintptr_t)(stack_ptr);
 
     return task;
 }
 
-void sched_enqueue(struct sched_task* restrict task)
+void enqueue_task(struct sched_task* restrict task)
 {
     struct hart_local* hart = this_hart();
 
     bool intr_state = disable_interrupts();
 
-    task->rq_next = hart->rq;
-    hart->rq = task;
+    task->state = TASK_WAIT;
 
-    task->state = SCHED_TASK_READY;
+    push_tail(hart, task);
 
     restore_interrupts(intr_state);
 }
 
-void sched_tick(void)
+void sched_do_preempt(void)
 {
     struct hart_local* hart = this_hart();
 
-    bool intr_state = disable_interrupts();
-
-    wake_tasks(hart);
+    uint64_t now = clocksrc_nsec();
 
     struct sched_task* prev = hart->task;
     struct sched_task* next = nullptr;
 
-    if(prev && prev->state == SCHED_TASK_RUNNING) {
-        prev->state = SCHED_TASK_READY;
-
-        if(hart->rq == nullptr) {
-            hart->rq = prev;
-            prev->rq_next = nullptr;
-            next = prev;
-        }
-        else {
-            struct sched_task* tail = hart->rq;
-            unsigned rq_len = 0;
-
-            while(tail->rq_next) {
-                tail = tail->rq_next;
-                if(++rq_len > 64) {
-                    pr_emerg("sched[%u]: rq cycle! prev=%u rq_head=%u\n", hart->index, prev ? prev->tasknumber : 0xFFFFFFFF,
-                        hart->rq ? hart->rq->tasknumber : 0xFFFFFFFF);
-                    struct sched_task* dbg = hart->rq;
-                    for(unsigned i = 0; i < 16 && dbg; i++) {
-                        pr_emerg("  rq[%u] = task %u (state=%u)\n", i, dbg->tasknumber, dbg->state);
-                        dbg = dbg->rq_next;
-                    }
-                    panic("sched: rq cycle detected");
-                }
-            }
-
-            tail->rq_next = prev;
-            prev->rq_next = nullptr;
-
-            next = hart->rq;
-
-            hart->rq = hart->rq->rq_next;
-            next->rq_next = nullptr;
-        }
-    }
-    else if(hart->rq) {
-        next = hart->rq;
-        hart->rq = next->rq_next;
-        next->rq_next = nullptr;
+    if(prev != hart->idle && prev && prev->state == TASK_EXEC) {
+        prev->state = TASK_WAIT;
+        push_tail(hart, prev);
     }
 
-    if(next == nullptr || next == prev) {
-        restore_interrupts(intr_state);
+    struct sched_task** slot = &hart->runq;
+
+    while(*slot) {
+        struct sched_task* task = *slot;
+
+        if(task->deadline == 0 || now >= task->deadline) {
+            *slot = task->runq_next;
+            task->runq_next = nullptr;
+            task->deadline = 0;
+            next = task;
+            break;
+        }
+
+        slot = &task->runq_next;
+    }
+
+    if(next == nullptr) {
+        next = hart->idle;
+    }
+
+    if(next == prev) {
         return;
     }
 
-    next->state = SCHED_TASK_RUNNING;
+    next->state = TASK_EXEC;
     hart->task = next;
 
-    sched_switch(prev, next);
-
-    restore_interrupts(intr_state);
+    sched_do_switch(prev, next);
 }
 
 void sched_yield(void)
 {
-    sched_tick();
+    struct hart_local* hart = this_hart();
+
+    bool intr_state = disable_interrupts();
+
+    struct sched_task* task = hart->task;
+    task->state = TASK_WAIT;
+    push_tail(hart, task);
+
+    hart->task = hart->idle;
+    hart->idle->state = TASK_EXEC;
+
+    sched_do_switch(task, hart->idle);
+
+    restore_interrupts(intr_state);
 }
 
 void sched_sleep_nsec(uint64_t nsec)
@@ -173,37 +169,45 @@ void sched_sleep_nsec(uint64_t nsec)
     bool intr_state = disable_interrupts();
 
     struct sched_task* task = hart->task;
-    task->sleep_deadline_nsec = nsec + clocksrc_nsec();
-    task->state = SCHED_TASK_BLOCKED;
+    task->deadline = nsec + clocksrc_nsec();
+    task->state = TASK_WAIT;
+    push_tail(hart, task);
 
-    task->sq_next = hart->sq;
-    hart->sq = task;
+    hart->task = hart->idle;
+    hart->idle->state = TASK_EXEC;
 
-    sched_tick();
-
-    // If sched_tick returned early (no other task to run), wait for
-    // the timer to fire and wake us rather than returning immediately.
-    // Returning early would cause the task to re-enter sleep and
-    // corrupt the sleep queue with a self-referential sq_next.
-    while(task->state == SCHED_TASK_BLOCKED) {
-        asm volatile("sti; hlt; cli" ::: "memory");
-    }
-
-    task->state = SCHED_TASK_RUNNING;
+    sched_do_switch(task, hart->idle);
 
     restore_interrupts(intr_state);
 }
 
+void sched_sleep_usec(uint64_t usec)
+{
+    sched_sleep_nsec(usec * 1000);
+}
+
+void sched_sleep_msec(uint64_t msec)
+{
+    sched_sleep_nsec(msec * 1000000);
+}
+
 define_initcall(sched_idle, INITCALL_STAGE_SMP_TIMER, INITCALL_ORDER_LAST)
 {
-    struct sched_task* idle = create_task(nullptr, &idle_task);
+    struct sched_task* idle = slab_alloc(sizeof(struct sched_task));
 
     if(idle == nullptr) {
         panic("sched: out of memory");
     }
 
-    idle->state = SCHED_TASK_RUNNING;
+    idle->id = atomic_fetch_add(&next_taskid, 1, ATOMIC_RELAXED);
+    idle->state = TASK_EXEC;
+    idle->owner = nullptr;
+    idle->kstack = 0;
+    idle->list_next = nullptr;
+    idle->runq_next = nullptr;
+    idle->deadline = 0;
 
     struct hart_local* hart = this_hart();
+    hart->idle = idle;
     hart->task = idle;
 }

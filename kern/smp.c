@@ -52,8 +52,6 @@ define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_LAST)
         atomic_store_n(&mp_request.response->cpus[i]->goto_address, &smp_entry, ATOMIC_RELEASE);
     }
 
-    enable_interrupts();
-
     while(atomic_load_n(&ready_count, ATOMIC_ACQUIRE) < hart_count) {
         pause_hart();
     }
