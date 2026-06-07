@@ -10,6 +10,8 @@
 #include <sys/vfs_mount.h>
 #include <sys/vfs_vnode.h>
 
+#include <bitmap.h>
+
 #include "fat.h"
 
 static ino_t fat_nodenumber(const struct fat_vfs_context* restrict fs, uintptr_t dir_cluster, size_t index)
@@ -155,24 +157,6 @@ static void shortname_build(const char* restrict name, unsigned tail_n, uint8_t 
     }
 }
 
-static bool shortname_exists(const struct fat_vfs_context* restrict fs, uintptr_t cluster, const uint8_t shortname[11])
-{
-    struct fat_dirent entry;
-    size_t offset = 0;
-
-    for(;;) {
-        int retval = fat_dirent_read(fs, cluster, &offset, &entry);
-
-        if(retval < 0) {
-            return false;
-        }
-
-        if(0 == memcmp(entry.base.name, shortname, 11)) {
-            return true;
-        }
-    }
-}
-
 static void fat_vnode_release(struct vnode* restrict node);
 static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out_ino);
 static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index);
@@ -289,9 +273,6 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
         return retval;
     }
 
-    // Directories need a cluster immediately (for . and ..).
-    // Files start with first_cluster=0 and get a cluster on first write —
-    // pre-allocating an unused cluster causes fsck to report "chain > file_size".
     uintptr_t first_cluster = 0;
 
     if(type == VNODE_DIRECTORY) {
@@ -305,13 +286,51 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     struct fat_dirent dirent;
     memset(&dirent, 0, sizeof(struct fat_dirent));
 
-    bool found = false;
-    for(unsigned n = 1; n <= 999; ++n) {
-        shortname_build(name, n, dirent.base.name);
+    bitmap_t taken[32] = { 0 };
+    struct fat_dirent taken_dirent;
+    size_t taken_offset = 0;
 
-        if(!shortname_exists(fs, context->first_cluster, dirent.base.name)) {
+    static_assert(sizeof(taken) * sizeof(bitmap_t) * CHAR_BIT > 999);
+
+    while(0 == fat_dirent_read(fs, context->first_cluster, &taken_offset, &taken_dirent)) {
+        int tilde = -1;
+
+        for(int i = 0; i < 7; ++i) {
+            if(taken_dirent.base.name[i] == '~') {
+                tilde = i;
+                break;
+            }
+        }
+
+        if(tilde < 0) {
+            continue;
+        }
+
+        unsigned n = 0;
+
+        for(int i = tilde + 1; i < 8 && taken_dirent.base.name[i] != ' '; ++i) {
+            uint8_t chr = taken_dirent.base.name[i];
+
+            if(chr < '0' || chr > '9') {
+                n = 0;
+                break;
+            }
+
+            n *= 10;
+            n += chr - '0';
+        }
+
+        if(n >= 1 && n <= 999) {
+            bitmap_set(taken, n);
+        }
+    }
+
+    bool found = false;
+
+    for(unsigned n = 1; n < 999 && !found; ++n) {
+        if(!bitmap_isset(taken, n)) {
+            shortname_build(name, n, dirent.base.name);
             found = true;
-            break;
         }
     }
 
@@ -403,6 +422,8 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     ctx->size_bytes = 0;
     ctx->dir_cluster = context->first_cluster;
     ctx->dir_offset = slot_offset + num_lfn;
+    ctx->cached_cluster = first_cluster;
+    ctx->cached_cluster_idx = 0;
 
     struct vnode* vnode = vnode_alloc(type, &fat_vnode_ops, ctx);
 
@@ -435,16 +456,34 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
         remaining = context->size_bytes - offset;
     }
 
-    uintptr_t cluster = context->first_cluster;
     size_t cluster_index = offset / fs->cluster_size_b;
+    uintptr_t cluster;
 
-    for(size_t i = 0; i < cluster_index; i++) {
-        cluster = fat_cluster_next(fs, cluster);
+    if(cluster_index >= context->cached_cluster_idx) {
+        cluster = context->cached_cluster;
 
-        if(cluster == UINTPTR_MAX) {
-            return -EIO;
+        for(size_t i = context->cached_cluster_idx; i < cluster_index; i++) {
+            cluster = fat_cluster_next(fs, cluster);
+
+            if(cluster == UINTPTR_MAX) {
+                return -EIO;
+            }
         }
     }
+    else {
+        cluster = context->first_cluster;
+
+        for(size_t i = 0; i < cluster_index; i++) {
+            cluster = fat_cluster_next(fs, cluster);
+
+            if(cluster == UINTPTR_MAX) {
+                return -EIO;
+            }
+        }
+    }
+
+    context->cached_cluster_idx = cluster_index;
+    context->cached_cluster = cluster;
 
     size_t offset_in_cluster = offset % fs->cluster_size_b;
     size_t done = 0;
@@ -454,31 +493,58 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
         size_t offset_in_sector = offset_in_cluster % fs->sector_size;
 
         while(remaining > 0 && sector_index < fs->cluster_size_s) {
-            uintptr_t lba = sector_index + fat_cluster_lba(fs, cluster);
-            int retval = blk_read(fs->device, lba, 1, fs->bounce);
+            uintptr_t lba = fat_cluster_lba(fs, cluster) + sector_index;
 
-            if(retval < 0) {
-                if(done > 0)
-                    return done;
-                return retval;
+            if(offset_in_sector == 0 && remaining >= fs->sector_size) {
+                size_t full_sectors = remaining / fs->sector_size;
+                size_t avail = fs->cluster_size_s - sector_index;
+
+                if(full_sectors > avail) {
+                    full_sectors = avail;
+                }
+
+                int retval = blk_read(fs->device, lba, full_sectors, (uint8_t*)buffer + done);
+
+                if(retval < 0) {
+                    if(done > 0)
+                        return done;
+                    return retval;
+                }
+
+                size_t bytes = full_sectors * fs->sector_size;
+                done += bytes;
+                remaining -= bytes;
+                sector_index += full_sectors;
             }
+            else {
+                int retval = blk_read(fs->device, lba, 1, fs->bounce);
 
-            size_t chunk = fs->sector_size - offset_in_sector;
+                if(retval < 0) {
+                    if(done > 0)
+                        return done;
+                    return retval;
+                }
 
-            if(chunk > remaining) {
-                chunk = remaining;
+                size_t chunk = fs->sector_size - offset_in_sector;
+
+                if(chunk > remaining) {
+                    chunk = remaining;
+                }
+
+                memcpy((uint8_t*)buffer + done, fs->bounce + offset_in_sector, chunk);
+
+                done += chunk;
+                remaining -= chunk;
+                offset_in_sector = 0;
+                sector_index += 1;
             }
-
-            memcpy((uint8_t*)buffer + done, fs->bounce + offset_in_sector, chunk);
-
-            done += chunk;
-            remaining -= chunk;
-            offset_in_sector = 0;
-            sector_index += 1;
         }
 
         offset_in_cluster = 0;
+        cluster_index += 1;
         cluster = fat_cluster_next(fs, cluster);
+        context->cached_cluster_idx = cluster_index;
+        context->cached_cluster = cluster;
     }
 
     return done;
@@ -501,6 +567,8 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
         }
 
         context->first_cluster = new_cluster;
+        context->cached_cluster = new_cluster;
+        context->cached_cluster_idx = 0;
 
         struct fat_dirent dirent;
         size_t dir_off = context->dir_offset;
@@ -517,24 +585,50 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
         fat_dirent_update(context->fs_ctx, context->dir_cluster, context->dir_offset, &dirent.base);
     }
 
-    uintptr_t cluster = context->first_cluster;
     size_t cluster_index = offset / fs->cluster_size_b;
+    uintptr_t cluster;
 
-    for(size_t i = 0; i < cluster_index; i++) {
-        uintptr_t next = fat_cluster_next(fs, cluster);
+    if(cluster_index >= context->cached_cluster_idx) {
+        cluster = context->cached_cluster;
 
-        if(next == UINTPTR_MAX) {
-            next = fat_cluster_alloc(fs);
+        for(size_t i = context->cached_cluster_idx; i < cluster_index; i++) {
+            uintptr_t next = fat_cluster_next(fs, cluster);
 
             if(next == UINTPTR_MAX) {
-                return -ENOSPC;
+                next = fat_cluster_alloc(fs);
+
+                if(next == UINTPTR_MAX) {
+                    return -ENOSPC;
+                }
+
+                fat_cluster_link(fs, cluster, next);
             }
 
-            fat_cluster_link(fs, cluster, next);
+            cluster = next;
         }
-
-        cluster = next;
     }
+    else {
+        cluster = context->first_cluster;
+
+        for(size_t i = 0; i < cluster_index; i++) {
+            uintptr_t next = fat_cluster_next(fs, cluster);
+
+            if(next == UINTPTR_MAX) {
+                next = fat_cluster_alloc(fs);
+
+                if(next == UINTPTR_MAX) {
+                    return -ENOSPC;
+                }
+
+                fat_cluster_link(fs, cluster, next);
+            }
+
+            cluster = next;
+        }
+    }
+
+    context->cached_cluster_idx = cluster_index;
+    context->cached_cluster = cluster;
 
     size_t offset_in_cluster = offset % fs->cluster_size_b;
     size_t remaining = sz;
@@ -546,38 +640,62 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
 
         while(remaining > 0 && sector_index < fs->cluster_size_s) {
             uintptr_t lba = fat_cluster_lba(fs, cluster) + sector_index;
-            size_t chunk = fs->sector_size - offset_in_sector;
 
-            if(chunk > remaining) {
-                chunk = remaining;
-            }
+            if(offset_in_sector == 0 && remaining >= fs->sector_size) {
+                size_t full_sectors = remaining / fs->sector_size;
+                size_t avail = fs->cluster_size_s - sector_index;
 
-            int retval;
+                if(full_sectors > avail) {
+                    full_sectors = avail;
+                }
 
-            if(offset_in_sector > 0 || chunk < fs->sector_size) {
-                retval = blk_read(fs->device, lba, 1, fs->bounce);
+                int retval = blk_write(fs->device, lba, full_sectors, (const uint8_t*)buffer + done);
 
                 if(retval < 0) {
                     if(done > 0)
                         return done;
                     return retval;
                 }
+
+                size_t bytes = full_sectors * fs->sector_size;
+                done += bytes;
+                remaining -= bytes;
+                sector_index += full_sectors;
             }
+            else {
+                size_t chunk = fs->sector_size - offset_in_sector;
 
-            memcpy(fs->bounce + offset_in_sector, (const uint8_t*)buffer + done, chunk);
+                if(chunk > remaining) {
+                    chunk = remaining;
+                }
 
-            retval = blk_write(fs->device, lba, 1, fs->bounce);
+                int retval;
 
-            if(retval < 0) {
-                if(done > 0)
-                    return done;
-                return retval;
+                if(offset_in_sector > 0 || chunk < fs->sector_size) {
+                    retval = blk_read(fs->device, lba, 1, fs->bounce);
+
+                    if(retval < 0) {
+                        if(done > 0)
+                            return done;
+                        return retval;
+                    }
+                }
+
+                memcpy(fs->bounce + offset_in_sector, (const uint8_t*)buffer + done, chunk);
+
+                retval = blk_write(fs->device, lba, 1, fs->bounce);
+
+                if(retval < 0) {
+                    if(done > 0)
+                        return done;
+                    return retval;
+                }
+
+                done += chunk;
+                remaining -= chunk;
+                offset_in_sector = 0;
+                sector_index += 1;
             }
-
-            done += chunk;
-            remaining -= chunk;
-            offset_in_sector = 0;
-            sector_index += 1;
         }
 
         if(remaining > 0) {
@@ -596,7 +714,10 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
             }
 
             cluster = next;
+            cluster_index += 1;
             offset_in_cluster = 0;
+            context->cached_cluster_idx = cluster_index;
+            context->cached_cluster = cluster;
         }
     }
 

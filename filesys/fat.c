@@ -162,12 +162,15 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     context->cache_size = fat_size * sector_size;
     context->cache = kmalloc(context->cache_size);
+    context->cache_dirty = false;
 
     if(context->cache == nullptr) {
         kfree(boot);
         kfree(context);
         return -ENOMEM;
     }
+
+    context->next_free_hint = 2;
 
     context->bounce = kmalloc(context->sector_size);
 
@@ -202,6 +205,8 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     root_context->fs_ctx = context;
     root_context->first_cluster = context->root_cluster;
     root_context->size_bytes = 0;
+    root_context->cached_cluster = context->root_cluster;
+    root_context->cached_cluster_idx = 0;
 
     struct vnode* root = vnode_alloc(VNODE_DIRECTORY, &fat_vnode_ops, root_context);
 
@@ -280,6 +285,8 @@ static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
     node_context->size_bytes = le32toh(raw_entry->file_size);
     node_context->dir_cluster = dir_cluster;
     node_context->dir_offset = dir_offset;
+    node_context->cached_cluster = cluster;
+    node_context->cached_cluster_idx = 0;
 
     node->ctxdata = node_context;
 
@@ -309,6 +316,11 @@ static int fat_unmount(struct vfs* restrict fs)
 static int fat_sync(struct vfs* restrict fs)
 {
     struct fat_vfs_context* context = fs->ctxdata;
+
+    if(!context->cache_dirty) {
+        return 0;
+    }
+
     size_t num_sectors = context->cache_size / context->sector_size;
 
     for(unsigned i = 0; i < context->num_tables; i++) {
@@ -319,6 +331,8 @@ static int fat_sync(struct vfs* restrict fs)
             return retval;
         }
     }
+
+    context->cache_dirty = false;
 
     invalidate_fsinfo(context);
 
