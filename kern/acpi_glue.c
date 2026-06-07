@@ -242,7 +242,7 @@ struct acpi_irq_trampoline {
     uint32_t gsi;
 };
 
-static void acpi_irq_dispatch(unsigned number, struct interrupt_frame* restrict frame, void* restrict ctxdata)
+static void acpi_irq_dispatch(unsigned number, struct hart_regs* restrict regs, void* restrict ctxdata)
 {
     struct acpi_irq_trampoline* trampoline = ctxdata;
 

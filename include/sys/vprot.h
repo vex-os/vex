@@ -8,6 +8,7 @@
 #define VPROT_EXEC    0x0004U ///< Page can be executed
 #define VPROT_USER    0x0008U ///< Page is accessible from user mode
 #define VPROT_NOCACHE 0x0010U ///< Page is not to be cached
+#define VPROT__COW    0x0200U ///< Page is copy-on-write (internal, set by vmm_fork)
 
 #define VPROT_RW  (VPROT_READ | VPROT_WRITE)              ///< Kernel read-write page
 #define VPROT_RWX (VPROT_READ | VPROT_WRITE | VPROT_EXEC) ///< Kernel read-write-execute page
