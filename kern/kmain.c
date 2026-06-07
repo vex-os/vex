@@ -17,7 +17,7 @@ static int16_t test_task(void* restrict ctxdata)
     int count = 0;
 
     for(;;) {
-        pr_inform("TICK");
+        pr_inform("TICK %d", count);
         sched_sleep_msec(500);
 
         if(++count >= 5) {
