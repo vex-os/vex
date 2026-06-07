@@ -1,6 +1,7 @@
 #include <sys.amd64/idt.h>
 #include <sys.amd64/pmio.h>
 #include <sys.arch/intr.h>
+#include <sys.arch/regs.h>
 #include <sys/initcall.h>
 #include <sys/kprintf.h>
 

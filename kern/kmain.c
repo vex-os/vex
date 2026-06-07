@@ -10,6 +10,7 @@
 #include <sys/initcall.h>
 #include <sys/kprintf.h>
 #include <sys/limits.h>
+#include <sys/sched.h>
 #include <sys/version.h>
 #include <sys/vfs_dirent.h>
 #include <sys/vfs_mount.h>
@@ -240,6 +241,7 @@ void __noreturn kmain(void)
     pr_emerg("hanging around...");
 
     for(;;) {
+        sched_yield();
         stop_hart();
     }
 

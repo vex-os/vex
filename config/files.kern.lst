@@ -36,6 +36,7 @@ kern/pslab.c
 kern/ptable_gpt.c
 kern/ptable_mbr.c
 kern/rsdp.c
+kern/sched.c
 kern/slab.c
 kern/smp.c
 kern/version.c
