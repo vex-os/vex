@@ -3,6 +3,8 @@
 
 #include <vex/types.h>
 
+/* These constants must be the same as ext2 filesystem ones */
+
 #define __k_S_IFBLK  ((__k_mode_t)(0x1000))
 #define __k_S_IFCHR  ((__k_mode_t)(0x2000))
 #define __k_S_IFIFO  ((__k_mode_t)(0x3000))

@@ -25,7 +25,7 @@ ${BOOTABLE_IMAGE_0}: ${SFDISK_SCRIPT}
 	@dd if=/dev/zero of=$@ bs=1M count=32
 	@sfdisk --force $@ < $<
 	@mkfs.fat -F16 --offset 2048 $@
-	@mkfs.fat -F16 --offset 10240 $@
+	@command -v echfs-utils > /dev/null 2>&1 && echfs-utils -g -p 1 $@ quick-format 512 || true
 	@mmd -i $@@@2048s ::/EFI
 	@mmd -i $@@@2048s ::/EFI/BOOT
 
