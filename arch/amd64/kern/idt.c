@@ -95,7 +95,7 @@ static void page_fault_handler(struct hart_regs* restrict regs)
     struct sched_task* task = hart->task;
     struct vmm_pagemap* old_vm;
 
-    if(task == nullptr) {
+    if(task == nullptr || task->owner == nullptr) {
         old_vm = &sys_pagemap;
     }
     else {
@@ -124,7 +124,7 @@ void __used amd64_isr_handler(struct hart_regs* restrict regs, uint64_t intvec)
         return;
     }
 
-    panic("idt: isr_handler %02zX", (size_t)(intvec));
+    panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));
 }
 
 static void set_entry(struct idt_entry* restrict entry, bool trap, uint16_t selector, const void* restrict pfn)

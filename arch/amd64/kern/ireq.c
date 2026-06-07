@@ -216,9 +216,9 @@ void amd64_ireq_FF(void);
 
 void __used amd64_ireq_handler(struct hart_regs* restrict regs, uint64_t idt_vector)
 {
-    dispatch_ireq(idt_vector - ARCH_IREQ_BASE, regs);
-
     lapic_write(LAPIC_REG_EOI, UINT32_C(0));
+
+    dispatch_ireq(idt_vector - ARCH_IREQ_BASE, regs);
 }
 
 define_initcall(amd64_ireq, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_MIDDLE)

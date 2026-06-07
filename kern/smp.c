@@ -55,7 +55,7 @@ define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_LAST)
     enable_interrupts();
 
     while(atomic_load_n(&ready_count, ATOMIC_ACQUIRE) < hart_count) {
-        yield_hart();
+        pause_hart();
     }
 
     pr_inform("smp: %llu harts online", (unsigned long long)(hart_count));

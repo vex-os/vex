@@ -1,5 +1,11 @@
 .section .text
 
+.global amd64_task_trampoline
+.type amd64_task_trampoline, @function
+amd64_task_trampoline:
+    sti
+    jmpq *%rbp
+
 .global sched_switch
 .type sched_switch, @function
 sched_switch:
