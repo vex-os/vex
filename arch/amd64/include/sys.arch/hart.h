@@ -11,9 +11,13 @@ struct amd64_gdt;
 struct amd64_idt;
 struct amd64_tss;
 
+struct sched_task;
+
 struct hart_local {
     struct hart_local* self;
+    struct sched_task* task;
     unsigned index;
+
     struct {
         unsigned lapic_id;
         struct amd64_gdt* gdt;

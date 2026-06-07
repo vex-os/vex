@@ -28,7 +28,7 @@ static void i8042_wait_read(struct pmio_region* restrict region)
     }
 }
 
-static void ps2kbd_ireq(unsigned number, struct interrupt_frame* restrict frame, void* restrict ctxdata)
+static void ps2kbd_ireq(unsigned number, struct hart_regs* restrict regs, void* restrict ctxdata)
 {
     struct isa_device* device = ctxdata;
 

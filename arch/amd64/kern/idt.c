@@ -3,10 +3,13 @@
 #include <sys.amd64/idt.h>
 #include <sys.arch/hart.h>
 #include <sys.arch/intr.h>
+#include <sys.arch/regs.h>
 #include <sys/initcall.h>
 #include <sys/kprintf.h>
 #include <sys/malloc.h>
 #include <sys/panic.h>
+#include <sys/sched.h>
+#include <sys/vmm.h>
 
 #define IDT_TRAP    (0x0F << 0)
 #define IDT_INTR    (0x0E << 0)
@@ -65,10 +68,63 @@ void amd64_isr_1D(void);
 void amd64_isr_1E(void);
 void amd64_isr_1F(void);
 
-void __used amd64_isr_handler(struct interrupt_frame* restrict frame, uint64_t intvec)
+static void page_fault_handler(struct hart_regs* restrict regs)
+{
+    struct vmm_fault_info info;
+    memset(&info, 0, sizeof(info));
+
+    info.present = (bool)(regs->amd64.error & 0x1);
+
+    if(regs->amd64.error & 0x2) {
+        info.vprot = VPROT_WRITE; // tried to write
+    }
+    else if(regs->amd64.error & 0x10) {
+        info.vprot = VPROT_EXEC; // tried to execute
+    }
+    else {
+        info.vprot = VPROT_READ; // tried to read
+    }
+
+    if(regs->amd64.error & 0x4) {
+        info.vprot |= VPROT_USER; // user mode
+    }
+
+    asm volatile("movq %%cr2, %0" : "=r"(info.fault));
+
+    struct hart_local* hart = this_hart();
+    struct sched_task* task = hart->task;
+    struct vmm_pagemap* old_vm;
+
+    if(task == nullptr) {
+        old_vm = &sys_pagemap;
+    }
+    else {
+        old_vm = task->owner->vm;
+    }
+
+    struct vmm_pagemap* new_vm = vmm_handle_fault(old_vm, &info);
+
+    if(new_vm == nullptr) {
+        // FIXME: if this is in-kernel we're panicking, otherwise
+        // it's probably a good idea to just terminate a process with SIGSEGV
+        panic("unhandled page fault at %p (vprot=%02X)", (void*)(info.fault), info.vprot);
+    }
+
+    if(task) {
+        task->owner->vm = new_vm;
+    }
+}
+
+void __used amd64_isr_handler(struct hart_regs* restrict regs, uint64_t intvec)
 {
     disable_interrupts();
-    panic("idt: isr_handler %02zX", (size_t)intvec);
+
+    if(intvec == 0x0E) {
+        page_fault_handler(regs);
+        return;
+    }
+
+    panic("idt: isr_handler %02zX", (size_t)(intvec));
 }
 
 static void set_entry(struct idt_entry* restrict entry, bool trap, uint16_t selector, const void* restrict pfn)

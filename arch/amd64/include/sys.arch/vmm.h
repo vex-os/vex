@@ -13,6 +13,7 @@
 #define AMD64_VMM_PML_WRITE   UINT64_C(0x0000000000000002)
 #define AMD64_VMM_PML_USER    UINT64_C(0x0000000000000004)
 #define AMD64_VMM_PML_PCD     UINT64_C(0x0000000000000010)
+#define AMD64_VMM_PML_COW     UINT64_C(0x0000000000000200) // software bit 9
 #define AMD64_VMM_PML_NOEXEC  UINT64_C(0x8000000000000000)
 
 #define AMD64_VMM_TABLE_KERN 256U
@@ -33,6 +34,7 @@ typedef uint64_t vmm_entry_type;
 
 struct vmm_pagemap {
     spinlock_type lock;
+    unsigned refcount;
     unsigned levels;
     struct {
         uintptr_t cr3_phys;
@@ -73,6 +75,8 @@ static __always_inline __nodiscard unsigned vmm_entry_vprot(vmm_entry_type entry
         vprot |= VPROT_EXEC;
     if(entry & AMD64_VMM_PML_PCD)
         vprot |= VPROT_NOCACHE;
+    if(entry & AMD64_VMM_PML_COW)
+        vprot |= VPROT__COW;
     return vprot;
 }
 
@@ -92,6 +96,8 @@ static __always_inline __nodiscard vmm_entry_type vmm_entry_init(uintptr_t addre
         result &= ~AMD64_VMM_PML_NOEXEC;
     if(vprot & VPROT_NOCACHE)
         result |= AMD64_VMM_PML_PCD;
+    if(vprot & VPROT__COW)
+        result |= AMD64_VMM_PML_COW;
 
     return result;
 }
