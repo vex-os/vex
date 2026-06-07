@@ -40,6 +40,13 @@ static void push_tail(struct hart_local* restrict hart, struct sched_task* restr
     tail->runq_next = task;
 }
 
+void destroy_task(struct sched_task* restrict task)
+{
+    uintptr_t stack_base = page_align(task->kstack);
+    pslab_free_virt((void*)(stack_base));
+    slab_free(task);
+}
+
 void __used sched_task_exit(int16_t retval)
 {
     struct hart_local* hart = this_hart();
@@ -47,6 +54,7 @@ void __used sched_task_exit(int16_t retval)
 
     task->entry_retval = retval;
     task->state = TASK_DEAD;
+    hart->dead = task;
 
     hart->task = hart->idle;
     hart->idle->state = TASK_EXEC;
@@ -103,6 +111,16 @@ void enqueue_task(struct sched_task* restrict task)
 void sched_do_preempt(void)
 {
     struct hart_local* hart = this_hart();
+
+    if(hart->dead) {
+        struct sched_task* dead = hart->dead;
+
+        hart->dead = nullptr;
+
+        if(dead->owner == nullptr || dead->owner->parent == nullptr) {
+            destroy_task(dead);
+        }
+    }
 
     uint64_t now = clocksrc_nsec();
 
