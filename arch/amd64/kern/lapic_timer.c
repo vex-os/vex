@@ -42,7 +42,6 @@ define_initcall(amd64_lapic_timer, INITCALL_STAGE_SMP_TIMER, INITCALL_ORDER_EARL
         panic("lapic_timer: out of IRQ numbers");
     }
 
-    // Start periodic timer
     lapic_write(LAPIC_REG_LVT_TIMER, LAPIC_TIMER_PERIODIC | (irq + ARCH_IREQ_BASE));
     lapic_write(LAPIC_REG_TMRINITCNT, hart->amd64.lapic_rld);
 }

@@ -23,7 +23,7 @@ static __always_inline __used void spinlock_acquire(spinlock_type* restrict lock
         }
 
         while(SPINLOCK_LOCK == atomic_load(lock, ATOMIC_RELAXED)) {
-            yield_hart();
+            pause_hart();
         }
     }
 }

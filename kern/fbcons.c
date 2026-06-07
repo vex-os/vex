@@ -1,10 +1,13 @@
 #include <limine.h>
 #include <string.h>
+#include <sys.arch/hart.h>
 #include <sys/console.h>
 #include <sys/initcall.h>
 #include <sys/kprintf.h>
 #include <sys/malloc.h>
 #include <sys/panic.h>
+#include <sys/sched.h>
+#include <sys/spinlock.h>
 
 #define CHR_BS  0x08
 #define CHR_HT  0x09
@@ -436,6 +439,61 @@ static struct console fbcons_driver = {
     .ops = &fbcons_ops,
 };
 
+static const char firework_chars[] = "|/-\\";
+static spinlock_type firework_lock = SPINLOCK_INIT;
+
+/* col: spinner index 0-3, row: hart index 0-3 */
+#define FIREWORK_COL(s) ((s) * 10 + 2)
+#define FIREWORK_ROW(h) ((h) * 2 + 2)
+
+#define DEFINE_FIREWORK(h, s)                                                     \
+    static void __noreturn firework_task_##h##_##s(void)                          \
+    {                                                                             \
+        size_t i = (h + s);                                                       \
+        for(;;) {                                                                 \
+            if(!spinlock_try_acquire(&firework_lock)) {                           \
+                sched_yield();                                                    \
+                continue;                                                         \
+            }                                                                     \
+            render_cell(FIREWORK_COL(s), FIREWORK_ROW(h), firework_chars[i & 3]); \
+            i += 1;                                                               \
+            spinlock_release(&firework_lock);                                     \
+            sched_sleep_msec(500);                                                \
+        }                                                                         \
+    }
+
+#define DEFINE_HART_FIREWORKS(h) \
+    DEFINE_FIREWORK(h, 0)        \
+    DEFINE_FIREWORK(h, 1)        \
+    DEFINE_FIREWORK(h, 2)        \
+    DEFINE_FIREWORK(h, 3)
+
+DEFINE_HART_FIREWORKS(0)
+DEFINE_HART_FIREWORKS(1)
+DEFINE_HART_FIREWORKS(2)
+DEFINE_HART_FIREWORKS(3)
+
+define_initcall(fbcons_fireworks, INITCALL_STAGE_SMP_TIMER, INITCALL_ORDER_LATE)
+{
+    static void (* const all_entries[4][4])(void) = {
+        { firework_task_0_0, firework_task_0_1, firework_task_0_2, firework_task_0_3 },
+        { firework_task_1_0, firework_task_1_1, firework_task_1_2, firework_task_1_3 },
+        { firework_task_2_0, firework_task_2_1, firework_task_2_2, firework_task_2_3 },
+        { firework_task_3_0, firework_task_3_1, firework_task_3_2, firework_task_3_3 },
+    };
+
+    unsigned hart_idx = this_hart()->index;
+    if(hart_idx >= 4U)
+        return;
+
+    for(size_t i = 0U; i < 4U; ++i) {
+        struct sched_task* task = create_task(nullptr, all_entries[hart_idx][i]);
+        if(task == nullptr)
+            panic("fbcons: firework task alloc failed");
+        sched_enqueue(task);
+    }
+}
+
 define_initcall(fbcons, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_LAST)
 {
     if(fb_request.response) {
@@ -470,7 +528,8 @@ define_initcall(fbcons, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_LAST)
 
                 do_clear();
 
-                add_console(&fbcons_driver);
+                (void)fbcons_driver;
+                // add_console(&fbcons_driver);
 
                 return;
             }

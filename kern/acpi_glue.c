@@ -146,7 +146,7 @@ void uacpi_kernel_stall(uacpi_u8 usec)
     uacpi_u64 deadline = clocksrc_nsec() + usec * UINT64_C(1000);
 
     while(clocksrc_nsec() < deadline) {
-        yield_hart();
+        pause_hart();
     }
 }
 
@@ -155,7 +155,7 @@ void uacpi_kernel_sleep(uacpi_u64 msec)
     uacpi_u64 deadline = clocksrc_nsec() + msec * UINT64_C(1000000);
 
     while(clocksrc_nsec() < deadline) {
-        yield_hart();
+        pause_hart();
     }
 }
 

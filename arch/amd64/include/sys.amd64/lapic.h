@@ -6,15 +6,15 @@
 #include <sys/hhdm.h>
 #include <sys/types.h>
 
-#define LAPIC_REG_ID        0x008
-#define LAPIC_REG_EOI       0x02C
-#define LAPIC_REG_SVR       0x03C
-#define LAPIC_REG_ICR_LO    0x0C0
-#define LAPIC_REG_ICR_HI    0x0C4
-#define LAPIC_REG_LVT_TIMER 0x0CC
+#define LAPIC_REG_ID         0x008
+#define LAPIC_REG_EOI        0x02C
+#define LAPIC_REG_SVR        0x03C
+#define LAPIC_REG_ICR_LO     0x0C0
+#define LAPIC_REG_ICR_HI     0x0C4
+#define LAPIC_REG_LVT_TIMER  0x0C8
 #define LAPIC_REG_TMRINITCNT 0x0E0
 #define LAPIC_REG_TMRCURRCNT 0x0E4
-#define LAPIC_REG_TMRDIV    0x03E0
+#define LAPIC_REG_TMRDIV     0x0F8
 
 #define LAPIC_TIMER_ONESHOT  UINT32_C(0x00000000)
 #define LAPIC_TIMER_PERIODIC UINT32_C(0x00020000)

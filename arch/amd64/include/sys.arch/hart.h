@@ -17,6 +17,7 @@ struct hart_local {
     struct hart_local* self;
     struct sched_task* task;
     struct sched_task* rq;
+    struct sched_task* sq;
     unsigned index;
 
     struct {
@@ -36,7 +37,7 @@ static __always_inline __nodiscard struct hart_local* this_hart(void)
     return hart;
 }
 
-static __always_inline void yield_hart(void)
+static __always_inline void pause_hart(void)
 {
     asm volatile("pause");
 }

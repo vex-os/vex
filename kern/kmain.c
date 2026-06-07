@@ -241,7 +241,6 @@ void __noreturn kmain(void)
     pr_emerg("hanging around...");
 
     for(;;) {
-        sched_yield();
         stop_hart();
     }
 
