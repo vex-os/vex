@@ -33,7 +33,7 @@ override CFLAGS += -fPIE
 override CFLAGS += -ffreestanding
 override CFLAGS += -Wall -Wextra -Werror
 override CFLAGS += -Wno-unused-parameter
-override CFLAGS += -Wno-pointer-sign
+override CFLAGS += -Wno-pointer-sign -Wno-sign-compare
 override CFLAGS += -funsigned-char
 override CFLAGS += -mcmodel=kernel
 override CFLAGS += -O2

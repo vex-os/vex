@@ -161,8 +161,8 @@ static void fat_vnode_release(struct vnode* restrict node);
 static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out_ino);
 static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index);
 static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
-static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, uintptr_t offset);
-static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, uintptr_t offset);
+static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset);
+static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset);
 static int fat_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out);
 
 const struct vnode_ops fat_vnode_ops = {
@@ -441,7 +441,7 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     return 0;
 }
 
-static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, uintptr_t offset)
+static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
@@ -550,7 +550,7 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
     return done;
 }
 
-static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, uintptr_t offset)
+static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;

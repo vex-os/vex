@@ -23,7 +23,7 @@ static void devfs_blk_release(struct vnode* restrict node)
     slab_free(context);
 }
 
-static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer, size_t sz, uintptr_t offset)
+static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
 {
     struct devfs_blk_context* context = node->ctxdata;
     const struct blk_device* device = context->device;
@@ -103,7 +103,7 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
     return sz;
 }
 
-static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, uintptr_t offset)
+static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
     struct devfs_blk_context* context = node->ctxdata;
     const struct blk_device* device = context->device;
