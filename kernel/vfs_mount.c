@@ -1,6 +1,8 @@
 #include <string.h>
 #include <sys/assert.h>
+#include <sys/blk_device.h>
 #include <sys/cmdline.h>
+#include <sys/kprintf.h>
 #include <sys/malloc.h>
 #include <sys/slab.h>
 #include <sys/spinlock.h>
@@ -133,6 +135,22 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
 
     int retval = driver->ops->mount(fs, device, &cmdl);
 
+    const char* device_name;
+
+    if(device == nullptr) {
+        device_name = "null";
+    }
+    else {
+        device_name = device->identifier;
+    }
+
+    if(retval == 0) {
+        pr_verbose("vfs: mount %s: mountpoint=%s device=%s", driver->identifier, path, device_name);
+    }
+    else {
+        pr_verbose("vfs: %s: failed to mount: %s; mountpoint=%s device=%s", driver->identifier, strerror(retval), path, device_name);
+    }
+
     if(cmdl.buffer) {
         kfree(cmdl.buffer);
     }
@@ -233,6 +251,8 @@ int vfs_unmount(const char* restrict path)
             }
 
             vcache_evict(fs);
+
+            pr_verbose("vfs: unmounting %s", path);
 
             retval = fs->ops->unmount(fs);
 

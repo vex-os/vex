@@ -3,6 +3,11 @@ filesys/devfs_blk.c
 filesys/devfs_chr.c
 filesys/devfs_dir.c
 
+filesys/echfs.c
+filesys/echfs_block.c
+filesys/echfs_dirent.c
+filesys/echfs_vnode.c
+
 filesys/fat.c
 filesys/fat_cluster.c
 filesys/fat_dirent.c
