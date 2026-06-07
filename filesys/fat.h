@@ -159,6 +159,7 @@ struct fat_vfs_context {
     size_t table_size_s;
     unsigned num_tables;
     uintptr_t fsinfo_lba;
+    size_t cluster_count;
 
     uint8_t* cache;
     size_t cache_size;
