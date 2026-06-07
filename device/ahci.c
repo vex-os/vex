@@ -57,9 +57,10 @@
 #define DMA_OFFSET_FIS      0x400 ///< [0x400..0x4FF] received FIS
 #define DMA_OFFSET_CMDTABLE 0x500 ///< [0x500..0x57F] command table (FIS at 0x00, ATAPI CDB at 0x40)
 #define DMA_OFFSET_PRDT     0x580 ///< [0x580..0x58F] PRDT entry
-#define DMA_OFFSET_DATABUF  0x600 ///< [0x600..0x17FF] data buffer (4608 bytes; covers raw CD sectors up to 2448 bytes)
+#define DMA_OFFSET_DATABUF  0x600 ///< [0x600..] data buffer
 
-#define DMA_NUM_PAGES 2 ///< DMA pages per port
+#define AHCI_MAX_SECTORS 128 ///< Max sectors per DMA command (64 KiB)
+#define DMA_NUM_PAGES    ((DMA_OFFSET_DATABUF + AHCI_MAX_SECTORS * 512 + PAGE_SIZE - 1) / PAGE_SIZE)
 
 #define AHCI_POLL_TIMEOUT 1000000
 
@@ -181,7 +182,7 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
     return 0;
 }
 
-static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cmd, uint16_t count, bool write)
+static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cmd, uint16_t count, size_t sector_size, bool write)
 {
     volatile struct ahci_cmd_header* header = (volatile struct ahci_cmd_header*)(port->dma_virt + DMA_OFFSET_CMDLIST);
     volatile struct ata_fis_h2d* fis = (volatile struct ata_fis_h2d*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
@@ -224,7 +225,7 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
     prdt->dba = htole32(buffer_phys);
     prdt->dbau = htole32(buffer_phys >> 32);
     prdt->reserved = 0;
-    prdt->dbc = htole32(512 - 1);
+    prdt->dbc = htole32((uint32_t)(count ? count : 1) * 512 - 1);
 }
 
 static int ahci_issue(struct ahci_port* restrict port, uintptr_t lba)
@@ -247,7 +248,7 @@ static int ahci_identify(struct ahci_port* restrict port, ata_identify_type iden
 
     memset((void*)databuf, 0, 512);
 
-    ahci_setup(port, 0, ATA_CMD_IDENTIFY, 0, false);
+    ahci_setup(port, 0, ATA_CMD_IDENTIFY, 0, 512, false);
 
     int retval = ahci_issue(port, 0);
 
@@ -266,7 +267,7 @@ static int ahci_atapi_identify(struct ahci_port* restrict port, ata_identify_typ
 
     memset((void*)databuf, 0, sizeof(ata_identify_type));
 
-    ahci_setup(port, 0, ATA_CMD_IDENTIFY_ATAPI, 0, false);
+    ahci_setup(port, 0, ATA_CMD_IDENTIFY_ATAPI, 0, 512, false);
 
     int retval = ahci_issue(port, 0);
 
@@ -396,21 +397,24 @@ static int ahci_read(const struct blk_device* restrict device, uintptr_t lba, si
     struct ahci_port* port = device->ctxdata;
 
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
+    uint8_t* buf = buffer;
 
-    for(size_t sector = 0; sector < count; sector += 1) {
-        uintptr_t current_lba = lba + sector;
+    while(count > 0) {
+        size_t chunk = count < AHCI_MAX_SECTORS ? count : AHCI_MAX_SECTORS;
 
-        ahci_setup(port, current_lba, ATA_CMD_READ_DMA_EXT, 1, false);
+        ahci_setup(port, lba, ATA_CMD_READ_DMA_EXT, (uint16_t)chunk, device->sector_size, false);
 
-        int retval = ahci_issue(port, current_lba);
+        int retval = ahci_issue(port, lba);
 
         if(retval < 0) {
             return retval;
         }
 
-        uint8_t* buf = buffer;
-        buf += sector * 512;
-        memcpy(buf, (const uint8_t*)(databuf), 512);
+        memcpy(buf, (const uint8_t*)databuf, chunk * device->sector_size);
+
+        buf += chunk * device->sector_size;
+        lba += chunk;
+        count -= chunk;
     }
 
     return 0;
@@ -421,21 +425,24 @@ static int ahci_write(const struct blk_device* restrict device, uintptr_t lba, s
     struct ahci_port* port = device->ctxdata;
 
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
+    const uint8_t* buf = buffer;
 
-    for(size_t sector = 0; sector < count; sector += 1) {
-        uintptr_t current_lba = lba + sector;
+    while(count > 0) {
+        size_t chunk = count < AHCI_MAX_SECTORS ? count : AHCI_MAX_SECTORS;
 
-        const uint8_t* buf = buffer;
-        buf += sector * 512;
-        memcpy((void*)databuf, buf, 512);
+        memcpy((void*)databuf, buf, chunk * device->sector_size);
 
-        ahci_setup(port, current_lba, ATA_CMD_WRITE_DMA_EXT, 1, true);
+        ahci_setup(port, lba, ATA_CMD_WRITE_DMA_EXT, (uint16_t)chunk, device->sector_size, true);
 
-        int retval = ahci_issue(port, current_lba);
+        int retval = ahci_issue(port, lba);
 
         if(retval < 0) {
             return retval;
         }
+
+        buf += chunk * device->sector_size;
+        lba += chunk;
+        count -= chunk;
     }
 
     return 0;
@@ -445,7 +452,7 @@ static int ahci_flush(const struct blk_device* restrict device)
 {
     struct ahci_port* port = device->ctxdata;
 
-    ahci_setup(port, 0, ATA_CMD_FLUSH_EXT, 0, false);
+    ahci_setup(port, 0, ATA_CMD_FLUSH_EXT, 0, 512, false);
 
     return ahci_issue(port, 0);
 }
