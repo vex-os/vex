@@ -171,13 +171,13 @@ ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t
     return result;
 }
 
-int file_seek(struct file* restrict fp, ptrdiff_t offset, int origin)
+int file_seek(struct file* restrict fp, off_t offset, int origin)
 {
     if(fp == nullptr) {
         return -EINVAL;
     }
 
-    ptrdiff_t new_offset;
+    off_t new_offset;
 
     if(origin == SEEK_SET) {
         new_offset = offset;

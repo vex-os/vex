@@ -13,8 +13,8 @@
 struct file {
     struct vnode* node;
     unsigned refcount;
-    uintptr_t offset;
     unsigned flags;
+    off_t offset;
 };
 
 struct file* file_open(const char* restrict path, unsigned flags) __nodiscard;
@@ -24,7 +24,7 @@ void file_close(struct file* restrict fp);
 ssize_t file_read(struct file* restrict fp, void* restrict buffer, size_t sz);
 ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t sz);
 
-int file_seek(struct file* restrict fp, ptrdiff_t offset, int origin);
+int file_seek(struct file* restrict fp, off_t offset, int origin);
 int file_ioctl(struct file* restrict fp, uint32_t request, void* restrict argument);
 
 #endif /* C79FAE96_D7EE_42CD_836F_A55F8731CA80 */

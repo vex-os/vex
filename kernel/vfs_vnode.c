@@ -191,7 +191,7 @@ int vnode_close(struct vnode* restrict node)
     return node->ops->close(node);
 }
 
-ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, uintptr_t offset)
+ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
 {
     kassert(node);
 
@@ -202,7 +202,7 @@ ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz
     return node->ops->read(node, buffer, sz, offset);
 }
 
-ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, uintptr_t offset)
+ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
     kassert(node);
 

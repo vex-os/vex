@@ -10,9 +10,9 @@ struct chr_name;
 
 struct chr_device;
 struct chr_device_ops {
-    ssize_t (*read)(const struct chr_device* restrict device, size_t offset, void* restrict buffer, size_t sz);
-    ssize_t (*write)(const struct chr_device* restrict device, size_t offset, const void* restrict buffer, size_t sz);
-    int (*ioctl)(const struct chr_device* restrict device, unsigned request, void* restrict arg);
+    ssize_t (*read)(const struct chr_device* restrict device, off_t offset, void* restrict buffer, size_t sz);
+    ssize_t (*write)(const struct chr_device* restrict device, off_t offset, const void* restrict buffer, size_t sz);
+    int (*ioctl)(const struct chr_device* restrict device, uint32_t request, void* restrict arg);
     void (*release)(const struct chr_device* restrict device);
 };
 
@@ -37,14 +37,14 @@ int remove_chr_device(struct chr_device* restrict device);
 
 const struct chr_device* find_chr_device(const char* restrict name) __nodiscard;
 
-static __always_inline ssize_t chr_device_read(const struct chr_device* restrict device, size_t offset, void* restrict buffer, size_t sz)
+static __always_inline ssize_t chr_device_read(const struct chr_device* restrict device, off_t offset, void* restrict buffer, size_t sz)
 {
     if(device->ops->read == nullptr)
         return -ENOSYS;
     return device->ops->read(device, offset, buffer, sz);
 }
 
-static __always_inline ssize_t chr_device_write(const struct chr_device* restrict device, size_t offset, const void* restrict buffer,
+static __always_inline ssize_t chr_device_write(const struct chr_device* restrict device, off_t offset, const void* restrict buffer,
     size_t sz)
 {
     if(device->ops->write == nullptr)
@@ -52,7 +52,7 @@ static __always_inline ssize_t chr_device_write(const struct chr_device* restric
     return device->ops->write(device, offset, buffer, sz);
 }
 
-static __always_inline int chr_device_ioctl(const struct chr_device* restrict device, unsigned request, void* restrict arg)
+static __always_inline int chr_device_ioctl(const struct chr_device* restrict device, uint32_t request, void* restrict arg)
 {
     if(device->ops->ioctl == nullptr)
         return -ENOTTY;

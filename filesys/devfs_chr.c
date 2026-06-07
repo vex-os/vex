@@ -17,14 +17,14 @@ static void devfs_chr_release(struct vnode* restrict node)
     slab_free(node->ctxdata);
 }
 
-static ssize_t devfs_chr_read(struct vnode* restrict node, void* restrict buffer, size_t sz, size_t offset)
+static ssize_t devfs_chr_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
 {
     const struct devfs_chr_context* context = node->ctxdata;
 
     return chr_device_read(context->device, offset, buffer, sz);
 }
 
-static ssize_t devfs_chr_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, size_t offset)
+static ssize_t devfs_chr_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
     const struct devfs_chr_context* context = node->ctxdata;
 
