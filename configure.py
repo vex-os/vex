@@ -152,9 +152,9 @@ def main():
     parse_config(config_path)
 
     parse_filelist(os.path.join(CONF_DIR, f"files.arch.{cur_arch}.lst"))
-    parse_filelist(os.path.join(CONF_DIR, f"files.device.lst"))
-    parse_filelist(os.path.join(CONF_DIR, f"files.filesys.lst"))
-    parse_filelist(os.path.join(CONF_DIR, f"files.kernel.lst"))
+    parse_filelist(os.path.join(CONF_DIR, f"files.dev.lst"))
+    parse_filelist(os.path.join(CONF_DIR, f"files.fs.lst"))
+    parse_filelist(os.path.join(CONF_DIR, f"files.kern.lst"))
     parse_filelist(os.path.join(CONF_DIR, f"files.libk.lst"))
     parse_filelist(os.path.join(CONF_DIR, f"files.misc.lst"))
 
