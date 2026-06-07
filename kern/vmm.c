@@ -121,12 +121,14 @@ struct vmm_pagemap* vmm_create(void)
 static void vmm_mark_cow(vmm_entry_type* restrict table, size_t begin, size_t end, unsigned depth)
 {
     for(size_t i = begin; i < end; ++i) {
-        if(vmm_entry_valid(table[i])) {
-            if(depth) {
-                vmm_entry_type* child = phys_to_virt(vmm_entry_address(table[i]));
-                vmm_mark_cow(child, 0, VMM_TABLE_SIZE, depth - 1);
-            }
+        if(!vmm_entry_valid(table[i]))
+            continue;
 
+        if(depth) {
+            vmm_entry_type* child = phys_to_virt(vmm_entry_address(table[i]));
+            vmm_mark_cow(child, 0, VMM_TABLE_SIZE, depth - 1);
+        }
+        else {
             unsigned vprot = vmm_entry_vprot(table[i]);
 
             if(vprot & VPROT_WRITE) {
