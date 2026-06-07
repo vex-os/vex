@@ -12,13 +12,20 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-static int16_t test_task(void* ctxdata)
+static int16_t test_task(void* restrict ctxdata)
 {
-    (void)ctxdata;
+    int count = 0;
+
     for(;;) {
         pr_inform("TICK");
         sched_sleep_msec(500);
+
+        if(++count >= 5) {
+            return 42;
+        }
     }
+
+    unreachable();
 }
 
 void __noreturn kmain(void)
