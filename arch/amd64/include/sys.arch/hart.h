@@ -21,6 +21,7 @@ struct hart_local {
 
     struct {
         unsigned lapic_id;
+        uint32_t lapic_rld;
         struct amd64_gdt* gdt;
         struct amd64_idt* idt;
         struct amd64_tss* tss;
