@@ -4,11 +4,14 @@
 .type amd64_task_trampoline, @function
 amd64_task_trampoline:
     sti
-    jmpq *%rbp
+    movq %r13, %rdi
+    callq *%r12
+    movq %rax, %rdi
+    callq sched_task_exit
 
-.global sched_switch
-.type sched_switch, @function
-sched_switch:
+.global sched_do_switch
+.type sched_do_switch, @function
+sched_do_switch:
     pushq %rbp
     pushq %rbx
     pushq %r12
@@ -16,8 +19,8 @@ sched_switch:
     pushq %r14
     pushq %r15
 
-    movq %rsp, 8(%rdi)
-    movq 8(%rsi), %rsp
+    movq %rsp, 0(%rdi)
+    movq 0(%rsi), %rsp
 
     popq %r15
     popq %r14

@@ -16,8 +16,8 @@ struct sched_task;
 struct hart_local {
     struct hart_local* self;
     struct sched_task* task;
-    struct sched_task* rq;
-    struct sched_task* sq;
+    struct sched_task* idle;
+    struct sched_task* runq;
     unsigned index;
 
     struct {
