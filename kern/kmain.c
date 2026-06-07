@@ -20,6 +20,50 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
+static void mode_string(mode_t mode, char* restrict out, size_t sz)
+{
+    if(sz < 11)
+        return;
+
+    switch(mode & S_IFMT) {
+        case S_IFREG:
+            out[0] = '-';
+            break;
+        case S_IFDIR:
+            out[0] = 'd';
+            break;
+        case S_IFLNK:
+            out[0] = 'l';
+            break;
+        case S_IFBLK:
+            out[0] = 'b';
+            break;
+        case S_IFCHR:
+            out[0] = 'c';
+            break;
+        case S_IFIFO:
+            out[0] = 'p';
+            break;
+        case S_IFSOCK:
+            out[0] = 's';
+            break;
+        default:
+            out[0] = '?';
+            break;
+    }
+
+    out[1] = (mode & S_IRUSR) ? 'r' : '-';
+    out[2] = (mode & S_IWUSR) ? 'w' : '-';
+    out[3] = (mode & S_IXUSR) ? 'x' : '-';
+    out[4] = (mode & S_IRGRP) ? 'r' : '-';
+    out[5] = (mode & S_IWGRP) ? 'w' : '-';
+    out[6] = (mode & S_IXGRP) ? 'x' : '-';
+    out[7] = (mode & S_IROTH) ? 'r' : '-';
+    out[8] = (mode & S_IWOTH) ? 'w' : '-';
+    out[9] = (mode & S_IXOTH) ? 'x' : '-';
+    out[10] = '\0';
+}
+
 static void recurse_dir(struct vnode* restrict node, const char* restrict path)
 {
     struct dirent entry;
@@ -31,34 +75,6 @@ static void recurse_dir(struct vnode* restrict node, const char* restrict path)
             continue;
         }
 
-        const char* codename;
-
-        switch(entry.nodetype) {
-            case VNODE_FILE:
-                codename = "FIL";
-                break;
-
-            case VNODE_DIRECTORY:
-                codename = "DIR";
-                break;
-
-            case VNODE_BLOCK_DEV:
-                codename = "BLK";
-                break;
-
-            case VNODE_CHAR_DEV:
-                codename = "CHR";
-                break;
-
-            case VNODE_SYM_LINK:
-                codename = "LNK";
-                break;
-
-            default:
-                codename = "---";
-                break;
-        }
-
         memset(&stat, 0, sizeof(struct k_stat));
         struct vnode* entry_node;
 
@@ -67,7 +83,10 @@ static void recurse_dir(struct vnode* restrict node, const char* restrict path)
             vnode_decref(entry_node);
         }
 
-        pr_inform("  %016b %04X [%s] %s/%s", stat.st_mode, stat.st_mode, codename, path, entry.name);
+        char mode_str[16];
+        mode_string(stat.st_mode, mode_str, sizeof(mode_str));
+
+        pr_inform("  %s %s/%s", mode_str, path, entry.name);
 
         if(entry.nodetype == VNODE_DIRECTORY) {
             struct vnode* child;
