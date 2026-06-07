@@ -162,6 +162,9 @@ struct fat_vfs_context {
 
     uint8_t* cache;
     size_t cache_size;
+    bool cache_dirty;
+
+    uintptr_t next_free_hint;
 
     uint8_t* bounce;
 };
@@ -172,6 +175,8 @@ struct fat_vnode_context {
     size_t size_bytes;
     uintptr_t dir_cluster;
     size_t dir_offset;
+    uintptr_t cached_cluster;
+    size_t cached_cluster_idx;
 };
 
 extern const struct vnode_ops fat_vnode_ops;
