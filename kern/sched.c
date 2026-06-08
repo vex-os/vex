@@ -40,13 +40,6 @@ static void push_tail(struct hart_local* restrict hart, struct sched_task* restr
     tail->runq_next = task;
 }
 
-void destroy_task(struct sched_task* restrict task)
-{
-    uintptr_t stack_base = page_align(task->kstack);
-    pslab_free_virt((void*)(stack_base));
-    slab_free(task);
-}
-
 void __used sched_task_exit(int16_t retval)
 {
     struct hart_local* hart = this_hart();
@@ -62,50 +55,6 @@ void __used sched_task_exit(int16_t retval)
     sched_do_switch(task, hart->idle);
 
     unreachable();
-}
-
-struct sched_task* create_task(struct sched_process* restrict owner, task_entry_type entry, void* restrict ctxdata)
-{
-    struct sched_task* task = slab_alloc(sizeof(struct sched_task));
-
-    if(task == nullptr) {
-        return nullptr;
-    }
-
-    uintptr_t stack = pslab_alloc();
-
-    if(stack == 0) {
-        slab_free(task);
-        return nullptr;
-    }
-
-    task->id = atomic_fetch_add(&next_taskid, 1, ATOMIC_RELAXED);
-    task->state = TASK_WAIT;
-    task->owner = owner;
-    task->list_next = nullptr;
-    task->runq_next = nullptr;
-    task->deadline = 0;
-    task->entry_ctxdata = ctxdata;
-    task->entry_retval = 0;
-
-    uintptr_t* stack_ptr = phys_to_virt(stack + STACK_SIZE);
-    stack_ptr = setup_task_stack(stack_ptr, (void*)entry, ctxdata);
-    task->kstack = (uintptr_t)(stack_ptr);
-
-    return task;
-}
-
-void enqueue_task(struct sched_task* restrict task)
-{
-    struct hart_local* hart = this_hart();
-
-    bool intr_state = disable_interrupts();
-
-    task->state = TASK_WAIT;
-
-    push_tail(hart, task);
-
-    restore_interrupts(intr_state);
 }
 
 void sched_do_preempt(void)
@@ -160,6 +109,57 @@ void sched_do_preempt(void)
     hart->task = next;
 
     sched_do_switch(prev, next);
+}
+
+struct sched_task* create_task(struct sched_process* restrict owner, task_entry_type entry, void* restrict ctxdata)
+{
+    struct sched_task* task = slab_alloc(sizeof(struct sched_task));
+
+    if(task == nullptr) {
+        return nullptr;
+    }
+
+    uintptr_t stack = pslab_alloc();
+
+    if(stack == 0) {
+        slab_free(task);
+        return nullptr;
+    }
+
+    task->id = atomic_fetch_add(&next_taskid, 1, ATOMIC_RELAXED);
+    task->state = TASK_WAIT;
+    task->owner = owner;
+    task->list_next = nullptr;
+    task->runq_next = nullptr;
+    task->deadline = 0;
+    task->entry_ctxdata = ctxdata;
+    task->entry_retval = 0;
+
+    uintptr_t* stack_ptr = phys_to_virt(stack + STACK_SIZE);
+    stack_ptr = setup_task_stack(stack_ptr, (void*)entry, ctxdata);
+    task->kstack = (uintptr_t)(stack_ptr);
+
+    return task;
+}
+
+void destroy_task(struct sched_task* restrict task)
+{
+    uintptr_t stack_base = page_align(task->kstack);
+    pslab_free_virt((void*)(stack_base));
+    slab_free(task);
+}
+
+void enqueue_task(struct sched_task* restrict task)
+{
+    struct hart_local* hart = this_hart();
+
+    bool intr_state = disable_interrupts();
+
+    task->state = TASK_WAIT;
+
+    push_tail(hart, task);
+
+    restore_interrupts(intr_state);
 }
 
 void sched_yield(void)

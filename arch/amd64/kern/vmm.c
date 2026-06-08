@@ -31,7 +31,7 @@ unsigned vmm_detect_levels(void)
     return 3;
 }
 
-int vmm_pagemap_alloc(struct vmm_pagemap* restrict vm)
+int pagemap_alloc(struct pagemap* restrict vm)
 {
     vm->amd64.cr3_phys = pslab_alloc();
 
@@ -44,7 +44,7 @@ int vmm_pagemap_alloc(struct vmm_pagemap* restrict vm)
     return 0;
 }
 
-void vmm_pagemap_free(struct vmm_pagemap* restrict vm)
+void pagemap_free(struct pagemap* restrict vm)
 {
     pslab_free_virt(vm->amd64.cr3_virt);
 
@@ -52,14 +52,14 @@ void vmm_pagemap_free(struct vmm_pagemap* restrict vm)
     vm->amd64.cr3_virt = nullptr;
 }
 
-void vmm_pagemap_zero(struct vmm_pagemap* restrict vm)
+void pagemap_zero(struct pagemap* restrict vm)
 {
     memset(vm->amd64.cr3_virt, 0, PAGE_SIZE);
 }
 
-void vmm_pagemap_copy_kernel(struct vmm_pagemap* restrict dest, const struct vmm_pagemap* restrict stem)
+void pagemap_kcopy(struct pagemap* restrict dest, const struct pagemap* restrict stem)
 {
-    for(size_t i = AMD64_VMM_TABLE_KERN; i < VMM_TABLE_SIZE; ++i) {
+    for(size_t i = AMD64_PAGEMAP_KERN; i < PAGEMAP_SIZE; ++i) {
         dest->amd64.cr3_virt[i] = stem->amd64.cr3_virt[i];
     }
 }
