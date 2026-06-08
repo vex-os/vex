@@ -56,6 +56,7 @@ struct uthread* uthread_create(struct uprocess* restrict owner);
 void uthread_set_entry(struct uthread* restrict thread, uintptr_t address, uintptr_t ustack);
 void uthread_destroy(struct uthread* restrict thread);
 void uthread_enqueue(struct uthread* restrict thread);
+void uthread_exit(struct uthread* restrict thread) __noreturn;
 
 void sched_hart_idle(void);
 void sched_preempt(void);

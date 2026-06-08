@@ -13,6 +13,7 @@
 #include <sys/pslab.h>
 #include <sys/sched.h>
 #include <sys/slab.h>
+#include <sys/vmm.h>
 
 #define KTASK_STACK_SIZE PAGE_SIZE
 
@@ -87,6 +88,12 @@ void sched_preempt(void)
         struct kthread* dead = hart->kt_dead;
         hart->kt_dead = nullptr;
         kthread_destroy(dead);
+    }
+
+    if(hart->ut_dead) {
+        struct uthread* dead = hart->ut_dead;
+        hart->ut_dead = nullptr;
+        uthread_destroy(dead);
     }
 
     uint64_t now = clocksrc_nsec();
@@ -333,6 +340,29 @@ void sched_sleep_nsec(uint64_t nsec)
     task_switch_kern(thread, hart->kt_idle);
 
     restore_interrupts(intr_state);
+}
+
+void __noreturn uthread_exit(struct uthread* restrict thread)
+{
+    struct hart_local* hart = this_hart();
+
+    disable_interrupts();
+
+    hart->ut_curr = nullptr;
+    hart->ut_dead = thread;
+    hart->kt_curr = hart->kt_idle;
+    hart->kt_idle->state = THREAD_EXEC;
+
+    vmm_switch(&sys_pagemap);
+
+    uintptr_t amd64_exit_ksp = hart->amd64_exit_ksp;
+    asm volatile("movq %0, %%rsp\n\t"
+                 "sti\n\t"
+                 "1: call sched_preempt\n\t"
+                 "jmp 1b" ::"r"(amd64_exit_ksp)
+        : "memory");
+
+    unreachable();
 }
 
 void sched_sleep_usec(uint64_t usec)
