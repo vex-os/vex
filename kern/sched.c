@@ -342,28 +342,6 @@ void sched_sleep_nsec(uint64_t nsec)
     restore_interrupts(intr_state);
 }
 
-void __noreturn uthread_exit(struct uthread* restrict thread)
-{
-    struct hart_local* hart = this_hart();
-
-    disable_interrupts();
-
-    hart->ut_curr = nullptr;
-    hart->ut_dead = thread;
-    hart->kt_curr = hart->kt_idle;
-    hart->kt_idle->state = THREAD_EXEC;
-
-    vmm_switch(&sys_pagemap);
-
-    uintptr_t amd64_exit_ksp = hart->amd64_exit_ksp;
-    asm volatile("movq %0, %%rsp\n\t"
-                 "sti\n\t"
-                 "1: call sched_preempt\n\t"
-                 "jmp 1b" ::"r"(amd64_exit_ksp)
-        : "memory");
-
-    unreachable();
-}
 
 void sched_sleep_usec(uint64_t usec)
 {
