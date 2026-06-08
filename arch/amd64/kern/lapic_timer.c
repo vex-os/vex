@@ -9,6 +9,7 @@
 #include <sys/sched.h>
 
 #define CALIB_NS UINT64_C(10000000)
+// #define CALIB_NS UINT64_C(500000000)
 
 static void lapic_timer_handler(unsigned number, const struct interrupt_frame* restrict frame, void* restrict ctxdata)
 {

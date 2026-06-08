@@ -21,13 +21,17 @@
 
 static __attribute__((naked)) void user_test_fn(void)
 {
-    asm volatile(
-        "mov $42, %rax\n"   // SYS_TEST
-        "syscall\n"
-        "xor %rdi, %rdi\n"  // exit code 0
-        "mov $1, %rax\n"    // SYS_EXIT
-        "syscall\n"
-    );
+    asm volatile("mov $42, %rax\n"         // SYS_TEST
+                 "mov $0xDEADBEEF, %rdi\n" // arg_0
+                 "mov $0xCAFEBABE, %rsi\n" // arg_1
+                 "mov $0x1337C0DE, %rdx\n" // arg_2
+                 "mov $0xBAADF00D, %r10\n" // arg_3
+                 "mov $0x0DEFACED, %r8\n"  // arg_4
+                 "mov $0xFEEDFACE, %r9\n"  // arg_5
+                 "syscall\n"
+                 "xor %rdi, %rdi\n"
+                 "mov $1, %rax\n" // SYS_EXIT
+                 "syscall\n");
 }
 
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);

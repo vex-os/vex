@@ -36,10 +36,18 @@
     popq %r15
 .endm
 
+.macro swapgs_if_user
+    testq $3, 16(%rsp)
+    jz 1f
+    swapgs
+    1:
+.endm
+
 .macro isr_stub stubname vector
     .global \stubname
     .type \stubname, @function
     \stubname:
+        swapgs_if_user
         push_interrupt_frame
 
         movq %rsp, %rdi
@@ -47,6 +55,7 @@
         call amd64_isr_handler
 
         pop_interrupt_frame
+        swapgs_if_user
         addq $0x08, %rsp
         iretq
 .endm
@@ -56,6 +65,7 @@
     .type \stubname, @function
     \stubname:
         pushq $0x0000000000000000
+        swapgs_if_user
         push_interrupt_frame
 
         movq %rsp, %rdi
@@ -63,6 +73,7 @@
         call amd64_isr_handler
 
         pop_interrupt_frame
+        swapgs_if_user
         addq $0x08, %rsp
         iretq
 .endm
@@ -72,6 +83,7 @@
     .type \stubname, @function
     \stubname:
         pushq $0x0000000000000000
+        swapgs_if_user
         push_interrupt_frame
 
         movq %rsp, %rdi
@@ -79,6 +91,7 @@
         call amd64_spur_handler
 
         pop_interrupt_frame
+        swapgs_if_user
         addq $0x08, %rsp
         iretq
 .endm
@@ -88,6 +101,7 @@
     .type \stubname, @function
     \stubname:
         pushq $0x0000000000000000
+        swapgs_if_user
         push_interrupt_frame
 
         movq %rsp, %rdi
@@ -95,6 +109,7 @@
         call amd64_ireq_handler
 
         pop_interrupt_frame
+        swapgs_if_user
         addq $0x08, %rsp
         iretq
 .endm

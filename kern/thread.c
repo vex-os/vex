@@ -24,6 +24,8 @@ static uint32_t next_kthread_index = 1; // for process-less kernel threads
 
 void __noreturn thread_exit_handler(intptr_t retval)
 {
+    disable_interrupts();
+
     struct hart_local* hart = this_hart();
     struct thread* thread = hart->curr_thread;
 

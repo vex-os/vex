@@ -12,6 +12,7 @@ amd64_thread_trampoline_kern:
 .global amd64_thread_trampoline_user
 .type amd64_thread_trampoline_user, @function
 amd64_thread_trampoline_user:
+    swapgs  // GS_BASE (hart) -> KERNEL_GS_BASE, so syscall entry can swapgs back
     iretq
 
 .global thread_switch
