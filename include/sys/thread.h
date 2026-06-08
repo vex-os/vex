@@ -12,6 +12,7 @@
 struct process;
 struct thread {
     uintptr_t kernel_stack;
+    uintptr_t kernel_stack_top;
 
     struct process* owner;
     struct thread* runq_next;
