@@ -55,3 +55,12 @@ task_switch_user:
     popq %rbp
 
     iretq
+
+.global task_enter_user
+.type task_enter_user, @function
+task_enter_user:
+    callq uthread_prepare_switch
+
+    movq %rax, %rsp
+
+    iretq
