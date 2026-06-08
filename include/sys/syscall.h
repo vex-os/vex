@@ -19,26 +19,22 @@ struct syscall_frame {
     intptr_t retval;
 } __packed;
 
-struct syscall_metadata {
+struct syscall {
     void (*function)(struct syscall_frame* restrict frame);
     const char* identifier;
     unsigned long number;
 };
 
-#define define_syscall(sys_identifier, sys_number)                                                                 \
-    static void __syscall_func_##sys_identifier(struct syscall_frame* restrict frame);                             \
-    static const __used __section(".syscall_metadata") struct syscall_metadata __syscall_meta_##sys_identifier = { \
-        .function = &__syscall_func_##sys_identifier,                                                              \
-        .identifier = #sys_identifier,                                                                             \
-        .number = (unsigned long)(sys_number),                                                                     \
-    };                                                                                                             \
-    static void __syscall_func_##sys_identifier(struct syscall_frame* restrict frame)
+#define define_syscall(sc_function, sc_number)                                            \
+    static const __used __section(".syscalls") struct syscall __syscall_##sc_function = { \
+        .function = &(sc_function),                                                       \
+        .identifier = #sc_function,                                                       \
+        .number = (sc_number),                                                            \
+    }
 
-#if 0
-extern struct syscall_entry syscalls_start[];
-extern struct syscall_entry syscalls_end[];
+extern const struct syscall unsorted_syscalls_start[];
+extern const struct syscall unsorted_syscalls_end[];
 
 void dispatch_syscall(struct syscall_frame* restrict frame);
-#endif
 
 #endif /* C2F4E5EB_E2C3_4357_ADD8_6EAE11DBCB22 */

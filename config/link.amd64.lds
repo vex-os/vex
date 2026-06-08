@@ -46,6 +46,12 @@ SECTIONS
         initcalls_smp_end = .;
     } :rodata
 
+    .syscalls : {
+        unsorted_syscalls_start = .;
+        KEEP(*(.syscalls))
+        unsorted_syscalls_end = .;
+    } :rodata
+
     rodata_end = .;
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));
