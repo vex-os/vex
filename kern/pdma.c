@@ -115,7 +115,7 @@ void pdma_free_virt(void* restrict virtaddr, size_t numpages)
     }
 }
 
-define_initcall(pdma, INITCALL_STAGE_BSP_PMM, INIT_FIRST)
+static void init_pdma(void)
 {
     size_t bitmap_npages = 0U;
 
@@ -200,3 +200,5 @@ define_initcall(pdma, INITCALL_STAGE_BSP_PMM, INIT_FIRST)
     hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), pdma_numpages * PAGE_SIZE);
     pr_verbose("pdma: tracking %s in %zu pages", hrsize_buffer, pdma_numpages);
 }
+
+initcall_bsp_pmm(init_pdma, INIT_FIRST);

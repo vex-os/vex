@@ -152,7 +152,7 @@ void slab_free(void* restrict ptr)
     spinlock_release(&slab_lock);
 }
 
-define_initcall(slab, INITCALL_STAGE_BSP_SLAB, INIT_MIDDLE)
+static void init_slab(void)
 {
     slabs_count = 0U;
 
@@ -179,3 +179,5 @@ define_initcall(slab, INITCALL_STAGE_BSP_SLAB, INIT_MIDDLE)
         pr_verbose("slab: slab[%zu]: head=%p, blocksize=%zu", i, slabs[i].head, slabs[i].blocksize);
     }
 }
+
+initcall_bsp_slab(init_slab, INIT_MIDDLE);

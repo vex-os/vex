@@ -159,7 +159,7 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
     return UACPI_ITERATION_DECISION_CONTINUE;
 }
 
-define_initcall(init_acpi_isa, INITCALL_STAGE_BSP_BUS, INIT_LATE)
+static void init_acpi_isa(void)
 {
     uacpi_namespace_node* node = uacpi_namespace_get_predefined(UACPI_PREDEFINED_NAMESPACE_SB);
     uacpi_status status = uacpi_namespace_for_each_child(node, &enumerate_device, nullptr, UACPI_OBJECT_DEVICE_BIT, UACPI_MAX_DEPTH_ANY,
@@ -169,3 +169,5 @@ define_initcall(init_acpi_isa, INITCALL_STAGE_BSP_BUS, INIT_LATE)
         pr_verbose("acpi_isa: %s", uacpi_status_to_string(status));
     }
 }
+
+initcall_bsp_bus(init_acpi_isa, INIT_LATE);

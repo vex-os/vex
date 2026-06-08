@@ -7,7 +7,7 @@
 #include <sys/malloc.h>
 #include <sys/panic.h>
 
-define_initcall(amd64_tss, INITCALL_STAGE_SMP_ARCH, INIT_MIDDLE)
+static void arch_init_tss(void)
 {
     struct amd64_tss* tss = kmalloc(sizeof(struct amd64_tss));
 
@@ -31,3 +31,5 @@ define_initcall(amd64_tss, INITCALL_STAGE_SMP_ARCH, INIT_MIDDLE)
 
     asm volatile("ltr %0" ::"r"(gdt_selector(GDT_TSS, 0, 0)));
 }
+
+initcall_smp_arch(arch_init_tss, INIT_MIDDLE);

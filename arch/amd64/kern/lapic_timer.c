@@ -15,7 +15,7 @@ static void lapic_timer_handler(unsigned number, const struct interrupt_frame* r
     sched_preempt();
 }
 
-define_initcall(amd64_lapic_timer, INITCALL_STAGE_SMP_TIMER, INIT_EARLY)
+static void arch_init_lapic_timer(void)
 {
     lapic_write(LAPIC_REG_TMRDIV, LAPIC_TIMER_DIV1);
     lapic_write(LAPIC_REG_LVT_TIMER, LAPIC_TIMER_MASKED | LAPIC_TIMER_ONESHOT);
@@ -45,3 +45,5 @@ define_initcall(amd64_lapic_timer, INITCALL_STAGE_SMP_TIMER, INIT_EARLY)
     lapic_write(LAPIC_REG_LVT_TIMER, LAPIC_TIMER_PERIODIC | (irq + ARCH_IREQ_BASE));
     lapic_write(LAPIC_REG_TMRINITCNT, hart->amd64.lapic_rld);
 }
+
+initcall_smp_timer(arch_init_lapic_timer, INIT_EARLY);

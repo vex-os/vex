@@ -11,7 +11,7 @@ static volatile __used __section(".limine_requests") struct limine_rsdp_request 
 
 uintptr_t rsdp_address = 0;
 
-define_initcall(acpi_rsdp, INITCALL_STAGE_BSP_BOOTINFO, INIT_LAST)
+static void init_acpi_rsdp(void)
 {
     if(rsdp_request.response == nullptr || rsdp_request.response->address == 0) {
         panic("bootloader did not provide RSDP information");
@@ -19,3 +19,5 @@ define_initcall(acpi_rsdp, INITCALL_STAGE_BSP_BOOTINFO, INIT_LAST)
 
     rsdp_address = virt_to_phys(rsdp_request.response->address);
 }
+
+initcall_bsp_bootinfo(init_acpi_rsdp, INIT_LAST);

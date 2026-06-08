@@ -34,7 +34,15 @@ void broadcast_panic_ipi(void)
     lapic_broadcast_ipi(panic_ipi_vector);
 }
 
-define_initcall(amd64_hart, INITCALL_STAGE_SMP_HART, INIT_FIRST)
+static void arch_init_panic_ipi(void)
+{
+    panic_ipi_vector = add_ireq_handler(UINT_MAX, &panic_halt_handler, nullptr);
+    panic_ipi_vector += ARCH_IREQ_BASE;
+}
+
+initcall_bsp_multicore(arch_init_panic_ipi, INIT_MIDDLE);
+
+static void arch_init_hart(void)
 {
     struct hart_local* hart = kmalloc(sizeof(struct hart_local));
 
@@ -45,11 +53,7 @@ define_initcall(amd64_hart, INITCALL_STAGE_SMP_HART, INIT_FIRST)
     hart->self = hart;
     hart->index = atomic_fetch_add(&hart_count, 1, ATOMIC_RELAXED);
 
-    wrmsr(MSR_GS_BASE, (uint64_t)hart);
+    wrmsr(MSR_GS_BASE, (uint64_t)(hart));
 }
 
-define_initcall(amd64_panic_halt, INITCALL_STAGE_BSP_MULTICORE, INIT_MIDDLE)
-{
-    panic_ipi_vector = add_ireq_handler(UINT_MAX, &panic_halt_handler, nullptr);
-    panic_ipi_vector += ARCH_IREQ_BASE;
-}
+initcall_smp_hart(arch_init_hart, INIT_FIRST);

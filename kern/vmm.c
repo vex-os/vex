@@ -358,7 +358,7 @@ static int vmm_map_sys_memmap(const struct limine_memmap_entry* restrict entry)
     return 0;
 }
 
-define_initcall(init_vmm, INITCALL_STAGE_BSP_VMM, INIT_MIDDLE)
+static void init_vmm(void)
 {
     sys_pagemap.lock = SPINLOCK_INIT;
     sys_pagemap.levels = vmm_detect_levels();
@@ -399,3 +399,5 @@ define_initcall(init_vmm, INITCALL_STAGE_BSP_VMM, INIT_MIDDLE)
 
     vmm_switch(&sys_pagemap);
 }
+
+initcall_bsp_vmm(init_vmm, INIT_MIDDLE);

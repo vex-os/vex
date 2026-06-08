@@ -33,7 +33,7 @@ void __used amd64_spur_handler(struct interrupt_frame* restrict frame, uint64_t 
     pr_verbose("picstub: spurious interrupt: intvec=0x%02zX", (size_t)(intvec));
 }
 
-define_initcall(amd64_picstub_bsp, INTICALL_STAGE_BSP_ARCH, INIT_MIDDLE)
+static void arch_init_picstub_bsp(void)
 {
     disable_interrupts();
 
@@ -68,7 +68,9 @@ define_initcall(amd64_picstub_bsp, INTICALL_STAGE_BSP_ARCH, INIT_MIDDLE)
     }
 }
 
-define_initcall(amd64_picstub_smp, INITCALL_STAGE_SMP_IREQ, INIT_EARLY)
+initcall_bsp_arch(arch_init_picstub_bsp, INIT_MIDDLE);
+
+static void arch_init_picstub_smp(void)
 {
     set_idt_entry_kern(0x20, false, &amd64_spur_20);
     set_idt_entry_kern(0x21, false, &amd64_spur_21);
@@ -87,3 +89,5 @@ define_initcall(amd64_picstub_smp, INITCALL_STAGE_SMP_IREQ, INIT_EARLY)
     set_idt_entry_kern(0x2E, false, &amd64_spur_2E);
     set_idt_entry_kern(0x2F, false, &amd64_spur_2F);
 }
+
+initcall_smp_ireq(arch_init_picstub_smp, INIT_EARLY);

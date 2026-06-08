@@ -103,7 +103,7 @@ void install_tss(struct amd64_gdt* restrict gdt, uintptr_t tss_base, size_t tss_
     memcpy(gdt->entries + GDT_TSS, &descriptor, sizeof(descriptor));
 }
 
-define_initcall(amd64_gdt, INITCALL_STAGE_SMP_ARCH, INIT_EARLY)
+static void arch_init_gdt(void)
 {
     struct amd64_gdt* gdt = kmalloc(sizeof(struct amd64_gdt));
 
@@ -128,3 +128,5 @@ define_initcall(amd64_gdt, INITCALL_STAGE_SMP_ARCH, INIT_EARLY)
 
     asm volatile("lgdtq %0" ::"m"(gdt->gdtr));
 }
+
+initcall_smp_arch(arch_init_gdt, INIT_EARLY);

@@ -41,7 +41,7 @@ static struct clocksrc acpi_clocksrc = {
     .rating = 100,
 };
 
-static void init_acpi_clocksrc(void)
+static void arch_init_acpi_clocksrc(void)
 {
     uacpi_table table;
     uacpi_status status = uacpi_table_find_by_signature(ACPI_FADT_SIGNATURE, &table);
@@ -104,4 +104,4 @@ static void init_acpi_clocksrc(void)
     uacpi_table_unref(&table);
 }
 
-initcall_bsp_timer(init_acpi_clocksrc, INIT_FIRST);
+initcall_bsp_timer(arch_init_acpi_clocksrc, INIT_FIRST);

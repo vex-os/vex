@@ -7,6 +7,7 @@
 #include <sys/initcall.h>
 #include <sys/kprintf.h>
 #include <sys/panic.h>
+#include <sys/sched.h>
 #include <sys/vmm.h>
 
 static volatile __used __section(".limine_requests") struct limine_mp_request mp_request = {
@@ -32,11 +33,11 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
     enable_interrupts();
 
     for(;;) {
-        stop_hart();
+        sched_hart_idle();
     }
 }
 
-define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INIT_LAST)
+static void init_smp(void)
 {
     if(mp_request.response == nullptr) {
         panic("bootloader did not provide multicore information");
@@ -58,3 +59,5 @@ define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INIT_LAST)
 
     pr_inform("smp: %llu harts online", (unsigned long long)(hart_count));
 }
+
+initcall_bsp_multicore(init_smp, INIT_LAST);
