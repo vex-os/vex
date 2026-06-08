@@ -8,6 +8,7 @@
 
 #define SYS_EXIT  __k_SYS_EXIT
 #define SYS_SLEEP __k_SYS_SLEEP
+#define SYS_TEST  42
 
 struct syscall_frame {
     uintptr_t number;

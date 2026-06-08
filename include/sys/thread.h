@@ -30,6 +30,8 @@ typedef intptr_t (*thread_entry_type)(void* restrict ctxdata);
 
 extern void thread_switch(struct thread* restrict prev, struct thread* restrict next);
 
+void thread_exit_handler(intptr_t retval) __noreturn;
+
 struct thread* thread_create_base(struct process* restrict owner);
 struct thread* thread_create_kern(struct process* restrict owner, thread_entry_type entry, void* restrict ctxdata);
 struct thread* thread_create_user(struct process* restrict owner, uintptr_t user_entry, uintptr_t user_stack_top);
