@@ -35,38 +35,38 @@ struct amd64_idt {
     } __packed idtr;
 };
 
-void amd64_isr_00(void);
-void amd64_isr_01(void);
-void amd64_isr_02(void);
-void amd64_isr_03(void);
-void amd64_isr_04(void);
-void amd64_isr_05(void);
-void amd64_isr_06(void);
-void amd64_isr_07(void);
-void amd64_isr_08(void);
-void amd64_isr_09(void);
-void amd64_isr_0A(void);
-void amd64_isr_0B(void);
-void amd64_isr_0C(void);
-void amd64_isr_0D(void);
-void amd64_isr_0E(void);
-void amd64_isr_0F(void);
-void amd64_isr_10(void);
-void amd64_isr_11(void);
-void amd64_isr_12(void);
-void amd64_isr_13(void);
-void amd64_isr_14(void);
-void amd64_isr_15(void);
-void amd64_isr_16(void);
-void amd64_isr_17(void);
-void amd64_isr_18(void);
-void amd64_isr_19(void);
-void amd64_isr_1A(void);
-void amd64_isr_1B(void);
-void amd64_isr_1C(void);
-void amd64_isr_1D(void);
-void amd64_isr_1E(void);
-void amd64_isr_1F(void);
+extern void amd64_isr_00(void);
+extern void amd64_isr_01(void);
+extern void amd64_isr_02(void);
+extern void amd64_isr_03(void);
+extern void amd64_isr_04(void);
+extern void amd64_isr_05(void);
+extern void amd64_isr_06(void);
+extern void amd64_isr_07(void);
+extern void amd64_isr_08(void);
+extern void amd64_isr_09(void);
+extern void amd64_isr_0A(void);
+extern void amd64_isr_0B(void);
+extern void amd64_isr_0C(void);
+extern void amd64_isr_0D(void);
+extern void amd64_isr_0E(void);
+extern void amd64_isr_0F(void);
+extern void amd64_isr_10(void);
+extern void amd64_isr_11(void);
+extern void amd64_isr_12(void);
+extern void amd64_isr_13(void);
+extern void amd64_isr_14(void);
+extern void amd64_isr_15(void);
+extern void amd64_isr_16(void);
+extern void amd64_isr_17(void);
+extern void amd64_isr_18(void);
+extern void amd64_isr_19(void);
+extern void amd64_isr_1A(void);
+extern void amd64_isr_1B(void);
+extern void amd64_isr_1C(void);
+extern void amd64_isr_1D(void);
+extern void amd64_isr_1E(void);
+extern void amd64_isr_1F(void);
 
 static void page_fault_handler(struct hart_regs* restrict regs)
 {
@@ -91,17 +91,8 @@ static void page_fault_handler(struct hart_regs* restrict regs)
 
     asm volatile("movq %%cr2, %0" : "=r"(info.fault));
 
-    struct hart_local* hart = this_hart();
-    struct sched_task* task = hart->task;
-    struct pagemap* old_vm;
-
-    if(task == nullptr || task->owner == nullptr) {
-        old_vm = &sys_pagemap;
-    }
-    else {
-        old_vm = task->owner->vm;
-    }
-
+    // struct hart_local* hart = this_hart();
+    struct pagemap* old_vm = &sys_pagemap;
     struct pagemap* new_vm = vmm_handle_fault(old_vm, &info);
 
     if(new_vm == nullptr) {
@@ -110,9 +101,9 @@ static void page_fault_handler(struct hart_regs* restrict regs)
         panic("unhandled page fault at %p (vprot=%02X)", (void*)(info.fault), info.vprot);
     }
 
-    if(task) {
-        task->owner->vm = new_vm;
-    }
+    // if(task) {
+    //     task->owner->vm = new_vm;
+    // }
 }
 
 void __used amd64_isr_handler(struct hart_regs* restrict regs, uint64_t intvec)

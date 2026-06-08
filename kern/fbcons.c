@@ -448,9 +448,8 @@ static spinlock_type firework_lock = SPINLOCK_INIT;
 #define FIREWORK_ROW(h) ((h) * 2 + 2)
 
 #define DEFINE_FIREWORK(h, s)                                                     \
-    static int16_t firework_task_##h##_##s(void* ctxdata)                        \
+    static int16_t firework_task_##h##_##s(void* restrict ctxdata)                \
     {                                                                             \
-        (void)ctxdata;                                                            \
         size_t i = (h + s);                                                       \
         for(;;) {                                                                 \
             if(!spinlock_try_acquire(&firework_lock)) {                           \
@@ -477,7 +476,7 @@ DEFINE_HART_FIREWORKS(3)
 
 define_initcall(fbcons_fireworks, INITCALL_STAGE_SMP_LATE, INITCALL_ORDER_LATE)
 {
-    static task_entry_type const all_entries[4][4] = {
+    static kthread_entry_type const all_entries[4][4] = {
         { firework_task_0_0, firework_task_0_1, firework_task_0_2, firework_task_0_3 },
         { firework_task_1_0, firework_task_1_1, firework_task_1_2, firework_task_1_3 },
         { firework_task_2_0, firework_task_2_1, firework_task_2_2, firework_task_2_3 },
@@ -489,10 +488,10 @@ define_initcall(fbcons_fireworks, INITCALL_STAGE_SMP_LATE, INITCALL_ORDER_LATE)
         return;
 
     for(size_t i = 0U; i < 4U; ++i) {
-        struct sched_task* task = create_task(nullptr, all_entries[hart_idx][i], nullptr);
+        struct kthread* task = kthread_create(all_entries[hart_idx][i], nullptr);
         if(task == nullptr)
             panic("fbcons: firework task alloc failed");
-        enqueue_task(task);
+        kthread_enqueue(task);
     }
 }
 

@@ -12,7 +12,7 @@
 
 static void lapic_timer_handler(unsigned number, struct hart_regs* restrict regs, void* restrict ctxdata)
 {
-    sched_do_preempt();
+    sched_preempt();
 }
 
 define_initcall(amd64_lapic_timer, INITCALL_STAGE_SMP_TIMER, INITCALL_ORDER_EARLY)
