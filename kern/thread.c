@@ -8,6 +8,7 @@
 #include <sys/kprintf.h>
 #include <sys/page.h>
 #include <sys/panic.h>
+#include <sys/process.h>
 #include <sys/pslab.h>
 #include <sys/slab.h>
 #include <sys/thread.h>
@@ -46,11 +47,17 @@ struct thread* thread_create_base(struct process* restrict owner)
         return nullptr;
     }
 
-    // TODO: use owner->next_thread_index if owner is present
-    thread->index = atomic_fetch_add(&next_kthread_index, 1, ATOMIC_RELAXED);
+    if(owner == nullptr) {
+        thread->index = atomic_fetch_add(&next_kthread_index, 1, ATOMIC_RELAXED);
+        thread->proc_next = nullptr;
+    }
+    else {
+        thread->index = atomic_fetch_add(&owner->thread_count, 1, ATOMIC_RELAXED);
+        thread->proc_next = owner->threads;
+        owner->threads = thread;
+    }
 
     thread->owner = owner;
-    thread->proc_next = nullptr;
     thread->runq_next = nullptr;
     thread->deadline = 0;
     thread->retval = 0;
