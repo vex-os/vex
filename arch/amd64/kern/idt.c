@@ -7,7 +7,6 @@
 #include <sys/kprintf.h>
 #include <sys/malloc.h>
 #include <sys/panic.h>
-#include <sys/process.h>
 #include <sys/sched.h>
 #include <sys/vmm.h>
 
@@ -92,30 +91,11 @@ static void page_fault_handler(struct interrupt_frame* restrict frame)
 
     asm volatile("movq %%cr2, %0" : "=r"(info.fault));
 
-    struct hart_local* hart = this_hart();
-    struct pagemap* old_vm = &sys_pagemap;
+    // struct hart_local* hart = this_hart();
+    struct pagemap* old_vm = &sys_pagemap; // FIXME: if pagefault happens inside a uthread (process), use its vm
     struct pagemap* new_vm = vmm_handle_fault(old_vm, &info);
 
     if(new_vm == nullptr) {
-        if(info.vprot & VPROT_USER) {
-            if(hart->ut_curr) {
-                pr_warning("process %d: page fault at %p (vprot=%02X) — killing uthread", hart->ut_curr->owner->id, (void*)(info.fault),
-                    info.vprot);
-                uthread_destroy(hart->ut_curr);
-                hart->ut_curr = nullptr;
-            }
-
-            // redirect iretq back to kernel ring-0 hlt loop
-            // RSP must point to a valid kernel stack — use TSS RSP0 (top of uthread kstack)
-            frame->amd64_rip = (uintptr_t)&amd64_halt_loop;
-            frame->amd64_cs = gdt_selector(GDT_KERN_CODE_64, 0, 0);
-            frame->amd64_ss = gdt_selector(GDT_KERN_DATA_64, 0, 0);
-            frame->amd64_rsp = hart->amd64_tssp->rsp[0];
-            frame->amd64_rflags = (1 << 9); // IF=1
-
-            return;
-        }
-
         panic("unhandled page fault at %p (vprot=%02X)", (void*)(info.fault), info.vprot);
     }
 }

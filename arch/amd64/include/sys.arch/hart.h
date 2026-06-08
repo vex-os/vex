@@ -12,22 +12,14 @@ struct amd64_gdt;
 struct amd64_idt;
 
 struct kthread;
-struct uthread;
 
 struct hart_local {
     struct hart_local* self;
-    uintptr_t amd64_syscall_ksp;
-    uintptr_t amd64_syscall_usp;
-    uintptr_t amd64_exit_ksp;
 
     struct kthread* kt_curr;
     struct kthread* kt_idle;
     struct kthread* kt_runq;
     struct kthread* kt_dead;
-
-    struct uthread* ut_curr;
-    struct uthread* ut_dead;
-    struct uthread* ut_runq;
 
     unsigned short index;
 
