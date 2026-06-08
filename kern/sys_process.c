@@ -1,6 +1,7 @@
 #include <sys.arch/hart.h>
 #include <sys/kprintf.h>
 #include <sys/process.h>
+#include <sys/sched.h>
 #include <sys/syscall.h>
 #include <sys/thread.h>
 
@@ -28,6 +29,12 @@ static void sys_test(struct syscall_frame* restrict frame)
 
     pr_inform("sys_test: number=%016jX arg_0=%016jX arg_1=%016jX arg_2=%016jX", number, arg_0, arg_1, arg_2);
     pr_inform("sys_test:  arg_3=%016jX arg_4=%016jX arg_5=%016jX", arg_3, arg_4, arg_5);
+
+    if(arg_0 != 0) {
+        pr_inform("sys_test: sleeping %ju ms", arg_0);
+        sched_msleep(arg_0);
+        pr_inform("sys_test: woke up");
+    }
 
     frame->retval = 0;
 }

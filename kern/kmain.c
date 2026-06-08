@@ -22,7 +22,7 @@
 static __attribute__((naked)) void user_test_fn(void)
 {
     asm volatile("mov $42, %rax\n"         // SYS_TEST
-                 "mov $0xDEADBEEF, %rdi\n" // arg_0
+                 "mov $1000, %rdi\n"       // arg_0: sleep 1000ms
                  "mov $0xCAFEBABE, %rsi\n" // arg_1
                  "mov $0x1337C0DE, %rdx\n" // arg_2
                  "mov $0xBAADF00D, %r10\n" // arg_3
