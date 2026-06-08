@@ -42,9 +42,17 @@ void sched_preempt(void)
 {
     struct hart_local* hart = this_hart();
 
-    if(hart->dead_thread) {
-        struct thread* dead = hart->dead_thread;
-        hart->dead_thread = nullptr;
+    while(hart->dead_head) {
+        struct thread* dead = hart->dead_head;
+        hart->dead_head = dead->runq_next;
+        dead->runq_next = nullptr;
+
+        if(dead->owner) {
+            if(1 == atomic_fetch_sub(&dead->owner->live_count, 1, ATOMIC_RELAXED)) {
+                process_destroy(dead->owner);
+            }
+        }
+
         thread_destroy(dead);
     }
 
@@ -62,21 +70,39 @@ void sched_preempt(void)
     struct thread* rq_prev = nullptr;
 
     while(rq_item) {
-        if(rq_item->deadline == 0 || now >= rq_item->deadline) {
-            next = rq_item; // we will run this thread
+        struct thread* rq_next = rq_item->runq_next;
 
+        if(rq_item->state == THREAD_DEAD || rq_item->state == THREAD_SEGV) {
             if(rq_prev) {
-                rq_prev->runq_next = rq_item->runq_next;
+                rq_prev->runq_next = rq_next;
             }
             else {
-                hart->runq_head = rq_item->runq_next;
+                hart->runq_head = rq_next;
+            }
+
+            rq_item->runq_next = hart->dead_head;
+
+            hart->dead_head = rq_item;
+            rq_item = rq_next;
+
+            continue;
+        }
+
+        if(rq_item->deadline == 0 || now >= rq_item->deadline) {
+            next = rq_item;
+
+            if(rq_prev) {
+                rq_prev->runq_next = rq_next;
+            }
+            else {
+                hart->runq_head = rq_next;
             }
 
             break;
         }
 
         rq_prev = rq_item;
-        rq_item = rq_item->runq_next;
+        rq_item = rq_next;
     }
 
     if(next == nullptr) {

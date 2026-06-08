@@ -30,8 +30,13 @@ void __noreturn thread_exit_handler(intptr_t retval)
     struct thread* thread = hart->curr_thread;
 
     thread->retval = retval;
-    thread->state = THREAD_DEAD;
-    hart->dead_thread = thread;
+
+    if(thread->state != THREAD_SEGV) {
+        thread->state = THREAD_DEAD;
+    }
+
+    thread->runq_next = hart->dead_head;
+    hart->dead_head = thread;
 
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
@@ -55,6 +60,7 @@ struct thread* thread_create_base(struct process* restrict owner)
     }
     else {
         thread->index = atomic_fetch_add(&owner->thread_count, 1, ATOMIC_RELAXED);
+        atomic_fetch_add(&owner->live_count, 1, ATOMIC_RELAXED);
         thread->proc_next = owner->threads;
         owner->threads = thread;
     }
