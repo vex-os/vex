@@ -28,7 +28,7 @@ typedef int16_t (*kthread_entry_type)(void* restrict ctxdata);
 extern void kthread_switch(struct kthread* restrict prev, struct kthread* restrict next);
 
 struct kthread* kthread_create(kthread_entry_type entry, void* restrict ctxdata);
-void kthread_destroy(struct kthread* restrict thread);
+void kthread_desstrtroy(struct kthread* restrict thread);
 void kthread_enqueue(struct kthread* restrict thread);
 
 void sched_hart_idle(void);

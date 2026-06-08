@@ -1,0 +1,36 @@
+#ifndef C16998F8_37EC_4A2E_A0B5_2F7057FF9AEF
+#define C16998F8_37EC_4A2E_A0B5_2F7057FF9AEF
+#pragma once
+
+#include <sys/cdefs.h>
+#include <sys/types.h>
+
+#define THREAD_WAIT 0x0001 ///< The thread is waiting in the run queue
+#define THREAD_EXEC 0x0002 ///< The thread is currently running on a hart
+#define THREAD_DEAD 0x0003 ///< The thread has finished and is waiting to be reaped
+
+struct process;
+struct thread {
+    uintptr_t kernel_stack;
+
+    struct process* owner;
+    struct thread* runq_next;
+    struct thread* proc_next;
+
+    uint32_t index;
+    uint16_t state;
+
+    uint64_t deadline;
+
+    intptr_t retval;
+};
+
+typedef intptr_t (*thread_entry_type)(void* restrict ctxdata);
+
+extern void thread_switch(struct thread* restrict prev, struct thread* restrict next);
+
+struct thread* thread_create(struct process* restrict owner, thread_entry_type entry, void* restrict ctxdata);
+void thread_destroy(struct thread* restrict thrd);
+void thread_enqueue(struct thread* restrict thrd);
+
+#endif /* C16998F8_37EC_4A2E_A0B5_2F7057FF9AEF */
