@@ -78,10 +78,10 @@ void __noreturn kmain(void)
 
     invoke_initcalls(initcalls_bsp_start, initcalls_bsp_end);
 
-    struct kthread* task = kthread_create(&test_task, nullptr);
-    if(task == nullptr)
-        panic("kmain: test task alloc failed");
-    kthread_enqueue(task);
+    struct kthread* thread = kthread_create(&test_task, nullptr);
+    if(thread == nullptr)
+        panic("kmain: test thread alloc failed");
+    kthread_enqueue(thread);
 
     test_userspace();
 

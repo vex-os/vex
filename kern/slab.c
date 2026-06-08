@@ -91,20 +91,12 @@ void* slab_alloc(size_t sz)
 
         spinlock_release(&slab_lock);
 
-        return head_ptr;
+        return memset(head_ptr, 0, sz);
     }
 
     spinlock_release(&slab_lock);
 
     return nullptr;
-}
-
-void* slab_calloc(size_t count, size_t sz)
-{
-    void* ptr = slab_alloc(count * sz);
-    if(ptr == nullptr)
-        return nullptr;
-    return memset(ptr, 0, count * sz);
 }
 
 void* slab_realloc(void* restrict ptr, size_t sz)

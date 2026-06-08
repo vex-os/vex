@@ -21,12 +21,12 @@ static_assert(sizeof(struct kthread) <= (PAGE_SIZE / 4));
 static unsigned short next_kthread_id = 0;
 static unsigned long next_uthread_id = 0;
 
-static void k_push_tail(struct hart_local* restrict hart, struct kthread* restrict task)
+static void k_push_tail(struct hart_local* restrict hart, struct kthread* restrict thread)
 {
-    task->rq = nullptr;
+    thread->rq = nullptr;
 
     if(hart->k_runq == nullptr) {
-        hart->k_runq = task;
+        hart->k_runq = thread;
         return;
     }
 
@@ -36,7 +36,7 @@ static void k_push_tail(struct hart_local* restrict hart, struct kthread* restri
         tail = tail->rq;
     }
 
-    tail->rq = task;
+    tail->rq = thread;
 }
 
 static void u_push_tail(struct hart_local* restrict hart, struct uthread* restrict thread)
@@ -60,16 +60,16 @@ static void u_push_tail(struct hart_local* restrict hart, struct uthread* restri
 void __used kthread_exit_handler(int16_t retval)
 {
     struct hart_local* hart = this_hart();
-    struct kthread* task = hart->k_curr;
+    struct kthread* thread = hart->k_curr;
 
-    task->entry_ret = retval;
-    task->state = THREAD_DEAD;
-    hart->k_dead = task;
+    thread->entry_ret = retval;
+    thread->state = THREAD_DEAD;
+    hart->k_dead = thread;
 
     hart->k_curr = hart->k_idle;
     hart->k_idle->state = THREAD_EXEC;
 
-    task_switch_kern(task, hart->k_idle);
+    task_switch_kern(thread, hart->k_idle);
 
     unreachable();
 }
@@ -175,48 +175,48 @@ void sched_preempt(void)
 
 struct kthread* kthread_create(kthread_entry_type entry, void* restrict ctxdata)
 {
-    struct kthread* task = slab_alloc(sizeof(struct kthread));
+    struct kthread* thread = slab_alloc(sizeof(struct kthread));
 
-    if(task == nullptr) {
+    if(thread == nullptr) {
         return nullptr;
     }
 
     uintptr_t stack = pslab_alloc();
 
     if(stack == 0) {
-        slab_free(task);
+        slab_free(thread);
         return nullptr;
     }
 
-    task->id = atomic_fetch_add(&next_kthread_id, 1, ATOMIC_RELAXED);
-    task->state = THREAD_WAIT;
-    task->rq = nullptr;
-    task->sleep_deadline = 0;
-    task->entry_ctxdata = ctxdata;
-    task->entry_ret = 0;
+    thread->id = atomic_fetch_add(&next_kthread_id, 1, ATOMIC_RELAXED);
+    thread->state = THREAD_WAIT;
+    thread->rq = nullptr;
+    thread->sleep_deadline = 0;
+    thread->entry_ctxdata = ctxdata;
+    thread->entry_ret = 0;
 
     uintptr_t* stack_ptr = phys_to_virt(stack + KTASK_STACK_SIZE);
     stack_ptr = setup_kthread_kstack(stack_ptr, (void*)entry, ctxdata);
-    task->stack = (uintptr_t)(stack_ptr);
+    thread->stack = (uintptr_t)(stack_ptr);
 
-    return task;
+    return thread;
 }
 
-void kthread_destroy(struct kthread* restrict task)
+void kthread_destroy(struct kthread* restrict thread)
 {
-    uintptr_t stack_base = page_align(task->stack);
+    uintptr_t stack_base = page_align(thread->stack);
     pslab_free_virt((void*)(stack_base));
-    slab_free(task);
+    slab_free(thread);
 }
 
-void kthread_enqueue(struct kthread* restrict task)
+void kthread_enqueue(struct kthread* restrict thread)
 {
     struct hart_local* hart = this_hart();
 
     bool intr_state = disable_interrupts();
 
-    task->state = THREAD_WAIT;
-    k_push_tail(hart, task);
+    thread->state = THREAD_WAIT;
+    k_push_tail(hart, thread);
 
     restore_interrupts(intr_state);
 }
@@ -304,14 +304,14 @@ void sched_yield(void)
 
     bool intr_state = disable_interrupts();
 
-    struct kthread* task = hart->k_curr;
-    task->state = THREAD_WAIT;
-    k_push_tail(hart, task);
+    struct kthread* thread = hart->k_curr;
+    thread->state = THREAD_WAIT;
+    k_push_tail(hart, thread);
 
     hart->k_curr = hart->k_idle;
     hart->k_idle->state = THREAD_EXEC;
 
-    task_switch_kern(task, hart->k_idle);
+    task_switch_kern(thread, hart->k_idle);
 
     restore_interrupts(intr_state);
 }
@@ -322,15 +322,15 @@ void sched_sleep_nsec(uint64_t nsec)
 
     bool intr_state = disable_interrupts();
 
-    struct kthread* task = hart->k_curr;
-    task->sleep_deadline = nsec + clocksrc_nsec();
-    task->state = THREAD_WAIT;
-    k_push_tail(hart, task);
+    struct kthread* thread = hart->k_curr;
+    thread->sleep_deadline = nsec + clocksrc_nsec();
+    thread->state = THREAD_WAIT;
+    k_push_tail(hart, thread);
 
     hart->k_curr = hart->k_idle;
     hart->k_idle->state = THREAD_EXEC;
 
-    task_switch_kern(task, hart->k_idle);
+    task_switch_kern(thread, hart->k_idle);
 
     restore_interrupts(intr_state);
 }

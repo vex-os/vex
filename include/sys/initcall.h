@@ -15,36 +15,38 @@ struct initcall {
     const char* identifier;
 };
 
-#define __define_initcall(i_function, i_section) \
-    static const __used __section(i_section)     \
-    struct initcall __initcall_##i_function = {  \
-        .function = &(i_function),               \
-        .identifier = #i_function,               \
+#define __define_initcall(ic_function, ic_section) \
+    static const __used __section(ic_section)      \
+    struct initcall __initcall_##ic_function = {   \
+        .function = &(ic_function),                \
+        .identifier = #ic_function,                \
     }
 
-#define initcall_bsp_early(function, order)     __define_initcall(function, ".initcalls.bsp.0000000" order)
-#define initcall_bsp_arch(function, order)      __define_initcall(function, ".initcalls.bsp.0100000" order)
-#define initcall_bsp_bootinfo(function, order)  __define_initcall(function, ".initcalls.bsp.0200000" order)
-#define initcall_bsp_pmm(function, order)       __define_initcall(function, ".initcalls.bsp.1000000" order)
-#define initcall_bsp_slab(function, order)      __define_initcall(function, ".initcalls.bsp.1100000" order)
-#define initcall_bsp_vmm(function, order)       __define_initcall(function, ".initcalls.bsp.1200000" order)
-#define initcall_bsp_heap(function, order)      __define_initcall(function, ".initcalls.bsp.1300000" order)
-#define initcall_bsp_ireq(function, order)      __define_initcall(function, ".initcalls.bsp.2000000" order)
-#define initcall_bsp_timer(function, order)     __define_initcall(function, ".initcalls.bsp.2100000" order)
-#define initcall_bsp_multicore(function, order) __define_initcall(function, ".initcalls.bsp.2200000" order)
-#define initcall_bsp_bus(function, order)       __define_initcall(function, ".initcalls.bsp.3000000" order)
-#define initcall_bsp_vfs(function, order)       __define_initcall(function, ".initcalls.bsp.3100000" order)
-#define initcall_bsp_dev(function, order)       __define_initcall(function, ".initcalls.bsp.3200000" order)
-#define initcall_bsp_fs(function, order)        __define_initcall(function, ".initcalls.bsp.3300000" order)
-#define initcall_bsp_cpudev(function, order)    __define_initcall(function, ".initcalls.bsp.3400000" order)
-#define initcall_bsp_services(function, order)  __define_initcall(function, ".initcalls.bsp.4000000" order)
-#define initcall_bsp_late(function, order)      __define_initcall(function, ".initcalls.bsp.ff00000" order)
+#define initcall_bsp_early(ic_function, ic_order)     __define_initcall(ic_function, ".initcalls.bsp.0000000" ic_order)
+#define initcall_bsp_arch(ic_function, ic_order)      __define_initcall(ic_function, ".initcalls.bsp.0100000" ic_order)
+#define initcall_bsp_bootinfo(ic_function, ic_order)  __define_initcall(ic_function, ".initcalls.bsp.0200000" ic_order)
+#define initcall_bsp_pmm(ic_function, ic_order)       __define_initcall(ic_function, ".initcalls.bsp.1000000" ic_order)
+#define initcall_bsp_slab(ic_function, ic_order)      __define_initcall(ic_function, ".initcalls.bsp.1100000" ic_order)
+#define initcall_bsp_vmm(ic_function, ic_order)       __define_initcall(ic_function, ".initcalls.bsp.1200000" ic_order)
+#define initcall_bsp_heap(ic_function, ic_order)      __define_initcall(ic_function, ".initcalls.bsp.1300000" ic_order)
+#define initcall_bsp_ireq(ic_function, ic_order)      __define_initcall(ic_function, ".initcalls.bsp.2000000" ic_order)
+#define initcall_bsp_timer(ic_function, ic_order)     __define_initcall(ic_function, ".initcalls.bsp.2100000" ic_order)
+#define inticall_bsp_syscall(ic_function, ic_order)   __define_initcall(ic_function, ".initcalls.bsp.2200000" ic_order)
+#define initcall_bsp_multicore(ic_function, ic_order) __define_initcall(ic_function, ".initcalls.bsp.2300000" ic_order)
+#define initcall_bsp_bus(ic_function, ic_order)       __define_initcall(ic_function, ".initcalls.bsp.3000000" ic_order)
+#define initcall_bsp_vfs(ic_function, ic_order)       __define_initcall(ic_function, ".initcalls.bsp.3100000" ic_order)
+#define initcall_bsp_dev(ic_function, ic_order)       __define_initcall(ic_function, ".initcalls.bsp.3200000" ic_order)
+#define initcall_bsp_fs(ic_function, ic_order)        __define_initcall(ic_function, ".initcalls.bsp.3300000" ic_order)
+#define initcall_bsp_cpudev(ic_function, ic_order)    __define_initcall(ic_function, ".initcalls.bsp.3400000" ic_order)
+#define initcall_bsp_services(ic_function, ic_order)  __define_initcall(ic_function, ".initcalls.bsp.4000000" ic_order)
+#define initcall_bsp_late(ic_function, ic_order)      __define_initcall(ic_function, ".initcalls.bsp.ff00000" ic_order)
 
-#define initcall_smp_hart(function, order)  __define_initcall(function, ".initcalls.smp.0000000" order)
-#define initcall_smp_arch(function, order)  __define_initcall(function, ".initcalls.smp.0100000" order)
-#define initcall_smp_ireq(function, order)  __define_initcall(function, ".initcalls.smp.2100000" order)
-#define initcall_smp_timer(function, order) __define_initcall(function, ".initcalls.smp.2200000" order)
-#define initcall_smp_late(function, order)  __define_initcall(function, ".initcalls.smp.ff00000" order)
+#define initcall_smp_hart(ic_function, ic_order)    __define_initcall(ic_function, ".initcalls.smp.0000000" ic_order)
+#define initcall_smp_arch(ic_function, ic_order)    __define_initcall(ic_function, ".initcalls.smp.0100000" ic_order)
+#define initcall_smp_ireq(ic_function, ic_order)    __define_initcall(ic_function, ".initcalls.smp.2100000" ic_order)
+#define initcall_smp_syscall(ic_function, ic_order) __define_initcall(ic_function, ".initcalls.smp.2200000" ic_order)
+#define initcall_smp_timer(ic_function, ic_order)   __define_initcall(ic_function, ".initcalls.smp.2300000" ic_order)
+#define initcall_smp_late(ic_function, ic_order)    __define_initcall(ic_function, ".initcalls.smp.ff00000" ic_order)
 
 extern const struct initcall initcalls_bsp_start[];
 extern const struct initcall initcalls_bsp_end[];
