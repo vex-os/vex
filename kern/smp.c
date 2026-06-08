@@ -33,7 +33,7 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
     enable_interrupts();
 
     for(;;) {
-        sched_hart_idle();
+        sched_idle();
     }
 }
 
