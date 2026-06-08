@@ -8,6 +8,7 @@
 #define THREAD_WAIT 0x0001 ///< The thread is waiting in the run queue
 #define THREAD_EXEC 0x0002 ///< The thread is currently running on a hart
 #define THREAD_DEAD 0x0003 ///< The thread has finished and is waiting to be reaped
+#define THREAD_SEGV 0x0004 ///< The thread was killed by a fault; process must be destroyed
 
 struct process;
 struct thread {

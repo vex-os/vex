@@ -21,7 +21,7 @@ struct hart_local {
 
     struct thread* curr_thread;
     struct thread* idle_thread;
-    struct thread* dead_thread;
+    struct thread* dead_head; // Captain Blazkowicz. Help me make a choice.
     struct thread* runq_head;
 
     unsigned short index;

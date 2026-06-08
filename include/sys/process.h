@@ -13,6 +13,7 @@ struct process {
     struct thread* threads;
     struct pagemap* vm;
     uint32_t thread_count;
+    uint32_t live_count;
     intptr_t exit_code;
     pid_t pid;
 };

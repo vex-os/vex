@@ -7,7 +7,9 @@
 #include <sys/kprintf.h>
 #include <sys/malloc.h>
 #include <sys/panic.h>
+#include <sys/process.h>
 #include <sys/sched.h>
+#include <sys/thread.h>
 #include <sys/vmm.h>
 
 #define IDT_TRAP    (0x0F << 0)
@@ -68,6 +70,22 @@ extern void amd64_isr_1D(void);
 extern void amd64_isr_1E(void);
 extern void amd64_isr_1F(void);
 
+static __noreturn void kill_user_process(struct interrupt_frame* restrict frame, uint64_t intvec)
+{
+    struct hart_local* hart = this_hart();
+    struct thread* thread = hart->curr_thread;
+    pr_warning("pid=%u: exception 0x%02zX at rip=%p", thread->owner->pid, (size_t)(intvec), (void*)(frame->amd64_rip));
+
+    for(struct thread* it = thread->owner->threads; it; it = it->proc_next) {
+        if(it != thread) {
+            it->state = THREAD_DEAD;
+        }
+    }
+
+    thread->state = THREAD_SEGV;
+    thread_exit_handler(-1);
+}
+
 static void page_fault_handler(struct interrupt_frame* restrict frame)
 {
     struct vmm_fault_info info;
@@ -76,7 +94,7 @@ static void page_fault_handler(struct interrupt_frame* restrict frame)
     info.present = (bool)(frame->amd64_err & 0x1);
 
     if(frame->amd64_err & 0x2) {
-        info.vprot = VPROT_WRITE; // tried to write
+        info.vprot = VPROT_WRITE;
     }
     else if(frame->amd64_err & 0x10) {
         info.vprot = VPROT_EXEC;
@@ -91,11 +109,16 @@ static void page_fault_handler(struct interrupt_frame* restrict frame)
 
     asm volatile("movq %%cr2, %0" : "=r"(info.fault));
 
-    // struct hart_local* hart = this_hart();
-    struct pagemap* old_vm = &sys_pagemap; // FIXME: if pagefault happens inside a uthread (process), use its vm
+    struct hart_local* hart = this_hart();
+    struct thread* thread = hart->curr_thread;
+    struct pagemap* old_vm = thread->owner ? thread->owner->vm : &sys_pagemap;
     struct pagemap* new_vm = vmm_handle_fault(old_vm, &info);
 
     if(new_vm == nullptr) {
+        if(frame->amd64_cs & 3) {
+            kill_user_process(frame, 0x0E);
+        }
+
         panic("unhandled page fault at %p (vprot=%02X)", (void*)(info.fault), info.vprot);
     }
 }
@@ -108,6 +131,11 @@ void __used amd64_isr_handler(struct interrupt_frame* restrict frame, uint64_t i
     if(intvec == 0x0E) {
         page_fault_handler(frame);
         return;
+    }
+
+    if(frame->amd64_cs & 3) {
+        kill_user_process(frame, intvec);
+        unreachable();
     }
 
     panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));
