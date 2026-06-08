@@ -19,7 +19,7 @@ static struct vnode* alloc_internal(struct vfs* restrict fs, ino_t nodenumber, c
     kassert(fs);
     kassert(ops);
 
-    struct vnode* result = slab_calloc(1, sizeof(struct vnode));
+    struct vnode* result = slab_alloc(sizeof(struct vnode));
 
     if(result == nullptr) {
         return nullptr;
@@ -38,7 +38,7 @@ struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict op
 {
     kassert(ops);
 
-    struct vnode* result = slab_calloc(1, sizeof(struct vnode));
+    struct vnode* result = slab_alloc(sizeof(struct vnode));
 
     if(result == nullptr) {
         return nullptr;

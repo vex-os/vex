@@ -12,8 +12,8 @@
 #define GDT_KERN_DATA_32 0x04
 #define GDT_KERN_CODE_64 0x05
 #define GDT_KERN_DATA_64 0x06
-#define GDT_USER_CODE_64 0x07
-#define GDT_USER_DATA_64 0x08
+#define GDT_USER_DATA_64 0x07
+#define GDT_USER_CODE_64 0x08
 #define GDT_TSS          0x09
 
 struct amd64_gdt;

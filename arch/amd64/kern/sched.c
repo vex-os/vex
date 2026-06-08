@@ -8,7 +8,12 @@
 uintptr_t __used uthread_prepare_switch(struct uthread* restrict next)
 {
     struct hart_local* hart = this_hart();
-    hart->amd64.tss->rsp[0] = PAGE_SIZE + page_align(next->kstack);
+
+    uintptr_t kstack_top = PAGE_SIZE + page_align(next->kstack);
+    hart->amd64_tssp->rsp[0] = kstack_top;
+    hart->amd64_syscall_ksp = kstack_top;
+
     vmm_switch(next->owner->vm);
+
     return next->kstack;
 }

@@ -75,7 +75,7 @@ struct file* file_open(const char* restrict path, unsigned flags)
         return nullptr;
     }
 
-    struct file* fp = slab_calloc(1, sizeof(struct file));
+    struct file* fp = slab_alloc(sizeof(struct file));
 
     if(fp == nullptr) {
         vnode_close(node);

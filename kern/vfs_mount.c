@@ -125,7 +125,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         }
     }
 
-    struct vfs* fs = slab_calloc(1, sizeof(struct vfs));
+    struct vfs* fs = slab_alloc(sizeof(struct vfs));
 
     if(fs == nullptr) {
         if(cmdl.buffer)
@@ -189,7 +189,7 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         fs->mountpoint = mountpoint;
     }
 
-    struct mount_entry* entry = slab_calloc(1, sizeof(struct mount_entry));
+    struct mount_entry* entry = slab_alloc(sizeof(struct mount_entry));
 
     if(entry == nullptr) {
         spinlock_release(&mounts_lock);

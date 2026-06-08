@@ -7,7 +7,7 @@
 static void sys_exit(struct syscall_frame* restrict frame)
 {
     struct hart_local* hart = this_hart();
-    struct uthread* thread = hart->u_curr;
+    struct uthread* thread = hart->ut_curr;
 
     pr_inform("process %ld exited with core %d", (long)(thread->owner->id), (int)(frame->arg_0));
 

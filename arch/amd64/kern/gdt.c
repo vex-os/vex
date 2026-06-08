@@ -112,7 +112,7 @@ static void arch_init_gdt(void)
     }
 
     struct hart_local* hart = this_hart();
-    hart->amd64.gdt = gdt;
+    hart->amd64_gdtp = gdt;
 
     set_entry_16(gdt, GDT_KERN_CODE_16, 0x00000000, 0xFFFF, PREDEF_CODE_FLAGS | GDT_RING_0);
     set_entry_16(gdt, GDT_KERN_DATA_16, 0x00000000, 0xFFFF, PREDEF_DATA_FLAGS | GDT_RING_0);
@@ -120,8 +120,8 @@ static void arch_init_gdt(void)
     set_entry_32(gdt, GDT_KERN_DATA_32, 0x00000000, 0xFFFFF, PREDEF_DATA_FLAGS | GDT_RING_0);
     set_entry_64(gdt, GDT_KERN_CODE_64, PREDEF_CODE_FLAGS | GDT_RING_0);
     set_entry_64(gdt, GDT_KERN_DATA_64, PREDEF_DATA_FLAGS | GDT_RING_0);
-    set_entry_64(gdt, GDT_USER_CODE_64, PREDEF_CODE_FLAGS | GDT_RING_3);
     set_entry_64(gdt, GDT_USER_DATA_64, PREDEF_DATA_FLAGS | GDT_RING_3);
+    set_entry_64(gdt, GDT_USER_CODE_64, PREDEF_CODE_FLAGS | GDT_RING_3);
 
     gdt->gdtr.size = (uint16_t)(sizeof(gdt->entries) - 1);
     gdt->gdtr.offset = (uintptr_t)(&gdt->entries[0]);
