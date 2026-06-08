@@ -58,7 +58,7 @@ struct thread* thread_create_base(struct process* restrict owner)
     return thread;
 }
 
-struct thread* thread_create(struct process* restrict owner, thread_entry_type entry, void* restrict ctxdata)
+struct thread* thread_create_kern(struct process* restrict owner, thread_entry_type entry, void* restrict ctxdata)
 {
     struct thread* thread = thread_create_base(owner);
 
@@ -77,6 +77,31 @@ struct thread* thread_create(struct process* restrict owner, thread_entry_type e
 
     uintptr_t* kernel_stack_top = phys_to_virt(kstack + THREAD_KSTACK_SIZE);
     uintptr_t* kernel_stack = setup_thread_kstack(kernel_stack_top, entry, ctxdata);
+    thread->kernel_stack_top = (uintptr_t)(kernel_stack_top);
+    thread->kernel_stack = (uintptr_t)(kernel_stack);
+
+    return thread;
+}
+
+struct thread* thread_create_user(struct process* restrict owner, uintptr_t user_entry, uintptr_t user_stack_top)
+{
+    struct thread* thread = thread_create_base(owner);
+
+    if(thread == nullptr) {
+        return nullptr;
+    }
+
+    uintptr_t kstack = pslab_alloc();
+
+    if(kstack == 0) {
+        slab_free(thread);
+        return nullptr;
+    }
+
+    thread->state = THREAD_WAIT;
+
+    uintptr_t* kernel_stack_top = phys_to_virt(kstack + THREAD_KSTACK_SIZE);
+    uintptr_t* kernel_stack = setup_thread_ustack(kernel_stack_top, user_entry, user_stack_top);
     thread->kernel_stack_top = (uintptr_t)(kernel_stack_top);
     thread->kernel_stack = (uintptr_t)(kernel_stack);
 

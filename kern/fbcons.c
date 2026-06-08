@@ -489,7 +489,7 @@ static void init_fbcons_fireworks(void)
         return;
 
     for(size_t i = 0U; i < 4U; ++i) {
-        struct thread* thrd = thread_create(nullptr, all_entries[hart_idx][i], nullptr);
+        struct thread* thrd = thread_create_kern(nullptr, all_entries[hart_idx][i], nullptr);
         if(thrd == nullptr)
             panic("fbcons: firework thread alloc failed");
         sched_enqueue(thrd);
