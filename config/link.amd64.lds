@@ -38,11 +38,11 @@ SECTIONS
 
     .initcalls : {
         initcalls_bsp_start = .;
-        *(SORT(.initcall.bsp.*))
+        *(SORT(.initcalls.bsp.*))
         initcalls_bsp_end = .;
 
         initcalls_smp_start = .;
-        *(SORT(.initcall.smp.*))
+        *(SORT(.initcalls.smp.*))
         initcalls_smp_end = .;
     } :rodata
 

@@ -18,7 +18,7 @@
 static unsigned hart_count = 0;
 static unsigned panic_ipi_vector = 0;
 
-static void panic_halt_handler(unsigned number, struct interrupt_frame* restrict frame, void* restrict ctxdata)
+static void panic_halt_handler(unsigned number, const struct interrupt_frame* restrict frame, void* restrict ctxdata)
 {
     disable_interrupts();
 

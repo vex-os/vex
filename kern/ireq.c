@@ -39,7 +39,7 @@ void remove_ireq_handler(unsigned number)
     ireq_table[number].ctxdata = nullptr;
 }
 
-void dispatch_ireq(unsigned number, struct interrupt_frame* restrict frame)
+void dispatch_ireq(unsigned number, const struct interrupt_frame* restrict frame)
 {
     if(number >= IREQ_TABLE_SIZE) {
         pr_verbose("ireq: spurious IRQ 0x%02X out of range", number);
