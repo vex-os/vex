@@ -1,13 +1,18 @@
 .section .text
 
-.global amd64_thread_trampoline
-.type amd64_thread_trampoline, @function
-amd64_thread_trampoline:
+.global amd64_thread_trampoline_kern
+.type amd64_thread_trampoline_kern, @function
+amd64_thread_trampoline_kern:
     sti
     movq %r13, %rdi
     callq *%r12
     movq %rax, %rdi
     callq thread_exit_handler
+
+.global amd64_thread_trampoline_user
+.type amd64_thread_trampoline_user, @function
+amd64_thread_trampoline_user:
+    iretq
 
 .global thread_switch
 .type thread_switch, @function

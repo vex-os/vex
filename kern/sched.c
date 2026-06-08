@@ -8,6 +8,7 @@
 #include <sys/malloc.h>
 #include <sys/page.h>
 #include <sys/panic.h>
+#include <sys/process.h>
 #include <sys/pslab.h>
 #include <sys/sched.h>
 #include <sys/slab.h>
@@ -89,6 +90,14 @@ void sched_preempt(void)
     next->state = THREAD_EXEC;
     hart->curr_thread = next;
 
+    if(next->owner) {
+        vmm_switch(next->owner->vm);
+    }
+    else {
+        vmm_switch(&sys_pagemap);
+    }
+
+    thread_switch_hook(hart, next);
     thread_switch(prev, next);
 }
 

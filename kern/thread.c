@@ -75,8 +75,9 @@ struct thread* thread_create(struct process* restrict owner, thread_entry_type e
 
     thread->state = THREAD_WAIT;
 
-    uintptr_t* kernel_stack = phys_to_virt(kstack + THREAD_KSTACK_SIZE);
-    kernel_stack = setup_thread_kstack(kernel_stack, entry, ctxdata);
+    uintptr_t* kernel_stack_top = phys_to_virt(kstack + THREAD_KSTACK_SIZE);
+    uintptr_t* kernel_stack = setup_thread_kstack(kernel_stack_top, entry, ctxdata);
+    thread->kernel_stack_top = (uintptr_t)(kernel_stack_top);
     thread->kernel_stack = (uintptr_t)(kernel_stack);
 
     return thread;

@@ -4,6 +4,7 @@
 
 #include <sys.amd64/tss.h>
 #include <sys/cdefs.h>
+#include <sys/thread.h>
 #include <sys/types.h>
 
 #define AMD64_IST_COUNT 7
@@ -15,6 +16,8 @@ struct thread;
 
 struct hart_local {
     struct hart_local* self;
+    uint64_t amd64_syscall_ksp;
+    uint64_t amd64_syscall_usp;
 
     struct thread* curr_thread;
     struct thread* idle_thread;
@@ -30,8 +33,12 @@ struct hart_local {
     struct amd64_idt* amd64_idtp;
     struct amd64_tss* amd64_tssp;
 
-    uintptr_t amd64_ist_stacks[AMD64_IST_COUNT];
+    uint64_t amd64_ist_stacks[AMD64_IST_COUNT];
 };
+
+// Static assertions as per arch/amd64/kern/syscall.S
+static_assert(8 == offsetof(struct hart_local, amd64_syscall_ksp));
+static_assert(16 == offsetof(struct hart_local, amd64_syscall_usp));
 
 static __always_inline __nodiscard struct hart_local* this_hart(void)
 {
@@ -48,6 +55,11 @@ static __always_inline void pause_hart(void)
 static __always_inline void stop_hart(void)
 {
     asm volatile("hlt");
+}
+
+static __always_inline void thread_switch_hook(struct hart_local* restrict hart, struct thread* restrict next)
+{
+    hart->amd64_syscall_ksp = next->kernel_stack_top;
 }
 
 void broadcast_panic_ipi(void);

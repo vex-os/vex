@@ -32,6 +32,7 @@ kern/memmap.c
 kern/panic.c
 kern/pci.c
 kern/pdma.c
+kern/process.c
 kern/pslab.c
 kern/ptable_gpt.c
 kern/ptable_mbr.c

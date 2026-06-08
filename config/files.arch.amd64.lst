@@ -12,6 +12,7 @@ arch/amd64/kern/lapic.c
 arch/amd64/kern/pci_cf8.c
 arch/amd64/kern/picstub.c
 arch/amd64/kern/pmio.c
+arch/amd64/kern/syscall.S
 arch/amd64/kern/thread.S
 arch/amd64/kern/tss.c
 arch/amd64/kern/vmm.c
