@@ -40,6 +40,7 @@ kern/rsdp.c
 kern/sched.c
 kern/slab.c
 kern/smp.c
+kern/sys_process.c
 kern/syscall.c
 kern/thread.c
 kern/version.c

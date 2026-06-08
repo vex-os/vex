@@ -22,7 +22,7 @@ static_assert(sizeof(struct thread) <= (PAGE_SIZE / 4));
 
 static uint32_t next_kthread_index = 1; // for process-less kernel threads
 
-void __used thread_exit_handler(intptr_t retval)
+void __noreturn thread_exit_handler(intptr_t retval)
 {
     struct hart_local* hart = this_hart();
     struct thread* thread = hart->curr_thread;
