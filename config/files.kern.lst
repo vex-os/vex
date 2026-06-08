@@ -32,7 +32,6 @@ kern/memmap.c
 kern/panic.c
 kern/pci.c
 kern/pdma.c
-kern/process.c
 kern/pslab.c
 kern/ptable_gpt.c
 kern/ptable_mbr.c
@@ -40,7 +39,6 @@ kern/rsdp.c
 kern/sched.c
 kern/slab.c
 kern/smp.c
-kern/sys_process.c
 kern/syscall.c
 kern/version.c
 kern/vfs_file.c
