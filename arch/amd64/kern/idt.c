@@ -3,7 +3,6 @@
 #include <sys.amd64/idt.h>
 #include <sys.arch/hart.h>
 #include <sys.arch/intr.h>
-#include <sys.arch/regs.h>
 #include <sys/initcall.h>
 #include <sys/kprintf.h>
 #include <sys/malloc.h>
@@ -70,24 +69,24 @@ extern void amd64_isr_1D(void);
 extern void amd64_isr_1E(void);
 extern void amd64_isr_1F(void);
 
-static void page_fault_handler(struct hart_regs* restrict regs)
+static void page_fault_handler(struct interrupt_frame* restrict frame)
 {
     struct vmm_fault_info info;
     memset(&info, 0, sizeof(info));
 
-    info.present = (bool)(regs->amd64.err & 0x1);
+    info.present = (bool)(frame->amd64.err & 0x1);
 
-    if(regs->amd64.err & 0x2) {
+    if(frame->amd64.err & 0x2) {
         info.vprot = VPROT_WRITE; // tried to write
     }
-    else if(regs->amd64.err & 0x10) {
+    else if(frame->amd64.err & 0x10) {
         info.vprot = VPROT_EXEC;
     }
     else {
         info.vprot = VPROT_READ;
     }
 
-    if(regs->amd64.err & 0x4) {
+    if(frame->amd64.err & 0x4) {
         info.vprot |= VPROT_USER;
     }
 
@@ -108,11 +107,11 @@ static void page_fault_handler(struct hart_regs* restrict regs)
 
             // redirect iretq back to kernel ring-0 hlt loop
             // RSP must point to a valid kernel stack — use TSS RSP0 (top of uthread kstack)
-            regs->amd64.rip = (uintptr_t)&amd64_halt_loop;
-            regs->amd64.cs = gdt_selector(GDT_KERN_CODE_64, 0, 0);
-            regs->amd64.ss = gdt_selector(GDT_KERN_DATA_64, 0, 0);
-            regs->amd64.rsp = hart->amd64.tss->rsp[0];
-            regs->amd64.rflags = (1 << 9); // IF=1
+            frame->amd64.rip = (uintptr_t)&amd64_halt_loop;
+            frame->amd64.cs = gdt_selector(GDT_KERN_CODE_64, 0, 0);
+            frame->amd64.ss = gdt_selector(GDT_KERN_DATA_64, 0, 0);
+            frame->amd64.rsp = hart->amd64.tss->rsp[0];
+            frame->amd64.rflags = (1 << 9); // IF=1
 
             return;
         }
@@ -121,13 +120,13 @@ static void page_fault_handler(struct hart_regs* restrict regs)
     }
 }
 
-void __used amd64_isr_handler(struct hart_regs* restrict regs, uint64_t intvec)
+void __used amd64_isr_handler(struct interrupt_frame* restrict frame, uint64_t intvec)
 {
     disable_interrupts();
     vmm_switch(&sys_pagemap);
 
     if(intvec == 0x0E) {
-        page_fault_handler(regs);
+        page_fault_handler(frame);
         return;
     }
 
@@ -181,7 +180,7 @@ void unset_idt_entry(unsigned vector)
     }
 }
 
-define_initcall(amd64_idt, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_EARLY)
+define_initcall(amd64_idt, INITCALL_STAGE_SMP_ARCH, INIT_EARLY)
 {
     struct amd64_idt* idt = kmalloc(sizeof(struct amd64_idt));
 

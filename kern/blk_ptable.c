@@ -250,7 +250,7 @@ int rescan_partitions(const struct blk_device* restrict device)
     return 0;
 }
 
-define_initcall(blk_ptable, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_FIRST)
+define_initcall(blk_ptable, INITCALL_STAGE_BSP_DEV, INIT_FIRST)
 {
     blk_event_subscribe(&handle_blk_event, nullptr);
 }

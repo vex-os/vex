@@ -28,7 +28,7 @@ static void i8042_wait_read(struct pmio_region* restrict region)
     }
 }
 
-static void ps2kbd_ireq(unsigned number, struct hart_regs* restrict regs, void* restrict ctxdata)
+static void ps2kbd_ireq(unsigned number, const struct interrupt_frame* restrict frame, void* restrict ctxdata)
 {
     struct isa_device* device = ctxdata;
 
@@ -113,7 +113,7 @@ static struct isa_driver ps2kbd_driver = {
     .identifier = "ps2kbd",
 };
 
-define_initcall(ps2kbd, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_EARLY)
+define_initcall(ps2kbd, INITCALL_STAGE_BSP_DEV, INIT_EARLY)
 {
     add_isa_driver(&ps2kbd_driver);
 }

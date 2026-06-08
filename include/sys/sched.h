@@ -2,7 +2,6 @@
 #define F65619C6_8095_4DD9_89C5_319FEE71DB72
 #pragma once
 
-#include <sys.arch/regs.h>
 #include <sys/cdefs.h>
 #include <sys/types.h>
 

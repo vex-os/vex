@@ -9,7 +9,7 @@ static volatile __used __section(".limine_requests") struct limine_memmap_reques
     .revision = 0,
 };
 
-define_initcall(init_memmap, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_FIRST)
+define_initcall(init_memmap, INITCALL_STAGE_BSP_BOOTINFO, INIT_FIRST)
 {
     if(memmap_request.response == nullptr || memmap_request.response->entry_count == 0) {
         panic("no valid memory map provided by bootloader");

@@ -81,7 +81,7 @@ void pslab_free_virt(void* restrict virtaddr)
     spinlock_release(&pslab_lock);
 }
 
-define_initcall(pslab, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_EARLY)
+define_initcall(pslab, INITCALL_STAGE_BSP_PMM, INIT_EARLY)
 {
     for(size_t i = 0U; i < memmap->entry_count; ++i) {
         const struct limine_memmap_entry* entry = memmap->entries[i];

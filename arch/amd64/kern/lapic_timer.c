@@ -10,12 +10,12 @@
 
 #define CALIB_NS UINT64_C(100000000)
 
-static void lapic_timer_handler(unsigned number, struct hart_regs* restrict regs, void* restrict ctxdata)
+static void lapic_timer_handler(unsigned number, const struct interrupt_frame* restrict frame, void* restrict ctxdata)
 {
     sched_preempt();
 }
 
-define_initcall(amd64_lapic_timer, INITCALL_STAGE_SMP_TIMER, INITCALL_ORDER_EARLY)
+define_initcall(amd64_lapic_timer, INITCALL_STAGE_SMP_TIMER, INIT_EARLY)
 {
     lapic_write(LAPIC_REG_TMRDIV, LAPIC_TIMER_DIV1);
     lapic_write(LAPIC_REG_LVT_TIMER, LAPIC_TIMER_MASKED | LAPIC_TIMER_ONESHOT);

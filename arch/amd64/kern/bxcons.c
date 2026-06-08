@@ -21,7 +21,7 @@ static struct console bxcons_driver = {
     .consflags = CONSF_RECALL,
 };
 
-define_initcall(amd64_bxcons, INITCALL_STAGE_BSP_EARLY, INITCALL_ORDER_FIRST)
+define_initcall(amd64_bxcons, INITCALL_STAGE_BSP_EARLY, INIT_FIRST)
 {
     if(0xE9 == pmread8(0xE9)) {
         add_console(&bxcons_driver);

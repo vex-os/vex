@@ -115,7 +115,7 @@ void pdma_free_virt(void* restrict virtaddr, size_t numpages)
     }
 }
 
-define_initcall(pdma, INITCALL_STAGE_BSP_PMM, INITCALL_ORDER_FIRST)
+define_initcall(pdma, INITCALL_STAGE_BSP_PMM, INIT_FIRST)
 {
     size_t bitmap_npages = 0U;
 

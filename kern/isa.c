@@ -242,7 +242,7 @@ void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsig
     }
 }
 
-define_initcall(isa, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_MIDDLE)
+define_initcall(isa, INITCALL_STAGE_BSP_BUS, INIT_MIDDLE)
 {
     for(uint32_t i = 0; i < ISA_IRQ_COUNT; ++i) {
         isa_irq_table[i].gsi = i;

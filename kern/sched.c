@@ -340,7 +340,7 @@ void sched_sleep_msec(uint64_t msec)
     sched_sleep_nsec(msec * 1000000);
 }
 
-define_initcall(sched_hart_idle, INITCALL_STAGE_SMP_TIMER, INITCALL_ORDER_LAST)
+define_initcall(sched_hart_idle, INITCALL_STAGE_SMP_TIMER, INIT_LAST)
 {
     struct kthread* idle = slab_alloc(sizeof(struct kthread));
 

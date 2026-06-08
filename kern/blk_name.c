@@ -49,7 +49,7 @@ unsigned blk_name_count(const struct blk_name* restrict name)
     return name->priv.next_iterator;
 }
 
-define_initcall(blk_name_predefined, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_LATE)
+define_initcall(blk_name_predefined, INITCALL_STAGE_BSP_BUS, INIT_LATE)
 {
     blk_name_ata = blk_name_query(BLK_NAME_PREFIX_ATA);
     blk_name_atapi = blk_name_query(BLK_NAME_PREFIX_ATAPI);

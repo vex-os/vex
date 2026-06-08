@@ -45,7 +45,7 @@ static struct clocksrc hpet_clocksrc = {
     .rating = 200,
 };
 
-define_initcall(hpet_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
+define_initcall(hpet_clocksrc, INITCALL_STAGE_BSP_TIMER, INIT_FIRST)
 {
     uacpi_table table;
     uacpi_status status = uacpi_table_find_by_signature(ACPI_HPET_SIGNATURE, &table);

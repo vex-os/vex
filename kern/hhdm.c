@@ -10,7 +10,7 @@ static volatile __used __section(".limine_requests") struct limine_hhdm_request 
     .revision = 0,
 };
 
-define_initcall(hhdm, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_FIRST)
+define_initcall(hhdm, INITCALL_STAGE_BSP_BOOTINFO, INIT_FIRST)
 {
     if(hhdm_request.response == nullptr) {
         panic("bootloader did not provide HHDM information");

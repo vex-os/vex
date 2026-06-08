@@ -48,7 +48,7 @@ unsigned chr_name_count(const struct chr_name* restrict name)
     return name->priv.next_iterator;
 }
 
-define_initcall(chr_name_predefined, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_LATE)
+define_initcall(chr_name_predefined, INITCALL_STAGE_BSP_BUS, INIT_LATE)
 {
     chr_name_tty = chr_name_query(CHR_NAME_PREFIX_TTY);
     chr_name_pty = chr_name_query(CHR_NAME_PREFIX_PTY);

@@ -36,7 +36,7 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
     }
 }
 
-define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INITCALL_ORDER_LAST)
+define_initcall(smp, INITCALL_STAGE_BSP_MULTICORE, INIT_LAST)
 {
     if(mp_request.response == nullptr) {
         panic("bootloader did not provide multicore information");
