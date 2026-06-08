@@ -9,6 +9,7 @@
 
 #include <sys/sched.h>
 #include <sys/spinlock.h>
+#include <sys/thread.h>
 
 #define CHR_BS  0x08
 #define CHR_HT  0x09
@@ -448,7 +449,7 @@ static spinlock_type firework_lock = SPINLOCK_INIT;
 #define FIREWORK_ROW(h) ((h) * 2 + 2)
 
 #define DEFINE_FIREWORK(h, s)                                                     \
-    static int16_t firework_task_##h##_##s(void* restrict ctxdata)                \
+    static intptr_t firework_task_##h##_##s(void* restrict ctxdata)               \
     {                                                                             \
         size_t i = (h + s);                                                       \
         for(;;) {                                                                 \
@@ -459,7 +460,7 @@ static spinlock_type firework_lock = SPINLOCK_INIT;
             render_cell(FIREWORK_COL(s), FIREWORK_ROW(h), firework_chars[i & 3]); \
             i += 1;                                                               \
             spinlock_release(&firework_lock);                                     \
-            sched_sleep_msec(50 + 25 * h);                                        \
+            sched_msleep(50 + 25 * h);                                            \
         }                                                                         \
     }
 
@@ -476,7 +477,7 @@ DEFINE_HART_FIREWORKS(3)
 
 static void init_fbcons_fireworks(void)
 {
-    static kthread_entry_type const all_entries[4][4] = {
+    static thread_entry_type const all_entries[4][4] = {
         { firework_task_0_0, firework_task_0_1, firework_task_0_2, firework_task_0_3 },
         { firework_task_1_0, firework_task_1_1, firework_task_1_2, firework_task_1_3 },
         { firework_task_2_0, firework_task_2_1, firework_task_2_2, firework_task_2_3 },
@@ -488,10 +489,10 @@ static void init_fbcons_fireworks(void)
         return;
 
     for(size_t i = 0U; i < 4U; ++i) {
-        struct kthread* thread = kthread_create(all_entries[hart_idx][i], nullptr);
-        if(thread == nullptr)
+        struct thread* thrd = thread_create(nullptr, all_entries[hart_idx][i], nullptr);
+        if(thrd == nullptr)
             panic("fbcons: firework thread alloc failed");
-        kthread_enqueue(thread);
+        sched_enqueue(thrd);
     }
 }
 

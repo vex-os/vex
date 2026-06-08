@@ -10,6 +10,7 @@
 #include <sys/pslab.h>
 #include <sys/sched.h>
 #include <sys/syscall.h>
+#include <sys/thread.h>
 #include <sys/version.h>
 #include <sys/vmm.h>
 #include <sys/vprot.h>
@@ -18,13 +19,13 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-static int16_t test_task(void* restrict ctxdata)
+static intptr_t test_task(void* restrict ctxdata)
 {
     int count = 0;
 
     for(;;) {
         pr_inform("TICK %d", count);
-        sched_sleep_msec(500);
+        sched_msleep(500);
 
         if(++count >= 5) {
             return 42;
@@ -40,17 +41,17 @@ void __noreturn kmain(void)
 
     invoke_initcalls(initcalls_bsp_start, initcalls_bsp_end);
 
-    struct kthread* thread = kthread_create(&test_task, nullptr);
-    if(thread == nullptr)
+    struct thread* thrd = thread_create(nullptr, &test_task, nullptr);
+    if(thrd == nullptr)
         panic("kmain: test thread alloc failed");
-    kthread_enqueue(thread);
+    sched_enqueue(thrd);
 
     enable_interrupts();
 
     pr_emerg("hanging around...");
 
     for(;;) {
-        sched_hart_idle();
+        sched_idle();
     }
 
     unreachable();

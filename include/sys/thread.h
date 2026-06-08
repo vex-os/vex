@@ -29,8 +29,14 @@ typedef intptr_t (*thread_entry_type)(void* restrict ctxdata);
 
 extern void thread_switch(struct thread* restrict prev, struct thread* restrict next);
 
+struct thread* thread_create_base(struct process* restrict owner);
 struct thread* thread_create(struct process* restrict owner, thread_entry_type entry, void* restrict ctxdata);
 void thread_destroy(struct thread* restrict thrd);
 void thread_enqueue(struct thread* restrict thrd);
+
+void thread_yield(void);
+void thread_nsleep(uint64_t nsec);
+void thread_usleep(uint64_t usec);
+void thread_msleep(uint64_t msec);
 
 #endif /* C16998F8_37EC_4A2E_A0B5_2F7057FF9AEF */
