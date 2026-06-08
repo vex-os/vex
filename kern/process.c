@@ -1,4 +1,5 @@
 #include <sys/atomic.h>
+#include <sys/kprintf.h>
 #include <sys/process.h>
 #include <sys/sched.h>
 #include <sys/slab.h>
@@ -33,6 +34,7 @@ struct uprocess* uprocess_create(struct uprocess* restrict parent)
 
 static void uprocess_free(struct uprocess* restrict proc)
 {
+    pr_inform("process %d exited", proc->id);
     vmm_release(proc->vm);
     slab_free(proc);
 }

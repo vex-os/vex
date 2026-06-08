@@ -272,6 +272,8 @@ void uthread_destroy(struct uthread* restrict thread)
 
     struct uprocess* owner = thread->owner;
 
+    pr_inform("uthread %lu of process %d exited", thread->id, owner->id);
+
     uintptr_t kstack_base = page_align(thread->kstack);
     pslab_free_virt((void*)(kstack_base));
     slab_free(thread);

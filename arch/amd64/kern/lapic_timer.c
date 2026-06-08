@@ -8,7 +8,7 @@
 #include <sys/panic.h>
 #include <sys/sched.h>
 
-#define CALIB_NS UINT64_C(10000000)
+#define CALIB_NS UINT64_C(100000000)
 
 static void lapic_timer_handler(unsigned number, struct hart_regs* restrict regs, void* restrict ctxdata)
 {

@@ -8,6 +8,7 @@
 #include <sys/kprintf.h>
 #include <sys/malloc.h>
 #include <sys/panic.h>
+#include <sys/process.h>
 #include <sys/sched.h>
 #include <sys/vmm.h>
 
@@ -35,6 +36,7 @@ struct amd64_idt {
     } __packed idtr;
 };
 
+extern void amd64_halt_loop(void);
 extern void amd64_isr_00(void);
 extern void amd64_isr_01(void);
 extern void amd64_isr_02(void);
@@ -79,36 +81,50 @@ static void page_fault_handler(struct hart_regs* restrict regs)
         info.vprot = VPROT_WRITE; // tried to write
     }
     else if(regs->amd64.err & 0x10) {
-        info.vprot = VPROT_EXEC; // tried to execute
+        info.vprot = VPROT_EXEC;
     }
     else {
-        info.vprot = VPROT_READ; // tried to read
+        info.vprot = VPROT_READ;
     }
 
     if(regs->amd64.err & 0x4) {
-        info.vprot |= VPROT_USER; // user mode
+        info.vprot |= VPROT_USER;
     }
 
     asm volatile("movq %%cr2, %0" : "=r"(info.fault));
 
-    // struct hart_local* hart = this_hart();
+    struct hart_local* hart = this_hart();
     struct pagemap* old_vm = &sys_pagemap;
     struct pagemap* new_vm = vmm_handle_fault(old_vm, &info);
 
     if(new_vm == nullptr) {
-        // FIXME: if this is in-kernel we're panicking, otherwise
-        // it's probably a good idea to just terminate a process with SIGSEGV
+        if(info.vprot & VPROT_USER) {
+            if(hart->u_curr) {
+                pr_warning("process %d: page fault at %p (vprot=%02X) — killing uthread", hart->u_curr->owner->id, (void*)(info.fault),
+                    info.vprot);
+                uthread_destroy(hart->u_curr);
+                hart->u_curr = nullptr;
+            }
+
+            // redirect iretq back to kernel ring-0 hlt loop
+            // RSP must point to a valid kernel stack — use TSS RSP0 (top of uthread kstack)
+            regs->amd64.rip = (uintptr_t)&amd64_halt_loop;
+            regs->amd64.cs = gdt_selector(GDT_KERN_CODE_64, 0, 0);
+            regs->amd64.ss = gdt_selector(GDT_KERN_DATA_64, 0, 0);
+            regs->amd64.rsp = hart->amd64.tss->rsp[0];
+            regs->amd64.rflags = (1 << 9); // IF=1
+
+            return;
+        }
+
         panic("unhandled page fault at %p (vprot=%02X)", (void*)(info.fault), info.vprot);
     }
-
-    // if(task) {
-    //     task->owner->vm = new_vm;
-    // }
 }
 
 void __used amd64_isr_handler(struct hart_regs* restrict regs, uint64_t intvec)
 {
     disable_interrupts();
+    vmm_switch(&sys_pagemap);
 
     if(intvec == 0x0E) {
         page_fault_handler(regs);

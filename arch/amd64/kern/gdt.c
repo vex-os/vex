@@ -88,7 +88,7 @@ static void set_entry_64(struct amd64_gdt* restrict gdt, uint8_t id, uint8_t fla
     memcpy(gdt->entries + id, &entry, sizeof(entry));
 }
 
-void gdt_install_tss(struct amd64_gdt* restrict gdt, uintptr_t tss_base, size_t tss_size)
+void install_tss(struct amd64_gdt* restrict gdt, uintptr_t tss_base, size_t tss_size)
 {
     struct tss_descriptor descriptor = { 0 };
 

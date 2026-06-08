@@ -1,6 +1,6 @@
-kern/acpi.c
 kern/acpi_glue.c
 kern/acpi_isa.c
+kern/acpi.c
 kern/assert.c optional ENABLE_ASSERTIONS
 kern/ata.c
 kern/atapi.c
@@ -14,8 +14,8 @@ kern/chr_name.c
 kern/clocksrc.c
 kern/cmdline.c
 kern/console.c
-kern/crc32.c
 kern/crc32_iso3309.c
+kern/crc32.c
 kern/delay.c
 kern/fbcons.c optional fbcons
 kern/hhdm.c
@@ -32,6 +32,7 @@ kern/memmap.c
 kern/panic.c
 kern/pci.c
 kern/pdma.c
+kern/process.c
 kern/pslab.c
 kern/ptable_gpt.c
 kern/ptable_mbr.c
