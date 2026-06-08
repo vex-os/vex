@@ -60,6 +60,8 @@ static __always_inline void stop_hart(void)
 static __always_inline void thread_switch_hook(struct hart_local* restrict hart, struct thread* restrict next)
 {
     hart->amd64_syscall_ksp = next->kernel_stack_top;
+    // hardware interrupts from ring 3 use TSS.rsp[0] for stack switch
+    hart->amd64_tssp->rsp[0] = next->kernel_stack_top;
 }
 
 void broadcast_panic_ipi(void);

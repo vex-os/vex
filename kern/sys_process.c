@@ -9,6 +9,8 @@ static void sys_exit(struct syscall_frame* restrict frame)
     struct hart_local* hart = this_hart();
     struct thread* thread = hart->curr_thread;
     thread->owner->exit_code = (intptr_t)(frame->arg_0);
+    pr_inform("sys_exit: pid=%u exit_code=%ld", thread->owner->pid, (intptr_t)(frame->arg_0));
+    thread->state = THREAD_DEAD;
     thread_exit_handler(frame->arg_0);
 }
 
