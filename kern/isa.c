@@ -242,7 +242,7 @@ void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsig
     }
 }
 
-define_initcall(isa, INITCALL_STAGE_BSP_BUS, INIT_MIDDLE)
+static void init_isa(void)
 {
     for(uint32_t i = 0; i < ISA_IRQ_COUNT; ++i) {
         isa_irq_table[i].gsi = i;
@@ -258,3 +258,5 @@ define_initcall(isa, INITCALL_STAGE_BSP_BUS, INIT_MIDDLE)
         uacpi_table_unref(&madt);
     }
 }
+
+initcall_bsp_bus(init_isa, INIT_MIDDLE);

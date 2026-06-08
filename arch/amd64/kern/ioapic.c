@@ -177,7 +177,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
     return UACPI_ITERATION_DECISION_CONTINUE;
 }
 
-define_initcall(amd64_ioapic, INITCALL_STAGE_BSP_IREQ, INIT_FIRST)
+static void arch_init_ioapic(void)
 {
     uacpi_table madt;
     uacpi_status status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);
@@ -189,3 +189,5 @@ define_initcall(amd64_ioapic, INITCALL_STAGE_BSP_IREQ, INIT_FIRST)
     uacpi_for_each_subtable(madt.hdr, sizeof(struct acpi_madt), &ioapic_madt_callback, nullptr);
     uacpi_table_unref(&madt);
 }
+
+initcall_bsp_ireq(arch_init_ioapic, INIT_FIRST);

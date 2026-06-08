@@ -284,7 +284,9 @@ static struct vfs_driver echfs_vfs_driver = {
     .ops = &echfs_vfs_ops,
 };
 
-define_initcall(echfs, INITCALL_STAGE_BSP_FS, INIT_EARLY)
+static void init_echfs(void)
 {
     add_vfs_driver(&echfs_vfs_driver);
 }
+
+initcall_bsp_fs(init_echfs, INIT_EARLY);

@@ -180,7 +180,7 @@ void unset_idt_entry(unsigned vector)
     }
 }
 
-define_initcall(amd64_idt, INITCALL_STAGE_SMP_ARCH, INIT_EARLY)
+static void arch_init_idt(void)
 {
     struct amd64_idt* idt = kmalloc(sizeof(struct amd64_idt));
 
@@ -229,3 +229,5 @@ define_initcall(amd64_idt, INITCALL_STAGE_SMP_ARCH, INIT_EARLY)
 
     asm volatile("lidtq %0" ::"m"(idt->idtr));
 }
+
+initcall_smp_arch(arch_init_idt, INIT_EARLY);

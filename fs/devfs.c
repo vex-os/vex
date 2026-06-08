@@ -166,7 +166,9 @@ static struct vfs_driver devfs_driver = {
     .ops = &devfs_ops,
 };
 
-define_initcall(devfs, INITCALL_STAGE_BSP_VFS, INIT_EARLY)
+static void init_devfs(void)
 {
     add_vfs_driver(&devfs_driver);
 }
+
+initcall_bsp_vfs(init_devfs, INIT_EARLY);

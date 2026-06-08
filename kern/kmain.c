@@ -90,7 +90,7 @@ void __noreturn kmain(void)
     pr_emerg("hanging around...");
 
     for(;;) {
-        stop_hart();
+        sched_hart_idle();
     }
 
     unreachable();

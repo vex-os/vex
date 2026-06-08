@@ -222,7 +222,9 @@ static struct blk_ptable gpt_ptable = {
     .identifier = "gpt",
 };
 
-define_initcall(ptable_gpt, INITCALL_STAGE_BSP_DEV, INIT_FIRST)
+static void init_ptable_gpt(void)
 {
     add_blk_ptable(&gpt_ptable);
 }
+
+initcall_bsp_dev(init_ptable_gpt, INIT_FIRST);

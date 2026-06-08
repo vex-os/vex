@@ -74,6 +74,11 @@ void __used kthread_exit_handler(int16_t retval)
     unreachable();
 }
 
+void sched_hart_idle(void)
+{
+    pause_hart();
+}
+
 void sched_preempt(void)
 {
     struct hart_local* hart = this_hart();
@@ -340,7 +345,7 @@ void sched_sleep_msec(uint64_t msec)
     sched_sleep_nsec(msec * 1000000);
 }
 
-define_initcall(sched_hart_idle, INITCALL_STAGE_SMP_TIMER, INIT_LAST)
+static void init_sched_idle(void)
 {
     struct kthread* idle = slab_alloc(sizeof(struct kthread));
 
@@ -358,3 +363,5 @@ define_initcall(sched_hart_idle, INITCALL_STAGE_SMP_TIMER, INIT_LAST)
     hart->k_idle = idle;
     hart->k_curr = idle;
 }
+
+initcall_smp_timer(init_sched_idle, INIT_LAST);

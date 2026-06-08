@@ -221,7 +221,7 @@ void __used amd64_ireq_handler(struct interrupt_frame* restrict frame, uint64_t 
     dispatch_ireq(idt_vector - ARCH_IREQ_BASE, frame);
 }
 
-define_initcall(amd64_ireq, INITCALL_STAGE_SMP_ARCH, INIT_MIDDLE)
+static void arch_init_ireq(void)
 {
     set_idt_entry_kern(0x30, false, &amd64_ireq_30);
     set_idt_entry_kern(0x31, false, &amd64_ireq_31);
@@ -432,3 +432,5 @@ define_initcall(amd64_ireq, INITCALL_STAGE_SMP_ARCH, INIT_MIDDLE)
     set_idt_entry_kern(0xFE, false, &amd64_ireq_FE);
     set_idt_entry_kern(0xFF, false, &amd64_ireq_FF);
 }
+
+initcall_smp_arch(arch_init_ireq, INIT_MIDDLE);

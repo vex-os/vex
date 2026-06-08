@@ -11,7 +11,7 @@ static volatile __used __section(".limine_requests") struct limine_executable_ad
     .revision = 0,
 };
 
-define_initcall(kbase, INITCALL_STAGE_BSP_BOOTINFO, INIT_FIRST)
+static void init_kbase(void)
 {
     if(kbase_request.response == nullptr) {
         panic("bootloader did not provide executable address information");
@@ -20,3 +20,5 @@ define_initcall(kbase, INITCALL_STAGE_BSP_BOOTINFO, INIT_FIRST)
     kbase_phys = kbase_request.response->physical_base;
     kbase_virt = kbase_request.response->virtual_base;
 }
+
+initcall_bsp_bootinfo(init_kbase, INIT_FIRST);

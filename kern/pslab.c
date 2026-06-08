@@ -81,7 +81,7 @@ void pslab_free_virt(void* restrict virtaddr)
     spinlock_release(&pslab_lock);
 }
 
-define_initcall(pslab, INITCALL_STAGE_BSP_PMM, INIT_EARLY)
+static void init_pslab(void)
 {
     for(size_t i = 0U; i < memmap->entry_count; ++i) {
         const struct limine_memmap_entry* entry = memmap->entries[i];
@@ -114,3 +114,5 @@ define_initcall(pslab, INITCALL_STAGE_BSP_PMM, INIT_EARLY)
     hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), pslab_numpages * PAGE_SIZE);
     pr_verbose("pslab: tracking %s in %zu pages", hrsize_buffer, pslab_numpages);
 }
+
+initcall_bsp_pmm(init_pslab, INIT_EARLY);

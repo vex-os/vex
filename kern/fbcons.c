@@ -474,7 +474,7 @@ DEFINE_HART_FIREWORKS(1)
 DEFINE_HART_FIREWORKS(2)
 DEFINE_HART_FIREWORKS(3)
 
-define_initcall(fbcons_fireworks, INITCALL_STAGE_SMP_LATE, INIT_LATE)
+static void init_fbcons_fireworks(void)
 {
     static kthread_entry_type const all_entries[4][4] = {
         { firework_task_0_0, firework_task_0_1, firework_task_0_2, firework_task_0_3 },
@@ -495,7 +495,9 @@ define_initcall(fbcons_fireworks, INITCALL_STAGE_SMP_LATE, INIT_LATE)
     }
 }
 
-define_initcall(fbcons, INITCALL_STAGE_BSP_HEAP, INIT_LAST)
+initcall_smp_late(init_fbcons_fireworks, INIT_LATE);
+
+static void init_fbcons(void)
 {
     if(fb_request.response) {
         for(size_t i = 0U; i < fb_request.response->framebuffer_count; ++i) {
@@ -537,3 +539,5 @@ define_initcall(fbcons, INITCALL_STAGE_BSP_HEAP, INIT_LAST)
         }
     }
 }
+
+initcall_bsp_heap(init_fbcons, INIT_LAST);
