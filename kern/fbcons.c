@@ -532,7 +532,8 @@ static void init_fbcons(void)
 
                 do_clear();
 
-                add_console(&fbcons_driver);
+                (void)(fbcons_driver);
+                // add_console(&fbcons_driver);
 
                 return;
             }

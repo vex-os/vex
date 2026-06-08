@@ -1,7 +1,6 @@
 #include <format.h>
 #include <string.h>
 #include <strings.h>
-#include <sys.arch/intr.h>
 #include <sys/assert.h>
 #include <sys/clocksrc.h>
 #include <sys/cmdline.h>
@@ -59,8 +58,6 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 {
     struct stagebuf st = { 0 };
 
-    bool intr_state = disable_interrupts();
-
     spinlock_acquire(&kprintf_lock);
 
     if(sv <= loglevel) {
@@ -82,8 +79,6 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
     }
 
     spinlock_release(&kprintf_lock);
-
-    restore_interrupts(intr_state);
 }
 
 static void init_kprintf(void)
