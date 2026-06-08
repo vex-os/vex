@@ -47,6 +47,7 @@ typedef int16_t (*kthread_entry_type)(void* restrict ctxdata);
 
 extern void task_switch_kern(struct kthread* restrict prev, struct kthread* restrict next);
 extern void task_switch_user(struct uthread* restrict prev, struct uthread* restrict next);
+extern void task_enter_user(struct uthread* restrict next);
 
 struct kthread* kthread_create(kthread_entry_type entry, void* restrict ctxdata);
 void kthread_destroy(struct kthread* restrict thread);
