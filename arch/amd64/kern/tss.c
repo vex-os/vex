@@ -7,7 +7,7 @@
 #include <sys/malloc.h>
 #include <sys/panic.h>
 
-define_initcall(amd64_tss, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_MIDDLE)
+define_initcall(amd64_tss, INITCALL_STAGE_SMP_ARCH, INIT_MIDDLE)
 {
     struct amd64_tss* tss = kmalloc(sizeof(struct amd64_tss));
 

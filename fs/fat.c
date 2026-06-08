@@ -421,7 +421,7 @@ static struct vfs_driver fat_vfs_driver = {
     .ops = &fat_vfs_ops,
 };
 
-define_initcall(fat, INITCALL_STAGE_BSP_VFS, INITCALL_ORDER_EARLY)
+define_initcall(fat, INITCALL_STAGE_BSP_VFS, INIT_EARLY)
 {
     add_vfs_driver(&fat_vfs_driver);
 }

@@ -177,7 +177,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
     return UACPI_ITERATION_DECISION_CONTINUE;
 }
 
-define_initcall(amd64_ioapic, INITCALL_STAGE_BSP_IREQ, INITCALL_ORDER_FIRST)
+define_initcall(amd64_ioapic, INITCALL_STAGE_BSP_IREQ, INIT_FIRST)
 {
     uacpi_table madt;
     uacpi_status status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);

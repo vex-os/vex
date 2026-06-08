@@ -41,7 +41,7 @@ void lapic_broadcast_ipi(uint8_t vector)
     }
 }
 
-define_initcall(amd64_lapic, INITCALL_STAGE_SMP_IREQ, INITCALL_ORDER_FIRST)
+define_initcall(amd64_lapic, INITCALL_STAGE_SMP_IREQ, INIT_FIRST)
 {
     uint64_t msr = rdmsr(MSR_IA32_APIC_BASE);
 

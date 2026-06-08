@@ -757,7 +757,7 @@ static struct pci_driver ahci_driver = {
     .ids = ahci_ids,
 };
 
-define_initcall(ahci, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_MIDDLE)
+define_initcall(ahci, INITCALL_STAGE_BSP_DEV, INIT_MIDDLE)
 {
     add_pci_driver(&ahci_driver);
 }

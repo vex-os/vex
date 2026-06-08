@@ -103,7 +103,7 @@ void install_tss(struct amd64_gdt* restrict gdt, uintptr_t tss_base, size_t tss_
     memcpy(gdt->entries + GDT_TSS, &descriptor, sizeof(descriptor));
 }
 
-define_initcall(amd64_gdt, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_EARLY)
+define_initcall(amd64_gdt, INITCALL_STAGE_SMP_ARCH, INIT_EARLY)
 {
     struct amd64_gdt* gdt = kmalloc(sizeof(struct amd64_gdt));
 

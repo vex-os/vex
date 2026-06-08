@@ -108,7 +108,7 @@ const char* cmdline_argument(const struct cmdline* restrict cmdl, const char* re
     return nullptr;
 }
 
-define_initcall(sys_cmdline_parse, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_MIDDLE)
+define_initcall(sys_cmdline_parse, INITCALL_STAGE_BSP_BOOTINFO, INIT_MIDDLE)
 {
     if(cmdline_request.response == nullptr) {
         sys_cmdline.buffer = nullptr;
@@ -128,7 +128,7 @@ define_initcall(sys_cmdline_parse, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_M
     }
 }
 
-define_initcall(sys_cmdline_preserve, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_LAST)
+define_initcall(sys_cmdline_preserve, INITCALL_STAGE_BSP_HEAP, INIT_LAST)
 {
     if(sys_cmdline.buffer) {
         char* buffer_copy = kmalloc(sys_cmdline.length);

@@ -6,7 +6,7 @@
 #include <sys/pslab.h>
 #include <uacpi/uacpi.h>
 
-define_initcall(acpi_tables, INITCALL_STAGE_BSP_VMM, INITCALL_ORDER_LAST)
+define_initcall(acpi_tables, INITCALL_STAGE_BSP_VMM, INIT_LAST)
 {
     void* temporary_buffer = pslab_alloc_virt();
 
@@ -23,7 +23,7 @@ define_initcall(acpi_tables, INITCALL_STAGE_BSP_VMM, INITCALL_ORDER_LAST)
     }
 }
 
-define_initcall(init_acpi, INITCALL_STAGE_BSP_BUS, INITCALL_ORDER_MIDDLE)
+define_initcall(init_acpi, INITCALL_STAGE_BSP_BUS, INIT_MIDDLE)
 {
     uacpi_status status = uacpi_initialize(0);
 

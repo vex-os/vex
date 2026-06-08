@@ -117,7 +117,7 @@ static struct blk_ptable mbr_ptable = {
     .identifier = "mbr",
 };
 
-define_initcall(ptable_mbr, INITCALL_STAGE_BSP_DEV, INITCALL_ORDER_FIRST)
+define_initcall(ptable_mbr, INITCALL_STAGE_BSP_DEV, INIT_FIRST)
 {
     add_blk_ptable(&mbr_ptable);
 }

@@ -340,7 +340,7 @@ char* kvasprintf(const char* restrict fmt, va_list ap)
     return result;
 }
 
-define_initcall(init_malloc, INITCALL_STAGE_BSP_HEAP, INITCALL_ORDER_FIRST)
+define_initcall(init_malloc, INITCALL_STAGE_BSP_HEAP, INIT_FIRST)
 {
     heap_end = PAGE_SIZE + page_align_up((uintptr_t)kernel_end);
 }

@@ -41,7 +41,7 @@ static struct clocksrc acpi_clocksrc = {
     .rating = 100,
 };
 
-define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FIRST)
+static void init_acpi_clocksrc(void)
 {
     uacpi_table table;
     uacpi_status status = uacpi_table_find_by_signature(ACPI_FADT_SIGNATURE, &table);
@@ -103,3 +103,5 @@ define_initcall(amd64_acpi_clocksrc, INITCALL_STAGE_BSP_TIMER, INITCALL_ORDER_FI
 
     uacpi_table_unref(&table);
 }
+
+initcall_bsp_timer(init_acpi_clocksrc, INIT_FIRST);

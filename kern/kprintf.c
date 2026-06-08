@@ -81,7 +81,7 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
     spinlock_release(&kprintf_lock);
 }
 
-define_initcall(kprintf_cmdline, INITCALL_STAGE_BSP_BOOTINFO, INITCALL_ORDER_LAST)
+define_initcall(kprintf_cmdline, INITCALL_STAGE_BSP_BOOTINFO, INIT_LAST)
 {
     const char* argument = cmdline_argument(&sys_cmdline, "loglevel");
 

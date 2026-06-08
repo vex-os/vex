@@ -1,7 +1,6 @@
 #include <sys.amd64/idt.h>
 #include <sys.amd64/pmio.h>
 #include <sys.arch/intr.h>
-#include <sys.arch/regs.h>
 #include <sys/initcall.h>
 #include <sys/kprintf.h>
 
@@ -27,14 +26,14 @@ extern void amd64_spur_2D(void);
 extern void amd64_spur_2E(void);
 extern void amd64_spur_2F(void);
 
-void __used amd64_spur_handler(struct hart_regs* restrict regs, uint64_t intvec)
+void __used amd64_spur_handler(struct interrupt_frame* restrict frame, uint64_t intvec)
 {
     // <<  Because it's a shit chip >>
     //                  - streaksu
     pr_verbose("picstub: spurious interrupt: intvec=0x%02zX", (size_t)(intvec));
 }
 
-define_initcall(amd64_picstub_bsp, INTICALL_STAGE_BSP_ARCH, INITCALL_ORDER_MIDDLE)
+define_initcall(amd64_picstub_bsp, INTICALL_STAGE_BSP_ARCH, INIT_MIDDLE)
 {
     disable_interrupts();
 
@@ -69,7 +68,7 @@ define_initcall(amd64_picstub_bsp, INTICALL_STAGE_BSP_ARCH, INITCALL_ORDER_MIDDL
     }
 }
 
-define_initcall(amd64_picstub_smp, INITCALL_STAGE_SMP_IREQ, INITCALL_ORDER_EARLY)
+define_initcall(amd64_picstub_smp, INITCALL_STAGE_SMP_IREQ, INIT_EARLY)
 {
     set_idt_entry_kern(0x20, false, &amd64_spur_20);
     set_idt_entry_kern(0x21, false, &amd64_spur_21);

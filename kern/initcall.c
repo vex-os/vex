@@ -1,15 +1,15 @@
 #include <sys/initcall.h>
 #include <sys/kprintf.h>
 
-void invoke_initcalls(const struct initcall_entry* restrict start, const struct initcall_entry* restrict end)
+void invoke_initcalls(const struct initcall_meta* restrict start, const struct initcall_meta* restrict end)
 {
-    const struct initcall_entry* it;
+    const struct initcall_meta* it;
 
-    for(it = start; it < end; it += 1) {
+    for(it = start; it < end; ++it) {
 #if INITCALL_LOGGING
-        pr_verbose("initcall: %s: func=%p", it->name, it->func);
+        pr_verbose("initcall: identifier=%s function=%p", it->identifier, it->function);
 #endif
 
-        it->func();
+        it->function();
     }
 }

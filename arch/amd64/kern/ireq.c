@@ -214,14 +214,14 @@ extern void amd64_ireq_FD(void);
 extern void amd64_ireq_FE(void);
 extern void amd64_ireq_FF(void);
 
-void __used amd64_ireq_handler(struct hart_regs* restrict regs, uint64_t idt_vector)
+void __used amd64_ireq_handler(struct interrupt_frame* restrict frame, uint64_t idt_vector)
 {
     lapic_write(LAPIC_REG_EOI, UINT32_C(0));
 
-    dispatch_ireq(idt_vector - ARCH_IREQ_BASE, regs);
+    dispatch_ireq(idt_vector - ARCH_IREQ_BASE, frame);
 }
 
-define_initcall(amd64_ireq, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_MIDDLE)
+define_initcall(amd64_ireq, INITCALL_STAGE_SMP_ARCH, INIT_MIDDLE)
 {
     set_idt_entry_kern(0x30, false, &amd64_ireq_30);
     set_idt_entry_kern(0x31, false, &amd64_ireq_31);
