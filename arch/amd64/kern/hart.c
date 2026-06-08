@@ -49,11 +49,13 @@ static void arch_init_hart(void)
     struct hart_local* hart = kmalloc(sizeof(struct hart_local));
 
     if(hart == nullptr) {
-        panic("hart[%hd]: out of memory", hart->index);
+        panic("hart: out of memory");
     }
 
     hart->self = hart;
     hart->index = atomic_fetch_add(&hart_count, 1, ATOMIC_RELAXED);
+
+    wrmsr(0xC0000101, (uintptr_t)hart);
 }
 
 initcall_smp_hart(arch_init_hart, INIT_FIRST);
