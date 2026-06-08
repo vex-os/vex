@@ -20,14 +20,14 @@ static void arch_init_tss(void)
     struct hart_local* hart = this_hart();
 
     for(size_t i = 0; i < AMD64_IST_COUNT; ++i) {
-        if(hart->amd64.ist_stacks[i]) {
-            tss->ist[i] = hart->amd64.ist_stacks[i];
+        if(hart->amd64_ist_stacks[i]) {
+            tss->ist[i] = hart->amd64_ist_stacks[i];
         }
     }
 
-    hart->amd64.tss = tss;
+    hart->amd64_tssp = tss;
 
-    install_tss(hart->amd64.gdt, (uintptr_t)(tss), sizeof(struct amd64_tss));
+    install_tss(hart->amd64_gdtp, (uintptr_t)(tss), sizeof(struct amd64_tss));
 
     asm volatile("ltr %0" ::"r"(gdt_selector(GDT_TSS, 0, 0)));
 }

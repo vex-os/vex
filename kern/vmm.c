@@ -45,7 +45,7 @@ static pmentry_type* vmm_pte_walk(struct pagemap* restrict vm, uintptr_t virt, b
 {
     pmentry_type* table = pagemap_root(vm, virt);
 
-    if(vm->levels >= 5) {
+    if(vm->pglevels >= 5) {
         size_t index = pte_index(virt, PMENTRY_LVL5_SHIFT);
         table = vmm_entry_get(table, index, allocate);
 
@@ -54,7 +54,7 @@ static pmentry_type* vmm_pte_walk(struct pagemap* restrict vm, uintptr_t virt, b
         }
     }
 
-    if(vm->levels >= 4) {
+    if(vm->pglevels >= 4) {
         size_t index = pte_index(virt, PMENTRY_LVL4_SHIFT);
         table = vmm_entry_get(table, index, allocate);
 
@@ -63,7 +63,7 @@ static pmentry_type* vmm_pte_walk(struct pagemap* restrict vm, uintptr_t virt, b
         }
     }
 
-    if(vm->levels >= 3) {
+    if(vm->pglevels >= 3) {
         size_t index = pte_index(virt, PMENTRY_LVL3_SHIFT);
         table = vmm_entry_get(table, index, allocate);
 
@@ -104,7 +104,7 @@ struct pagemap* vmm_create(void)
 
     if(vm) {
         vm->lock = SPINLOCK_INIT;
-        vm->levels = sys_pagemap.levels;
+        vm->pglevels = sys_pagemap.pglevels;
         atomic_store(&vm->refcount, 1, ATOMIC_RELAXED);
 
         if(pagemap_alloc(vm) == 0) {
@@ -183,7 +183,7 @@ struct pagemap* vmm_fork(struct pagemap* restrict stem)
     spinlock_acquire(&stem->lock);
 
     pmentry_type* table = pagemap_root(stem, 0);
-    vmm_mark_cow(table, 0, PAGEMAP_USER_END, stem->levels - 1);
+    vmm_mark_cow(table, 0, PAGEMAP_USER_END, stem->pglevels - 1);
     atomic_fetch_add(&stem->refcount, 1, ATOMIC_RELAXED);
 
     spinlock_release(&stem->lock);
@@ -198,7 +198,7 @@ struct pagemap* vmm_clone(const struct pagemap* restrict stem)
     if(vm) {
         pmentry_type* stem_table = pagemap_root(stem, 0);
         pmentry_type* dest_table = pagemap_root(vm, 0);
-        int retval = vmm_clone_table(dest_table, stem_table, 0, PAGEMAP_USER_END, vm->levels - 1);
+        int retval = vmm_clone_table(dest_table, stem_table, 0, PAGEMAP_USER_END, vm->pglevels - 1);
 
         if(retval == 0) {
             return vm;
@@ -215,7 +215,7 @@ void vmm_release(struct pagemap* restrict vm)
     unsigned prev = atomic_fetch_sub(&vm->refcount, 1, ATOMIC_ACQ_REL);
 
     if(prev == 1) {
-        vmm_table_free(pagemap_root(vm, 0), 0, PAGEMAP_SIZE / 2, vm->levels - 1);
+        vmm_table_free(pagemap_root(vm, 0), 0, PAGEMAP_SIZE / 2, vm->pglevels - 1);
         pagemap_free(vm);
         slab_free(vm);
     }
@@ -361,7 +361,7 @@ static int vmm_map_sys_memmap(const struct limine_memmap_entry* restrict entry)
 static void init_vmm(void)
 {
     sys_pagemap.lock = SPINLOCK_INIT;
-    sys_pagemap.levels = vmm_detect_levels();
+    sys_pagemap.pglevels = vmm_detect_levels();
 
     int retval = pagemap_alloc(&sys_pagemap);
 

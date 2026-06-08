@@ -16,22 +16,27 @@ struct uthread;
 
 struct hart_local {
     struct hart_local* self;
-    struct kthread* k_curr;
-    struct kthread* k_idle;
-    struct kthread* k_runq;
-    struct kthread* k_dead;
-    struct uthread* u_runq;
-    struct uthread* u_curr;
-    unsigned index;
+    uintptr_t amd64_syscall_ksp;
+    uintptr_t amd64_syscall_usp;
 
-    struct {
-        unsigned lapic_id;
-        uint32_t lapic_rld;
-        struct amd64_gdt* gdt;
-        struct amd64_idt* idt;
-        struct amd64_tss* tss;
-        uintptr_t ist_stacks[AMD64_IST_COUNT];
-    } amd64;
+    struct kthread* kt_curr;
+    struct kthread* kt_idle;
+    struct kthread* kt_runq;
+    struct kthread* kt_dead;
+
+    struct uthread* ut_curr;
+    struct uthread* ut_runq;
+
+    unsigned short index;
+
+    uint32_t amd64_lapic_id;
+    uint32_t amd64_lapic_reload;
+
+    struct amd64_gdt* amd64_gdtp;
+    struct amd64_idt* amd64_idtp;
+    struct amd64_tss* amd64_tssp;
+
+    uintptr_t amd64_ist_stacks[AMD64_IST_COUNT];
 };
 
 static __always_inline __nodiscard struct hart_local* this_hart(void)

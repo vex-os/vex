@@ -40,6 +40,8 @@ kern/rsdp.c
 kern/sched.c
 kern/slab.c
 kern/smp.c
+kern/sys_process.c
+kern/syscall.c
 kern/version.c
 kern/vfs_file.c
 kern/vfs_mount.c

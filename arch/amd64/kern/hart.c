@@ -1,5 +1,6 @@
 #include <limits.h>
 #include <string.h>
+#include <sys.amd64/gdt.h>
 #include <sys.amd64/lapic.h>
 #include <sys.amd64/msr.h>
 #include <sys.arch/hart.h>
@@ -13,7 +14,19 @@
 #include <sys/malloc.h>
 #include <sys/panic.h>
 
-#define MSR_GS_BASE 0xC0000101
+#define MSR_EFER       0xC0000080
+#define MSR_STAR       0xC0000081
+#define MSR_LSTAR      0xC0000082
+#define MSR_SFMASK     0xC0000084
+#define MSR_GS_BASE    0xC0000101
+
+#define EFER_SCE       (1 << 0)
+#define RFLAGS_IF      (1 << 9)
+
+#define STAR_KERN_CS   (uint64_t)(GDT_KERN_CODE_64 << 3)
+#define STAR_USER_BASE (uint64_t)(GDT_KERN_DATA_64 << 3)
+
+extern void amd64_syscall_entry(void);
 
 static unsigned hart_count = 0;
 static unsigned panic_ipi_vector = 0;
@@ -57,3 +70,13 @@ static void arch_init_hart(void)
 }
 
 initcall_smp_hart(arch_init_hart, INIT_FIRST);
+
+static void arch_init_syscall(void)
+{
+    wrmsr(MSR_EFER, rdmsr(MSR_EFER) | EFER_SCE);
+    wrmsr(MSR_STAR, (STAR_USER_BASE << 48) | (STAR_KERN_CS << 32));
+    wrmsr(MSR_LSTAR, (uint64_t)(&amd64_syscall_entry));
+    wrmsr(MSR_SFMASK, RFLAGS_IF);
+}
+
+initcall_smp_arch(arch_init_syscall, INIT_MIDDLE);

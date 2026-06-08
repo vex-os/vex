@@ -27,7 +27,7 @@ void dispatch_syscall(struct syscall_frame* restrict frame)
 
 static void init_syscall(void)
 {
-    if(unsorted_syscalls_start == unsorted_syscalls_end) {
+    if(&unsorted_syscalls_start[0] == &unsorted_syscalls_end[0]) {
         pr_alert("syscall: no system calls defined?!");
         return;
     }

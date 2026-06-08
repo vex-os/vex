@@ -74,19 +74,19 @@ static void page_fault_handler(struct interrupt_frame* restrict frame)
     struct vmm_fault_info info;
     memset(&info, 0, sizeof(info));
 
-    info.present = (bool)(frame->amd64.err & 0x1);
+    info.present = (bool)(frame->amd64_err & 0x1);
 
-    if(frame->amd64.err & 0x2) {
+    if(frame->amd64_err & 0x2) {
         info.vprot = VPROT_WRITE; // tried to write
     }
-    else if(frame->amd64.err & 0x10) {
+    else if(frame->amd64_err & 0x10) {
         info.vprot = VPROT_EXEC;
     }
     else {
         info.vprot = VPROT_READ;
     }
 
-    if(frame->amd64.err & 0x4) {
+    if(frame->amd64_err & 0x4) {
         info.vprot |= VPROT_USER;
     }
 
@@ -98,20 +98,20 @@ static void page_fault_handler(struct interrupt_frame* restrict frame)
 
     if(new_vm == nullptr) {
         if(info.vprot & VPROT_USER) {
-            if(hart->u_curr) {
-                pr_warning("process %d: page fault at %p (vprot=%02X) — killing uthread", hart->u_curr->owner->id, (void*)(info.fault),
+            if(hart->ut_curr) {
+                pr_warning("process %d: page fault at %p (vprot=%02X) — killing uthread", hart->ut_curr->owner->id, (void*)(info.fault),
                     info.vprot);
-                uthread_destroy(hart->u_curr);
-                hart->u_curr = nullptr;
+                uthread_destroy(hart->ut_curr);
+                hart->ut_curr = nullptr;
             }
 
             // redirect iretq back to kernel ring-0 hlt loop
             // RSP must point to a valid kernel stack — use TSS RSP0 (top of uthread kstack)
-            frame->amd64.rip = (uintptr_t)&amd64_halt_loop;
-            frame->amd64.cs = gdt_selector(GDT_KERN_CODE_64, 0, 0);
-            frame->amd64.ss = gdt_selector(GDT_KERN_DATA_64, 0, 0);
-            frame->amd64.rsp = hart->amd64.tss->rsp[0];
-            frame->amd64.rflags = (1 << 9); // IF=1
+            frame->amd64_rip = (uintptr_t)&amd64_halt_loop;
+            frame->amd64_cs = gdt_selector(GDT_KERN_CODE_64, 0, 0);
+            frame->amd64_ss = gdt_selector(GDT_KERN_DATA_64, 0, 0);
+            frame->amd64_rsp = hart->amd64_tssp->rsp[0];
+            frame->amd64_rflags = (1 << 9); // IF=1
 
             return;
         }
@@ -155,7 +155,7 @@ void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn)
 {
     if(vector < IDT_SIZE) {
         struct hart_local* hart = this_hart();
-        struct amd64_idt* idt = hart->amd64.idt;
+        struct amd64_idt* idt = hart->amd64_idtp;
         set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
         idt->entries[vector].flags |= IDT_RING_0;
     }
@@ -165,7 +165,7 @@ void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn)
 {
     if(vector < IDT_SIZE) {
         struct hart_local* hart = this_hart();
-        struct amd64_idt* idt = hart->amd64.idt;
+        struct amd64_idt* idt = hart->amd64_idtp;
         set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
         idt->entries[vector].flags |= IDT_RING_3;
     }
@@ -175,7 +175,7 @@ void unset_idt_entry(unsigned vector)
 {
     if(vector < IDT_SIZE) {
         struct hart_local* hart = this_hart();
-        struct amd64_idt* idt = hart->amd64.idt;
+        struct amd64_idt* idt = hart->amd64_idtp;
         memset(&idt->entries[vector], 0, sizeof(struct idt_entry));
     }
 }
@@ -189,7 +189,7 @@ static void arch_init_idt(void)
     }
 
     struct hart_local* hart = this_hart();
-    hart->amd64.idt = idt;
+    hart->amd64_idtp = idt;
 
     set_idt_entry_kern(0x00, true, &amd64_isr_00);
     set_idt_entry_kern(0x01, true, &amd64_isr_01);
