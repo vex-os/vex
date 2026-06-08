@@ -1,20 +1,11 @@
 #include <string.h>
 #include <sys.amd64/gdt.h>
+#include <sys.amd64/tss.h>
 #include <sys.arch/hart.h>
 #include <sys/initcall.h>
 #include <sys/kprintf.h>
 #include <sys/malloc.h>
 #include <sys/panic.h>
-
-struct amd64_tss {
-    uint32_t reserved_0;
-    uint64_t rsp[3];
-    uint64_t reserved_1;
-    uint64_t ist[AMD64_IST_COUNT];
-    uint64_t reserved_2;
-    uint16_t reserved_3;
-    uint16_t iomap_base;
-} __packed;
 
 define_initcall(amd64_tss, INITCALL_STAGE_SMP_ARCH, INITCALL_ORDER_MIDDLE)
 {

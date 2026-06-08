@@ -34,10 +34,10 @@ void __noreturn kmain(void)
 
     invoke_initcalls(initcalls_bsp_start, initcalls_bsp_end);
 
-    struct sched_task* task = create_task(nullptr, &test_task, nullptr);
+    struct kthread* task = kthread_create(&test_task, nullptr);
     if(task == nullptr)
         panic("kmain: test task alloc failed");
-    enqueue_task(task);
+    kthread_enqueue(task);
 
     enable_interrupts();
 

@@ -6,48 +6,59 @@
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
-struct pagemap;
-
 enum {
-    TASK_WAIT,
-    TASK_EXEC,
-    TASK_DEAD,
+    THREAD_WAIT,
+    THREAD_EXEC,
+    THREAD_DEAD,
 };
 
-struct sched_task;
-struct sched_process {
-    struct sched_process* parent;
-    struct sched_task* tasks;
-    struct pagemap* vm;
-    pid_t pidnumber;
-};
-
-struct sched_task {
-    uintptr_t kstack;
-
-    struct sched_process* owner;
-    struct sched_task* list_next;
-    struct sched_task* runq_next;
-
-    uint32_t state;
-    uint32_t id;
-
-    uint64_t deadline;
-
+struct kthread {
+    uintptr_t stack;
+    struct kthread* rq;
+    unsigned short id;
+    unsigned short state;
+    uint64_t sleep_deadline;
     void* entry_ctxdata;
-    int16_t entry_retval;
+    int16_t entry_ret;
 };
 
-static_assert(0 == offsetof(struct sched_task, kstack));
+struct uprocess;
+struct uthread {
+    uintptr_t kstack;
+    uintptr_t ustack;
+    struct uthread* rq;
+    struct uthread* next;
+    struct uprocess* owner;
+    unsigned long id;
+    unsigned short state;
+    uint64_t sleep_deadline;
+};
 
-typedef int16_t (*task_entry_type)(void* restrict ctxdata);
+// Context switching for kernel tasks (kthread) is most
+// likely implemented in assembly; because of this, we
+// don't exactly know _where_ the stack pointer field
+// is located relative to the passed structure address
+// so the field must be assumed to be at the beginning
+static_assert((0 * sizeof(uintptr_t)) == offsetof(struct kthread, stack));
+static_assert((0 * sizeof(uintptr_t)) == offsetof(struct uthread, kstack));
+static_assert((1 * sizeof(uintptr_t)) == offsetof(struct uthread, ustack));
 
-void sched_do_switch(struct sched_task* restrict prev, struct sched_task* restrict next);
-void sched_do_preempt(void);
+typedef int16_t (*kthread_entry_type)(void* restrict ctxdata);
 
-struct sched_task* create_task(struct sched_process* restrict owner, task_entry_type entry, void* restrict ctxdata);
-void destroy_task(struct sched_task* restrict task);
-void enqueue_task(struct sched_task* restrict task);
+extern void task_switch_kern(struct kthread* restrict prev, struct kthread* restrict next);
+extern void task_switch_user(struct uthread* restrict prev, struct uthread* restrict next);
+
+struct kthread* kthread_create(kthread_entry_type entry, void* restrict ctxdata);
+void kthread_destroy(struct kthread* restrict thread);
+void kthread_enqueue(struct kthread* restrict thread);
+
+struct uthread* uthread_create(struct uprocess* restrict owner);
+void uthread_set_entry(struct uthread* restrict thread, uintptr_t address, uintptr_t ustack);
+void uthread_destroy(struct uthread* restrict thread);
+void uthread_enqueue(struct uthread* restrict thread);
+
+void sched_hart_idle(void);
+void sched_preempt(void);
 
 void sched_yield(void);
 void sched_sleep_nsec(uint64_t nsec);

@@ -2,6 +2,7 @@
 #define B15F19F4_C7E1_479A_A8B7_3E8843A71BA6
 #pragma once
 
+#include <sys.amd64/tss.h>
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
@@ -9,16 +10,15 @@
 
 struct amd64_gdt;
 struct amd64_idt;
-struct amd64_tss;
 
-struct sched_task;
+struct kthread;
 
 struct hart_local {
     struct hart_local* self;
-    struct sched_task* task;
-    struct sched_task* idle;
-    struct sched_task* runq;
-    struct sched_task* dead;
+    struct kthread* task;
+    struct kthread* idle;
+    struct kthread* runq;
+    struct kthread* dead;
     unsigned index;
 
     struct {

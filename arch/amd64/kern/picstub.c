@@ -10,22 +10,22 @@
 #define PIC2_COMMAND 0x00A0
 #define PIC2_DATA    0x00A1
 
-void amd64_spur_20(void);
-void amd64_spur_21(void);
-void amd64_spur_22(void);
-void amd64_spur_23(void);
-void amd64_spur_24(void);
-void amd64_spur_25(void);
-void amd64_spur_26(void);
-void amd64_spur_27(void);
-void amd64_spur_28(void);
-void amd64_spur_29(void);
-void amd64_spur_2A(void);
-void amd64_spur_2B(void);
-void amd64_spur_2C(void);
-void amd64_spur_2D(void);
-void amd64_spur_2E(void);
-void amd64_spur_2F(void);
+extern void amd64_spur_20(void);
+extern void amd64_spur_21(void);
+extern void amd64_spur_22(void);
+extern void amd64_spur_23(void);
+extern void amd64_spur_24(void);
+extern void amd64_spur_25(void);
+extern void amd64_spur_26(void);
+extern void amd64_spur_27(void);
+extern void amd64_spur_28(void);
+extern void amd64_spur_29(void);
+extern void amd64_spur_2A(void);
+extern void amd64_spur_2B(void);
+extern void amd64_spur_2C(void);
+extern void amd64_spur_2D(void);
+extern void amd64_spur_2E(void);
+extern void amd64_spur_2F(void);
 
 void __used amd64_spur_handler(struct hart_regs* restrict regs, uint64_t intvec)
 {
