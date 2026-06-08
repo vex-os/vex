@@ -73,19 +73,19 @@ static void page_fault_handler(struct hart_regs* restrict regs)
     struct vmm_fault_info info;
     memset(&info, 0, sizeof(info));
 
-    info.present = (bool)(regs->amd64.error & 0x1);
+    info.present = (bool)(regs->amd64.err & 0x1);
 
-    if(regs->amd64.error & 0x2) {
+    if(regs->amd64.err & 0x2) {
         info.vprot = VPROT_WRITE; // tried to write
     }
-    else if(regs->amd64.error & 0x10) {
+    else if(regs->amd64.err & 0x10) {
         info.vprot = VPROT_EXEC; // tried to execute
     }
     else {
         info.vprot = VPROT_READ; // tried to read
     }
 
-    if(regs->amd64.error & 0x4) {
+    if(regs->amd64.err & 0x4) {
         info.vprot |= VPROT_USER; // user mode
     }
 
@@ -93,7 +93,7 @@ static void page_fault_handler(struct hart_regs* restrict regs)
 
     struct hart_local* hart = this_hart();
     struct sched_task* task = hart->task;
-    struct vmm_pagemap* old_vm;
+    struct pagemap* old_vm;
 
     if(task == nullptr || task->owner == nullptr) {
         old_vm = &sys_pagemap;
@@ -102,7 +102,7 @@ static void page_fault_handler(struct hart_regs* restrict regs)
         old_vm = task->owner->vm;
     }
 
-    struct vmm_pagemap* new_vm = vmm_handle_fault(old_vm, &info);
+    struct pagemap* new_vm = vmm_handle_fault(old_vm, &info);
 
     if(new_vm == nullptr) {
         // FIXME: if this is in-kernel we're panicking, otherwise

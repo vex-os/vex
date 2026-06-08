@@ -6,7 +6,7 @@
 #include <sys/cdefs.h>
 #include <sys/types.h>
 
-struct vmm_pagemap;
+struct pagemap;
 
 enum {
     TASK_WAIT,
@@ -18,7 +18,7 @@ struct sched_task;
 struct sched_process {
     struct sched_process* parent;
     struct sched_task* tasks;
-    struct vmm_pagemap* vm;
+    struct pagemap* vm;
     pid_t pidnumber;
 };
 
