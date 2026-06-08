@@ -11,15 +11,15 @@
 struct amd64_gdt;
 struct amd64_idt;
 
-struct kthread;
+struct thread;
 
 struct hart_local {
     struct hart_local* self;
 
-    struct kthread* kt_curr;
-    struct kthread* kt_idle;
-    struct kthread* kt_runq;
-    struct kthread* kt_dead;
+    struct thread* curr_thread;
+    struct thread* idle_thread;
+    struct thread* dead_thread;
+    struct thread* runq_head;
 
     unsigned short index;
 
