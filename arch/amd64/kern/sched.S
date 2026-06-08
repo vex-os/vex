@@ -1,5 +1,11 @@
 .section .text
 
+.global amd64_halt_loop
+.type amd64_halt_loop, @function
+amd64_halt_loop:
+    hlt
+    jmp amd64_halt_loop
+
 .global amd64_kthread_trampoline
 .type amd64_kthread_trampoline, @function
 amd64_kthread_trampoline:
