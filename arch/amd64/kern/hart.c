@@ -8,20 +8,23 @@
 #include <sys.arch/ireq.h>
 #include <sys/atomic.h>
 #include <sys/errno.h>
+#include <sys/hhdm.h>
 #include <sys/initcall.h>
 #include <sys/ireq.h>
 #include <sys/kprintf.h>
 #include <sys/malloc.h>
+#include <sys/page.h>
 #include <sys/panic.h>
+#include <sys/pslab.h>
 
-#define MSR_EFER       0xC0000080
-#define MSR_STAR       0xC0000081
-#define MSR_LSTAR      0xC0000082
-#define MSR_SFMASK     0xC0000084
-#define MSR_GS_BASE    0xC0000101
+#define MSR_EFER    0xC0000080
+#define MSR_STAR    0xC0000081
+#define MSR_LSTAR   0xC0000082
+#define MSR_SFMASK  0xC0000084
+#define MSR_GS_BASE 0xC0000101
 
-#define EFER_SCE       (1 << 0)
-#define RFLAGS_IF      (1 << 9)
+#define EFER_SCE  (1 << 0)
+#define RFLAGS_IF (1 << 9)
 
 #define STAR_KERN_CS   (uint64_t)(GDT_KERN_CODE_64 << 3)
 #define STAR_USER_BASE (uint64_t)(GDT_KERN_DATA_64 << 3)
@@ -60,23 +63,31 @@ static void arch_init_hart(void)
     struct hart_local* hart = kmalloc(sizeof(struct hart_local));
 
     if(hart == nullptr) {
-        panic("out of memory");
+        panic("hart[%hd]: out of memory", hart->index);
     }
 
     hart->self = hart;
     hart->index = atomic_fetch_add(&hart_count, 1, ATOMIC_RELAXED);
 
     wrmsr(MSR_GS_BASE, (uint64_t)(hart));
+
+    void* exit_ksp = pslab_alloc_virt();
+
+    if(exit_ksp == nullptr) {
+        panic("hart[%hd]: out of memory", hart->index);
+    }
+
+    hart->amd64_exit_ksp = (uintptr_t)(exit_ksp);
 }
 
 initcall_smp_hart(arch_init_hart, INIT_FIRST);
 
 static void arch_init_syscall(void)
 {
-    wrmsr(MSR_EFER, rdmsr(MSR_EFER) | EFER_SCE);
+    wrmsr(MSR_EFER, (EFER_SCE | rdmsr(MSR_EFER)));
     wrmsr(MSR_STAR, (STAR_USER_BASE << 48) | (STAR_KERN_CS << 32));
     wrmsr(MSR_LSTAR, (uint64_t)(&amd64_syscall_entry));
     wrmsr(MSR_SFMASK, RFLAGS_IF);
 }
 
-initcall_smp_arch(arch_init_syscall, INIT_MIDDLE);
+initcall_smp_syscall(arch_init_syscall, INIT_FIRST);

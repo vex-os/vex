@@ -10,6 +10,7 @@
 #include <sys/process.h>
 #include <sys/pslab.h>
 #include <sys/sched.h>
+#include <sys/syscall.h>
 #include <sys/version.h>
 #include <sys/vmm.h>
 #include <sys/vprot.h>
@@ -37,9 +38,12 @@ static int16_t test_task(void* restrict ctxdata)
 // test user entry — mapped into user pagemap and jumped to from ring 3
 static void __used test_user_entry(void)
 {
-    for(;;) {
+    register uintptr_t nr asm("rax") = SYS_EXIT;
+    register uintptr_t arg asm("rdi") = 1337;
+    asm volatile("syscall" ::"r"(nr), "r"(arg) : "rcx", "r11", "memory");
+
+    for(;;)
         pause_hart();
-    }
 }
 
 static void test_userspace(void)
