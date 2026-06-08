@@ -18,20 +18,30 @@
 
 #define UCODE_VIRT  0x400000UL
 #define USTACK_VIRT 0x800000UL
+#define UCODE2_VIRT  0x500000UL
+#define USTACK2_VIRT 0x900000UL
 
 static __attribute__((naked)) void user_test_fn(void)
 {
-    asm volatile("mov $42, %rax\n"         // SYS_TEST
-                 "mov $1000, %rdi\n"       // arg_0: sleep 1000ms
-                 "mov $0xCAFEBABE, %rsi\n" // arg_1
-                 "mov $0x1337C0DE, %rdx\n" // arg_2
-                 "mov $0xBAADF00D, %r10\n" // arg_3
-                 "mov $0x0DEFACED, %r8\n"  // arg_4
-                 "mov $0xFEEDFACE, %r9\n"  // arg_5
+    asm volatile("mov $42, %rax\n"
+                 "mov $1000, %rdi\n"
+                 "mov $0xCAFEBABE, %rsi\n"
+                 "mov $0x1337C0DE, %rdx\n"
+                 "mov $0xBAADF00D, %r10\n"
+                 "mov $0x0DEFACED, %r8\n"
+                 "mov $0xFEEDFACE, %r9\n"
                  "syscall\n"
                  "xor %rdi, %rdi\n"
-                 "mov $1, %rax\n" // SYS_EXIT
+                 "mov $1, %rax\n"
                  "syscall\n");
+}
+
+static __attribute__((naked)) void user_test_fn2(void)
+{
+    asm volatile("mov $42, %rax\n"
+                 "xor %rdi, %rdi\n"
+                 "syscall\n"
+                 "ret\n");
 }
 
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -78,12 +88,33 @@ void __noreturn kmain(void)
     if(stack_phys == 0)
         panic("kmain: user stack alloc failed");
     vmm_map(proc->vm, USTACK_VIRT, stack_phys, VPROT_URW);
+    *(uintptr_t*)phys_to_virt(stack_phys + PAGE_SIZE - 8) = 0;
 
-    if(process_spawn_thread(proc, UCODE_VIRT + fn_offset, USTACK_VIRT + PAGE_SIZE) == nullptr)
+    if(process_spawn_thread(proc, UCODE_VIRT + fn_offset, USTACK_VIRT + PAGE_SIZE - 8) == nullptr)
         panic("kmain: user thread alloc failed");
+
+    struct process* proc2 = process_create();
+    if(proc2 == nullptr)
+        panic("kmain: process2 alloc failed");
+
+    uintptr_t fn2_virt = (uintptr_t)user_test_fn2;
+    uintptr_t code2_phys = vmm_resolve(&sys_pagemap, fn2_virt);
+    uintptr_t fn2_offset = fn2_virt & (PAGE_SIZE - 1);
+    vmm_map(proc2->vm, UCODE2_VIRT, code2_phys, VPROT_URX);
+
+    uintptr_t stack2_phys = pslab_alloc();
+    if(stack2_phys == 0)
+        panic("kmain: user stack2 alloc failed");
+    vmm_map(proc2->vm, USTACK2_VIRT, stack2_phys, VPROT_URW);
+    *(uintptr_t*)phys_to_virt(stack2_phys + PAGE_SIZE - 8) = 0;
+
+    if(process_spawn_thread(proc2, UCODE2_VIRT + fn2_offset, USTACK2_VIRT + PAGE_SIZE - 8) == nullptr)
+        panic("kmain: user thread2 alloc failed");
 
     enable_interrupts();
 
+    pr_inform("user_test_fn  virt=%p mapped=%p", (void*)(UCODE_VIRT + fn_offset), (void*)fn_virt);
+    pr_inform("user_test_fn2 virt=%p mapped=%p", (void*)(UCODE2_VIRT + fn2_offset), (void*)fn2_virt);
     pr_emerg("hanging around...");
 
     for(;;) {
