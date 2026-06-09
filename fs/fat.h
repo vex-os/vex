@@ -2,9 +2,9 @@
 #define D64336B8_2B5C_45FB_80BF_BE55A7E153AA
 #pragma once
 
-#include <sys/cdefs.h>
-#include <sys/types.h>
-#include <sys/vfs_path.h>
+#include <vex/compiler.h>
+#include <vex/types.h>
+#include <vex/vfs_path.h>
 
 #define FAT_TYPE_12 12
 #define FAT_TYPE_16 16

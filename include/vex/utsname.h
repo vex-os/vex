@@ -1,16 +1,9 @@
-#ifndef AB619E39_F4DB_49DB_A29B_9BFE8CDB266A
-#define AB619E39_F4DB_49DB_A29B_9BFE8CDB266A
+#ifndef F536580A_213A_40A8_9C1A_1851521EFB18
+#define F536580A_213A_40A8_9C1A_1851521EFB18
+#pragma once
 
-#ifndef __k_UNAME_SIZE
-#define __k_UNAME_SIZE 128
-#endif
+#include <uapi/vex/utsname.h>
 
-struct __k_utsname {
-    char sysname[__k_UNAME_SIZE];
-    char nodename[__k_UNAME_SIZE];
-    char release[__k_UNAME_SIZE];
-    char version[__k_UNAME_SIZE];
-    char machine[__k_UNAME_SIZE];
-};
+#define k_utsname __k_utsname
 
-#endif /* AB619E39_F4DB_49DB_A29B_9BFE8CDB266A */
+#endif /* F536580A_213A_40A8_9C1A_1851521EFB18 */

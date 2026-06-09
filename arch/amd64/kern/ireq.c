@@ -1,9 +1,9 @@
-#include <sys.amd64/idt.h>
-#include <sys.amd64/lapic.h>
-#include <sys.arch/intr.h>
-#include <sys.arch/ireq.h>
-#include <sys/initcall.h>
-#include <sys/ireq.h>
+#include <vex.amd64/idt.h>
+#include <vex.amd64/lapic.h>
+#include <vex.arch/intr.h>
+#include <vex.arch/ireq.h>
+#include <vex/initcall.h>
+#include <vex/ireq.h>
 
 extern void amd64_ireq_30(void);
 extern void amd64_ireq_31(void);

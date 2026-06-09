@@ -1,14 +1,14 @@
-#include <string.h>
-#include <sys.arch/hart.h>
-#include <sys/assert.h>
-#include <sys/errno.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
-#include <sys/malloc.h>
-#include <sys/panic.h>
-#include <sys/signal.h>
-#include <sys/syscall.h>
-#include <sys/thread.h>
+#include <vex.arch/hart.h>
+#include <vex/assert.h>
+#include <vex/errno.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
+#include <vex/malloc.h>
+#include <vex/panic.h>
+#include <vex/signal.h>
+#include <vex/string.h>
+#include <vex/syscall.h>
+#include <vex/thread.h>
 
 static struct syscall* syscall_table;
 static size_t syscall_table_size;

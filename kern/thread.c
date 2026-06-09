@@ -1,17 +1,17 @@
-#include <sys.arch/hart.h>
-#include <sys.arch/intr.h>
-#include <sys.arch/thread.h>
-#include <sys/atomic.h>
-#include <sys/clocksrc.h>
-#include <sys/hhdm.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
-#include <sys/page.h>
-#include <sys/panic.h>
-#include <sys/process.h>
-#include <sys/pslab.h>
-#include <sys/slab.h>
-#include <sys/thread.h>
+#include <vex.arch/hart.h>
+#include <vex.arch/intr.h>
+#include <vex.arch/thread.h>
+#include <vex/atomic.h>
+#include <vex/clocksrc.h>
+#include <vex/hhdm.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
+#include <vex/page.h>
+#include <vex/panic.h>
+#include <vex/process.h>
+#include <vex/pslab.h>
+#include <vex/slab.h>
+#include <vex/thread.h>
 
 #define THREAD_KSTACK_SIZE PAGE_SIZE
 

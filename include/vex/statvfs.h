@@ -1,23 +1,12 @@
-#ifndef CA6EBDC1_F146_406B_9800_F6E51106AD40
-#define CA6EBDC1_F146_406B_9800_F6E51106AD40
+#ifndef DCE28BD6_DBF3_4583_ABAE_C88F8868A376
+#define DCE28BD6_DBF3_4583_ABAE_C88F8868A376
+#pragma once
 
-#include <vex/types.h>
+#include <uapi/vex/statvfs.h>
 
-#define __k_ST_RDONLY ((__k_uint32_t)(0x0001))
-#define __k_ST_NOSUID ((__k_uint32_t)(0x0002))
+#define ST_RDONLY __k_ST_RDONLY
+#define ST_NOSUID __k_ST_NOSUID
 
-struct __k_statvfs {
-    __k_blksize_t f_bsize;
-    __k_blksize_t f_frsize;
-    __k_fsblkcnt_t f_blocks;
-    __k_fsblkcnt_t f_bfree;
-    __k_fsblkcnt_t f_bavail;
-    __k_fsfilcnt_t f_files;
-    __k_fsfilcnt_t f_ffree;
-    __k_fsfilcnt_t f_favail;
-    __k_uint32_t f_fsid;
-    __k_uint32_t f_flag;
-    __k_uint32_t f_namemax;
-};
+#define k_statvfs __k_statvfs
 
-#endif /* CA6EBDC1_F146_406B_9800_F6E51106AD40 */
+#endif /* DCE28BD6_DBF3_4583_ABAE_C88F8868A376 */

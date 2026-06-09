@@ -1,15 +1,15 @@
 #include <limine.h>
-#include <string.h>
-#include <sys.arch/hart.h>
-#include <sys/console.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
-#include <sys/malloc.h>
-#include <sys/panic.h>
+#include <vex.arch/hart.h>
+#include <vex/console.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
+#include <vex/malloc.h>
+#include <vex/panic.h>
+#include <vex/string.h>
 
-#include <sys/sched.h>
-#include <sys/spinlock.h>
-#include <sys/thread.h>
+#include <vex/sched.h>
+#include <vex/spinlock.h>
+#include <vex/thread.h>
 
 #define CHR_BS  0x08
 #define CHR_HT  0x09

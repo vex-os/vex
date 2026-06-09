@@ -1,9 +1,9 @@
-#include <string.h>
-#include <sys/assert.h>
-#include <sys/console.h>
-#include <sys/errno.h>
-#include <sys/kprintf.h>
-#include <sys/spinlock.h>
+#include <vex/assert.h>
+#include <vex/console.h>
+#include <vex/errno.h>
+#include <vex/kprintf.h>
+#include <vex/spinlock.h>
+#include <vex/string.h>
 
 static spinlock_type console_lock = SPINLOCK_INIT;
 static struct console* console_head = nullptr;

@@ -1,7 +1,8 @@
-#include <ctype.h>
-#include <limits.h>
-#include <stdlib.h>
-#include <string.h>
+#include <vex/bitmap.h>
+#include <vex/ctype.h>
+#include <vex/limits.h>
+#include <vex/stdlib.h>
+#include <vex/string.h>
 
 #define IMPL_STRTOINT(name, type, max_value, min_value)                            \
     type name(const char* restrict nptr, const char** restrict endptr, int base)   \

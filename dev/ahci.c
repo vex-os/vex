@@ -1,20 +1,20 @@
-#include <sprintf.h>
-#include <string.h>
-#include <sys.arch/hart.h>
-#include <sys/assert.h>
-#include <sys/ata.h>
-#include <sys/atapi.h>
-#include <sys/blk_device.h>
-#include <sys/blk_event.h>
-#include <sys/blk_name.h>
-#include <sys/endian.h>
-#include <sys/hhdm.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
-#include <sys/malloc.h>
-#include <sys/page.h>
-#include <sys/pci.h>
-#include <sys/pdma.h>
+#include <vex.arch/hart.h>
+#include <vex/assert.h>
+#include <vex/ata.h>
+#include <vex/atapi.h>
+#include <vex/blk_device.h>
+#include <vex/blk_event.h>
+#include <vex/blk_name.h>
+#include <vex/endian.h>
+#include <vex/hhdm.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
+#include <vex/malloc.h>
+#include <vex/page.h>
+#include <vex/pci.h>
+#include <vex/pdma.h>
+#include <vex/sprintf.h>
+#include <vex/string.h>
 
 #define HBA_CAP 0x00 // Host Capabilities
 #define HBA_GHC 0x04 // Global Host Control

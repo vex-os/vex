@@ -1,0 +1,12 @@
+#ifndef F04E1214_6CDF_4786_A3BE_B6848ECFBDC2
+#define F04E1214_6CDF_4786_A3BE_B6848ECFBDC2
+
+#include <vex.arch/limits.h>
+
+#define __k_PATH_MAX  __k_PAGE_MAX
+#define __k_PATH_SIZE __k_PAGE_SIZE
+
+#define __k_NAME_MAX  255
+#define __k_NAME_SIZE 256
+
+#endif /* F04E1214_6CDF_4786_A3BE_B6848ECFBDC2 */

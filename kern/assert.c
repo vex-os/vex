@@ -1,5 +1,5 @@
-#include <sys/assert.h>
-#include <sys/panic.h>
+#include <vex/assert.h>
+#include <vex/panic.h>
 
 void assert_fail(const char* restrict file, unsigned long line, const char* restrict func, const char* restrict expr)
 {

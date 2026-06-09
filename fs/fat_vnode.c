@@ -1,16 +1,15 @@
-#include <ctype.h>
-#include <string.h>
-#include <strings.h>
-#include <sys/blk_device.h>
-#include <sys/endian.h>
-#include <sys/errno.h>
-#include <sys/slab.h>
-#include <sys/stat.h>
-#include <sys/vfs_dirent.h>
-#include <sys/vfs_mount.h>
-#include <sys/vfs_vnode.h>
-
-#include <bitmap.h>
+#include <vex/bitmap.h>
+#include <vex/blk_device.h>
+#include <vex/ctype.h>
+#include <vex/endian.h>
+#include <vex/errno.h>
+#include <vex/slab.h>
+#include <vex/stat.h>
+#include <vex/string.h>
+#include <vex/strings.h>
+#include <vex/vfs_dirent.h>
+#include <vex/vfs_mount.h>
+#include <vex/vfs_vnode.h>
 
 #include "fat.h"
 

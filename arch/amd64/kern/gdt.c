@@ -1,11 +1,11 @@
-#include <string.h>
-#include <sys.amd64/gdt.h>
-#include <sys.arch/hart.h>
-#include <sys/errno.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
-#include <sys/malloc.h>
-#include <sys/panic.h>
+#include <vex.amd64/gdt.h>
+#include <vex.arch/hart.h>
+#include <vex/errno.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
+#include <vex/malloc.h>
+#include <vex/panic.h>
+#include <vex/string.h>
 
 #define GDT_READWRITE  (1 << 1)
 #define GDT_CONFORMING (1 << 2)

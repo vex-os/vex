@@ -1,5 +1,5 @@
-#include <format.h>
-#include <sprintf.h>
+#include <vex/format.h>
+#include <vex/sprintf.h>
 
 struct fmtbuf {
     char* data;

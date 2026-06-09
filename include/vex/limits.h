@@ -1,13 +1,14 @@
-#ifndef F04E1214_6CDF_4786_A3BE_B6848ECFBDC2
-#define F04E1214_6CDF_4786_A3BE_B6848ECFBDC2
+#ifndef ED3B617A_71E6_4515_9B31_40DAAD4A2AF1
+#define ED3B617A_71E6_4515_9B31_40DAAD4A2AF1
+#pragma once
 
-#include <limits.h>
-#include <vex.arch/limits.h>
+// #include <vex.arch/limits.h>
+#include <uapi/vex/limits.h>
 
-#define __k_PATH_MAX  __k_PAGE_MAX
-#define __k_PATH_SIZE __k_PAGE_SIZE
+#define PATH_MAX  __k_PATH_MAX
+#define PATH_SIZE __k_PATH_SIZE
 
-#define __k_NAME_MAX  255
-#define __k_NAME_SIZE 256
+#define NAME_MAX  __k_NAME_MAX
+#define NAME_SIZE __k_NAME_SIZE
 
-#endif /* F04E1214_6CDF_4786_A3BE_B6848ECFBDC2 */
+#endif /* ED3B617A_71E6_4515_9B31_40DAAD4A2AF1 */

@@ -1,10 +1,10 @@
-#include <string.h>
-#include <strings.h>
-#include <sys/errno.h>
-#include <sys/spinlock.h>
-#include <sys/stat.h>
-#include <sys/vfs_dirent.h>
-#include <sys/vfs_vnode.h>
+#include <vex/errno.h>
+#include <vex/spinlock.h>
+#include <vex/stat.h>
+#include <vex/string.h>
+#include <vex/strings.h>
+#include <vex/vfs_dirent.h>
+#include <vex/vfs_vnode.h>
 
 #include "devfs.h"
 

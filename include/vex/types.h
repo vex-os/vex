@@ -1,86 +1,38 @@
-#ifndef D2A4146C_35A7_4524_B3D3_57C05E72B76A
-#define D2A4146C_35A7_4524_B3D3_57C05E72B76A
+#ifndef F021F7DB_0BF1_4601_B72B_E7A12F381234
+#define F021F7DB_0BF1_4601_B72B_E7A12F381234
+#pragma once
 
-#if defined(__cplusplus) || defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
-#include <stddef.h>
-#include <stdint.h>
-#define __k_SINT8_TYPE  int8_t
-#define __k_SINT16_TYPE int16_t
-#define __k_SINT32_TYPE int32_t
-#define __k_SINT64_TYPE int64_t
-#define __k_UINT8_TYPE  uint8_t
-#define __k_UINT16_TYPE uint16_t
-#define __k_UINT32_TYPE uint32_t
-#define __k_UINT64_TYPE uint64_t
-#define __k_SSIZE_TYPE  int64_t
-#else
-#if UCHAR_MAX == 0xFF
-#define __k_SINT8_TYPE signed char
-#define __k_UINT8_TYPE unsigned char
-#else
-#error "unsupported char width"
-#endif
-#if USHRT_MAX == 0xFFFF
-#define __k_SINT16_TYPE signed short
-#define __k_UINT16_TYPE unsigned short
-#else
-#error "unsupported short width"
-#endif
-#if UINT_MAX == 0xFFFFFFFFU
-#define __k_SINT32_TYPE signed int
-#define __k_UINT32_TYPE unsigned int
-#elif ULONG_MAX == 0xFFFFFFFFUL
-#define __k_SINT32_TYPE signed long
-#define __k_UINT32_TYPE unsigned long
-#else
-#error "unsupported 32-bit type"
-#endif
-#if ULONG_MAX == 0xFFFFFFFFFFFFFFFFUL
-#define __k_SINT64_TYPE signed long
-#define __k_UINT64_TYPE unsigned long
-#define __k_SSIZE_TYPE  signed long
-#elif defined(ULLONG_MAX) && ULLONG_MAX == 0xFFFFFFFFFFFFFFFFULL
-#define __k_SINT64_TYPE signed long long
-#define __k_UINT64_TYPE unsigned long long
-#define __k_SSIZE_TYPE  signed long long
-#else
-#error "64-bit integer type unavailable in this C89 environment"
-#endif
+#include <uapi/vex/types.h>
+
+#if __STDC_VERSION__ < 199901L
+#error "C99 or later is required"
 #endif
 
-typedef __k_SINT8_TYPE __k_int8_t;
-typedef __k_SINT16_TYPE __k_int16_t;
-typedef __k_SINT32_TYPE __k_int32_t;
-typedef __k_SINT64_TYPE __k_int64_t;
+typedef __k_ssize_t ssize_t;
 
-typedef __k_UINT8_TYPE __k_uint8_t;
-typedef __k_UINT16_TYPE __k_uint16_t;
-typedef __k_UINT32_TYPE __k_uint32_t;
-typedef __k_UINT64_TYPE __k_uint64_t;
+typedef __k_id_t id_t;
+typedef __k_gid_t gid_t;
+typedef __k_key_t key_t;
+typedef __k_pid_t pid_t;
+typedef __k_uid_t uid_t;
 
-typedef __k_SSIZE_TYPE __k_ssize_t;
+typedef __k_blkcnt_t blkcnt_t;
+typedef __k_blksize_t blksize_t;
+typedef __k_dev_t dev_t;
+typedef __k_nlink_t nlink_t;
+typedef __k_off_t off_t;
+typedef __k_mode_t mode_t;
+typedef __k_reclen_t reclen_t;
+typedef __k_fsblkcnt_t fsblkcnt_t;
+typedef __k_fsfilcnt_t fsfilcnt_t;
+typedef __k_ino_t ino_t;
 
-typedef __k_SINT32_TYPE __k_id_t;
-typedef __k_SINT32_TYPE __k_gid_t;
-typedef __k_SINT32_TYPE __k_key_t;
-typedef __k_SINT32_TYPE __k_pid_t;
-typedef __k_SINT32_TYPE __k_uid_t;
+typedef __k_clockid_t clockid_t;
+typedef __k_suseconds_t suseconds_t;
+typedef __k_timer_t timer_t;
+typedef __k_clock_t clock_t;
+typedef __k_time_t time_t;
 
-typedef __k_SINT64_TYPE __k_blkcnt_t;
-typedef __k_SINT64_TYPE __k_blksize_t;
-typedef __k_SINT64_TYPE __k_dev_t;
-typedef __k_SINT64_TYPE __k_nlink_t;
-typedef __k_SINT64_TYPE __k_off_t;
-typedef __k_UINT32_TYPE __k_mode_t;
-typedef __k_UINT32_TYPE __k_reclen_t;
-typedef __k_UINT64_TYPE __k_fsblkcnt_t;
-typedef __k_UINT64_TYPE __k_fsfilcnt_t;
-typedef __k_UINT64_TYPE __k_ino_t;
+typedef __uint128_t uint128_t;
 
-typedef __k_SINT32_TYPE __k_clockid_t;
-typedef __k_SINT32_TYPE __k_suseconds_t;
-typedef __k_SINT32_TYPE __k_timer_t;
-typedef __k_SINT64_TYPE __k_clock_t;
-typedef __k_SINT64_TYPE __k_time_t;
-
-#endif /* D2A4146C_35A7_4524_B3D3_57C05E72B76A */
+#endif /* F021F7DB_0BF1_4601_B72B_E7A12F381234 */

@@ -1,9 +1,9 @@
-#include <sys/atomic.h>
-#include <sys/malloc.h>
-#include <sys/process.h>
-#include <sys/sched.h>
-#include <sys/thread.h>
-#include <sys/vmm.h>
+#include <vex/atomic.h>
+#include <vex/malloc.h>
+#include <vex/process.h>
+#include <vex/sched.h>
+#include <vex/thread.h>
+#include <vex/vmm.h>
 
 static pid_t next_pid = 1;
 

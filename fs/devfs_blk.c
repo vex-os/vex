@@ -1,12 +1,12 @@
-#include <string.h>
-#include <sys/blk_device.h>
-#include <sys/blk_event.h>
-#include <sys/errno.h>
-#include <sys/malloc.h>
-#include <sys/slab.h>
-#include <sys/spinlock.h>
-#include <sys/stat.h>
-#include <sys/vfs_vnode.h>
+#include <vex/blk_device.h>
+#include <vex/blk_event.h>
+#include <vex/errno.h>
+#include <vex/malloc.h>
+#include <vex/slab.h>
+#include <vex/spinlock.h>
+#include <vex/stat.h>
+#include <vex/string.h>
+#include <vex/vfs_vnode.h>
 
 #include "devfs.h"
 

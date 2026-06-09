@@ -1,6 +1,7 @@
-#include <ctype.h>
-#include <string.h>
-#include <strings.h>
+#include <vex/bitmap.h>
+#include <vex/ctype.h>
+#include <vex/string.h>
+#include <vex/strings.h>
 
 char* kstrncat(char* restrict dst, const char* restrict src, size_t sz)
 {
