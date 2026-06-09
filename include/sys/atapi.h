@@ -11,7 +11,7 @@ struct atapi_device_ops {
     int (*send_packet)(const struct atapi_device* restrict device, const atapi_cdb_type cdb, void* restrict buffer, size_t count);
 };
 
-#define ATAPI_FLAG_WRITABLE 0x0001 ///< Device supports write commands
+#define ATAPI_FLAG_WRITABLE 0x0001 // Device supports write commands
 
 struct atapi_device {
     struct blk_device base;

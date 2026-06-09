@@ -16,50 +16,50 @@
 #include <sys/pci.h>
 #include <sys/pdma.h>
 
-#define HBA_CAP 0x00 ///< Host Capabilities
-#define HBA_GHC 0x04 ///< Global Host Control
-#define HBA_IS  0x08 ///< Interrupt Status (global)
-#define HBA_PI  0x0C ///< Ports Implemented
+#define HBA_CAP 0x00 // Host Capabilities
+#define HBA_GHC 0x04 // Global Host Control
+#define HBA_IS  0x08 // Interrupt Status (global)
+#define HBA_PI  0x0C // Ports Implemented
 
-#define HBA_GHC_AE UINT32_C(0x80000000) ///< AHCI Enable
-#define HBA_GHC_IE UINT32_C(0x00000002) ///< Interrupt Enable
+#define HBA_GHC_AE UINT32_C(0x80000000) // AHCI Enable
+#define HBA_GHC_IE UINT32_C(0x00000002) // Interrupt Enable
 
-#define HBA_PORT_BASE 0x100 ///< Offset of port 0 registers
-#define HBA_PORT_SIZE 0x80  ///< Per-port register stride
+#define HBA_PORT_BASE 0x100 // Offset of port 0 registers
+#define HBA_PORT_SIZE 0x80  // Per-port register stride
 
-#define PORT_REG_CLB  0x00 ///< Command List Base Address
-#define PORT_REG_CLBU 0x04 ///< Command List Base Address Upper 32 bits
-#define PORT_REG_FB   0x08 ///< FIS Base Address
-#define PORT_REG_FBU  0x0C ///< FIS Base Address Upper 32 bits
-#define PORT_REG_IS   0x10 ///< Interrupt Status
-#define PORT_REG_IE   0x14 ///< Interrupt Enable
-#define PORT_REG_CMD  0x18 ///< Command and Status
-#define PORT_REG_TFD  0x20 ///< Task File Data
-#define PORT_REG_SIG  0x24 ///< Signature
-#define PORT_REG_SSTS 0x28 ///< SATA Status (SCR0)
-#define PORT_REG_SERR 0x30 ///< SATA Error (SCR1)
-#define PORT_REG_SACT 0x34 ///< SATA Active
-#define PORT_REG_CI   0x38 ///< Command Issue
+#define PORT_REG_CLB  0x00 // Command List Base Address
+#define PORT_REG_CLBU 0x04 // Command List Base Address Upper 32 bits
+#define PORT_REG_FB   0x08 // FIS Base Address
+#define PORT_REG_FBU  0x0C // FIS Base Address Upper 32 bits
+#define PORT_REG_IS   0x10 // Interrupt Status
+#define PORT_REG_IE   0x14 // Interrupt Enable
+#define PORT_REG_CMD  0x18 // Command and Status
+#define PORT_REG_TFD  0x20 // Task File Data
+#define PORT_REG_SIG  0x24 // Signature
+#define PORT_REG_SSTS 0x28 // SATA Status (SCR0)
+#define PORT_REG_SERR 0x30 // SATA Error (SCR1)
+#define PORT_REG_SACT 0x34 // SATA Active
+#define PORT_REG_CI   0x38 // Command Issue
 
-#define PORT_CMD_ST  UINT32_C(0x00000001) ///< Start
-#define PORT_CMD_FRE UINT32_C(0x00000010) ///< FIS Receive Enable
-#define PORT_CMD_FR  UINT32_C(0x00004000) ///< FIS Receive Running
-#define PORT_CMD_CR  UINT32_C(0x00008000) ///< Command List Running
+#define PORT_CMD_ST  UINT32_C(0x00000001) // Start
+#define PORT_CMD_FRE UINT32_C(0x00000010) // FIS Receive Enable
+#define PORT_CMD_FR  UINT32_C(0x00004000) // FIS Receive Running
+#define PORT_CMD_CR  UINT32_C(0x00008000) // Command List Running
 
-#define PORT_TFD_ERR UINT32_C(0x00000001) ///< Task File Error
-#define PORT_TFD_DRQ UINT32_C(0x00000008) ///< Data Request
-#define PORT_TFD_BSY UINT32_C(0x00000080) ///< Busy
+#define PORT_TFD_ERR UINT32_C(0x00000001) // Task File Error
+#define PORT_TFD_DRQ UINT32_C(0x00000008) // Data Request
+#define PORT_TFD_BSY UINT32_C(0x00000080) // Busy
 
-#define PORT_SSTS_DET_PRESENT 3 ///< Device detected, PHY communication established
-#define PORT_SSTS_IPM_ACTIVE  1 ///< Interface in active power state
+#define PORT_SSTS_DET_PRESENT 3 // Device detected, PHY communication established
+#define PORT_SSTS_IPM_ACTIVE  1 // Interface in active power state
 
-#define DMA_OFFSET_CMDLIST  0x000 ///< [0x000..0x3FF] command list (32 slots * 32 bytes)
-#define DMA_OFFSET_FIS      0x400 ///< [0x400..0x4FF] received FIS
-#define DMA_OFFSET_CMDTABLE 0x500 ///< [0x500..0x57F] command table (FIS at 0x00, ATAPI CDB at 0x40)
-#define DMA_OFFSET_PRDT     0x580 ///< [0x580..0x58F] PRDT entry
-#define DMA_OFFSET_DATABUF  0x600 ///< [0x600..] data buffer
+#define DMA_OFFSET_CMDLIST  0x000 // [0x000..0x3FF] command list (32 slots * 32 bytes)
+#define DMA_OFFSET_FIS      0x400 // [0x400..0x4FF] received FIS
+#define DMA_OFFSET_CMDTABLE 0x500 // [0x500..0x57F] command table (FIS at 0x00, ATAPI CDB at 0x40)
+#define DMA_OFFSET_PRDT     0x580 // [0x580..0x58F] PRDT entry
+#define DMA_OFFSET_DATABUF  0x600 // [0x600..] data buffer
 
-#define AHCI_MAX_SECTORS 128 ///< Max sectors per DMA command (64 KiB)
+#define AHCI_MAX_SECTORS 128 // Max sectors per DMA command (64 KiB)
 #define DMA_NUM_PAGES    ((DMA_OFFSET_DATABUF + AHCI_MAX_SECTORS * 512 + PAGE_SIZE - 1) / PAGE_SIZE)
 
 #define AHCI_POLL_TIMEOUT 1000000
