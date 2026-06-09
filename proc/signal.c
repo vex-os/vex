@@ -13,6 +13,21 @@ static __always_inline __nodiscard sigset_t signal_bit(int signum)
     return ((sigset_t)(1)) << (unsigned)(signum);
 }
 
+static void __noreturn nuke_process(struct process* restrict proc, struct thread* restrict culprit, int signum)
+{
+    pr_warning("signal: pid=%lu sig=%d killed, culprit thread=%lu", (unsigned long)(proc->pid), signum, (unsigned long)(culprit->index));
+
+    for(struct thread* it = proc->threads; it; it = it->proc_next) {
+        if(it != culprit) {
+            it->state = THREAD_DEAD;
+        }
+    }
+
+    culprit->state = THREAD_SEGV;
+    thread_exit_handler(-signum);
+    unreachable();
+}
+
 static int lowest_signum(struct thread* restrict thrd)
 {
     sigset_t pending = (thrd->sig_pending | thrd->owner->sig_pending) & ~thrd->sig_blocked;
@@ -51,12 +66,20 @@ static void push_frame(struct thread* restrict thrd, struct regfile* restrict re
     // and the signal handler actually returns instead of calling
     // sys_sigreturn, the kernel maps a guard trampoline that calls
     // sys_exit with a whatever exit code arch decides
-    uintptr_t guard_virt = SIGRETURN_GUARD_VIRT;
+    uintptr_t guard_virt = 0; // SIGRETURN_GUARD_VIRT; // for now commented out to debug this stuff
 
-    memcpy_sys_to_vm(vm, uctx_uaddr, &uctx, sizeof(uctx));
-    memcpy_sys_to_vm(vm, siginfo_uaddr, siginfo_src, sizeof(struct k_siginfo));
-    memcpy_sys_to_vm(vm, uctx_ptr_uaddr, &uctx_uaddr, sizeof(uintptr_t));
-    memcpy_sys_to_vm(vm, ret_uaddr, &guard_virt, sizeof(uintptr_t));
+    size_t check = 0;
+    check += memcpy_sys_to_vm(vm, uctx_uaddr, &uctx, sizeof(uctx));
+    check += memcpy_sys_to_vm(vm, siginfo_uaddr, siginfo_src, sizeof(struct k_siginfo));
+    check += memcpy_sys_to_vm(vm, uctx_ptr_uaddr, &uctx_uaddr, sizeof(uintptr_t));
+    check += memcpy_sys_to_vm(vm, ret_uaddr, &guard_virt, sizeof(uintptr_t));
+
+    if(check != 0) {
+        pr_warning("signal: pid=%lu sig=%d bad stack pointer %p, killing process", (unsigned long)(thrd->owner->pid),
+            (int)(siginfo_src->si_signo), (void*)(regs->regfile_sp));
+        nuke_process(thrd->owner, thrd, SIGSEGV);
+        unreachable();
+    }
 
     regs->regfile_sp = user_sp;
     regs->regfile_arg_0 = (uintptr_t)(siginfo_src->si_signo);
@@ -73,22 +96,7 @@ bool signal_pending(struct thread* restrict thrd)
     return lowest_signum(thrd) != 0;
 }
 
-void signal_deliver(struct thread* restrict thrd, struct regfile* restrict regs)
-{
-    struct k_siginfo siginfo_src;
-    memset(&siginfo_src, 0, sizeof(struct k_siginfo));
-
-    siginfo_src.si_signo = lowest_signum(thrd);
-    siginfo_src.si_code = SI_USER;
-
-    if(thrd->owner) {
-        siginfo_src.si_pid = thrd->owner->pid;
-    }
-
-    signal_deliver_ex(thrd, regs, &siginfo_src);
-}
-
-void signal_deliver_ex(struct thread* restrict thrd, struct regfile* restrict regs, const struct k_siginfo* restrict siginfo_src)
+void signal_deliver_base(struct thread* restrict thrd, struct regfile* restrict regs, const struct k_siginfo* restrict siginfo_src)
 {
     sigset_t bit = signal_bit(siginfo_src->si_signo);
 
@@ -102,21 +110,12 @@ void signal_deliver_ex(struct thread* restrict thrd, struct regfile* restrict re
     struct k_sigaction* action = &thrd->owner->sig_actions[siginfo_src->si_signo];
 
     if(action->sa_handler == SIG_IGN) {
-        pr_verbose("signal: pid=%u sig=%d ignored", thrd->owner->pid, siginfo_src->si_signo);
+        pr_verbose("signal: pid=%lu sig=%d ignored", (unsigned long)(thrd->owner->pid), (int)(siginfo_src->si_signo));
         return;
     }
 
     if(action->sa_handler == SIG_DFL) {
-        pr_warning("signal: pid=%u sig=%d default action: terminate", thrd->owner->pid, siginfo_src->si_signo);
-
-        for(struct thread* it = thrd->owner->threads; it; it = it->proc_next) {
-            if(it != thrd) {
-                it->state = THREAD_DEAD;
-            }
-        }
-
-        thrd->state = THREAD_SEGV;
-        thread_exit_handler(-siginfo_src->si_signo);
+        nuke_process(thrd->owner, thrd, siginfo_src->si_signo);
         unreachable();
     }
 
@@ -130,11 +129,13 @@ void signal_deliver_ex(struct thread* restrict thrd, struct regfile* restrict re
     push_frame(thrd, regs, siginfo_src);
 
     if(action->sa_flags & SA_SIGINFO) {
-        pr_verbose("signal: pid=%u sig=%d sigaction=%p", thrd->owner->pid, siginfo_src->si_signo, (void*)(action->sa_sigaction));
+        pr_verbose("signal: pid=%lu sig=%d sigaction=%p", (unsigned long)(thrd->owner->pid), (int)(siginfo_src->si_signo),
+            (void*)(action->sa_sigaction));
         regs->regfile_pc = (uintptr_t)(action->sa_sigaction);
     }
     else {
-        pr_verbose("signal: pid=%u sig=%d handler=%p", thrd->owner->pid, siginfo_src->si_signo, (void*)(action->sa_handler));
+        pr_verbose("signal: pid=%lu sig=%d handler=%p", (unsigned long)(thrd->owner->pid), (int)(siginfo_src->si_signo),
+            (void*)(action->sa_handler));
         regs->regfile_pc = (uintptr_t)(action->sa_handler);
     }
 
@@ -144,16 +145,44 @@ void signal_deliver_ex(struct thread* restrict thrd, struct regfile* restrict re
     }
 }
 
+void signal_deliver_sync(struct thread* restrict thrd, struct regfile* restrict regs, const struct k_siginfo* restrict siginfo_src)
+{
+    sigset_t bit = signal_bit(siginfo_src->si_signo);
+
+    if(thrd->sig_blocked & bit) {
+        pr_warning("signal: pid=%lu sig=%d raised twice, killing process", (unsigned long)(thrd->owner->pid), (int)(siginfo_src->si_signo));
+        nuke_process(thrd->owner, thrd, siginfo_src->si_signo);
+        unreachable();
+    }
+
+    signal_deliver_base(thrd, regs, siginfo_src);
+}
+
+void signal_deliver_auto(struct thread* restrict thrd, struct regfile* restrict regs)
+{
+    struct k_siginfo siginfo_src;
+    memset(&siginfo_src, 0, sizeof(struct k_siginfo));
+
+    siginfo_src.si_signo = lowest_signum(thrd);
+    siginfo_src.si_code = SI_USER;
+
+    if(thrd->owner) {
+        siginfo_src.si_pid = thrd->owner->pid;
+    }
+
+    signal_deliver_base(thrd, regs, &siginfo_src);
+}
+
 void signal_return(struct thread* restrict thrd, struct regfile* restrict regs)
 {
     uintptr_t uctx_uaddr = regs->syscall_arg_0;
     struct k_ucontext uctx;
 
-    // TODO: validate uctx_uaddr is within the process user address space
-
-    if(memcpy_vm_to_sys(&uctx, thrd->owner->vm, uctx_uaddr, sizeof(uctx)) != 0) {
-        pr_warning("signal: sigreturn with bad uctx=%p", (void*)uctx_uaddr);
-        return;
+    if(memcpy_vm_to_sys(&uctx, thrd->owner->vm, uctx_uaddr, sizeof(uctx))) {
+        pr_warning("signal: pid=%lu sig=%d bad ucontext pointer %p, killing process", (unsigned long)(thrd->owner->pid),
+            (int)(thrd->sig_pending), (void*)(uctx_uaddr));
+        nuke_process(thrd->owner, thrd, SIGSEGV);
+        unreachable();
     }
 
     mcontext_to_regfile(&uctx.uc_mcontext, regs);

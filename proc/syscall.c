@@ -31,7 +31,7 @@ void dispatch_syscall(struct regfile* restrict frame)
     struct thread* thread = hart->curr_thread;
 
     if(thread->owner && signal_pending(thread)) {
-        signal_deliver(thread, frame);
+        signal_deliver_auto(thread, frame);
     }
 }
 
