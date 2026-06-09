@@ -1,7 +1,7 @@
 #include <sys/atomic.h>
+#include <sys/malloc.h>
 #include <sys/process.h>
 #include <sys/sched.h>
-#include <sys/slab.h>
 #include <sys/thread.h>
 #include <sys/vmm.h>
 
@@ -9,7 +9,7 @@ static pid_t next_pid = 1;
 
 struct process* process_create(void)
 {
-    struct process* proc = slab_alloc(sizeof(struct process));
+    struct process* proc = kmalloc(sizeof(struct process));
 
     if(proc == nullptr) {
         return nullptr;
@@ -18,7 +18,7 @@ struct process* process_create(void)
     proc->vm = vmm_create();
 
     if(proc->vm == nullptr) {
-        slab_free(proc);
+        kfree(proc);
         return nullptr;
     }
 
@@ -39,7 +39,7 @@ void process_destroy(struct process* restrict proc)
     // nuking a kernel stack from under a live thread
 
     vmm_release(proc->vm);
-    slab_free(proc);
+    kfree(proc);
 }
 
 struct thread* process_spawn_thread(struct process* restrict proc, uintptr_t user_entry, uintptr_t user_stack_top)

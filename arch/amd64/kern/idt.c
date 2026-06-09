@@ -10,6 +10,7 @@
 #include <sys/panic.h>
 #include <sys/process.h>
 #include <sys/sched.h>
+#include <sys/signal.h>
 #include <sys/thread.h>
 #include <sys/vmm.h>
 
@@ -71,21 +72,40 @@ extern void amd64_isr_1D(void);
 extern void amd64_isr_1E(void);
 extern void amd64_isr_1F(void);
 
-static __noreturn void kill_user_process(struct regfile* restrict regs, uint64_t intvec)
-{
-    struct hart_local* hart = this_hart();
-    struct thread* thread = hart->curr_thread;
-    pr_warning("pid=%u: exception 0x%02zX at rip=%p", thread->owner->pid, (size_t)(intvec), (void*)(regs->amd64_rip));
-
-    for(struct thread* it = thread->owner->threads; it; it = it->proc_next) {
-        if(it != thread) {
-            it->state = THREAD_DEAD;
-        }
-    }
-
-    thread->state = THREAD_SEGV;
-    thread_exit_handler(-1);
-}
+static const int intvec_to_signal[0x20] = {
+    [0x00] = SIGFPE,  // divide error
+    [0x01] = SIGTRAP, // debug
+    [0x02] = SIGKILL, // non-maskable interrupt
+    [0x03] = SIGTRAP, // breakpoint
+    [0x04] = SIGSEGV, // overflow
+    [0x05] = SIGSEGV, // bound range exceeded
+    [0x06] = SIGILL,  // invalid opcode
+    [0x07] = SIGILL,  // device not available
+    [0x08] = SIGKILL, // double fault
+    [0x09] = SIGBUS,  // coprocessor segment overrun
+    [0x0A] = SIGKILL, // invalid tss
+    [0x0B] = SIGKILL, // segment not present
+    [0x0C] = SIGBUS,  // stack segment fault
+    [0x0D] = SIGSEGV, // general protection
+    [0x0E] = SIGSEGV, // page fault
+    [0x0F] = SIGKILL, // reserved
+    [0x10] = SIGFPE,  // floating point (x87)
+    [0x11] = SIGBUS,  // alignment check
+    [0x12] = SIGKILL, // machine check
+    [0x13] = SIGFPE,  // floating point (simd)
+    [0x14] = SIGKILL, // virtualization
+    [0x15] = SIGKILL, // control protection
+    [0x16] = SIGKILL, // reserved
+    [0x17] = SIGKILL, // reserved
+    [0x18] = SIGKILL, // reserved
+    [0x19] = SIGKILL, // reserved
+    [0x1A] = SIGKILL, // reserved
+    [0x1B] = SIGKILL, // reserved
+    [0x1C] = SIGKILL, // hypervisor injection
+    [0x1D] = SIGKILL, // vmm communication
+    [0x1E] = SIGKILL, // security exception
+    [0x1F] = SIGKILL, // reserved
+};
 
 static void page_fault_handler(struct regfile* restrict regs)
 {
@@ -117,10 +137,16 @@ static void page_fault_handler(struct regfile* restrict regs)
 
     if(new_vm == nullptr) {
         if(regs->amd64_cs & 3) {
-            kill_user_process(regs, 0x0E);
+            signal_psend(thread->owner, SIGSEGV); // Oh no! Nono no no no!
+            return;
         }
+        else {
+            panic("kernel page fault: fault=%p vprot=%02X present=%d", (void*)(info.fault), info.vprot, info.present);
+        }
+    }
 
-        panic("unhandled page fault at %p (vprot=%02X)", (void*)(info.fault), info.vprot);
+    if(thread->owner) {
+        thread->owner->vm = new_vm;
     }
 }
 
@@ -131,12 +157,24 @@ void __used amd64_isr_handler(struct regfile* restrict regs, uint64_t intvec)
 
     if(intvec == 0x0E) {
         page_fault_handler(regs);
-        return;
     }
 
     if(regs->amd64_cs & 3) {
-        kill_user_process(regs, intvec);
-        unreachable();
+        struct hart_local* hart = this_hart();
+        struct thread* thread = hart->curr_thread;
+
+        if(intvec < 0x20) {
+            signal_psend(thread->owner, intvec_to_signal[intvec]);
+        }
+        else {
+            signal_psend(thread->owner, SIGSEGV);
+        }
+
+        if(signal_pending(thread)) {
+            signal_deliver(thread, regs);
+        }
+
+        return;
     }
 
     panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));

@@ -1,11 +1,14 @@
 #include <string.h>
+#include <sys.arch/hart.h>
 #include <sys/assert.h>
 #include <sys/errno.h>
 #include <sys/initcall.h>
 #include <sys/kprintf.h>
 #include <sys/malloc.h>
 #include <sys/panic.h>
+#include <sys/signal.h>
 #include <sys/syscall.h>
+#include <sys/thread.h>
 
 static struct syscall* syscall_table;
 static size_t syscall_table_size;
@@ -23,6 +26,13 @@ void dispatch_syscall(struct regfile* restrict frame)
     }
 
     syscall_table[frame->syscall_number].function(frame);
+
+    struct hart_local* hart = this_hart();
+    struct thread* thread = hart->curr_thread;
+
+    if(thread->owner && signal_pending(thread)) {
+        signal_deliver(thread, frame);
+    }
 }
 
 static void init_syscall(void)

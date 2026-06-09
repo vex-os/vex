@@ -2,6 +2,7 @@
 #include <sys/kprintf.h>
 #include <sys/process.h>
 #include <sys/sched.h>
+#include <sys/signal.h>
 #include <sys/syscall.h>
 #include <sys/thread.h>
 
@@ -40,3 +41,11 @@ static void sys_test(struct regfile* restrict frame)
 }
 
 define_syscall(sys_test, SYS_TEST);
+
+static void sys_sigreturn(struct regfile* restrict frame)
+{
+    struct thread* thread = this_hart()->curr_thread;
+    signal_return(thread, frame);
+}
+
+define_syscall(sys_sigreturn, SYS_SIGRETURN);

@@ -38,6 +38,7 @@ kern/ptable_gpt.c
 kern/ptable_mbr.c
 kern/rsdp.c
 kern/sched.c
+kern/signal.c
 kern/slab.c
 kern/smp.c
 kern/sys_process.c
