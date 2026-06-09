@@ -26,7 +26,7 @@ extern void amd64_spur_2D(void);
 extern void amd64_spur_2E(void);
 extern void amd64_spur_2F(void);
 
-void __used amd64_spur_handler(struct interrupt_frame* restrict frame, uint64_t intvec)
+void __used amd64_spur_handler(struct regfile* restrict regs, uint64_t intvec)
 {
     // <<  Because it's a shit chip >>
     //                  - streaksu

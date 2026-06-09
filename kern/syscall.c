@@ -10,19 +10,19 @@
 static struct syscall* syscall_table;
 static size_t syscall_table_size;
 
-void dispatch_syscall(struct syscall_frame* restrict frame)
+void dispatch_syscall(struct regfile* restrict frame)
 {
-    if(frame->number >= syscall_table_size) {
-        frame->retval = -ENOSYS;
+    if(frame->syscall_number >= syscall_table_size) {
+        frame->syscall_retval = -ENOSYS;
         return;
     }
 
-    if(syscall_table[frame->number].function == nullptr) {
-        frame->retval = -ENOSYS;
+    if(syscall_table[frame->syscall_number].function == nullptr) {
+        frame->syscall_retval = -ENOSYS;
         return;
     }
 
-    syscall_table[frame->number].function(frame);
+    syscall_table[frame->syscall_number].function(frame);
 }
 
 static void init_syscall(void)
