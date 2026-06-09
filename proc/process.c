@@ -88,23 +88,23 @@ size_t memcpy_proc_to_sys(void* restrict s_dst, const struct process* restrict p
 size_t memcpy_sys_to_user(uintptr_t v_dst, const void* restrict s_src, size_t sz)
 {
     struct hart_local* hart = this_hart();
-    struct thread* thread = hart->curr_thread;
+    struct thread* thrd = hart->curr_thread;
 
-    if(thread == nullptr || thread->owner == nullptr) {
+    if(thrd == nullptr || thrd->owner == nullptr) {
         return sz;
     }
 
-    return memcpy_sys_to_vm(thread->owner->vm, v_dst, s_src, sz);
+    return memcpy_sys_to_vm(thrd->owner->vm, v_dst, s_src, sz);
 }
 
 size_t memcpy_user_to_sys(void* restrict s_dst, uintptr_t v_src, size_t sz)
 {
     struct hart_local* hart = this_hart();
-    struct thread* thread = hart->curr_thread;
+    struct thread* thrd = hart->curr_thread;
 
-    if(thread == nullptr || thread->owner == nullptr) {
+    if(thrd == nullptr || thrd->owner == nullptr) {
         return sz;
     }
 
-    return memcpy_vm_to_sys(s_dst, thread->owner->vm, v_src, sz);
+    return memcpy_vm_to_sys(s_dst, thrd->owner->vm, v_src, sz);
 }

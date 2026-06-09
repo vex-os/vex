@@ -27,100 +27,100 @@ void __noreturn thread_exit_handler(intptr_t retval)
     disable_interrupts();
 
     struct hart_local* hart = this_hart();
-    struct thread* thread = hart->curr_thread;
+    struct thread* thrd = hart->curr_thread;
 
-    thread->retval = retval;
+    thrd->retval = retval;
 
-    if(thread->state != THREAD_SEGV) {
-        thread->state = THREAD_DEAD;
+    if(thrd->state != THREAD_SEGV) {
+        thrd->state = THREAD_DEAD;
     }
 
-    thread->runq_next = hart->dead_head;
-    hart->dead_head = thread;
+    thrd->runq_next = hart->dead_head;
+    hart->dead_head = thrd;
 
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
 
-    thread_switch(thread, hart->idle_thread);
+    thread_switch(thrd, hart->idle_thread);
 
     unreachable();
 }
 
 struct thread* thread_create_base(struct process* restrict owner)
 {
-    struct thread* thread = slab_alloc(sizeof(struct thread));
+    struct thread* thrd = slab_alloc(sizeof(struct thread));
 
-    if(thread == nullptr) {
+    if(thrd == nullptr) {
         return nullptr;
     }
 
     if(owner == nullptr) {
-        thread->index = atomic_fetch_add(&next_kthread_index, 1, ATOMIC_RELAXED);
-        thread->proc_next = nullptr;
+        thrd->index = atomic_fetch_add(&next_kthread_index, 1, ATOMIC_RELAXED);
+        thrd->proc_next = nullptr;
     }
     else {
-        thread->index = atomic_fetch_add(&owner->thread_count, 1, ATOMIC_RELAXED);
+        thrd->index = atomic_fetch_add(&owner->thread_count, 1, ATOMIC_RELAXED);
         atomic_fetch_add(&owner->live_count, 1, ATOMIC_RELAXED);
-        thread->proc_next = owner->threads;
-        owner->threads = thread;
+        thrd->proc_next = owner->threads;
+        owner->threads = thrd;
     }
 
-    thread->owner = owner;
-    thread->runq_next = nullptr;
-    thread->deadline = 0;
-    thread->retval = 0;
+    thrd->owner = owner;
+    thrd->runq_next = nullptr;
+    thrd->deadline = 0;
+    thrd->retval = 0;
 
-    return thread;
+    return thrd;
 }
 
 struct thread* thread_create_kern(struct process* restrict owner, thread_entry_type entry, void* restrict ctxdata)
 {
-    struct thread* thread = thread_create_base(owner);
+    struct thread* thrd = thread_create_base(owner);
 
-    if(thread == nullptr) {
+    if(thrd == nullptr) {
         return nullptr;
     }
 
     uintptr_t kstack = pslab_alloc();
 
     if(kstack == 0) {
-        slab_free(thread);
+        slab_free(thrd);
         return nullptr;
     }
 
-    thread->state = THREAD_WAIT;
+    thrd->state = THREAD_WAIT;
 
     uintptr_t* kernel_stack_top = phys_to_virt(kstack + THREAD_KSTACK_SIZE);
     uintptr_t* kernel_stack = setup_thread_kstack(kernel_stack_top, entry, ctxdata);
-    thread->kernel_stack_top = (uintptr_t)(kernel_stack_top);
-    thread->kernel_stack = (uintptr_t)(kernel_stack);
+    thrd->kernel_stack_top = (uintptr_t)(kernel_stack_top);
+    thrd->kernel_stack = (uintptr_t)(kernel_stack);
 
-    return thread;
+    return thrd;
 }
 
 struct thread* thread_create_user(struct process* restrict owner, uintptr_t user_entry, uintptr_t user_stack_top)
 {
-    struct thread* thread = thread_create_base(owner);
+    struct thread* thrd = thread_create_base(owner);
 
-    if(thread == nullptr) {
+    if(thrd == nullptr) {
         return nullptr;
     }
 
     uintptr_t kstack = pslab_alloc();
 
     if(kstack == 0) {
-        slab_free(thread);
+        slab_free(thrd);
         return nullptr;
     }
 
-    thread->state = THREAD_WAIT;
+    thrd->state = THREAD_WAIT;
 
     uintptr_t* kernel_stack_top = phys_to_virt(kstack + THREAD_KSTACK_SIZE);
     uintptr_t* kernel_stack = setup_thread_ustack(kernel_stack_top, user_entry, user_stack_top);
-    thread->kernel_stack_top = (uintptr_t)(kernel_stack_top);
-    thread->kernel_stack = (uintptr_t)(kernel_stack);
+    thrd->kernel_stack_top = (uintptr_t)(kernel_stack_top);
+    thrd->kernel_stack = (uintptr_t)(kernel_stack);
 
-    return thread;
+    return thrd;
 }
 
 void thread_destroy(struct thread* restrict thrd)

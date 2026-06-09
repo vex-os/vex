@@ -94,7 +94,7 @@ static const uint32_t isr_sigcodes[0x20] = {
     [0x13] = FPE_FLTINV,  // SIMD floating point
 };
 
-static void page_fault_handler(struct thread* restrict thread, struct regfile* restrict regs)
+static void page_fault_handler(struct thread* restrict thrd, struct regfile* restrict regs)
 {
     struct vmm_fault_info info;
     memset(&info, 0, sizeof(info));
@@ -117,13 +117,12 @@ static void page_fault_handler(struct thread* restrict thread, struct regfile* r
 
     asm volatile("movq %%cr2, %0" : "=r"(info.fault));
 
-    struct pagemap* old_vm = thread->owner ? thread->owner->vm : &sys_pagemap;
+    struct pagemap* old_vm = thrd->owner ? thrd->owner->vm : &sys_pagemap;
     struct pagemap* new_vm = vmm_handle_fault(old_vm, &info);
 
     if(new_vm != nullptr) {
-        if(thread->owner) {
-            thread->owner->vm = new_vm;
-        }
+        if(thrd->owner)
+            thrd->owner->vm = new_vm;
         return;
     }
 
@@ -135,7 +134,7 @@ static void page_fault_handler(struct thread* restrict thread, struct regfile* r
         siginfo.si_code = info.present ? SEGV_ACCERR : SEGV_MAPERR;
         siginfo.si_addr = (void*)(info.fault);
 
-        signal_deliver_sync(thread, regs, &siginfo);
+        signal_deliver_sync(thrd, regs, &siginfo);
     }
     else {
         panic("kernel page fault: fault=%p vprot=%02X present=%d", (void*)(info.fault), info.vprot, info.present);
@@ -149,10 +148,10 @@ void __used amd64_isr_handler(struct regfile* restrict regs, uint64_t intvec)
     vmm_switch(&sys_pagemap);
 
     struct hart_local* hart = this_hart();
-    struct thread* thread = hart->curr_thread;
+    struct thread* thrd = hart->curr_thread;
 
     if(intvec == 0x0E) {
-        page_fault_handler(thread, regs);
+        page_fault_handler(thrd, regs);
     }
     else if(regs->amd64_cs & 3) {
         struct k_siginfo siginfo;
@@ -167,14 +166,14 @@ void __used amd64_isr_handler(struct regfile* restrict regs, uint64_t intvec)
             siginfo.si_code = SI_USER;
         }
 
-        signal_deliver_sync(thread, regs, &siginfo);
+        signal_deliver_sync(thrd, regs, &siginfo);
     }
     else {
         panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));
     }
 
-    if((regs->amd64_cs & 3) && thread->owner) {
-        vmm_switch(thread->owner->vm);
+    if((regs->amd64_cs & 3) && thrd->owner) {
+        vmm_switch(thrd->owner->vm);
     }
 }
 
