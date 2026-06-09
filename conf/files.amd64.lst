@@ -19,6 +19,7 @@ arch/amd64/mm/vmm.c
 
 arch/amd64/proc/syscall.S
 arch/amd64/proc/thread.S
+arch/amd64/proc/signal.S
 
 arch/amd64/time/acpi_clocksrc.c
 arch/amd64/time/lapic_timer.c

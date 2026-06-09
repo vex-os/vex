@@ -48,9 +48,10 @@ static __attribute__((naked, aligned(PAGE_SIZE))) void user_test_fn2(void)
 
 static __attribute__((naked, aligned(PAGE_SIZE))) void user_sigsegv_handler(void)
 {
-    asm volatile("mov $1337, %rdi\n"
-                 "mov $1, %rax\n"
-                 "syscall\n");
+    asm volatile( // "mov $1337, %rdi\n"
+                  // "mov $1, %rax\n"
+                  // "syscall\n"
+        "ret\n");
 }
 
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);

@@ -100,6 +100,8 @@
 #define SIG_ERR __k_SIG_ERR
 #define SIG_IGN __k_SIG_IGN
 
+#define SIGRETURN_GUARD_VIRT 0x1000UL
+
 typedef __k_sa_handler_t sa_handler_t;
 typedef __k_sa_sigaction_t sa_sigaction_t;
 typedef __k_sigset_t sigset_t;

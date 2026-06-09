@@ -2,8 +2,12 @@
 #include <vex/malloc.h>
 #include <vex/process.h>
 #include <vex/sched.h>
+#include <vex/signal.h>
 #include <vex/thread.h>
 #include <vex/vmm.h>
+#include <vex/vprot.h>
+
+extern const uint8_t sigreturn_guard[];
 
 static pid_t next_pid = 1;
 
@@ -18,6 +22,22 @@ struct process* process_create(void)
     proc->vm = vmm_create();
 
     if(proc->vm == nullptr) {
+        kfree(proc);
+        return nullptr;
+    }
+
+    uintptr_t guard_phys = vmm_resolve(&sys_pagemap, (uintptr_t)(sigreturn_guard));
+
+    if(guard_phys == 0) {
+        vmm_release(proc->vm);
+        kfree(proc);
+        return nullptr;
+    }
+
+    int retval = vmm_map(proc->vm, SIGRETURN_GUARD_VIRT, guard_phys, VPROT_URX);
+
+    if(retval < 0) {
+        vmm_release(proc->vm);
         kfree(proc);
         return nullptr;
     }

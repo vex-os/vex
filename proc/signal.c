@@ -47,12 +47,16 @@ static void push_frame(struct thread* restrict thrd, struct regfile* restrict re
     regfile_to_mcontext(regs, &uctx.uc_mcontext);
     uctx.uc_sigmask = thrd->sig_blocked;
 
-    uintptr_t zero = 0;
+    // For cases when userspace code is written by an actual retard
+    // and the signal handler actually returns instead of calling
+    // sys_sigreturn, the kernel maps a guard trampoline that calls
+    // sys_exit with a whatever exit code arch decides
+    uintptr_t guard_virt = SIGRETURN_GUARD_VIRT;
 
     memcpy_sys_to_vm(vm, uctx_uaddr, &uctx, sizeof(uctx));
     memcpy_sys_to_vm(vm, siginfo_uaddr, siginfo_src, sizeof(struct k_siginfo));
     memcpy_sys_to_vm(vm, uctx_ptr_uaddr, &uctx_uaddr, sizeof(uintptr_t));
-    memcpy_sys_to_vm(vm, ret_uaddr, &zero, sizeof(uintptr_t));
+    memcpy_sys_to_vm(vm, ret_uaddr, &guard_virt, sizeof(uintptr_t));
 
     regs->regfile_sp = user_sp;
     regs->regfile_arg_0 = (uintptr_t)(siginfo_src->si_signo);
