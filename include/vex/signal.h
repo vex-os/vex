@@ -117,8 +117,9 @@ struct regfile;
 struct thread;
 
 bool signal_pending(struct thread* restrict thrd);
-void signal_deliver(struct thread* restrict thrd, struct regfile* restrict regs);
-void signal_deliver_ex(struct thread* restrict thrd, struct regfile* restrict regs, const struct k_siginfo* restrict siginfo_src);
+void signal_deliver_base(struct thread* restrict thrd, struct regfile* restrict regs, const struct k_siginfo* restrict siginfo_src);
+void signal_deliver_sync(struct thread* restrict thrd, struct regfile* restrict regs, const struct k_siginfo* restrict siginfo_src);
+void signal_deliver_auto(struct thread* restrict thrd, struct regfile* restrict regs);
 
 void signal_psend(struct process* restrict proc, int signum);
 void signal_tsend(struct thread* restrict thrd, int signum);
