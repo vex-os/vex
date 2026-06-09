@@ -22,7 +22,7 @@ static unsigned panic_ipi_vector = 0;
 
 extern void amd64_syscall_entry(void);
 
-static void panic_halt_handler(unsigned number, const struct interrupt_frame* restrict frame, void* restrict ctxdata)
+static void panic_halt_handler(unsigned number, const struct regfile* restrict regs, void* restrict ctxdata)
 {
     disable_interrupts();
 
@@ -67,10 +67,10 @@ static void arch_init_hart(void)
     star |= ((uint64_t)(gdt_selector(GDT_KERN_CODE_64, 0, 0)) << 32);
     star |= ((uint64_t)(gdt_selector(GDT_USER_DATA_64, 0, 0) - 8) << 48);
 
-    wrmsr(0xC0000101, (uintptr_t)(hart));                  // IA32_GS_BASE
-    wrmsr(0xC0000081, star);                               // IA32_STAR
-    wrmsr(0xC0000082, (uintptr_t)(&amd64_syscall_entry));  // IA32_LSTAR
-    wrmsr(0xC0000084, (UINT64_C(1) << 9));                 // IA32_SFMASK: гасим IF
+    wrmsr(0xC0000101, (uintptr_t)(hart));                 // IA32_GS_BASE
+    wrmsr(0xC0000081, star);                              // IA32_STAR
+    wrmsr(0xC0000082, (uintptr_t)(&amd64_syscall_entry)); // IA32_LSTAR
+    wrmsr(0xC0000084, (UINT64_C(1) << 9));                // IA32_SFMASK: гасим IF
 }
 
 initcall_smp_hart(arch_init_hart, INIT_FIRST);

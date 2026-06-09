@@ -3,6 +3,7 @@
 #include <sys.amd64/idt.h>
 #include <sys.arch/hart.h>
 #include <sys.arch/intr.h>
+#include <sys.arch/regs.h>
 #include <sys/initcall.h>
 #include <sys/kprintf.h>
 #include <sys/malloc.h>
@@ -70,11 +71,11 @@ extern void amd64_isr_1D(void);
 extern void amd64_isr_1E(void);
 extern void amd64_isr_1F(void);
 
-static __noreturn void kill_user_process(struct interrupt_frame* restrict frame, uint64_t intvec)
+static __noreturn void kill_user_process(struct regfile* restrict regs, uint64_t intvec)
 {
     struct hart_local* hart = this_hart();
     struct thread* thread = hart->curr_thread;
-    pr_warning("pid=%u: exception 0x%02zX at rip=%p", thread->owner->pid, (size_t)(intvec), (void*)(frame->amd64_rip));
+    pr_warning("pid=%u: exception 0x%02zX at rip=%p", thread->owner->pid, (size_t)(intvec), (void*)(regs->amd64_rip));
 
     for(struct thread* it = thread->owner->threads; it; it = it->proc_next) {
         if(it != thread) {
@@ -86,24 +87,24 @@ static __noreturn void kill_user_process(struct interrupt_frame* restrict frame,
     thread_exit_handler(-1);
 }
 
-static void page_fault_handler(struct interrupt_frame* restrict frame)
+static void page_fault_handler(struct regfile* restrict regs)
 {
     struct vmm_fault_info info;
     memset(&info, 0, sizeof(info));
 
-    info.present = (bool)(frame->amd64_err & 0x1);
+    info.present = (bool)(regs->amd64_err & 0x1);
 
-    if(frame->amd64_err & 0x2) {
+    if(regs->amd64_err & 0x2) {
         info.vprot = VPROT_WRITE;
     }
-    else if(frame->amd64_err & 0x10) {
+    else if(regs->amd64_err & 0x10) {
         info.vprot = VPROT_EXEC;
     }
     else {
         info.vprot = VPROT_READ;
     }
 
-    if(frame->amd64_err & 0x4) {
+    if(regs->amd64_err & 0x4) {
         info.vprot |= VPROT_USER;
     }
 
@@ -115,26 +116,26 @@ static void page_fault_handler(struct interrupt_frame* restrict frame)
     struct pagemap* new_vm = vmm_handle_fault(old_vm, &info);
 
     if(new_vm == nullptr) {
-        if(frame->amd64_cs & 3) {
-            kill_user_process(frame, 0x0E);
+        if(regs->amd64_cs & 3) {
+            kill_user_process(regs, 0x0E);
         }
 
         panic("unhandled page fault at %p (vprot=%02X)", (void*)(info.fault), info.vprot);
     }
 }
 
-void __used amd64_isr_handler(struct interrupt_frame* restrict frame, uint64_t intvec)
+void __used amd64_isr_handler(struct regfile* restrict regs, uint64_t intvec)
 {
     disable_interrupts();
     vmm_switch(&sys_pagemap);
 
     if(intvec == 0x0E) {
-        page_fault_handler(frame);
+        page_fault_handler(regs);
         return;
     }
 
-    if(frame->amd64_cs & 3) {
-        kill_user_process(frame, intvec);
+    if(regs->amd64_cs & 3) {
+        kill_user_process(regs, intvec);
         unreachable();
     }
 

@@ -214,11 +214,11 @@ extern void amd64_ireq_FD(void);
 extern void amd64_ireq_FE(void);
 extern void amd64_ireq_FF(void);
 
-void __used amd64_ireq_handler(struct interrupt_frame* restrict frame, uint64_t idt_vector)
+void __used amd64_ireq_handler(struct regfile* restrict regs, uint64_t idt_vector)
 {
     lapic_write(LAPIC_REG_EOI, UINT32_C(0));
 
-    dispatch_ireq(idt_vector - ARCH_IREQ_BASE, frame);
+    dispatch_ireq(idt_vector - ARCH_IREQ_BASE, regs);
 }
 
 static void arch_init_ireq(void)

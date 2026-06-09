@@ -5,27 +5,27 @@
 #include <sys/syscall.h>
 #include <sys/thread.h>
 
-static void sys_exit(struct syscall_frame* restrict frame)
+static void sys_exit(struct regfile* restrict frame)
 {
     struct hart_local* hart = this_hart();
     struct thread* thread = hart->curr_thread;
-    thread->owner->exit_code = (intptr_t)(frame->arg_0);
-    pr_inform("sys_exit: pid=%u exit_code=%ld", thread->owner->pid, (intptr_t)(frame->arg_0));
+    thread->owner->exit_code = (intptr_t)(frame->syscall_arg_0);
+    pr_inform("sys_exit: pid=%u exit_code=%ld", thread->owner->pid, (intptr_t)(frame->syscall_arg_0));
     thread->state = THREAD_DEAD;
-    thread_exit_handler(frame->arg_0);
+    thread_exit_handler(frame->syscall_arg_0);
 }
 
 define_syscall(sys_exit, SYS_EXIT);
 
-static void sys_test(struct syscall_frame* restrict frame)
+static void sys_test(struct regfile* restrict frame)
 {
-    uintmax_t number = frame->number;
-    uintmax_t arg_0 = frame->arg_0;
-    uintmax_t arg_1 = frame->arg_1;
-    uintmax_t arg_2 = frame->arg_2;
-    uintmax_t arg_3 = frame->arg_3;
-    uintmax_t arg_4 = frame->arg_4;
-    uintmax_t arg_5 = frame->arg_5;
+    uintmax_t number = frame->syscall_number;
+    uintmax_t arg_0 = frame->syscall_arg_0;
+    uintmax_t arg_1 = frame->syscall_arg_1;
+    uintmax_t arg_2 = frame->syscall_arg_2;
+    uintmax_t arg_3 = frame->syscall_arg_3;
+    uintmax_t arg_4 = frame->syscall_arg_4;
+    uintmax_t arg_5 = frame->syscall_arg_5;
 
     pr_inform("sys_test: number=%016jX arg_0=%016jX arg_1=%016jX arg_2=%016jX", number, arg_0, arg_1, arg_2);
     pr_inform("sys_test:  arg_3=%016jX arg_4=%016jX arg_5=%016jX", arg_3, arg_4, arg_5);
@@ -36,7 +36,7 @@ static void sys_test(struct syscall_frame* restrict frame)
         pr_inform("sys_test: woke up");
     }
 
-    frame->retval = 0;
+    frame->syscall_retval = 0;
 }
 
 define_syscall(sys_test, SYS_TEST);

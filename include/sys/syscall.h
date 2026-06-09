@@ -2,27 +2,18 @@
 #define C2F4E5EB_E2C3_4357_ADD8_6EAE11DBCB22
 #pragma once
 
+#include <sys.arch/regs.h>
 #include <sys/cdefs.h>
 #include <sys/types.h>
 #include <vex/syscall.h>
 
 #define SYS_EXIT  __k_SYS_EXIT
 #define SYS_SLEEP __k_SYS_SLEEP
-#define SYS_TEST  42
 
-struct syscall_frame {
-    uintptr_t number;
-    uintptr_t arg_0;
-    uintptr_t arg_1;
-    uintptr_t arg_2;
-    uintptr_t arg_3;
-    uintptr_t arg_4;
-    uintptr_t arg_5;
-    intptr_t retval;
-} __packed;
+#define SYS_TEST 42
 
 struct syscall {
-    void (*function)(struct syscall_frame* restrict frame);
+    void (*function)(struct regfile* restrict frame);
     const char* identifier;
     unsigned long number;
 };
@@ -37,6 +28,6 @@ struct syscall {
 extern const struct syscall unsorted_syscalls_start[];
 extern const struct syscall unsorted_syscalls_end[];
 
-void dispatch_syscall(struct syscall_frame* restrict frame);
+void dispatch_syscall(struct regfile* restrict frame);
 
 #endif /* C2F4E5EB_E2C3_4357_ADD8_6EAE11DBCB22 */
