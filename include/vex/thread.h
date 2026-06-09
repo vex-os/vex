@@ -27,9 +27,6 @@ struct thread {
 
     intptr_t retval;
 
-    struct regfile* sig_return_regs;
-    sigset_t sig_return_blocked;
-
     sigset_t sig_pending;
     sigset_t sig_blocked;
 };
