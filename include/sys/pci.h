@@ -58,12 +58,12 @@
 #define PCI_BAR_ADDR_MASK_IO  (~((uintptr_t)(0x03)))
 #define PCI_BAR_ADDR_MASK_MEM (~((uintptr_t)(0x0F)))
 
-#define PCI_CAP_PM   0x01 ///< Power Management
-#define PCI_CAP_AGP  0x02 ///< AGP
-#define PCI_CAP_MSI  0x05 ///< Message Signalled Interrupts
-#define PCI_CAP_PCIX 0x07 ///< PCI-X
-#define PCI_CAP_MSIX 0x11 ///< MSI-X
-#define PCI_CAP_PCIE 0x10 ///< PCI Express
+#define PCI_CAP_PM   0x01 // Power Management
+#define PCI_CAP_AGP  0x02 // AGP
+#define PCI_CAP_MSI  0x05 // Message Signalled Interrupts
+#define PCI_CAP_PCIX 0x07 // PCI-X
+#define PCI_CAP_MSIX 0x11 // MSI-X
+#define PCI_CAP_PCIE 0x10 // PCI Express
 
 #define PCI_STS_CAP_LIST 0x0010
 
@@ -127,7 +127,7 @@ struct pci_device {
 };
 
 struct pci_driver_id {
-    unsigned vendor_id; ///< 0 = match by class/subclass instead of vendor+device
+    unsigned vendor_id; // 0 = match by class/subclass instead of vendor+device
     unsigned device_id;
     unsigned class_id;
     unsigned subclass_id;
@@ -211,8 +211,8 @@ void pci_bar_write16s(struct pci_bar* restrict bar, uintptr_t offset, const uint
 void pci_bar_write32s(struct pci_bar* restrict bar, uintptr_t offset, const uint32_t* restrict data, size_t count);
 void pci_bar_write64s(struct pci_bar* restrict bar, uintptr_t offset, const uint64_t* restrict data, size_t count);
 
-/// Returns the config space offset of the capability with the given ID,
-/// or 0 if not found. Requires PCI_STS_CAP_LIST set in status register;
+// Returns the config space offset of the capability with the given ID,
+// or 0 if not found. Requires PCI_STS_CAP_LIST set in status register;
 uint8_t pci_get_cap(struct pci_device* restrict device, uint8_t cap_id) __nodiscard;
 
 void pci_enable_busmaster(struct pci_device* restrict device);

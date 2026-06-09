@@ -77,9 +77,9 @@ struct isa_resource* isa_get_resource(struct isa_device* restrict device, unsign
 int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_handler_type handler, void* ctxdata);
 void isa_release_irq(struct isa_device* restrict device, unsigned index);
 
-/// Resolves an ISA IRQ number to a GSI and trigger/polarity characteristics.
-/// Applies any ACPI MADT interrupt source overrides; defaults to identity
-/// mapping GSI numbers to IRQ lines edge-triggered, active-high if no override exists.
+// Resolves an ISA IRQ number to a GSI and trigger/polarity characteristics.
+// Applies any ACPI MADT interrupt source overrides; defaults to identity
+// mapping GSI numbers to IRQ lines edge-triggered, active-high if no override exists.
 void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsigned* out_polarity);
 
 #endif /* BAF7322B_9BD5_4ECE_B20C_153EF98E138C */

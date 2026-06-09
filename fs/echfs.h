@@ -9,7 +9,7 @@
 struct blk_device;
 
 struct echfs_identity {
-    uint8_t reserved_1[4]; ///< Reserved for jump instruction or whatever else echfs-utils wants to put here
+    uint8_t reserved_1[4]; // Reserved for jump instruction or whatever else echfs-utils wants to put here
     uint8_t signature[8];
     uint64_t total_blocks;
     uint64_t maindir_size;
@@ -77,8 +77,8 @@ struct echfs_vfs_context {
 
 struct echfs_vnode_context {
     struct echfs_vfs_context* fs_ctx;
-    uint64_t dir_entry;   ///< Index into dir_table; UINT64_MAX for the root
-    uint64_t start_block; ///< First data block (files) or directory ID (dirs)
+    uint64_t dir_entry;   // Index into dir_table; UINT64_MAX for the root
+    uint64_t start_block; // First data block (files) or directory ID (dirs)
     uint64_t size;
     uint64_t cached_block;
     uint64_t cached_block_idx;

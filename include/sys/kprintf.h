@@ -15,14 +15,14 @@
 #define KP_BUFSIZE 256U
 #endif
 
-#define KP_EMERG    0U ///< The system is unusable, absolutely fatal condition
-#define KP_ALERT    1U ///< Action must be taken immediately, usually unrecoverable
-#define KP_CRITICAL 2U ///< Critical conditions, probably unrecoverable
-#define KP_ERROR    3U ///< Error conditions, probably recoverable
-#define KP_WARNING  4U ///< Warning messages, definitely recoverable
-#define KP_NOTICE   5U ///< Normal but important messages
-#define KP_INFORM   6U ///< Informational messages
-#define KP_VERBOSE  7U ///< Debug-level messages
+#define KP_EMERG    0U // The system is unusable, absolutely fatal condition
+#define KP_ALERT    1U // Action must be taken immediately, usually unrecoverable
+#define KP_CRITICAL 2U // Critical conditions, probably unrecoverable
+#define KP_ERROR    3U // Error conditions, probably recoverable
+#define KP_WARNING  4U // Warning messages, definitely recoverable
+#define KP_NOTICE   5U // Normal but important messages
+#define KP_INFORM   6U // Informational messages
+#define KP_VERBOSE  7U // Debug-level messages
 
 extern size_t kp_writepos;
 extern char kp_buffer[KP_BUFSIZE];

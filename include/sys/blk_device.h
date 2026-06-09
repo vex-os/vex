@@ -22,9 +22,9 @@ struct blk_device_private {
     unsigned name_iterator;
 };
 
-#define BLK_FLAG_PRESENT   0x0001 ///< Media is present and ready
-#define BLK_FLAG_PARTITION 0x0002 ///< Device is a partition device
-#define BLK_FLAG_HIDDEN    0x0004 ///< Device is not added to devfs
+#define BLK_FLAG_PRESENT   0x0001 // Media is present and ready
+#define BLK_FLAG_PARTITION 0x0002 // Device is a partition device
+#define BLK_FLAG_HIDDEN    0x0004 // Device is not added to devfs
 
 struct blk_device {
     struct blk_device_private priv;

@@ -13,20 +13,20 @@
 struct blk_device;
 
 struct fat_bootparams {
-    uint8_t jmp_boot[3];        ///< BS_jmpBoot
-    uint8_t oem_name[8];        ///< BS_OEMName
-    uint16_t sector_size;       ///< BPB_BytsPerSec
-    uint8_t cluster_size;       ///< BPB_SecPerClus
-    uint16_t reserved_sectors;  ///< BPB_RsvdSecCnt
-    uint8_t tables_count;       ///< BPB_NumFATs
-    uint16_t root_entries;      ///< BPB_RootEntCnt
-    uint16_t total_sectors_16;  ///< BPB_TotSec16
-    uint8_t media_descriptor;   ///< BPB_Media
-    uint16_t table_size_16;     ///< BPB_FATSz16
-    uint16_t sectors_per_track; ///< BPB_SecPerTrk
-    uint16_t heads_count;       ///< BPB_NumHeads
-    uint32_t hidden_sectors;    ///< BPB_HiddSec
-    uint32_t total_sectors_32;  ///< BPB_TotSec32
+    uint8_t jmp_boot[3];        // BS_jmpBoot
+    uint8_t oem_name[8];        // BS_OEMName
+    uint16_t sector_size;       // BPB_BytsPerSec
+    uint8_t cluster_size;       // BPB_SecPerClus
+    uint16_t reserved_sectors;  // BPB_RsvdSecCnt
+    uint8_t tables_count;       // BPB_NumFATs
+    uint16_t root_entries;      // BPB_RootEntCnt
+    uint16_t total_sectors_16;  // BPB_TotSec16
+    uint8_t media_descriptor;   // BPB_Media
+    uint16_t table_size_16;     // BPB_FATSz16
+    uint16_t sectors_per_track; // BPB_SecPerTrk
+    uint16_t heads_count;       // BPB_NumHeads
+    uint32_t hidden_sectors;    // BPB_HiddSec
+    uint32_t total_sectors_32;  // BPB_TotSec32
 } __packed;
 
 #ifndef __INTELLISENSE__
@@ -35,31 +35,31 @@ static_assert(36 == sizeof(struct fat_bootparams));
 
 struct fat_extparams_fat1X {
     struct fat_bootparams base;
-    uint8_t drive_number;     ///< BS_DrvNum
-    uint8_t reserved_1;       ///< BS_Reserved1
-    uint8_t boot_signature;   ///< BS_BootSig
-    uint32_t volume_id;       ///< BS_VolID
-    uint8_t volume_label[11]; ///< BS_VolLab
-    uint8_t fs_type[8];       ///< BS_FilSysType
+    uint8_t drive_number;     // BS_DrvNum
+    uint8_t reserved_1;       // BS_Reserved1
+    uint8_t boot_signature;   // BS_BootSig
+    uint32_t volume_id;       // BS_VolID
+    uint8_t volume_label[11]; // BS_VolLab
+    uint8_t fs_type[8];       // BS_FilSysType
     uint8_t boot_code[448];
     uint8_t mbr_signature[2];
 } __packed;
 
 struct fat_extparams_fat32 {
     struct fat_bootparams base;
-    uint32_t table_size_32;     ///< BPB_FATSz32
-    uint16_t flags;             ///< BPB_ExtFlags
-    uint16_t version;           ///< BPB_FSVer
-    uint32_t root_cluster;      ///< BPB_RootClus
-    uint16_t fs_info;           ///< BPB_FSInfo
-    uint16_t backup_bootsector; ///< BPB_BkBootSec
-    uint8_t reserved[12];       /// BPB_Reserved
-    uint8_t drive_number;       ///< BS_DrvNum
-    uint8_t reserved_1;         ///< BS_Reserved1
-    uint8_t boot_signature;     ///< BS_BootSig
-    uint32_t volume_id;         ///< BS_VolID
-    uint8_t volume_label[11];   ///< BS_VolLab
-    uint8_t fs_type[8];         ///< BS_FilSysType
+    uint32_t table_size_32;     // BPB_FATSz32
+    uint16_t flags;             // BPB_ExtFlags
+    uint16_t version;           // BPB_FSVer
+    uint32_t root_cluster;      // BPB_RootClus
+    uint16_t fs_info;           // BPB_FSInfo
+    uint16_t backup_bootsector; // BPB_BkBootSec
+    uint8_t reserved[12];       // BPB_Reserved
+    uint8_t drive_number;       // BS_DrvNum
+    uint8_t reserved_1;         // BS_Reserved1
+    uint8_t boot_signature;     // BS_BootSig
+    uint32_t volume_id;         // BS_VolID
+    uint8_t volume_label[11];   // BS_VolLab
+    uint8_t fs_type[8];         // BS_FilSysType
     uint8_t boot_code[420];
     uint8_t mbr_signature[2];
 } __packed;
@@ -75,13 +75,13 @@ union fat_extparams {
 };
 
 struct fat_fsinfo_fat32 {
-    uint32_t lead_signature;   ///< FSI_LeadSig
-    uint8_t reserved_1[480];   ///< FSI_Reserved1
-    uint32_t struct_signature; ///< FSI_StrucSig
-    uint32_t free_count;       ///< FSI_Free_Count
-    uint32_t next_free;        ///< FSI_Nxt_Free
-    uint8_t reserved_2[12];    ///< FSI_Reserved2
-    uint32_t trail_signature;  ///< FSI_TrailSig
+    uint32_t lead_signature;   // FSI_LeadSig
+    uint8_t reserved_1[480];   // FSI_Reserved1
+    uint32_t struct_signature; // FSI_StrucSig
+    uint32_t free_count;       // FSI_Free_Count
+    uint32_t next_free;        // FSI_Nxt_Free
+    uint8_t reserved_2[12];    // FSI_Reserved2
+    uint32_t trail_signature;  // FSI_TrailSig
 } __packed;
 
 #ifndef __INTELLISENSE__
@@ -97,31 +97,31 @@ static_assert(512 == sizeof(struct fat_fsinfo_fat32));
 #define FAT_ATTR_LONG_NAME UINT8_C(0x0F)
 
 struct fat_dir_entry {
-    uint8_t name[11];          ///< DIR_Name
-    uint8_t attribute;         ///< DIR_Attr
-    uint8_t nt_reserved;       ///< DIR_NTRes
-    uint8_t create_time_tenth; ///< DIR_CrtTimeTenth
-    uint16_t create_time;      ///< DIR_CrtTime
-    uint16_t create_date;      ///< DIR_CrtDate
-    uint16_t access_date;      ///< DIR_LstAccDate
-    uint16_t first_cluster_hi; ///< DIR_FstClusHI
-    uint16_t write_time;       ///< DIR_WrtTime
-    uint16_t write_date;       ///< DIR_WrtDate
-    uint16_t first_cluster_lo; ///< DIR_FstClusLO
-    uint32_t file_size;        ///< DIR_FileSize
+    uint8_t name[11];          // DIR_Name
+    uint8_t attribute;         // DIR_Attr
+    uint8_t nt_reserved;       // DIR_NTRes
+    uint8_t create_time_tenth; // DIR_CrtTimeTenth
+    uint16_t create_time;      // DIR_CrtTime
+    uint16_t create_date;      // DIR_CrtDate
+    uint16_t access_date;      // DIR_LstAccDate
+    uint16_t first_cluster_hi; // DIR_FstClusHI
+    uint16_t write_time;       // DIR_WrtTime
+    uint16_t write_date;       // DIR_WrtDate
+    uint16_t first_cluster_lo; // DIR_FstClusLO
+    uint32_t file_size;        // DIR_FileSize
 } __packed;
 
 #define FAT_LFN_MAX_SEGMENTS 20
 
 struct fat_ldir_entry {
-    uint8_t order;             ///< LDIR_Ord
-    uint16_t name_1[5];        ///< LDIR_Name1
-    uint8_t attr;              ///< LDIR_Attr
-    uint8_t type;              ///< LDIR_Type
-    uint8_t checksum;          ///< LDIR_Chksum
-    uint16_t name_2[6];        ///< LDIR_Name2
-    uint16_t first_cluster_lo; ///< LDIR_FstClusLO
-    uint16_t name_3[2];        ///< LDIR_Name3
+    uint8_t order;             // LDIR_Ord
+    uint16_t name_1[5];        // LDIR_Name1
+    uint8_t attr;              // LDIR_Attr
+    uint8_t type;              // LDIR_Type
+    uint8_t checksum;          // LDIR_Chksum
+    uint16_t name_2[6];        // LDIR_Name2
+    uint16_t first_cluster_lo; // LDIR_FstClusLO
+    uint16_t name_3[2];        // LDIR_Name3
 } __packed;
 
 #ifndef __INTELLISENSE__
