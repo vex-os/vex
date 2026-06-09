@@ -47,5 +47,7 @@ static_assert(0x98 == offsetof(struct regfile, amd64_rsp));
 #define regfile_pc    amd64_rip
 #define regfile_sp    amd64_rsp
 #define regfile_arg_0 amd64_rdi
+#define regfile_arg_1 amd64_rsi
+#define regfile_arg_2 amd64_rdx
 
 #endif /* CB843259_FB1F_406D_AEC7_DD452B5E5899 */

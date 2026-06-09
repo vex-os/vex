@@ -1,4 +1,4 @@
-#include <vex.arch/regs.h>
+#include <vex.arch/mctx.h>
 #include <vex/kprintf.h>
 #include <vex/process.h>
 #include <vex/signal.h>
@@ -23,24 +23,35 @@ static int lowest_signum(struct thread* restrict thrd)
     return __builtin_ctzll(pending);
 }
 
-static struct regfile* push_frame(struct regfile* restrict regs, int signum)
+static void push_frame(struct thread* restrict thrd, struct regfile* restrict regs, const struct k_siginfo* restrict siginfo_src)
 {
-    uintptr_t stack_top = regs->regfile_sp;
-    stack_top -= sizeof(struct regfile);
-    stack_top = align_floor(stack_top, 16);
+    uintptr_t user_stack = regs->regfile_sp;
 
-    struct regfile* saved = (struct regfile*)(stack_top);
-    memcpy(saved, regs, sizeof(struct regfile));
+    user_stack -= sizeof(struct k_ucontext);
+    user_stack = align_floor(user_stack, 16);
+    struct k_ucontext* uctx = (struct k_ucontext*)(user_stack);
 
-    stack_top -= sizeof(uintptr_t);
+    user_stack -= sizeof(struct k_siginfo);
+    struct k_siginfo* siginfo = (struct k_siginfo*)(user_stack);
 
-    uintptr_t* return_addr = (uintptr_t*)(stack_top);
-    return_addr[0] = 0;
+    user_stack -= sizeof(uintptr_t);
+    uintptr_t* uctx_ptr = (uintptr_t*)(user_stack);
+    uctx_ptr[0] = (uintptr_t)(uctx);
 
-    regs->regfile_sp = stack_top;
-    regs->regfile_arg_0 = signum;
+    user_stack -= sizeof(uintptr_t);
+    uintptr_t* ret_addr = (uintptr_t*)(user_stack);
+    ret_addr[0] = 0;
 
-    return saved;
+    memset(uctx, 0, sizeof(struct k_ucontext));
+    regfile_to_mcontext(regs, &uctx->uc_mcontext);
+    uctx->uc_sigmask = thrd->sig_blocked;
+
+    memcpy(siginfo, siginfo_src, sizeof(struct k_siginfo));
+
+    regs->regfile_sp = user_stack;
+    regs->regfile_arg_0 = (uintptr_t)(siginfo_src->si_signo);
+    regs->regfile_arg_1 = (uintptr_t)(siginfo);
+    regs->regfile_arg_2 = (uintptr_t)(uctx);
 }
 
 bool signal_pending(struct thread* restrict thrd)
@@ -49,18 +60,27 @@ bool signal_pending(struct thread* restrict thrd)
         return false;
     }
 
-    return lowest_signum(thrd);
+    return lowest_signum(thrd) != 0;
 }
 
 void signal_deliver(struct thread* restrict thrd, struct regfile* restrict regs)
 {
-    int signum = lowest_signum(thrd);
+    struct k_siginfo siginfo_src;
+    memset(&siginfo_src, 0, sizeof(struct k_siginfo));
 
-    if(signum == 0) {
-        return;
+    siginfo_src.si_signo = lowest_signum(thrd);
+    siginfo_src.si_code = SI_USER;
+
+    if(thrd->owner) {
+        siginfo_src.si_pid = thrd->owner->pid;
     }
 
-    sigset_t bit = signal_bit(signum);
+    signal_deliver_ex(thrd, regs, &siginfo_src);
+}
+
+void signal_deliver_ex(struct thread* restrict thrd, struct regfile* restrict regs, const struct k_siginfo* restrict siginfo_src)
+{
+    sigset_t bit = signal_bit(siginfo_src->si_signo);
 
     if(thrd->sig_pending & bit) {
         thrd->sig_pending &= ~bit;
@@ -69,15 +89,15 @@ void signal_deliver(struct thread* restrict thrd, struct regfile* restrict regs)
         thrd->owner->sig_pending &= ~bit;
     }
 
-    struct k_sigaction* action = &thrd->owner->sig_actions[signum];
+    struct k_sigaction* action = &thrd->owner->sig_actions[siginfo_src->si_signo];
 
     if(action->sa_handler == SIG_IGN) {
-        pr_verbose("signal: pid=%u sig=%d ignored", thrd->owner->pid, signum);
+        pr_verbose("signal: pid=%u sig=%d ignored", thrd->owner->pid, siginfo_src->si_signo);
         return;
     }
 
     if(action->sa_handler == SIG_DFL) {
-        pr_warning("signal: pid=%u sig=%d default action: terminate", thrd->owner->pid, signum);
+        pr_warning("signal: pid=%u sig=%d default action: terminate", thrd->owner->pid, siginfo_src->si_signo);
 
         for(struct thread* it = thrd->owner->threads; it; it = it->proc_next) {
             if(it != thrd) {
@@ -86,14 +106,9 @@ void signal_deliver(struct thread* restrict thrd, struct regfile* restrict regs)
         }
 
         thrd->state = THREAD_SEGV;
-        thread_exit_handler(-signum);
+        thread_exit_handler(-siginfo_src->si_signo);
         unreachable();
     }
-
-    pr_verbose("signal: pid=%u sig=%d handler=%p", thrd->owner->pid, signum, (void*)(action->sa_handler));
-
-    thrd->sig_return_regs = push_frame(regs, signum);
-    thrd->sig_return_blocked = thrd->sig_blocked;
 
     if(0 == (action->sa_flags & SA_NODEFER)) {
         thrd->sig_blocked |= bit;
@@ -102,7 +117,16 @@ void signal_deliver(struct thread* restrict thrd, struct regfile* restrict regs)
     thrd->sig_blocked |= action->sa_mask;
     thrd->sig_blocked &= ~SIG_UNCATCHABLE;
 
-    regs->regfile_pc = (uintptr_t)(action->sa_handler);
+    push_frame(thrd, regs, siginfo_src);
+
+    if(action->sa_flags & SA_SIGINFO) {
+        pr_verbose("signal: pid=%u sig=%d sigaction=%p", thrd->owner->pid, siginfo_src->si_signo, (void*)(action->sa_sigaction));
+        regs->regfile_pc = (uintptr_t)(action->sa_sigaction);
+    }
+    else {
+        pr_verbose("signal: pid=%u sig=%d handler=%p", thrd->owner->pid, siginfo_src->si_signo, (void*)(action->sa_handler));
+        regs->regfile_pc = (uintptr_t)(action->sa_handler);
+    }
 
     if(action->sa_flags & SA_RESETHAND) {
         action->sa_handler = SIG_DFL;
@@ -112,12 +136,12 @@ void signal_deliver(struct thread* restrict thrd, struct regfile* restrict regs)
 
 void signal_return(struct thread* restrict thrd, struct regfile* restrict regs)
 {
-    if(thrd->sig_return_regs) {
-        memcpy(regs, thrd->sig_return_regs, sizeof(struct regfile));
-        thrd->sig_blocked = thrd->sig_return_blocked & ~SIG_UNCATCHABLE;
-        thrd->sig_return_regs = nullptr;
-        thrd->sig_return_blocked = 0;
-    }
+    struct __k_ucontext* uctx = (struct __k_ucontext*)(regs->syscall_arg_0);
+
+    // TODO: validate uctx is within the process user address space
+
+    mcontext_to_regfile(&uctx->uc_mcontext, regs);
+    thrd->sig_blocked = uctx->uc_sigmask & ~SIG_UNCATCHABLE;
 }
 
 void signal_psend(struct process* restrict proc, int signum)

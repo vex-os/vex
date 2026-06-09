@@ -1,44 +1,16 @@
-#include <vex.amd64/gdt.h>
 #include <vex.amd64/idt.h>
 #include <vex.arch/hart.h>
 #include <vex.arch/intr.h>
 #include <vex.arch/regs.h>
+#include <vex/compiler.h>
 #include <vex/initcall.h>
-#include <vex/kprintf.h>
-#include <vex/malloc.h>
 #include <vex/panic.h>
 #include <vex/process.h>
-#include <vex/sched.h>
 #include <vex/signal.h>
 #include <vex/string.h>
 #include <vex/thread.h>
 #include <vex/vmm.h>
 
-#define IDT_TRAP    (0x0F << 0)
-#define IDT_INTR    (0x0E << 0)
-#define IDT_RING_0  (0x00 << 5)
-#define IDT_RING_3  (0x03 << 5)
-#define IDT_PRESENT (0x01 << 7)
-
-struct idt_entry {
-    uint16_t offset_0;
-    uint16_t selector;
-    uint8_t ist_off;
-    uint8_t flags;
-    uint16_t offset_1;
-    uint32_t offset_2;
-    uint32_t reserved;
-} __packed;
-
-struct amd64_idt {
-    struct idt_entry entries[IDT_SIZE];
-    struct {
-        uint16_t size;
-        uintptr_t offset;
-    } __packed idtr;
-};
-
-extern void amd64_halt_loop(void);
 extern void amd64_isr_00(void);
 extern void amd64_isr_01(void);
 extern void amd64_isr_02(void);
@@ -72,27 +44,27 @@ extern void amd64_isr_1D(void);
 extern void amd64_isr_1E(void);
 extern void amd64_isr_1F(void);
 
-static const int intvec_to_signal[0x20] = {
+static const int32_t isr_signals[0x20] = {
     [0x00] = SIGFPE,  // divide error
     [0x01] = SIGTRAP, // debug
     [0x02] = SIGKILL, // non-maskable interrupt
     [0x03] = SIGTRAP, // breakpoint
-    [0x04] = SIGSEGV, // overflow
-    [0x05] = SIGSEGV, // bound range exceeded
+    [0x04] = SIGSEGV, // overflow (INTO)
+    [0x05] = SIGSEGV, // bound range isreeded
     [0x06] = SIGILL,  // invalid opcode
-    [0x07] = SIGILL,  // device not available
+    [0x07] = SIGILL,  // device not available (FPU)
     [0x08] = SIGKILL, // double fault
     [0x09] = SIGBUS,  // coprocessor segment overrun
     [0x0A] = SIGKILL, // invalid tss
     [0x0B] = SIGKILL, // segment not present
     [0x0C] = SIGBUS,  // stack segment fault
     [0x0D] = SIGSEGV, // general protection
-    [0x0E] = SIGSEGV, // page fault
+    [0x0E] = SIGSEGV, // page fault (handled separately)
     [0x0F] = SIGKILL, // reserved
-    [0x10] = SIGFPE,  // floating point (x87)
+    [0x10] = SIGFPE,  // x87 floating point
     [0x11] = SIGBUS,  // alignment check
     [0x12] = SIGKILL, // machine check
-    [0x13] = SIGFPE,  // floating point (simd)
+    [0x13] = SIGFPE,  // SIMD floating point
     [0x14] = SIGKILL, // virtualization
     [0x15] = SIGKILL, // control protection
     [0x16] = SIGKILL, // reserved
@@ -103,11 +75,26 @@ static const int intvec_to_signal[0x20] = {
     [0x1B] = SIGKILL, // reserved
     [0x1C] = SIGKILL, // hypervisor injection
     [0x1D] = SIGKILL, // vmm communication
-    [0x1E] = SIGKILL, // security exception
+    [0x1E] = SIGKILL, // security isreption
     [0x1F] = SIGKILL, // reserved
 };
 
-static void page_fault_handler(struct regfile* restrict regs)
+static const uint32_t isr_sigcodes[0x20] = {
+    [0x00] = FPE_INTDIV,  // divide error
+    [0x01] = TRAP_TRACE,  // debug
+    [0x03] = TRAP_BRKPT,  // breakpoint
+    [0x05] = SEGV_MAPERR, // bound range isreeded
+    [0x06] = ILL_ILLOPC,  // invalid opcode
+    [0x07] = ILL_COPROC,  // device not available (FPU)
+    [0x09] = BUS_OBJERR,  // coprocessor segment overrun
+    [0x0C] = BUS_ADRALN,  // stack segment fault
+    [0x0D] = SEGV_ACCERR, // general protection
+    [0x10] = FPE_FLTINV,  // x87 floating point
+    [0x11] = BUS_ADRALN,  // alignment check
+    [0x13] = FPE_FLTINV,  // SIMD floating point
+};
+
+static void page_fault_handler(struct thread* restrict thread, struct regfile* restrict regs)
 {
     struct vmm_fault_info info;
     memset(&info, 0, sizeof(info));
@@ -130,49 +117,59 @@ static void page_fault_handler(struct regfile* restrict regs)
 
     asm volatile("movq %%cr2, %0" : "=r"(info.fault));
 
-    struct hart_local* hart = this_hart();
-    struct thread* thread = hart->curr_thread;
     struct pagemap* old_vm = thread->owner ? thread->owner->vm : &sys_pagemap;
     struct pagemap* new_vm = vmm_handle_fault(old_vm, &info);
 
-    if(new_vm == nullptr) {
-        if(regs->amd64_cs & 3) {
-            signal_psend(thread->owner, SIGSEGV); // Oh no! Nono no no no!
-            return;
+    if(new_vm != nullptr) {
+        if(thread->owner) {
+            thread->owner->vm = new_vm;
         }
-        else {
-            panic("kernel page fault: fault=%p vprot=%02X present=%d", (void*)(info.fault), info.vprot, info.present);
-        }
+        return;
     }
 
-    if(thread->owner) {
-        thread->owner->vm = new_vm;
+    if(regs->amd64_cs & 3) {
+        struct k_siginfo siginfo;
+        memset(&siginfo, 0, sizeof(siginfo));
+
+        siginfo.si_signo = SIGSEGV;
+        siginfo.si_code = info.present ? SEGV_ACCERR : SEGV_MAPERR;
+        siginfo.si_addr = (void*)(info.fault);
+
+        signal_deliver_ex(thread, regs, &siginfo);
+    }
+    else {
+        panic("kernel page fault: fault=%p vprot=%02X present=%d", (void*)(info.fault), info.vprot, info.present);
     }
 }
 
 void __used amd64_isr_handler(struct regfile* restrict regs, uint64_t intvec)
 {
     disable_interrupts();
+
     vmm_switch(&sys_pagemap);
 
+    struct hart_local* hart = this_hart();
+    struct thread* thread = hart->curr_thread;
+
     if(intvec == 0x0E) {
-        page_fault_handler(regs);
+        page_fault_handler(thread, regs);
+        return;
     }
 
     if(regs->amd64_cs & 3) {
-        struct hart_local* hart = this_hart();
-        struct thread* thread = hart->curr_thread;
+        struct k_siginfo siginfo;
+        memset(&siginfo, 0, sizeof(siginfo));
 
         if(intvec < 0x20) {
-            signal_psend(thread->owner, intvec_to_signal[intvec]);
+            siginfo.si_signo = isr_signals[intvec];
+            siginfo.si_code = isr_sigcodes[intvec];
         }
         else {
-            signal_psend(thread->owner, SIGSEGV);
+            siginfo.si_signo = SIGSEGV;
+            siginfo.si_code = SI_USER;
         }
 
-        if(signal_pending(thread)) {
-            signal_deliver(thread, regs);
-        }
+        signal_deliver_ex(thread, regs, &siginfo);
 
         return;
     }
@@ -180,64 +177,8 @@ void __used amd64_isr_handler(struct regfile* restrict regs, uint64_t intvec)
     panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));
 }
 
-static void set_entry(struct idt_entry* restrict entry, bool trap, uint16_t selector, const void* restrict pfn)
+static void arch_init_isr(void)
 {
-    memset(entry, 0, sizeof(*entry));
-
-    entry->offset_0 = ((uintptr_t)pfn & 0x000000000000FFFF);
-    entry->offset_1 = ((uintptr_t)pfn & 0x00000000FFFF0000) >> 16;
-    entry->offset_2 = ((uintptr_t)pfn & 0xFFFFFFFF00000000) >> 32;
-    entry->selector = selector;
-    entry->flags = IDT_PRESENT;
-
-    if(trap) {
-        entry->flags |= IDT_TRAP;
-    }
-    else {
-        entry->flags |= IDT_INTR;
-    }
-}
-
-void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn)
-{
-    if(vector < IDT_SIZE) {
-        struct hart_local* hart = this_hart();
-        struct amd64_idt* idt = hart->amd64_idtp;
-        set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
-        idt->entries[vector].flags |= IDT_RING_0;
-    }
-}
-
-void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn)
-{
-    if(vector < IDT_SIZE) {
-        struct hart_local* hart = this_hart();
-        struct amd64_idt* idt = hart->amd64_idtp;
-        set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
-        idt->entries[vector].flags |= IDT_RING_3;
-    }
-}
-
-void unset_idt_entry(unsigned vector)
-{
-    if(vector < IDT_SIZE) {
-        struct hart_local* hart = this_hart();
-        struct amd64_idt* idt = hart->amd64_idtp;
-        memset(&idt->entries[vector], 0, sizeof(struct idt_entry));
-    }
-}
-
-static void arch_init_idt(void)
-{
-    struct amd64_idt* idt = kmalloc(sizeof(struct amd64_idt));
-
-    if(idt == nullptr) {
-        panic("out of memory");
-    }
-
-    struct hart_local* hart = this_hart();
-    hart->amd64_idtp = idt;
-
     set_idt_entry_kern(0x00, true, &amd64_isr_00);
     set_idt_entry_kern(0x01, true, &amd64_isr_01);
     set_idt_entry_kern(0x02, true, &amd64_isr_02);
@@ -270,11 +211,6 @@ static void arch_init_idt(void)
     set_idt_entry_kern(0x1D, true, &amd64_isr_1D);
     set_idt_entry_kern(0x1E, true, &amd64_isr_1E);
     set_idt_entry_kern(0x1F, true, &amd64_isr_1F);
-
-    idt->idtr.size = (uint16_t)(sizeof(idt->entries) - 1);
-    idt->idtr.offset = (uintptr_t)(&idt->entries[0]);
-
-    asm volatile("lidtq %0" ::"m"(idt->idtr));
 }
 
-initcall_smp_arch(arch_init_idt, INIT_EARLY);
+initcall_smp_arch(arch_init_isr, INIT_MIDDLE);
