@@ -37,24 +37,22 @@ fs/vfs_path.c
 fs/vfs_vcache.c
 fs/vfs_vnode.c
 
+hash/crc32.c
+hash/crc32_iso3309.c
+
 init/initcall.c
 init/kmain.c
 init/smp.c
+
+ireq/intctl.c
+ireq/ireq.c
 
 kern/assert.c optional ENABLE_ASSERTIONS
 kern/cmdline.c
 kern/console.c
 kern/fbcons.c optional fbcons
-kern/intctl.c
-kern/ireq.c
 kern/kprintf.c
 kern/panic.c
-kern/process.c
-kern/sched.c
-kern/signal.c
-kern/syscall.c
-kern/sys_process.c
-kern/thread.c
 kern/version.c
 
 libk/bitmap.c
@@ -66,9 +64,6 @@ libk/stdlib.c
 libk/string.c
 libk/strings.c
 
-math/crc32.c
-math/crc32_iso3309.c
-
 mm/hhdm.c
 mm/kbase.c
 mm/malloc.c
@@ -77,6 +72,13 @@ mm/pdma.c
 mm/pslab.c
 mm/slab.c
 mm/vmm.c
+
+proc/process.c
+proc/sched.c
+proc/signal.c
+proc/syscall.c
+proc/sys_process.c
+proc/thread.c
 
 time/clocksrc.c
 time/delay.c
