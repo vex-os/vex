@@ -1,4 +1,5 @@
 #include <uacpi/uacpi.h>
+#include <vex.arch/intr.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
@@ -44,6 +45,8 @@ static void init_acpi(void)
     if(uacpi_unlikely_error(status)) {
         panic("acpi: uacpi_namespace_initialize: %s", uacpi_status_to_string(status));
     }
+
+    disable_interrupts();
 }
 
 initcall_bsp_bus(init_acpi, INIT_MIDDLE);

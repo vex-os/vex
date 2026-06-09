@@ -10,18 +10,20 @@
 #include <vex/process.h>
 #include <vex/pslab.h>
 #include <vex/sched.h>
+#include <vex/signal.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
 #include <vex/version.h>
 #include <vex/vmm.h>
 #include <vex/vprot.h>
 
-#define UCODE_VIRT   0x400000UL
-#define USTACK_VIRT  0x800000UL
-#define UCODE2_VIRT  0x500000UL
-#define USTACK2_VIRT 0x900000UL
+#define UCODE_VIRT    0x400000UL
+#define USTACK_VIRT   0x800000UL
+#define UCODE2_VIRT   0x500000UL
+#define UHANDLER_VIRT 0x600000UL
+#define USTACK2_VIRT  0x900000UL
 
-static __attribute__((naked)) void user_test_fn(void)
+static __attribute__((naked, aligned(PAGE_SIZE))) void user_test_fn(void)
 {
     asm volatile("mov $42, %rax\n"
                  "mov $1000, %rdi\n"
@@ -36,12 +38,19 @@ static __attribute__((naked)) void user_test_fn(void)
                  "syscall\n");
 }
 
-static __attribute__((naked)) void user_test_fn2(void)
+static __attribute__((naked, aligned(PAGE_SIZE))) void user_test_fn2(void)
 {
     asm volatile("mov $42, %rax\n"
                  "xor %rdi, %rdi\n"
                  "syscall\n"
                  "ret\n");
+}
+
+static __attribute__((naked, aligned(PAGE_SIZE))) void user_sigsegv_handler(void)
+{
+    asm volatile("mov $1337, %rdi\n"
+                 "mov $1, %rax\n"
+                 "syscall\n");
 }
 
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
@@ -101,6 +110,13 @@ void __noreturn kmain(void)
     uintptr_t code2_phys = vmm_resolve(&sys_pagemap, fn2_virt);
     uintptr_t fn2_offset = fn2_virt & (PAGE_SIZE - 1);
     vmm_map(proc2->vm, UCODE2_VIRT, code2_phys, VPROT_URX);
+
+    uintptr_t handler_virt = (uintptr_t)user_sigsegv_handler;
+    uintptr_t handler_phys = vmm_resolve(&sys_pagemap, handler_virt);
+    uintptr_t handler_offset = handler_virt & (PAGE_SIZE - 1);
+    vmm_map(proc2->vm, UHANDLER_VIRT, handler_phys, VPROT_URX);
+
+    proc2->sig_actions[SIGSEGV].sa_handler = (sa_handler_t)(UHANDLER_VIRT + handler_offset);
 
     uintptr_t stack2_phys = pslab_alloc();
     if(stack2_phys == 0)
