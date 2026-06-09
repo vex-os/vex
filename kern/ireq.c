@@ -1,9 +1,9 @@
-#include <limits.h>
-#include <sys.arch/ireq.h>
-#include <sys/assert.h>
-#include <sys/errno.h>
-#include <sys/ireq.h>
-#include <sys/kprintf.h>
+#include <vex.arch/ireq.h>
+#include <vex/assert.h>
+#include <vex/errno.h>
+#include <vex/ireq.h>
+#include <vex/kprintf.h>
+#include <vex/limits.h>
 
 #define IREQ_TABLE_SIZE (ARCH_IREQ_MAX - ARCH_IREQ_BASE + 1)
 

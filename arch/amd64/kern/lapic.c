@@ -1,14 +1,14 @@
-#include <string.h>
-#include <sys.amd64/lapic.h>
-#include <sys.amd64/msr.h>
-#include <sys.arch/hart.h>
-#include <sys/errno.h>
-#include <sys/hhdm.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
-#include <sys/page.h>
-#include <sys/panic.h>
-#include <sys/vmm.h>
+#include <vex.amd64/lapic.h>
+#include <vex.amd64/msr.h>
+#include <vex.arch/hart.h>
+#include <vex/errno.h>
+#include <vex/hhdm.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
+#include <vex/page.h>
+#include <vex/panic.h>
+#include <vex/string.h>
+#include <vex/vmm.h>
 
 #define MSR_IA32_APIC_BASE     UINT32_C(0x0000001B)
 #define MSR_APIC_BASE_PHYSMASK UINT64_C(0x0000000FFFFFF000)

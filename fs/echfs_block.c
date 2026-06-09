@@ -1,4 +1,4 @@
-#include <sys/errno.h>
+#include <vex/errno.h>
 
 #include "echfs.h"
 

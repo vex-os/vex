@@ -1,9 +1,34 @@
-#ifndef C31392DC_11D0_4145_904C_1C0101C3E122
-#define C31392DC_11D0_4145_904C_1C0101C3E122
+#ifndef C2F4E5EB_E2C3_4357_ADD8_6EAE11DBCB22
+#define C2F4E5EB_E2C3_4357_ADD8_6EAE11DBCB22
 #pragma once
 
-#define __k_SYS_EXIT      1
-#define __k_SYS_SLEEP     2
-#define __k_SYS_SIGRETURN 3
+#include <uapi/vex/syscall.h>
+#include <vex.arch/regs.h>
+#include <vex/compiler.h>
+#include <vex/types.h>
 
-#endif /* C31392DC_11D0_4145_904C_1C0101C3E122 */
+#define SYS_EXIT      __k_SYS_EXIT
+#define SYS_SLEEP     __k_SYS_SLEEP
+#define SYS_SIGRETURN __k_SYS_SIGRETURN
+
+#define SYS_TEST 42
+
+struct syscall {
+    void (*function)(struct regfile* restrict frame);
+    const char* identifier;
+    unsigned long number;
+};
+
+#define define_syscall(sc_function, sc_number)                                            \
+    static const __used __section(".syscalls") struct syscall __syscall_##sc_function = { \
+        .function = &(sc_function),                                                       \
+        .identifier = #sc_function,                                                       \
+        .number = (sc_number),                                                            \
+    }
+
+extern const struct syscall unsorted_syscalls_start[];
+extern const struct syscall unsorted_syscalls_end[];
+
+void dispatch_syscall(struct regfile* restrict frame);
+
+#endif /* C2F4E5EB_E2C3_4357_ADD8_6EAE11DBCB22 */

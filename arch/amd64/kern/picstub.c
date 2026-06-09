@@ -1,8 +1,8 @@
-#include <sys.amd64/idt.h>
-#include <sys.amd64/pmio.h>
-#include <sys.arch/intr.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
+#include <vex.amd64/idt.h>
+#include <vex.amd64/pmio.h>
+#include <vex.arch/intr.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
 
 #define PIC1_COMMAND 0x0020
 #define PIC1_DATA    0x0021

@@ -1,18 +1,18 @@
-#include <string.h>
-#include <sys.amd64/gdt.h>
-#include <sys.amd64/idt.h>
-#include <sys.arch/hart.h>
-#include <sys.arch/intr.h>
-#include <sys.arch/regs.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
-#include <sys/malloc.h>
-#include <sys/panic.h>
-#include <sys/process.h>
-#include <sys/sched.h>
-#include <sys/signal.h>
-#include <sys/thread.h>
-#include <sys/vmm.h>
+#include <vex.amd64/gdt.h>
+#include <vex.amd64/idt.h>
+#include <vex.arch/hart.h>
+#include <vex.arch/intr.h>
+#include <vex.arch/regs.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
+#include <vex/malloc.h>
+#include <vex/panic.h>
+#include <vex/process.h>
+#include <vex/sched.h>
+#include <vex/signal.h>
+#include <vex/string.h>
+#include <vex/thread.h>
+#include <vex/vmm.h>
 
 #define IDT_TRAP    (0x0F << 0)
 #define IDT_INTR    (0x0E << 0)

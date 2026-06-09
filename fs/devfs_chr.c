@@ -1,10 +1,10 @@
-#include <string.h>
-#include <sys/chr_device.h>
-#include <sys/chr_event.h>
-#include <sys/errno.h>
-#include <sys/slab.h>
-#include <sys/stat.h>
-#include <sys/vfs_vnode.h>
+#include <vex/chr_device.h>
+#include <vex/chr_event.h>
+#include <vex/errno.h>
+#include <vex/slab.h>
+#include <vex/stat.h>
+#include <vex/string.h>
+#include <vex/vfs_vnode.h>
 
 #include "devfs.h"
 

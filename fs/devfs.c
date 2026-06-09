@@ -1,16 +1,16 @@
-#include <string.h>
-#include <strings.h>
-#include <sys/blk_device.h>
-#include <sys/blk_event.h>
-#include <sys/chr_device.h>
-#include <sys/chr_event.h>
-#include <sys/errno.h>
-#include <sys/initcall.h>
-#include <sys/slab.h>
-#include <sys/spinlock.h>
-#include <sys/vfs_mount.h>
-#include <sys/vfs_vcache.h>
-#include <sys/vfs_vnode.h>
+#include <vex/blk_device.h>
+#include <vex/blk_event.h>
+#include <vex/chr_device.h>
+#include <vex/chr_event.h>
+#include <vex/errno.h>
+#include <vex/initcall.h>
+#include <vex/slab.h>
+#include <vex/spinlock.h>
+#include <vex/string.h>
+#include <vex/strings.h>
+#include <vex/vfs_mount.h>
+#include <vex/vfs_vcache.h>
+#include <vex/vfs_vnode.h>
 
 #include "devfs.h"
 

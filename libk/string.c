@@ -1,8 +1,8 @@
-#include <sprintf.h>
-#include <stdlib.h>
-#include <string.h>
-#include <strings.h>
-#include <sys/errno.h>
+#include <vex/errno.h>
+#include <vex/sprintf.h>
+#include <vex/stdlib.h>
+#include <vex/string.h>
+#include <vex/strings.h>
 
 const void* memchr(const void* restrict buf, int chr, size_t sz)
 {

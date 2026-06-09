@@ -1,21 +1,21 @@
-#include <limits.h>
-#include <string.h>
-#include <sys.amd64/gdt.h>
-#include <sys.amd64/lapic.h>
-#include <sys.amd64/msr.h>
-#include <sys.arch/hart.h>
-#include <sys.arch/intr.h>
-#include <sys.arch/ireq.h>
-#include <sys/atomic.h>
-#include <sys/errno.h>
-#include <sys/hhdm.h>
-#include <sys/initcall.h>
-#include <sys/ireq.h>
-#include <sys/kprintf.h>
-#include <sys/malloc.h>
-#include <sys/page.h>
-#include <sys/panic.h>
-#include <sys/pslab.h>
+#include <vex.amd64/gdt.h>
+#include <vex.amd64/lapic.h>
+#include <vex.amd64/msr.h>
+#include <vex.arch/hart.h>
+#include <vex.arch/intr.h>
+#include <vex.arch/ireq.h>
+#include <vex/atomic.h>
+#include <vex/errno.h>
+#include <vex/hhdm.h>
+#include <vex/initcall.h>
+#include <vex/ireq.h>
+#include <vex/kprintf.h>
+#include <vex/limits.h>
+#include <vex/malloc.h>
+#include <vex/page.h>
+#include <vex/panic.h>
+#include <vex/pslab.h>
+#include <vex/string.h>
 
 static unsigned hart_count = 0;
 static unsigned panic_ipi_vector = 0;

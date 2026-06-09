@@ -13,8 +13,8 @@ CONFIGURATION ?= default
 CONFIGURATION_MK := .configuration.mk
 -include ${CONFIGURATION_MK}
 
-${CONFIGURATION_MK}: config/config.${CONFIGURATION}.conf configure.py
-	@printf "  CONF\t%s\n" "config/${CONFIGURATION}.conf"
+${CONFIGURATION_MK}: conf/config.${CONFIGURATION}.conf configure.py
+	@printf "  CONF\t%s\n" "conf/${CONFIGURATION}.conf"
 	@${PYTHON} configure.py ${CONFIGURATION}
 
 ARCH ?= amd64
@@ -25,7 +25,7 @@ RELEASE ?= 0.0.2
 
 GIT_REV := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
-include config/envt.${ARCH}.${ENVT}.mk
+include conf/envt.${ARCH}.${ENVT}.mk
 
 override CFLAGS += -std=gnu23
 
@@ -73,7 +73,7 @@ ${BUILD_DIR}/%.ld: %.lds ${CONFIGURATION_MK} | ${BUILD_DIR}
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CPPFLAGS} -E -P -xc -D __ASSEMBLER__ $< > $@
 
-LINKER_SCRIPT := ${BUILD_DIR}/config/link.${ARCH}.ld
+LINKER_SCRIPT := ${BUILD_DIR}/conf/link.${ARCH}.ld
 KERNEL_BINARY := ${BUILD_DIR}/vexsys.elf
 
 OBJECTS := ${SOURCES}

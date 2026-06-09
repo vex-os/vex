@@ -1,4 +1,4 @@
-#include <ctype.h>
+#include <vex/bitmap.h>
 
 #define CT_CT (1 << 0)
 #define CT_GR (1 << 1)

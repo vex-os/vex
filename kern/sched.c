@@ -1,19 +1,19 @@
-#include <sys.arch/hart.h>
-#include <sys.arch/intr.h>
-#include <sys/atomic.h>
-#include <sys/clocksrc.h>
-#include <sys/hhdm.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
-#include <sys/malloc.h>
-#include <sys/page.h>
-#include <sys/panic.h>
-#include <sys/process.h>
-#include <sys/pslab.h>
-#include <sys/sched.h>
-#include <sys/slab.h>
-#include <sys/thread.h>
-#include <sys/vmm.h>
+#include <vex.arch/hart.h>
+#include <vex.arch/intr.h>
+#include <vex/atomic.h>
+#include <vex/clocksrc.h>
+#include <vex/hhdm.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
+#include <vex/malloc.h>
+#include <vex/page.h>
+#include <vex/panic.h>
+#include <vex/process.h>
+#include <vex/pslab.h>
+#include <vex/sched.h>
+#include <vex/slab.h>
+#include <vex/thread.h>
+#include <vex/vmm.h>
 
 static void push_tail(struct hart_local* restrict hart, struct thread* restrict thrd)
 {

@@ -1,12 +1,13 @@
-#include <ctype.h>
 #include <limine.h>
-#include <string.h>
-#include <strings.h>
-#include <sys/cmdline.h>
-#include <sys/errno.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
-#include <sys/malloc.h>
+#include <vex/bitmap.h>
+#include <vex/cmdline.h>
+#include <vex/ctype.h>
+#include <vex/errno.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
+#include <vex/malloc.h>
+#include <vex/string.h>
+#include <vex/strings.h>
 
 struct cmdline sys_cmdline;
 

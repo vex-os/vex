@@ -1,6 +1,6 @@
-#include <sys.amd64/pmio.h>
-#include <sys/console.h>
-#include <sys/initcall.h>
+#include <vex.amd64/pmio.h>
+#include <vex/console.h>
+#include <vex/initcall.h>
 
 static void bxcons_write(struct console* restrict cons, const void* restrict data, size_t size)
 {

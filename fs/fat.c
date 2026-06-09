@@ -1,14 +1,14 @@
-#include <stdlib.h>
-#include <string.h>
-#include <sys/blk_device.h>
-#include <sys/cmdline.h>
-#include <sys/endian.h>
-#include <sys/errno.h>
-#include <sys/initcall.h>
-#include <sys/malloc.h>
-#include <sys/slab.h>
-#include <sys/vfs_mount.h>
-#include <sys/vfs_vnode.h>
+#include <vex/blk_device.h>
+#include <vex/cmdline.h>
+#include <vex/endian.h>
+#include <vex/errno.h>
+#include <vex/initcall.h>
+#include <vex/malloc.h>
+#include <vex/slab.h>
+#include <vex/stdlib.h>
+#include <vex/string.h>
+#include <vex/vfs_mount.h>
+#include <vex/vfs_vnode.h>
 
 #include "fat.h"
 

@@ -1,11 +1,11 @@
-#include <string.h>
-#include <sys.amd64/gdt.h>
-#include <sys.amd64/tss.h>
-#include <sys.arch/hart.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
-#include <sys/malloc.h>
-#include <sys/panic.h>
+#include <vex.amd64/gdt.h>
+#include <vex.amd64/tss.h>
+#include <vex.arch/hart.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
+#include <vex/malloc.h>
+#include <vex/panic.h>
+#include <vex/string.h>
 
 static void arch_init_tss(void)
 {

@@ -1,4 +1,4 @@
-#include <sys/version.h>
+#include <vex/version.h>
 
 #ifndef UTSNAME_SYSNAME
 #define UTSNAME_SYSNAME "Unknown"

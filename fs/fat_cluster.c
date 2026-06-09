@@ -1,7 +1,7 @@
-#include <string.h>
-#include <sys/blk_device.h>
-#include <sys/endian.h>
-#include <sys/errno.h>
+#include <vex/blk_device.h>
+#include <vex/endian.h>
+#include <vex/errno.h>
+#include <vex/string.h>
 
 #include "fat.h"
 

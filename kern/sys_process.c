@@ -1,10 +1,10 @@
-#include <sys.arch/hart.h>
-#include <sys/kprintf.h>
-#include <sys/process.h>
-#include <sys/sched.h>
-#include <sys/signal.h>
-#include <sys/syscall.h>
-#include <sys/thread.h>
+#include <vex.arch/hart.h>
+#include <vex/kprintf.h>
+#include <vex/process.h>
+#include <vex/sched.h>
+#include <vex/signal.h>
+#include <vex/syscall.h>
+#include <vex/thread.h>
 
 static void sys_exit(struct regfile* restrict frame)
 {

@@ -2,9 +2,9 @@
 #define B4D08648_671B_4E1D_9F33_80B21DA77044
 #pragma once
 
-#include <sys/cdefs.h>
-#include <sys/spinlock.h>
-#include <sys/vfs_path.h>
+#include <vex/compiler.h>
+#include <vex/spinlock.h>
+#include <vex/vfs_path.h>
 
 struct blk_device;
 struct chr_device;

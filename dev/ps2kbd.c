@@ -1,10 +1,10 @@
-#include <string.h>
-#include <sys.arch/intr.h>
-#include <sys.arch/ireq.h>
-#include <sys/errno.h>
-#include <sys/initcall.h>
-#include <sys/isa.h>
-#include <sys/kprintf.h>
+#include <vex.arch/intr.h>
+#include <vex.arch/ireq.h>
+#include <vex/errno.h>
+#include <vex/initcall.h>
+#include <vex/isa.h>
+#include <vex/kprintf.h>
+#include <vex/string.h>
 
 static void i8042_wait_write(struct pmio_region* restrict region)
 {

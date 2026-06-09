@@ -1,7 +1,7 @@
-#include <sys/assert.h>
-#include <sys/errno.h>
-#include <sys/intctl.h>
-#include <sys/kprintf.h>
+#include <vex/assert.h>
+#include <vex/errno.h>
+#include <vex/intctl.h>
+#include <vex/kprintf.h>
 
 static struct intctl* intctl_head = nullptr;
 

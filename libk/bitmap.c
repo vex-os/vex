@@ -1,4 +1,4 @@
-#include <bitmap.h>
+#include <vex/bitmap.h>
 
 static __always_inline __nodiscard bitmap_t make_bitmask(size_t bitmod)
 {

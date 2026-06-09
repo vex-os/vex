@@ -1,9 +1,9 @@
-#include <string.h>
-#include <sys.arch/regs.h>
-#include <sys/kprintf.h>
-#include <sys/process.h>
-#include <sys/signal.h>
-#include <sys/thread.h>
+#include <vex.arch/regs.h>
+#include <vex/kprintf.h>
+#include <vex/process.h>
+#include <vex/signal.h>
+#include <vex/string.h>
+#include <vex/thread.h>
 
 #define SIG_UNCATCHABLE ((UINT64_C(1) << SIGKILL) | (UINT64_C(1) << SIGSTOP))
 

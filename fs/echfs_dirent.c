@@ -1,5 +1,5 @@
-#include <string.h>
-#include <sys/errno.h>
+#include <vex/errno.h>
+#include <vex/string.h>
 
 #include "echfs.h"
 

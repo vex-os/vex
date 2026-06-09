@@ -2,9 +2,9 @@
 #define D7775666_BC0A_4B3A_858D_ED749B705011
 #pragma once
 
-#include <sys/cdefs.h>
-#include <sys/types.h>
-#include <sys/vfs_path.h>
+#include <vex/compiler.h>
+#include <vex/types.h>
+#include <vex/vfs_path.h>
 
 struct blk_device;
 

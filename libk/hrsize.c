@@ -1,6 +1,6 @@
-#include <hrsize.h>
-#include <sprintf.h>
-#include <string.h>
+#include <vex/hrsize.h>
+#include <vex/sprintf.h>
+#include <vex/string.h>
 
 int hrsize_bin(char* restrict buffer, size_t sz, size_t value)
 {

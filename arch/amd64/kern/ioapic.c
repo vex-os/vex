@@ -1,15 +1,15 @@
-#include <sprintf.h>
-#include <string.h>
-#include <sys/errno.h>
-#include <sys/hhdm.h>
-#include <sys/initcall.h>
-#include <sys/intctl.h>
-#include <sys/malloc.h>
-#include <sys/panic.h>
-#include <sys/vmm.h>
-#include <sys/vprot.h>
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
+#include <vex/errno.h>
+#include <vex/hhdm.h>
+#include <vex/initcall.h>
+#include <vex/intctl.h>
+#include <vex/malloc.h>
+#include <vex/panic.h>
+#include <vex/sprintf.h>
+#include <vex/string.h>
+#include <vex/vmm.h>
+#include <vex/vprot.h>
 
 #define IOAPIC_MMIO_SELECT 0
 #define IOAPIC_MMIO_WINDOW 4

@@ -1,13 +1,13 @@
-#include <format.h>
-#include <string.h>
-#include <strings.h>
-#include <sys/assert.h>
-#include <sys/clocksrc.h>
-#include <sys/cmdline.h>
-#include <sys/console.h>
-#include <sys/initcall.h>
-#include <sys/kprintf.h>
-#include <sys/spinlock.h>
+#include <vex/assert.h>
+#include <vex/clocksrc.h>
+#include <vex/cmdline.h>
+#include <vex/console.h>
+#include <vex/format.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
+#include <vex/spinlock.h>
+#include <vex/string.h>
+#include <vex/strings.h>
 
 #ifndef KP_DEFAULT_LOGLEVEL
 #define KP_DEFAULT_LOGLEVEL KP_INFORM

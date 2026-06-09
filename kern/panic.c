@@ -1,8 +1,8 @@
-#include <sys.arch/hart.h>
-#include <sys.arch/intr.h>
-#include <sys/console.h>
-#include <sys/kprintf.h>
-#include <sys/panic.h>
+#include <vex.arch/hart.h>
+#include <vex.arch/intr.h>
+#include <vex/console.h>
+#include <vex/kprintf.h>
+#include <vex/panic.h>
 
 void __noreturn fpanic(const char* restrict file, unsigned long line, const char* restrict fmt, ...)
 {

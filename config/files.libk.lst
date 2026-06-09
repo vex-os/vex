@@ -1,8 +1,0 @@
-libk/bitmap.c
-libk/ctype.c
-libk/format.c
-libk/hrsize.c
-libk/sprintf.c
-libk/stdlib.c
-libk/string.c
-libk/strings.c
