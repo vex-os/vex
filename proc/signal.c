@@ -66,7 +66,7 @@ static void push_frame(struct thread* restrict thrd, struct regfile* restrict re
     // and the signal handler actually returns instead of calling
     // sys_sigreturn, the kernel maps a guard trampoline that calls
     // sys_exit with a whatever exit code arch decides
-    uintptr_t guard_virt = 0; // SIGRETURN_GUARD_VIRT; // for now commented out to debug this stuff
+    uintptr_t guard_virt = SIGRETURN_GUARD_VIRT;
 
     size_t check = 0;
     check += memcpy_sys_to_vm(vm, uctx_uaddr, &uctx, sizeof(uctx));
