@@ -4,6 +4,7 @@
 #include <vex/signal.h>
 #include <vex/string.h>
 #include <vex/thread.h>
+#include <vex/vmm.h>
 
 #define SIG_UNCATCHABLE ((UINT64_C(1) << SIGKILL) | (UINT64_C(1) << SIGSTOP))
 
@@ -25,33 +26,38 @@ static int lowest_signum(struct thread* restrict thrd)
 
 static void push_frame(struct thread* restrict thrd, struct regfile* restrict regs, const struct k_siginfo* restrict siginfo_src)
 {
-    uintptr_t user_stack = regs->regfile_sp;
+    struct pagemap* vm = thrd->owner->vm;
+    uintptr_t user_sp = regs->regfile_sp;
 
-    user_stack -= sizeof(struct k_ucontext);
-    user_stack = align_floor(user_stack, 16);
-    struct k_ucontext* uctx = (struct k_ucontext*)(user_stack);
+    user_sp -= sizeof(struct k_ucontext);
+    user_sp = align_floor(user_sp, 16);
+    uintptr_t uctx_uaddr = user_sp;
 
-    user_stack -= sizeof(struct k_siginfo);
-    struct k_siginfo* siginfo = (struct k_siginfo*)(user_stack);
+    user_sp -= sizeof(struct k_siginfo);
+    uintptr_t siginfo_uaddr = user_sp;
 
-    user_stack -= sizeof(uintptr_t);
-    uintptr_t* uctx_ptr = (uintptr_t*)(user_stack);
-    uctx_ptr[0] = (uintptr_t)(uctx);
+    user_sp -= sizeof(uintptr_t);
+    uintptr_t uctx_ptr_uaddr = user_sp;
 
-    user_stack -= sizeof(uintptr_t);
-    uintptr_t* ret_addr = (uintptr_t*)(user_stack);
-    ret_addr[0] = 0;
+    user_sp -= sizeof(uintptr_t);
+    uintptr_t ret_uaddr = user_sp;
 
-    memset(uctx, 0, sizeof(struct k_ucontext));
-    regfile_to_mcontext(regs, &uctx->uc_mcontext);
-    uctx->uc_sigmask = thrd->sig_blocked;
+    struct k_ucontext uctx;
+    memset(&uctx, 0, sizeof(uctx));
+    regfile_to_mcontext(regs, &uctx.uc_mcontext);
+    uctx.uc_sigmask = thrd->sig_blocked;
 
-    memcpy(siginfo, siginfo_src, sizeof(struct k_siginfo));
+    uintptr_t zero = 0;
 
-    regs->regfile_sp = user_stack;
+    memcpy_sys_to_vm(vm, uctx_uaddr, &uctx, sizeof(uctx));
+    memcpy_sys_to_vm(vm, siginfo_uaddr, siginfo_src, sizeof(struct k_siginfo));
+    memcpy_sys_to_vm(vm, uctx_ptr_uaddr, &uctx_uaddr, sizeof(uintptr_t));
+    memcpy_sys_to_vm(vm, ret_uaddr, &zero, sizeof(uintptr_t));
+
+    regs->regfile_sp = user_sp;
     regs->regfile_arg_0 = (uintptr_t)(siginfo_src->si_signo);
-    regs->regfile_arg_1 = (uintptr_t)(siginfo);
-    regs->regfile_arg_2 = (uintptr_t)(uctx);
+    regs->regfile_arg_1 = siginfo_uaddr;
+    regs->regfile_arg_2 = uctx_uaddr;
 }
 
 bool signal_pending(struct thread* restrict thrd)
@@ -136,12 +142,18 @@ void signal_deliver_ex(struct thread* restrict thrd, struct regfile* restrict re
 
 void signal_return(struct thread* restrict thrd, struct regfile* restrict regs)
 {
-    struct __k_ucontext* uctx = (struct __k_ucontext*)(regs->syscall_arg_0);
+    uintptr_t uctx_uaddr = regs->syscall_arg_0;
+    struct k_ucontext uctx;
 
-    // TODO: validate uctx is within the process user address space
+    // TODO: validate uctx_uaddr is within the process user address space
 
-    mcontext_to_regfile(&uctx->uc_mcontext, regs);
-    thrd->sig_blocked = uctx->uc_sigmask & ~SIG_UNCATCHABLE;
+    if(memcpy_vm_to_sys(&uctx, thrd->owner->vm, uctx_uaddr, sizeof(uctx)) != 0) {
+        pr_warning("signal: sigreturn with bad uctx=%p", (void*)uctx_uaddr);
+        return;
+    }
+
+    mcontext_to_regfile(&uctx.uc_mcontext, regs);
+    thrd->sig_blocked = uctx.uc_sigmask & ~SIG_UNCATCHABLE;
 }
 
 void signal_psend(struct process* restrict proc, int signum)

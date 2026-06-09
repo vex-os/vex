@@ -135,6 +135,10 @@ static void page_fault_handler(struct thread* restrict thread, struct regfile* r
         siginfo.si_code = info.present ? SEGV_ACCERR : SEGV_MAPERR;
         siginfo.si_addr = (void*)(info.fault);
 
+        // FIXME: currently if a process doesn't do SYS_SIGRETURN
+        // and instead ret's from a signal handler, the hart enters
+        // a death spiral and freezes up. To fixup this we probably need
+        // to setup the stack_t thing POSIX mandates system APIs have
         signal_deliver_ex(thread, regs, &siginfo);
     }
     else {
@@ -153,10 +157,8 @@ void __used amd64_isr_handler(struct regfile* restrict regs, uint64_t intvec)
 
     if(intvec == 0x0E) {
         page_fault_handler(thread, regs);
-        return;
     }
-
-    if(regs->amd64_cs & 3) {
+    else if(regs->amd64_cs & 3) {
         struct k_siginfo siginfo;
         memset(&siginfo, 0, sizeof(siginfo));
 
@@ -170,11 +172,14 @@ void __used amd64_isr_handler(struct regfile* restrict regs, uint64_t intvec)
         }
 
         signal_deliver_ex(thread, regs, &siginfo);
-
-        return;
+    }
+    else {
+        panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));
     }
 
-    panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));
+    if((regs->amd64_cs & 3) && thread->owner) {
+        vmm_switch(thread->owner->vm);
+    }
 }
 
 static void arch_init_isr(void)

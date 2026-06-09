@@ -316,6 +316,60 @@ struct pagemap* vmm_handle_fault(struct pagemap* restrict vm, const struct vmm_f
     return nullptr;
 }
 
+size_t memcpy_sys_to_vm(struct pagemap* restrict vm, uintptr_t v_dst, const void* restrict s_src, size_t sz)
+{
+    const uint8_t* p_src = s_src;
+
+    while(sz > 0) {
+        uintptr_t dst_phys = vmm_resolve(vm, v_dst);
+
+        if(dst_phys == 0) {
+            return sz;
+        }
+
+        size_t chunk = PAGE_SIZE - (v_dst & (PAGE_SIZE - 1));
+
+        if(chunk > sz) {
+            chunk = sz;
+        }
+
+        memcpy(phys_to_virt(dst_phys), p_src, chunk);
+
+        v_dst += chunk;
+        p_src += chunk;
+        sz -= chunk;
+    }
+
+    return 0;
+}
+
+size_t memcpy_vm_to_sys(void* restrict s_dst, const struct pagemap* restrict vm, uintptr_t v_src, size_t sz)
+{
+    uint8_t* p_dst = s_dst;
+
+    while(sz) {
+        uintptr_t src_phys = vmm_resolve((struct pagemap*)vm, v_src);
+
+        if(src_phys == 0) {
+            return sz;
+        }
+
+        size_t chunk = PAGE_SIZE - (v_src & (PAGE_SIZE - 1));
+
+        if(chunk > sz) {
+            chunk = sz;
+        }
+
+        memcpy(p_dst, phys_to_virt(src_phys), chunk);
+
+        v_src += chunk;
+        p_dst += chunk;
+        sz -= chunk;
+    }
+
+    return 0;
+}
+
 static int vmm_map_sys_section(const void* restrict start, const void* restrict end, unsigned vprot)
 {
     uintptr_t virt = page_align((uintptr_t)start);

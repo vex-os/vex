@@ -15,9 +15,12 @@ static volatile __used __section(".limine_requests") struct limine_mp_request mp
     .revision = 0,
 };
 
+#if ENABLE_SMP
 static uint64_t hart_count = 0;
 static volatile uint64_t ready_count = 0;
+#endif
 
+#if ENABLE_SMP
 static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 {
     vmm_switch(&sys_pagemap);
@@ -36,6 +39,7 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
         sched_idle();
     }
 }
+#endif
 
 static void init_smp(void)
 {
@@ -43,10 +47,13 @@ static void init_smp(void)
         panic("bootloader did not provide multicore information");
     }
 
+#if ENABLE_SMP
     hart_count = mp_request.response->cpu_count;
+#endif
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
+#if ENABLE_SMP
     atomic_store_n(&ready_count, UINT64_C(1), ATOMIC_RELAXED);
 
     for(uint64_t i = 0; i < hart_count; ++i) {
@@ -58,6 +65,7 @@ static void init_smp(void)
     }
 
     pr_inform("smp: %llu harts online", (unsigned long long)(hart_count));
+#endif
 }
 
 initcall_bsp_multicore(init_smp, INIT_LAST);
