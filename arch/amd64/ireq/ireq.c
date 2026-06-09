@@ -1,9 +1,12 @@
 #include <vex.amd64/idt.h>
 #include <vex.amd64/lapic.h>
+#include <vex.arch/hart.h>
 #include <vex.arch/intr.h>
 #include <vex.arch/ireq.h>
 #include <vex/initcall.h>
 #include <vex/ireq.h>
+#include <vex/signal.h>
+#include <vex/thread.h>
 
 extern void amd64_ireq_30(void);
 extern void amd64_ireq_31(void);
@@ -219,6 +222,15 @@ void __used amd64_ireq_handler(struct regfile* restrict regs, uint64_t idt_vecto
     lapic_write(LAPIC_REG_EOI, UINT32_C(0));
 
     dispatch_ireq(idt_vector - ARCH_IREQ_BASE, regs);
+
+    if(regs->amd64_cs & 3) {
+        struct hart_local* hart = this_hart();
+        struct thread* thrd = hart->curr_thread;
+
+        if(thrd && thrd->owner && signal_pending(thrd)) {
+            signal_deliver_auto(thrd, regs);
+        }
+    }
 }
 
 static void arch_init_ireq(void)
