@@ -18,7 +18,7 @@ static __always_inline __nodiscard uintptr_t* setup_thread_kstack(uintptr_t* res
     kernel_stack_top[-4] = (uintptr_t)(entry);                         // r12 = entry
     kernel_stack_top[-5] = (uintptr_t)(ctxdata);                       // r13 = ctxdata
     kernel_stack_top[-6] = 0;                                          // r14
-    kernel_stack_top[-7] = 0;                                          // r15  <-- thread->kernel_stack points here
+    kernel_stack_top[-7] = 0;                                          // r15  <-- thrd->kernel_stack points here
     return kernel_stack_top - 7;
 }
 
@@ -36,7 +36,7 @@ static __always_inline __nodiscard uintptr_t* setup_thread_ustack(uintptr_t* res
     kernel_stack_top[-9] = 0;                                          // r12
     kernel_stack_top[-10] = 0;                                         // r13
     kernel_stack_top[-11] = 0;                                         // r14
-    kernel_stack_top[-12] = 0;                                         // r15  <-- thread->kernel_stack
+    kernel_stack_top[-12] = 0;                                         // r15  <-- thrd->kernel_stack
     return kernel_stack_top - 12;
 }
 

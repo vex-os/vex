@@ -28,10 +28,10 @@ void dispatch_syscall(struct regfile* restrict frame)
     syscall_table[frame->syscall_number].function(frame);
 
     struct hart_local* hart = this_hart();
-    struct thread* thread = hart->curr_thread;
+    struct thread* thrd = hart->curr_thread;
 
-    if(thread->owner && signal_pending(thread)) {
-        signal_deliver_auto(thread, frame);
+    if(thrd->owner && signal_pending(thrd)) {
+        signal_deliver_auto(thrd, frame);
     }
 }
 
