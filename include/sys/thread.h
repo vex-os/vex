@@ -3,6 +3,7 @@
 #pragma once
 
 #include <sys/cdefs.h>
+#include <sys/signal.h>
 #include <sys/types.h>
 
 #define THREAD_WAIT 0x0001 // The thread is waiting in the run queue
@@ -25,6 +26,12 @@ struct thread {
     uint64_t deadline;
 
     intptr_t retval;
+
+    struct regfile* sig_return_regs;
+    sigset_t sig_return_blocked;
+
+    sigset_t sig_pending;
+    sigset_t sig_blocked;
 };
 
 typedef intptr_t (*thread_entry_type)(void* restrict ctxdata);

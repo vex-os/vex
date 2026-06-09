@@ -7,8 +7,9 @@
 #include <sys/types.h>
 #include <vex/syscall.h>
 
-#define SYS_EXIT  __k_SYS_EXIT
-#define SYS_SLEEP __k_SYS_SLEEP
+#define SYS_EXIT      __k_SYS_EXIT
+#define SYS_SLEEP     __k_SYS_SLEEP
+#define SYS_SIGRETURN __k_SYS_SIGRETURN
 
 #define SYS_TEST 42
 

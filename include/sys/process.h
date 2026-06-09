@@ -3,6 +3,7 @@
 #pragma once
 
 #include <sys/cdefs.h>
+#include <sys/signal.h>
 #include <sys/types.h>
 
 struct thread;
@@ -10,12 +11,18 @@ struct pagemap;
 
 struct process {
     struct process* parent;
-    struct thread* threads;
     struct pagemap* vm;
+
+    struct thread* threads;
     uint32_t thread_count;
     uint32_t live_count;
+
     intptr_t exit_code;
+
     pid_t pid;
+
+    sigset_t sig_pending;
+    struct k_sigaction sig_actions[NSIG];
 };
 
 struct process* process_create(void); // TODO: parenting
