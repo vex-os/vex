@@ -1,0 +1,20 @@
+arch/x86_64/kernel/bxcons.c optional bxcons
+arch/x86_64/kernel/gdt.c
+arch/x86_64/kernel/hart.c
+arch/x86_64/kernel/hpet.c
+arch/x86_64/kernel/idt.c
+arch/x86_64/kernel/idts.S
+arch/x86_64/kernel/ioapic.c
+arch/x86_64/kernel/ireq.c
+arch/x86_64/kernel/isr.c
+arch/x86_64/kernel/lapic.c
+arch/x86_64/kernel/lapic_timer.c
+arch/x86_64/kernel/paging.c
+arch/x86_64/kernel/pci_cf8.c
+arch/x86_64/kernel/pic.c
+arch/x86_64/kernel/pmio.c
+arch/x86_64/kernel/signal.S
+arch/x86_64/kernel/syscall.S
+arch/x86_64/kernel/thread.S
+arch/x86_64/kernel/tss.c
+arch/x86_64/kernel/uacpi.c

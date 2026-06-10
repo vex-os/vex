@@ -2,7 +2,7 @@
 #define A11C9C4E_746F_4B83_A57A_B26963B0D836
 #pragma once
 
-#include <uapi/vex/errno.h>
+#include <usr/vex/errno.h>
 
 #define EDOM   __k_EDOM
 #define EILSEQ __k_EILSEQ

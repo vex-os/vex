@@ -2,7 +2,7 @@
 #define F021F7DB_0BF1_4601_B72B_E7A12F381234
 #pragma once
 
-#include <uapi/vex/types.h>
+#include <usr/vex/types.h>
 
 #if __STDC_VERSION__ < 199901L
 #error "C99 or later is required"
