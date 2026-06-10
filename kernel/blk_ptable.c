@@ -49,7 +49,7 @@ static int part_flush(const struct blk_device* restrict device)
 
 static void part_release(const struct blk_device* restrict device)
 {
-    kfree((void*)device);
+    kfree((void*)(device));
 }
 
 static const struct blk_device_ops part_ops = {

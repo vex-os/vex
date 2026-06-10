@@ -194,7 +194,7 @@ void* kmalloc(size_t sz)
         return nullptr;
     }
 
-    spinlock_acquire(&heap_lock);
+    bool intr_state = spinlock_acquire_intr(&heap_lock);
 
     size_t aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
     struct memblock* block = find_free_block(aligned_sz);
@@ -203,7 +203,7 @@ void* kmalloc(size_t sz)
         block = extend_heap(aligned_sz);
 
         if(block == nullptr) {
-            spinlock_release(&heap_lock);
+            spinlock_release_intr(&heap_lock, intr_state);
 
             return nullptr;
         }
@@ -213,7 +213,7 @@ void* kmalloc(size_t sz)
 
     block->type = BLOCK_TYPE_USED;
 
-    spinlock_release(&heap_lock);
+    spinlock_release_intr(&heap_lock, intr_state);
 
     return memset((void*)(block->address), 0, sz);
 }
@@ -233,23 +233,23 @@ void* krealloc(void* restrict ptr, size_t sz)
     size_t aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
     size_t old_length;
 
-    spinlock_acquire(&heap_lock);
+    bool intr_state = spinlock_acquire_intr(&heap_lock);
 
     struct memblock* block = find_block_at((uintptr_t)ptr);
 
     if(block == nullptr) {
-        spinlock_release(&heap_lock);
+        spinlock_release_intr(&heap_lock, intr_state);
         return nullptr;
     }
 
     if(block->length >= aligned_sz) {
-        spinlock_release(&heap_lock);
+        spinlock_release_intr(&heap_lock, intr_state);
         return ptr;
     }
 
     old_length = block->length;
 
-    spinlock_release(&heap_lock);
+    spinlock_release_intr(&heap_lock, intr_state);
 
     void* new_ptr = kmalloc(aligned_sz);
 
@@ -269,12 +269,12 @@ void kfree(void* restrict ptr)
         return;
     }
 
-    spinlock_acquire(&heap_lock);
+    bool intr_state = spinlock_acquire_intr(&heap_lock);
 
     struct memblock* block = find_block_at((uintptr_t)ptr);
 
     if(block == nullptr || block->type == BLOCK_TYPE_FREE) {
-        spinlock_release(&heap_lock);
+        spinlock_release_intr(&heap_lock, intr_state);
         panic("kfree: invalid or double free of %p", ptr);
     }
 
@@ -282,7 +282,7 @@ void kfree(void* restrict ptr)
 
     coalesce(block);
 
-    spinlock_release(&heap_lock);
+    spinlock_release_intr(&heap_lock, intr_state);
 }
 
 char* kstrdup(const char* restrict string)

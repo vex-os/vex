@@ -41,19 +41,19 @@ void* pslab_alloc_virt(void)
 {
     void** head_ptr;
 
-    spinlock_acquire(&pslab_lock);
+    bool intr_state = spinlock_acquire_intr(&pslab_lock);
 
     if(pslab_list) {
         head_ptr = pslab_list;
         pslab_list = pslab_list[0];
         pslab_numused += 1U;
 
-        spinlock_release(&pslab_lock);
+        spinlock_release_intr(&pslab_lock, intr_state);
 
         return head_ptr;
     }
 
-    spinlock_release(&pslab_lock);
+    spinlock_release_intr(&pslab_lock, intr_state);
 
     return nullptr;
 }
@@ -69,7 +69,7 @@ void pslab_free_virt(void* restrict virtaddr)
 {
     void** head_ptr;
 
-    spinlock_acquire(&pslab_lock);
+    bool intr_state = spinlock_acquire_intr(&pslab_lock);
 
     if(virtaddr) {
         head_ptr = virtaddr;
@@ -78,7 +78,7 @@ void pslab_free_virt(void* restrict virtaddr)
         pslab_numused -= 1U;
     }
 
-    spinlock_release(&pslab_lock);
+    spinlock_release_intr(&pslab_lock, intr_state);
 }
 
 static void init_pslab(void)

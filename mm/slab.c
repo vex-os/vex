@@ -76,25 +76,25 @@ void* slab_alloc(size_t sz)
     void** head_ptr;
     struct slab* sl;
 
-    spinlock_acquire(&slab_lock);
+    bool intr_state = spinlock_acquire_intr(&slab_lock);
 
     sl = find_slab(sz);
 
     if(sl) {
         if(!sl->head && !expand_slab(sl)) {
-            spinlock_release(&slab_lock);
+            spinlock_release_intr(&slab_lock, intr_state);
             return nullptr;
         }
 
         head_ptr = sl->head;
         sl->head = head_ptr[0];
 
-        spinlock_release(&slab_lock);
+        spinlock_release_intr(&slab_lock, intr_state);
 
         return memset(head_ptr, 0, sz);
     }
 
-    spinlock_release(&slab_lock);
+    spinlock_release_intr(&slab_lock, intr_state);
 
     return nullptr;
 }
@@ -115,13 +115,13 @@ void* slab_realloc(void* restrict ptr, size_t sz)
 
     memcpy(new_ptr, ptr, sl->blocksize);
 
-    spinlock_acquire(&slab_lock);
+    bool intr_state = spinlock_acquire_intr(&slab_lock);
 
     head_ptr = ptr;
     head_ptr[0] = sl->head;
     sl->head = new_ptr;
 
-    spinlock_release(&slab_lock);
+    spinlock_release_intr(&slab_lock, intr_state);
 
     return new_ptr;
 }
@@ -131,7 +131,7 @@ void slab_free(void* restrict ptr)
     struct slab* sl;
     void** head_ptr;
 
-    spinlock_acquire(&slab_lock);
+    bool intr_state = spinlock_acquire_intr(&slab_lock);
 
     if(ptr) {
         sl = ((struct slab**)(page_align_ptr(ptr)))[0];
@@ -141,7 +141,7 @@ void slab_free(void* restrict ptr)
         sl->head = head_ptr;
     }
 
-    spinlock_release(&slab_lock);
+    spinlock_release_intr(&slab_lock, intr_state);
 }
 
 static void init_slab(void)
