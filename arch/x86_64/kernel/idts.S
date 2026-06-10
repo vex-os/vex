@@ -103,6 +103,7 @@
     .global \stubname
     .type \stubname, @function
     \stubname:
+        cli
         pushq $0x0000000000000000
         swapgs_if_user
         push_interrupt_frame

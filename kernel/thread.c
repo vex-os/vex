@@ -41,6 +41,7 @@ void __noreturn thread_exit_handler(intptr_t retval)
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
 
+    thread_switch_hook(hart, hart->idle_thread);
     thread_switch(thrd, hart->idle_thread);
 
     unreachable();
@@ -125,7 +126,7 @@ struct thread* thread_create_user(struct process* restrict owner, uintptr_t user
 
 void thread_destroy(struct thread* restrict thrd)
 {
-    uintptr_t stack_base = page_align(thrd->kernel_stack);
+    uintptr_t stack_base = thrd->kernel_stack - THREAD_KSTACK_SIZE;
     pslab_free_virt((void*)(stack_base));
     slab_free(thrd);
 }

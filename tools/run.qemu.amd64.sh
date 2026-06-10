@@ -31,4 +31,6 @@ for arg in "$@"; do
     esac
 done
 
+rm -f "${logfile}"
+
 { ${QEMU_EXECUTABLE} ${qargs} 2>&1; printf "\n"; } | tee "${logfile}"
