@@ -12,6 +12,7 @@
 #include <vex/pslab.h>
 #include <vex/slab.h>
 #include <vex/thread.h>
+#include <vex/vmm.h>
 
 #define THREAD_KSTACK_SIZE PAGE_SIZE
 
@@ -40,6 +41,10 @@ void __noreturn thread_exit_handler(intptr_t retval)
 
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
+
+    if(thrd->owner) {
+        vmm_switch(&sys_pagemap);
+    }
 
     pr_verbose("thread_switch: %p -> %p [idle]", thrd, hart->idle_thread);
     thread_switch_hook(hart, hart->idle_thread);

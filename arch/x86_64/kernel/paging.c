@@ -41,6 +41,8 @@ int pagemap_alloc(struct pagemap* restrict vm)
 
     vm->x86_cr3_virt = phys_to_virt(vm->x86_cr3_phys);
 
+    pagemap_zero(vm);
+
     return 0;
 }
 
