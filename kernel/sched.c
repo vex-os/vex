@@ -33,6 +33,15 @@ static void push_tail(struct hart_local* restrict hart, struct thread* restrict 
     tail->runq_next = thrd;
 }
 
+static intptr_t __noreturn idle_thread(void* restrict ctxdata)
+{
+    for(;;) {
+        sched_idle();
+    }
+
+    unreachable();
+}
+
 void sched_idle(void)
 {
     pause_hart();
@@ -198,7 +207,7 @@ void sched_enqueue(struct thread* restrict thrd)
 
 static void init_sched(void)
 {
-    struct thread* idle = thread_create_base(nullptr);
+    struct thread* idle = thread_create_kern(nullptr, &idle_thread, nullptr);
 
     if(idle == nullptr) {
         panic("sched: out of memory");
