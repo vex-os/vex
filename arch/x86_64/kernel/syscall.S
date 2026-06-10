@@ -14,6 +14,7 @@
 .global x86_syscall_entry
 .type x86_syscall_entry, @function
 x86_syscall_entry:
+    cli
     swapgs
     movq %rsp, %gs:HART_SYSCALL_USP
     movq %gs:HART_SYSCALL_KSP, %rsp
@@ -46,16 +47,12 @@ x86_syscall_entry:
     movq %rsp, %rdi
     call dispatch_syscall
 
+    cli
+    
     movq REGFILE_RAX(%rsp), %rax    # retval
     movq REGFILE_RIP(%rsp), %rcx    # user rip, rcx for sysretq
     movq REGFILE_RFLAGS(%rsp), %r11 # user rflags, r11 for sysretq
 
-    # Disable interrupts before switching to user RSP: a timer interrupt firing
-    # between the RSP switch and sysretq would run on the user stack and cause
-    # sched_preempt to save user RSP as the kernel_stack pointer, corrupting the
-    # thread's resume path. sysretq restores RFLAGS from r11 (user flags, IF=1),
-    # so interrupts are re-enabled transparently upon return to user space.
-    cli
     movq REGFILE_RSP(%rsp), %rsp
 
     swapgs

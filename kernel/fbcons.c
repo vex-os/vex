@@ -465,6 +465,7 @@ static spinlock_type firework_lock = SPINLOCK_INIT;
             restore_interrupts(intr_state);                                       \
             sched_msleep(50 + 25 * h);                                            \
         }                                                                         \
+        panic("how did we get here?");                                            \
     }
 
 #define DEFINE_HART_FIREWORKS(h) \

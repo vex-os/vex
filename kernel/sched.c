@@ -128,7 +128,7 @@ void sched_preempt(void)
         vmm_switch(&sys_pagemap);
     }
 
-    pr_verbose("switch %p -> %p", prev, next);
+    pr_verbose("[%hu] switch %p -> %p", hart->index, prev, next);
     thread_switch_hook(hart, next);
     thread_switch(prev, next);
 
@@ -148,7 +148,7 @@ void sched_yield(void)
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
 
-    pr_verbose("switch %p -> idle (%p)", self, hart->idle_thread);
+    pr_verbose("[%hu] switch %p -> idle (%p)", hart->index, self, hart->idle_thread);
     thread_switch(self, hart->idle_thread);
 
     restore_interrupts(intr_state);
@@ -168,7 +168,7 @@ void sched_nsleep(uint64_t nsec)
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
 
-    pr_verbose("switch %p -> idle (%p)", self, hart->idle_thread);
+    pr_verbose("[%hu] switch %p -> idle (%p)", hart->index, self, hart->idle_thread);
     thread_switch(self, hart->idle_thread);
 
     restore_interrupts(intr_state);
