@@ -10,9 +10,12 @@ extern "C" {
 // Returns the PHYSICAL address of the RSDP structure via *out_rsdp_address.
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr *out_rsdp_address);
 
+#define UACPI_MAP_FAILED ((void*)-1)
+
 /**
  * Map a physical memory range starting at 'addr' with length 'len', and return
- * a virtual address that can be used to access it.
+ * a virtual address that can be used to access it. UACPI_MAP_FAILED is returned
+ * in case the operation wasn't successful.
  *
  * NOTE: 'addr' may be misaligned, in this case the host is expected to round it
  *       down to the nearest page-aligned boundary and map that, while making
@@ -51,7 +54,6 @@ void uacpi_kernel_log(uacpi_log_level, const uacpi_char*);
 #else
 UACPI_PRINTF_DECL(2, 3)
 void uacpi_kernel_log(uacpi_log_level, const uacpi_char*, ...);
-void uacpi_kernel_vlog(uacpi_log_level, const uacpi_char*, uacpi_va_list);
 #endif
 
 /**
@@ -164,6 +166,24 @@ uacpi_status uacpi_kernel_io_write32(
 );
 
 /**
+ * Read/write to previously mapped memory
+ *
+ * If UACPI_NATIVE_MMIO is not defined, uACPI uses builtin generic MMIO
+ * helpers that use simple volatile stores/loads.
+ */
+#ifdef UACPI_NATIVE_MMIO
+uacpi_u8 uacpi_kernel_mmio_read8(void*);
+uacpi_u16 uacpi_kernel_mmio_read16(void*);
+uacpi_u32 uacpi_kernel_mmio_read32(void*);
+uacpi_u64 uacpi_kernel_mmio_read64(void*);
+
+void uacpi_kernel_mmio_write8(void*, uacpi_u8);
+void uacpi_kernel_mmio_write16(void*, uacpi_u16);
+void uacpi_kernel_mmio_write32(void*, uacpi_u32);
+void uacpi_kernel_mmio_write64(void*, uacpi_u64);
+#endif
+
+/**
  * Allocate a block of memory of 'size' bytes.
  * The contents of the allocated memory are unspecified.
  */
@@ -229,7 +249,7 @@ void uacpi_kernel_free_event(uacpi_handle);
 uacpi_thread_id uacpi_kernel_get_thread_id(void);
 
 /**
- * Disable interrupts and return an kernel-defined value representing the
+ * Disable interrupts and return a kernel-defined value representing the
  * "before" state. This value is used in the subsequent call to restore the
  * prior state.
  *

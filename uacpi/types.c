@@ -116,7 +116,7 @@ static uacpi_bool buffer_alloc(uacpi_object *obj, uacpi_size initial_size)
     return UACPI_TRUE;
 }
 
-static uacpi_bool empty_buffer_or_string_alloc(uacpi_object *object)
+static uacpi_bool empty_string_or_buffer_alloc(uacpi_object *object)
 {
     return buffer_alloc(object, 0);
 }
@@ -311,8 +311,8 @@ static uacpi_bool thermal_zone_alloc(uacpi_object *obj)
 typedef uacpi_bool (*object_ctor)(uacpi_object *obj);
 
 static object_ctor object_constructor_table[UACPI_OBJECT_MAX_TYPE_VALUE + 1] = {
-    [UACPI_OBJECT_STRING] = empty_buffer_or_string_alloc,
-    [UACPI_OBJECT_BUFFER] = empty_buffer_or_string_alloc,
+    [UACPI_OBJECT_STRING] = empty_string_or_buffer_alloc,
+    [UACPI_OBJECT_BUFFER] = empty_string_or_buffer_alloc,
     [UACPI_OBJECT_PACKAGE] = empty_package_alloc,
     [UACPI_OBJECT_FIELD_UNIT] = field_unit_alloc,
     [UACPI_OBJECT_MUTEX] = mutex_alloc,
@@ -391,7 +391,7 @@ static void free_plain_no_recurse(uacpi_object *obj, struct free_queue *queue)
         if (uacpi_unlikely(!free_queue_push(queue,
                                             obj->package))) {
             uacpi_warn(
-                "unable to free nested package @%p: not enough memory\n",
+                "unable to free nested package @%p: not enough memory",
                 obj->package
             );
         }
@@ -468,6 +468,9 @@ static void free_package(uacpi_handle handle)
          */
         for (i = 0; i < pkg->count; ++i) {
             obj = pkg->objects[i];
+            if (uacpi_unlikely(obj == UACPI_NULL))
+                continue;
+
             unref_object_no_recurse(obj, &queue);
         }
 
@@ -558,7 +561,7 @@ static void free_op_region(uacpi_handle handle)
 
     if (uacpi_unlikely(op_region->handler != UACPI_NULL)) {
         uacpi_warn(
-            "BUG: attempting to free an opregion@%p with a handler attached\n",
+            "BUG: attempting to free an opregion@%p with a handler attached",
             op_region
         );
     }
@@ -716,7 +719,7 @@ static void free_object(uacpi_object *obj)
 
 static void make_chain_bugged(uacpi_object *obj)
 {
-    uacpi_warn("object refcount bug, marking chain @%p as bugged\n", obj);
+    uacpi_warn("object refcount bug, marking chain @%p as bugged", obj);
 
     while (obj) {
         uacpi_make_shareable_bugged(obj);
@@ -1448,6 +1451,12 @@ uacpi_status uacpi_object_assign(uacpi_object *dst, uacpi_object *src,
     case UACPI_OBJECT_THERMAL_ZONE:
         dst->thermal_zone = src->thermal_zone;
         uacpi_shareable_ref(dst->thermal_zone);
+        break;
+    case UACPI_OBJECT_POWER_RESOURCE:
+        uacpi_memcpy(
+            &dst->power_resource, &src->power_resource,
+            sizeof(dst->power_resource)
+        );
         break;
     default:
         ret = UACPI_STATUS_UNIMPLEMENTED;
