@@ -5,14 +5,15 @@
 #include <vex/hhdm.h>
 #include <vex/intctl.h>
 #include <vex/ireq.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
-#include <vex/malloc.h>
 #include <vex/page.h>
 #include <vex/pci.h>
 #include <vex/rsdp.h>
 #include <vex/vmm.h>
 #include <vex/vprot.h>
+
 
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out)
 {

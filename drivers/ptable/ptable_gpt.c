@@ -5,7 +5,7 @@
 #include <vex/endian.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
-#include <vex/malloc.h>
+#include <vex/kmalloc.h>
 #include <vex/string.h>
 
 #define PMBR_SIGNATURE_0 UINT8_C(0x55)

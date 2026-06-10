@@ -47,7 +47,7 @@ static void add_region(uintptr_t start, size_t length)
     pr_verbose("pdma: adding region: start=%p end=%p", (void*)(start), (void*)(start + length - 1U));
 }
 
-uintptr_t pdma_alloc(size_t numpages)
+uintptr_t pdma_alloc_phys_notrace(size_t numpages)
 {
     size_t page;
     size_t maxpage;
@@ -85,15 +85,15 @@ uintptr_t pdma_alloc(size_t numpages)
     return 0U;
 }
 
-void* pdma_alloc_virt(size_t numpages)
+void* pdma_alloc_virt_notrace(size_t numpages)
 {
-    uintptr_t address = pdma_alloc(numpages);
+    uintptr_t address = pdma_alloc_phys(numpages);
     if(address == 0U)
         return nullptr;
     return phys_to_virt(address);
 }
 
-void pdma_free(uintptr_t physaddr, size_t numpages)
+void pdma_free_phys_notrace(uintptr_t physaddr, size_t numpages)
 {
     size_t page = physaddr / PAGE_SIZE;
 
@@ -108,10 +108,10 @@ void pdma_free(uintptr_t physaddr, size_t numpages)
     spinlock_release_intr(&pdma_lock, intr_state);
 }
 
-void pdma_free_virt(void* restrict virtaddr, size_t numpages)
+void pdma_free_virt_notrace(void* restrict virtaddr, size_t numpages)
 {
     if(virtaddr) {
-        pdma_free(virt_to_phys(virtaddr), numpages);
+        pdma_free_phys_notrace(virt_to_phys(virtaddr), numpages);
     }
 }
 

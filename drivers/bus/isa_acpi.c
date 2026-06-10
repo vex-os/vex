@@ -5,10 +5,11 @@
 #include <vex/initcall.h>
 #include <vex/intctl.h>
 #include <vex/isa.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
-#include <vex/malloc.h>
 #include <vex/string.h>
+
 
 #define ACPI_MAX_ISA_RESOURCES 16
 

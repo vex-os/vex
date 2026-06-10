@@ -2,7 +2,7 @@
 #include <vex/cmdline.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
-#include <vex/malloc.h>
+#include <vex/kmalloc.h>
 #include <vex/slab.h>
 #include <vex/string.h>
 #include <vex/vfs_mount.h>

@@ -1,8 +1,9 @@
 #include <vex/chr_device.h>
 #include <vex/chr_event.h>
 #include <vex/errno.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/malloc.h>
+
 
 struct event_handler {
     struct event_handler* next;

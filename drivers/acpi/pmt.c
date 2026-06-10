@@ -5,12 +5,13 @@
 #include <vex/errno.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/malloc.h>
 #include <vex/panic.h>
 #include <vex/string.h>
 #include <vex/vmm.h>
 #include <vex/vprot.h>
+
 
 #define ACPI_CLOCKSRC_FREQ_HZ UINT64_C(3579545)
 

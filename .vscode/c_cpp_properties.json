@@ -11,7 +11,8 @@
         "__kernel__",
         "__x86_64__",
         "__X86_64__",
-        "asm=__asm__"
+        "asm=__asm__",
+        "TRACE_MALLOC"
       ],
       "includePath": [
         "${workspaceFolder}/arch/x86_64/include",

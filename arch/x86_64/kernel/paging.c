@@ -33,7 +33,7 @@ unsigned vmm_detect_levels(void)
 
 int pagemap_alloc(struct pagemap* restrict vm)
 {
-    vm->x86_cr3_phys = pslab_alloc();
+    vm->x86_cr3_phys = pslab_alloc_phys();
 
     if(vm->x86_cr3_phys == 0) {
         return -ENOMEM;

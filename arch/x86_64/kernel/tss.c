@@ -2,10 +2,11 @@
 #include <vex.x86/gdt.h>
 #include <vex.x86/tss.h>
 #include <vex/initcall.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/malloc.h>
 #include <vex/panic.h>
 #include <vex/string.h>
+
 
 static void arch_init_tss(void)
 {

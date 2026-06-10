@@ -1,8 +1,8 @@
 #include <vex/assert.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
+#include <vex/kmalloc.h>
 #include <vex/linker.h>
-#include <vex/malloc.h>
 #include <vex/page.h>
 #include <vex/panic.h>
 #include <vex/pslab.h>
@@ -65,7 +65,7 @@ static struct memblock* extend_heap(size_t sz)
     block->next = nullptr;
 
     for(i = 0; i < npages; ++i) {
-        phys = pslab_alloc();
+        phys = pslab_alloc_phys();
 
         if(phys == 0) {
             goto error_cleanup;
@@ -75,7 +75,7 @@ static struct memblock* extend_heap(size_t sz)
         int retval = vmm_map(&sys_pagemap, virt, phys, VPROT_RW);
 
         if(retval < 0) {
-            pslab_free(phys);
+            pslab_free_phys(phys);
             goto error_cleanup;
         }
     }
@@ -96,7 +96,7 @@ static struct memblock* extend_heap(size_t sz)
 error_cleanup:
     while(i--) {
         virt = block->address + i * PAGE_SIZE;
-        pslab_free(vmm_resolve(&sys_pagemap, virt));
+        pslab_free_phys(vmm_resolve(&sys_pagemap, virt));
         vmm_unmap(&sys_pagemap, virt);
     }
 
@@ -188,7 +188,7 @@ static void coalesce(struct memblock* restrict block)
     }
 }
 
-void* kmalloc(size_t sz)
+void* kmalloc_notrace(size_t sz)
 {
     if(sz == 0) {
         return nullptr;
@@ -218,14 +218,14 @@ void* kmalloc(size_t sz)
     return memset((void*)(block->address), 0, sz);
 }
 
-void* krealloc(void* restrict ptr, size_t sz)
+void* krealloc_notrace(void* restrict ptr, size_t sz)
 {
     if(ptr == nullptr) {
-        return kmalloc(sz);
+        return kmalloc_notrace(sz);
     }
 
     if(sz == 0) {
-        kfree(ptr);
+        kfree_notrace(ptr);
 
         return nullptr;
     }
@@ -251,19 +251,19 @@ void* krealloc(void* restrict ptr, size_t sz)
 
     spinlock_release_intr(&heap_lock, intr_state);
 
-    void* new_ptr = kmalloc(aligned_sz);
+    void* new_ptr = kmalloc_notrace(aligned_sz);
 
     if(new_ptr == nullptr) {
         return nullptr;
     }
 
     memcpy(new_ptr, ptr, old_length);
-    kfree(ptr);
+    kfree_notrace(ptr);
 
     return new_ptr;
 }
 
-void kfree(void* restrict ptr)
+void kfree_notrace(void* restrict ptr)
 {
     if(ptr == nullptr) {
         return;
@@ -285,14 +285,14 @@ void kfree(void* restrict ptr)
     spinlock_release_intr(&heap_lock, intr_state);
 }
 
-char* kstrdup(const char* restrict string)
+char* kstrdup_notrace(const char* restrict string)
 {
     if(string == nullptr) {
         return nullptr;
     }
 
     size_t size = 1 + strlen(string);
-    char* result = kmalloc(size);
+    char* result = kmalloc_notrace(size);
 
     if(result == nullptr) {
         return nullptr;
@@ -304,17 +304,17 @@ char* kstrdup(const char* restrict string)
     return result;
 }
 
-char* kasprintf(const char* restrict fmt, ...)
+char* kasprintf_notrace(const char* restrict fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    char* result = kvasprintf(fmt, ap);
+    char* result = kvasprintf_notrace(fmt, ap);
     va_end(ap);
 
     return result;
 }
 
-char* kvasprintf(const char* restrict fmt, va_list ap)
+char* kvasprintf_notrace(const char* restrict fmt, va_list ap)
 {
     va_list ap_copy;
     va_copy(ap_copy, ap);
@@ -325,7 +325,7 @@ char* kvasprintf(const char* restrict fmt, va_list ap)
         return nullptr;
     }
 
-    char* result = kmalloc(length + 1);
+    char* result = kmalloc_notrace(length + 1);
 
     if(result == nullptr) {
         va_end(ap_copy);
@@ -340,9 +340,9 @@ char* kvasprintf(const char* restrict fmt, va_list ap)
     return result;
 }
 
-static void init_malloc(void)
+static void init_kmalloc(void)
 {
     heap_end = PAGE_SIZE + page_align_up((uintptr_t)kernel_end);
 }
 
-initcall_bsp_heap(init_malloc, INIT_FIRST);
+initcall_bsp_heap(init_kmalloc, INIT_FIRST);

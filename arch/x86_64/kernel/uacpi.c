@@ -3,7 +3,7 @@
 #include <vex.arch/intr.h>
 #include <vex.x86/pmio.h>
 #include <vex/hhdm.h>
-#include <vex/malloc.h>
+#include <vex/kmalloc.h>
 
 struct pmio_range {
     uacpi_io_addr base;

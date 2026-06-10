@@ -8,8 +8,8 @@
 #include <vex/endian.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/malloc.h>
 #include <vex/page.h>
 #include <vex/pci.h>
 #include <vex/pdma.h>
@@ -462,7 +462,7 @@ static int ahci_port_init(struct ahci_pci_context* restrict context, struct pci_
     struct ahci_port* port = &context->ports[port_num];
 
     uintptr_t port_base = HBA_PORT_BASE + port_num * HBA_PORT_SIZE;
-    uintptr_t dma_phys = pdma_alloc(DMA_NUM_PAGES);
+    uintptr_t dma_phys = pdma_alloc_phys(DMA_NUM_PAGES);
 
     if(dma_phys == 0) {
         return -ENOMEM;
@@ -496,7 +496,7 @@ static void ahci_port_teardown(struct ahci_port* restrict port)
 {
     ahci_stop(port);
 
-    pdma_free(port->dma_phys, DMA_NUM_PAGES);
+    pdma_free_phys(port->dma_phys, DMA_NUM_PAGES);
 
     port->dma_phys = 0;
 }
