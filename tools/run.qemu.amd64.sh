@@ -12,6 +12,8 @@ else
     QEMU_EXECUTABLE=qemu-system-x86_64
 fi
 
+logfile="qemu.log"
+
 qargs=
 qargs="${qargs} -bios ${UEFI_PATH}"
 qargs="${qargs} -drive format=raw,file=${IMAGE_PATH}"
@@ -25,7 +27,8 @@ for arg in "$@"; do
     case "${arg}" in
         slow)    qargs="${qargs} -icount shift=0,sleep=on" ;;
         verbose) qargs="${qargs} -d cpu_reset,int -no-reboot -no-shutdown" ;;
+        [0-9]*) logfile="qemu_${arg}.log" ;;
     esac
 done
 
-{ ${QEMU_EXECUTABLE} ${qargs} 2>&1; printf "\n"; } | tee qemu.log
+{ ${QEMU_EXECUTABLE} ${qargs} 2>&1; printf "\n"; } | tee "${logfile}"
