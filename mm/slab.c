@@ -120,7 +120,7 @@ void* slab_realloc_notrace(void* restrict ptr, size_t sz)
 
     head_ptr = ptr;
     head_ptr[0] = sl->head;
-    sl->head = new_ptr;
+    sl->head = head_ptr;
 
     spinlock_release_intr(&slab_lock, intr_state);
 

@@ -55,6 +55,10 @@ void sched_preempt(void)
 
     bool intr_state = disable_interrupts();
 
+    if(hart->dead_head) {
+        vmm_switch(&sys_pagemap);
+    }
+
     while(hart->dead_head) {
         struct thread* dead = hart->dead_head;
         hart->dead_head = dead->runq_next;
@@ -165,6 +169,10 @@ void sched_yield(void)
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
 
+    if(self->owner) {
+        vmm_switch(&sys_pagemap);
+    }
+
     pr_verbose("thread_switch: %p -> %p [idle]", self, hart->idle_thread);
     thread_switch_hook(hart, hart->idle_thread);
     thread_switch(self, hart->idle_thread);
@@ -185,6 +193,10 @@ void sched_nsleep(uint64_t nsec)
 
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
+
+    if(self->owner) {
+        vmm_switch(&sys_pagemap);
+    }
 
     pr_verbose("thread_switch: %p -> %p [idle]", self, hart->idle_thread);
     thread_switch_hook(hart, hart->idle_thread);
