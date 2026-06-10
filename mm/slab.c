@@ -5,6 +5,7 @@
 #include <vex/panic.h>
 #include <vex/pdma.h>
 #include <vex/pslab.h>
+#include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 
@@ -71,7 +72,7 @@ static bool expand_slab(struct slab* restrict sl)
     return false;
 }
 
-void* slab_alloc(size_t sz)
+void* slab_alloc_notrace(size_t sz)
 {
     void** head_ptr;
     struct slab* sl;
@@ -99,11 +100,11 @@ void* slab_alloc(size_t sz)
     return nullptr;
 }
 
-void* slab_realloc(void* restrict ptr, size_t sz)
+void* slab_realloc_notrace(void* restrict ptr, size_t sz)
 {
     struct slab* sl;
     void** head_ptr;
-    void* new_ptr = slab_alloc(sz);
+    void* new_ptr = slab_alloc_notrace(sz);
 
     if(ptr == nullptr) {
         // Just return the new thing
@@ -126,7 +127,7 @@ void* slab_realloc(void* restrict ptr, size_t sz)
     return new_ptr;
 }
 
-void slab_free(void* restrict ptr)
+void slab_free_notrace(void* restrict ptr)
 {
     struct slab* sl;
     void** head_ptr;

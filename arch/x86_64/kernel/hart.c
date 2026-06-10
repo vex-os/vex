@@ -9,13 +9,14 @@
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/ireq.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
-#include <vex/malloc.h>
 #include <vex/page.h>
 #include <vex/panic.h>
 #include <vex/pslab.h>
 #include <vex/string.h>
+
 
 static unsigned hart_count = 0;
 static unsigned panic_ipi_vector = 0;

@@ -28,7 +28,7 @@ static pmentry_type* vmm_entry_get(pmentry_type* restrict table, size_t index, b
     }
 
     if(allocate) {
-        uintptr_t phys = pslab_alloc();
+        uintptr_t phys = pslab_alloc_phys();
 
         if(phys) {
             pmentry_type* child = phys_to_virt(phys);
@@ -90,7 +90,7 @@ static void vmm_table_free(pmentry_type* restrict table, size_t begin, size_t en
             if(pmentry_valid(table[i])) {
                 pmentry_type* child = phys_to_virt(pmentry_address(table[i]));
                 vmm_table_free(child, 0, PAGEMAP_SIZE, depth - 1);
-                pslab_free(virt_to_phys(child));
+                pslab_free_phys(virt_to_phys(child));
             }
         }
     }
@@ -143,7 +143,7 @@ static int vmm_clone_table(pmentry_type* restrict dest, pmentry_type* restrict s
     for(size_t i = begin; i < end; ++i) {
         if(pmentry_valid(stem[i])) {
             pmentry_type* stem_child = phys_to_virt(pmentry_address(stem[i]));
-            uintptr_t dest_child_phys = pslab_alloc();
+            uintptr_t dest_child_phys = pslab_alloc_phys();
 
             if(dest_child_phys == 0) {
                 return -ENOMEM;

@@ -4,10 +4,11 @@
 #include <vex/ctype.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/malloc.h>
 #include <vex/string.h>
 #include <vex/strings.h>
+
 
 struct cmdline sys_cmdline;
 

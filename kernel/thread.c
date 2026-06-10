@@ -41,6 +41,7 @@ void __noreturn thread_exit_handler(intptr_t retval)
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
 
+    pr_verbose("thread_switch: %p -> %p [idle]", thrd, hart->idle_thread);
     thread_switch_hook(hart, hart->idle_thread);
     thread_switch(thrd, hart->idle_thread);
 
@@ -82,7 +83,7 @@ struct thread* thread_create_kern(struct process* restrict owner, thread_entry_t
         return nullptr;
     }
 
-    uintptr_t kstack = pslab_alloc();
+    uintptr_t kstack = pslab_alloc_phys();
 
     if(kstack == 0) {
         slab_free(thrd);
@@ -107,7 +108,7 @@ struct thread* thread_create_user(struct process* restrict owner, uintptr_t user
         return nullptr;
     }
 
-    uintptr_t kstack = pslab_alloc();
+    uintptr_t kstack = pslab_alloc_phys();
 
     if(kstack == 0) {
         slab_free(thrd);
@@ -126,7 +127,7 @@ struct thread* thread_create_user(struct process* restrict owner, uintptr_t user
 
 void thread_destroy(struct thread* restrict thrd)
 {
-    uintptr_t stack_base = thrd->kernel_stack - THREAD_KSTACK_SIZE;
+    uintptr_t stack_base = thrd->kernel_stack_top - THREAD_KSTACK_SIZE;
     pslab_free_virt((void*)(stack_base));
     slab_free(thrd);
 }

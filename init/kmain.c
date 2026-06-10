@@ -94,7 +94,7 @@ void __noreturn kmain(void)
     uintptr_t fn_offset = fn_virt & (PAGE_SIZE - 1);
     vmm_map(proc->vm, UCODE_VIRT, code_phys, VPROT_URX);
 
-    uintptr_t stack_phys = pslab_alloc();
+    uintptr_t stack_phys = pslab_alloc_phys();
     if(stack_phys == 0)
         panic("kmain: user stack alloc failed");
     vmm_map(proc->vm, USTACK_VIRT, stack_phys, VPROT_URW);
@@ -119,7 +119,7 @@ void __noreturn kmain(void)
 
     proc2->sig_actions[SIGSEGV].sa_handler = (sa_handler_t)(UHANDLER_VIRT + handler_offset);
 
-    uintptr_t stack2_phys = pslab_alloc();
+    uintptr_t stack2_phys = pslab_alloc_phys();
     if(stack2_phys == 0)
         panic("kmain: user stack2 alloc failed");
     vmm_map(proc2->vm, USTACK2_VIRT, stack2_phys, VPROT_URW);

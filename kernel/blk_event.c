@@ -2,8 +2,9 @@
 #include <vex/blk_event.h>
 #include <vex/errno.h>
 #include <vex/hrsize.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/malloc.h>
+
 
 struct event_handler {
     struct event_handler* next;

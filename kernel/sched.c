@@ -4,8 +4,8 @@
 #include <vex/clocksrc.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/malloc.h>
 #include <vex/page.h>
 #include <vex/panic.h>
 #include <vex/process.h>
@@ -145,6 +145,7 @@ void sched_preempt(void)
         vmm_switch(&sys_pagemap);
     }
 
+    pr_verbose("thread_switch: %p -> %p", prev, next);
     thread_switch_hook(hart, next);
     thread_switch(prev, next);
 
@@ -164,6 +165,7 @@ void sched_yield(void)
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
 
+    pr_verbose("thread_switch: %p -> %p [idle]", self, hart->idle_thread);
     thread_switch_hook(hart, hart->idle_thread);
     thread_switch(self, hart->idle_thread);
 
@@ -184,6 +186,7 @@ void sched_nsleep(uint64_t nsec)
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
 
+    pr_verbose("thread_switch: %p -> %p [idle]", self, hart->idle_thread);
     thread_switch_hook(hart, hart->idle_thread);
     thread_switch(self, hart->idle_thread);
 

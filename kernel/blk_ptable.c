@@ -3,7 +3,7 @@
 #include <vex/blk_ptable.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
-#include <vex/malloc.h>
+#include <vex/kmalloc.h>
 
 struct blk_part_device {
     struct blk_device base;

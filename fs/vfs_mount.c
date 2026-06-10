@@ -1,8 +1,8 @@
 #include <vex/assert.h>
 #include <vex/blk_device.h>
 #include <vex/cmdline.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/malloc.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -10,6 +10,7 @@
 #include <vex/vfs_path.h>
 #include <vex/vfs_vcache.h>
 #include <vex/vfs_vnode.h>
+
 
 struct mount_entry {
     struct mount_entry* next;

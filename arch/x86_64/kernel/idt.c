@@ -2,7 +2,7 @@
 #include <vex.x86/gdt.h>
 #include <vex.x86/idt.h>
 #include <vex/initcall.h>
-#include <vex/malloc.h>
+#include <vex/kmalloc.h>
 #include <vex/panic.h>
 #include <vex/string.h>
 

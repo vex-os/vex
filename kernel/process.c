@@ -1,5 +1,5 @@
 #include <vex/atomic.h>
-#include <vex/malloc.h>
+#include <vex/kmalloc.h>
 #include <vex/process.h>
 #include <vex/sched.h>
 #include <vex/signal.h>

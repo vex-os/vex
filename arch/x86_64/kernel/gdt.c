@@ -2,10 +2,11 @@
 #include <vex.x86/gdt.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/malloc.h>
 #include <vex/panic.h>
 #include <vex/string.h>
+
 
 #define GDT_READWRITE  (1 << 1)
 #define GDT_CONFORMING (1 << 2)

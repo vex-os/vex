@@ -1,7 +1,7 @@
 #include <vex/blk_device.h>
 #include <vex/blk_event.h>
 #include <vex/errno.h>
-#include <vex/malloc.h>
+#include <vex/kmalloc.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/stat.h>

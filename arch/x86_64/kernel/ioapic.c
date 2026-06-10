@@ -4,7 +4,7 @@
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/intctl.h>
-#include <vex/malloc.h>
+#include <vex/kmalloc.h>
 #include <vex/panic.h>
 #include <vex/sprintf.h>
 #include <vex/string.h>

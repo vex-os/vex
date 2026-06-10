@@ -2,10 +2,11 @@
 #include <vex.arch/hart.h>
 #include <vex/console.h>
 #include <vex/initcall.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/malloc.h>
 #include <vex/panic.h>
 #include <vex/string.h>
+
 
 #include <vex/sched.h>
 #include <vex/spinlock.h>

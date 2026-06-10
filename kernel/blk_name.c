@@ -1,6 +1,6 @@
 #include <vex/blk_name.h>
 #include <vex/initcall.h>
-#include <vex/malloc.h>
+#include <vex/kmalloc.h>
 #include <vex/panic.h>
 #include <vex/string.h>
 #include <vex/strings.h>

@@ -29,15 +29,15 @@ static void pslab_add_region(uintptr_t start, size_t length)
     pr_verbose("pslab: adding region: start=%p end=%p", (void*)(start), (void*)(start + length - 1U));
 }
 
-uintptr_t pslab_alloc(void)
+uintptr_t pslab_alloc_phys_notrace(void)
 {
-    void* ptr = pslab_alloc_virt();
+    void* ptr = pslab_alloc_virt_notrace();
     if(ptr == nullptr)
         return 0U;
     return virt_to_phys(ptr);
 }
 
-void* pslab_alloc_virt(void)
+void* pslab_alloc_virt_notrace(void)
 {
     void** head_ptr;
 
@@ -58,14 +58,14 @@ void* pslab_alloc_virt(void)
     return nullptr;
 }
 
-void pslab_free(uintptr_t physaddr)
+void pslab_free_phys_notrace(uintptr_t physaddr)
 {
     if(physaddr) {
-        pslab_free_virt(phys_to_virt(physaddr));
+        pslab_free_virt_notrace(phys_to_virt(physaddr));
     }
 }
 
-void pslab_free_virt(void* restrict virtaddr)
+void pslab_free_virt_notrace(void* restrict virtaddr)
 {
     void** head_ptr;
 
