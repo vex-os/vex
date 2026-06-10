@@ -15,6 +15,7 @@
 .type x86_syscall_entry, @function
 x86_syscall_entry:
     cli
+    
     swapgs
     movq %rsp, %gs:HART_SYSCALL_USP
     movq %gs:HART_SYSCALL_KSP, %rsp
@@ -48,7 +49,7 @@ x86_syscall_entry:
     call dispatch_syscall
 
     cli
-    
+
     movq REGFILE_RAX(%rsp), %rax    # retval
     movq REGFILE_RIP(%rsp), %rcx    # user rip, rcx for sysretq
     movq REGFILE_RFLAGS(%rsp), %r11 # user rflags, r11 for sysretq
