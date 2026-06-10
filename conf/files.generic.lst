@@ -44,13 +44,12 @@ init/initcall.c
 init/kmain.c
 init/smp.c
 
-ireq/intctl.c
-ireq/ireq.c
-
 kern/assert.c optional ENABLE_ASSERTIONS
 kern/cmdline.c
 kern/console.c
 kern/fbcons.c optional fbcons
+kern/intctl.c
+kern/ireq.c
 kern/kprintf.c
 kern/panic.c
 kern/version.c
