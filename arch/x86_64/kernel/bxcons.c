@@ -1,14 +1,21 @@
 #include <vex.x86/pmio.h>
 #include <vex/console.h>
 #include <vex/initcall.h>
+#include <vex/spinlock.h>
+
+static spinlock_type bxcons_lock = SPINLOCK_INIT;
 
 static void bxcons_write(struct console* restrict cons, const void* restrict data, size_t size)
 {
     const char* psz = data;
 
+    bool intr_state = spinlock_acquire_intr(&bxcons_lock);
+
     for(size_t i = 0; i < size; ++i) {
         pmwrite8(0xE9, psz[i]);
     }
+
+    spinlock_release_intr(&bxcons_lock, intr_state);
 }
 
 static const struct console_ops bxcons_ops = {

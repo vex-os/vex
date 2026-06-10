@@ -13,7 +13,8 @@ cur_envt = None
 cur_sysname = None
 cur_release = None
 cur_options = {}
-cur_devices = set()
+cur_drivers = set()
+cur_fs = set()
 
 # Current state of parsed file listings
 cur_filelist = set()
@@ -39,7 +40,8 @@ def parse_config(path, _seen=None):
     global cur_sysname
     global cur_release
     global cur_options
-    global cur_devices
+    global cur_drivers
+    global cur_fs
 
     if _seen is None:
         _seen = set()
@@ -100,14 +102,22 @@ def parse_config(path, _seen=None):
                 if not args:
                     raise_error(path, lineno, f"missing arguments for {kword} keyword")
                 cur_options.pop(args[0], None)
-            elif kword == "device":
+            elif kword == "driver":
                 if not args:
                     raise_error(path, lineno, f"missing arguments for {kword} keyword")
-                cur_devices.add(args[0])
-            elif kword == "nodevice":
+                cur_drivers.add(args[0])
+            elif kword == "nodriver":
                 if not args:
                     raise_error(path, lineno, f"missing arguments for {kword} keyword")
-                cur_devices.discard(args[0])
+                cur_drivers.discard(args[0])
+            elif kword == "filesys":
+                if not args:
+                    raise_error(path, lineno, f"missing arguments for {kword} keyword")
+                cur_fs.add(args[0])
+            elif kword == "nofilesys":
+                if not args:
+                    raise_error(path, lineno, f"missing arguments for {kword} keyword")
+                cur_fs.discard(args[0])
             else:
                 raise_error(path, lineno, f"unknown keyword: {kword}")
 
@@ -142,7 +152,7 @@ def parse_filelist(path):
                 cur_filelist.add(source)
                 continue
 
-            if all(c in cur_options or c in cur_devices for c in conditions):
+            if all(c in cur_options or c in cur_drivers or c in cur_fs or c == cur_arch for c in conditions):
                 cur_filelist.add(source)
 
 def main():

@@ -180,13 +180,13 @@ static int vmm_clone_table(pmentry_type* restrict dest, pmentry_type* restrict s
 
 struct pagemap* vmm_fork(struct pagemap* restrict stem)
 {
-    spinlock_acquire(&stem->lock);
+    bool intr_state = spinlock_acquire_intr(&stem->lock);
 
     pmentry_type* table = pagemap_root(stem, 0);
     vmm_mark_cow(table, 0, PAGEMAP_USER_END, stem->pglevels - 1);
     atomic_fetch_add(&stem->refcount, 1, ATOMIC_RELAXED);
 
-    spinlock_release(&stem->lock);
+    spinlock_release_intr(&stem->lock, intr_state);
 
     return stem;
 }
@@ -223,7 +223,7 @@ void vmm_release(struct pagemap* restrict vm)
 
 int vmm_map(struct pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigned vprot)
 {
-    spinlock_acquire(&vm->lock);
+    bool intr_state = spinlock_acquire_intr(&vm->lock);
 
     pmentry_type* entry = vmm_pte_walk(vm, virt, true);
     int retval;
@@ -239,14 +239,14 @@ int vmm_map(struct pagemap* restrict vm, uintptr_t virt, uintptr_t phys, unsigne
         retval = 0;
     }
 
-    spinlock_release(&vm->lock);
+    spinlock_release_intr(&vm->lock, intr_state);
 
     return retval;
 }
 
 int vmm_patch(struct pagemap* restrict vm, uintptr_t virt, unsigned vprot)
 {
-    spinlock_acquire(&vm->lock);
+    bool intr_state = spinlock_acquire_intr(&vm->lock);
 
     pmentry_type* entry = vmm_pte_walk(vm, virt, false);
     int retval;
@@ -262,14 +262,14 @@ int vmm_patch(struct pagemap* restrict vm, uintptr_t virt, unsigned vprot)
         retval = 0;
     }
 
-    spinlock_release(&vm->lock);
+    spinlock_release_intr(&vm->lock, intr_state);
 
     return retval;
 }
 
 int vmm_unmap(struct pagemap* restrict vm, uintptr_t virt)
 {
-    spinlock_acquire(&vm->lock);
+    bool intr_state = spinlock_acquire_intr(&vm->lock);
 
     pmentry_type* entry = vmm_pte_walk(vm, virt, false);
     int retval;
@@ -285,7 +285,7 @@ int vmm_unmap(struct pagemap* restrict vm, uintptr_t virt)
         retval = 0;
     }
 
-    spinlock_release(&vm->lock);
+    spinlock_release_intr(&vm->lock, intr_state);
 
     return retval;
 }

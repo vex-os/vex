@@ -12,16 +12,16 @@ int add_console(struct console* restrict cons)
 {
     struct console* it;
 
-    spinlock_acquire(&console_lock);
+    bool ireq_state = spinlock_acquire_intr(&console_lock);
 
     for(it = console_head; it; it = it->priv.next) {
         if(it == cons) {
-            spinlock_release(&console_lock);
+            spinlock_release_intr(&console_lock, ireq_state);
             return -EEXIST;
         }
     }
 
-    spinlock_release(&console_lock);
+    spinlock_release_intr(&console_lock, ireq_state);
 
     pr_verbose("console: adding %s", cons->identifier);
 
@@ -46,12 +46,12 @@ int add_console(struct console* restrict cons)
         cons->ops->write(cons, kptr, ksz);
     }
 
-    spinlock_acquire(&console_lock);
+    ireq_state = spinlock_acquire_intr(&console_lock);
 
     cons->priv.next = console_head;
     console_head = cons;
 
-    spinlock_release(&console_lock);
+    spinlock_release_intr(&console_lock, ireq_state);
 
     return 0;
 }
@@ -60,12 +60,12 @@ int remove_console(struct console* restrict cons)
 {
     struct console* it;
 
-    spinlock_acquire(&console_lock);
+    bool ireq_state = spinlock_acquire_intr(&console_lock);
 
     if(console_head == cons) {
         console_head = console_head->priv.next;
 
-        spinlock_release(&console_lock);
+        spinlock_release_intr(&console_lock, ireq_state);
 
         pr_verbose("console: removing %s", cons->identifier);
 
@@ -80,7 +80,7 @@ int remove_console(struct console* restrict cons)
                 prev->priv.next = it->priv.next;
             }
 
-            spinlock_release(&console_lock);
+            spinlock_release_intr(&console_lock, ireq_state);
 
             pr_verbose("console: removing %s", cons->identifier);
 
@@ -90,7 +90,7 @@ int remove_console(struct console* restrict cons)
         prev = it;
     }
 
-    spinlock_release(&console_lock);
+    spinlock_release_intr(&console_lock, ireq_state);
 
     return -EINVAL;
 }
@@ -99,7 +99,7 @@ void console_write(const void* restrict data, size_t size)
 {
     struct console* it;
 
-    spinlock_acquire(&console_lock);
+    bool ireq_state = spinlock_acquire_intr(&console_lock);
 
     for(it = console_head; it; it = it->priv.next) {
         if(it->ops->write == nullptr)
@@ -109,14 +109,14 @@ void console_write(const void* restrict data, size_t size)
         it->ops->write(it, data, size);
     }
 
-    spinlock_release(&console_lock);
+    spinlock_release_intr(&console_lock, ireq_state);
 }
 
 void console_unblank(void)
 {
     struct console* it;
 
-    spinlock_acquire(&console_lock);
+    bool ireq_state = spinlock_acquire_intr(&console_lock);
 
     for(it = console_head; it; it = it->priv.next) {
         if(it->ops->unblank)
@@ -124,5 +124,5 @@ void console_unblank(void)
         it->consflags &= ~CONSF_BLANKED;
     }
 
-    spinlock_release(&console_lock);
+    spinlock_release_intr(&console_lock, ireq_state);
 }

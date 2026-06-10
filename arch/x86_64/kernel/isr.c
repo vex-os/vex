@@ -4,6 +4,7 @@
 #include <vex.x86/idt.h>
 #include <vex/compiler.h>
 #include <vex/initcall.h>
+#include <vex/kprintf.h>
 #include <vex/panic.h>
 #include <vex/process.h>
 #include <vex/signal.h>
@@ -94,6 +95,36 @@ static const uint32_t isr_sigcodes[0x20] = {
     [0x13] = FPE_FLTINV,  // SIMD floating point
 };
 
+#define STACKTRACE_DEPTH 16
+
+static void dump_stacktrace(uint64_t rbp)
+{
+    pr_emerg("stack trace:");
+
+    for(unsigned i = 0; i < STACKTRACE_DEPTH; i++) {
+        if(!rbp || (rbp & 0x7) || rbp < 0xFFFF800000000000ULL)
+            break;
+
+        uint64_t* frame = (uint64_t*)(rbp);
+        uint64_t retaddr = frame[1];
+
+        if(!retaddr)
+            break;
+
+        pr_emerg("  [%2u] %016lX", i, retaddr);
+        rbp = frame[0];
+    }
+}
+
+static void dump_regfile(const struct regfile* restrict regs)
+{
+    pr_emerg("rax=%016lX rbx=%016lX    rcx=%016lX rdx=%016lX", regs->x86_rax, regs->x86_rbx, regs->x86_rcx, regs->x86_rdx);
+    pr_emerg("rsi=%016lX rdi=%016lX    rbp=%016lX rsp=%016lX", regs->x86_rsi, regs->x86_rdi, regs->x86_rbp, regs->x86_rsp);
+    pr_emerg(" r8=%016lX  r9=%016lX    r10=%016lX r11=%016lX", regs->x86_r8, regs->x86_r9, regs->x86_r10, regs->x86_r11);
+    pr_emerg("r12=%016lX r13=%016lX    r14=%016lX r15=%016lX", regs->x86_r12, regs->x86_r13, regs->x86_r14, regs->x86_r15);
+    pr_emerg("rip=%016lX  cs=%016lX rflags=%016lX  ss=%016lX", regs->x86_rip, regs->x86_cs, regs->x86_rflags, regs->x86_ss);
+}
+
 static void page_fault_handler(struct thread* restrict thrd, struct regfile* restrict regs)
 {
     struct vmm_fault_info info;
@@ -137,6 +168,8 @@ static void page_fault_handler(struct thread* restrict thrd, struct regfile* res
         signal_deliver_sync(thrd, regs, &siginfo);
     }
     else {
+        dump_regfile(regs);
+        dump_stacktrace(regs->x86_rbp);
         panic("kernel page fault: fault=%p vprot=%02X present=%d", (void*)(info.fault), info.vprot, info.present);
     }
 }
@@ -169,6 +202,8 @@ void __used x86_isr_handler(struct regfile* restrict regs, uint64_t intvec)
         signal_deliver_sync(thrd, regs, &siginfo);
     }
     else {
+        dump_regfile(regs);
+        dump_stacktrace(regs->x86_rbp);
         panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));
     }
 

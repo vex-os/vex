@@ -1,4 +1,4 @@
-arch/x86_64/kernel/bxcons.c optional bxcons
+arch/x86_64/kernel/bxcons.c             optional ENABLE_BXCONS
 arch/x86_64/kernel/gdt.c
 arch/x86_64/kernel/hart.c
 arch/x86_64/kernel/hpet.c

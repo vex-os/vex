@@ -1,8 +1,11 @@
 #include <vex.arch/hart.h>
 #include <vex.arch/intr.h>
+#include <vex/atomic.h>
 #include <vex/console.h>
 #include <vex/kprintf.h>
 #include <vex/panic.h>
+
+volatile bool panic_in_progress = false;
 
 void __noreturn fpanic(const char* restrict file, unsigned long line, const char* restrict fmt, ...)
 {
@@ -16,6 +19,8 @@ void __noreturn fvpanic(const char* restrict file, unsigned long line, const cha
     broadcast_panic_ipi();
 
     disable_interrupts();
+
+    atomic_store(&panic_in_progress, true, ATOMIC_RELEASE);
 
     console_unblank();
 

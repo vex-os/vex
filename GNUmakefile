@@ -13,7 +13,10 @@ CONFIGURATION ?= default
 CONFIGURATION_MK := .configuration.mk
 -include ${CONFIGURATION_MK}
 
-${CONFIGURATION_MK}: config/config.${CONFIGURATION}.conf configure.py
+ALL_CONFIG_FILES := $(wildcard config/config.*.conf)
+ALL_FILES_TABLES := $(wildcard config/files.*.lst)
+
+${CONFIGURATION_MK}: configure.py ${ALL_CONFIG_FILES} ${ALL_FILES_TABLES}
 	@printf "  CONF\t%s\n" "config/${CONFIGURATION}.conf"
 	@${PYTHON} configure.py ${CONFIGURATION}
 

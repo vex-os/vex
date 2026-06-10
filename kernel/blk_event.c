@@ -13,7 +13,7 @@ struct event_handler {
 
 static struct event_handler* handlers_head = nullptr;
 
-#if BLK_EVENT_LOGGING
+#if TRACE_BLK_EVENTS
 static void blk_event_log(unsigned event, const struct blk_device* restrict device)
 {
     char hrsize_buffer[256];
@@ -104,7 +104,7 @@ void blk_event_notify(unsigned event, const struct blk_device* restrict device)
 {
     struct event_handler* it;
 
-#if BLK_EVENT_LOGGING
+#if TRACE_BLK_EVENTS
     blk_event_log(event, device);
 #endif
 

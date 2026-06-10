@@ -10,30 +10,30 @@ drivers/bus/isa_acpi.c
 drivers/bus/isa.c
 drivers/bus/pci.c
 
-drivers/ptable/ptable_gpt.c
-drivers/ptable/ptable_mbr.c
+drivers/ptable/ptable_gpt.c             optional ptable-gpt
+drivers/ptable/ptable_mbr.c             optional ptable-mbr
 
-drivers/ahci.c
+drivers/ahci.c                          optional ahci
 
 drivers/ata.c
 drivers/atapi.c
 
-drivers/ps2kbd.c
+drivers/ps2kbd.c                        optional ps2kbd
 
-fs/devfs/devfs.c
-fs/devfs/devfs_blk.c
-fs/devfs/devfs_chr.c
-fs/devfs/devfs_dir.c
+fs/devfs/devfs.c                        optional devfs
+fs/devfs/devfs_blk.c                    optional devfs
+fs/devfs/devfs_chr.c                    optional devfs
+fs/devfs/devfs_dir.c                    optional devfs
 
-fs/echfs/echfs.c
-fs/echfs/echfs_block.c
-fs/echfs/echfs_dirent.c
-fs/echfs/echfs_vnode.c
+fs/echfs/echfs.c                        optional echfs
+fs/echfs/echfs_block.c                  optional echfs
+fs/echfs/echfs_dirent.c                 optional echfs
+fs/echfs/echfs_vnode.c                  optional echfs
 
-fs/fat/fat.c
-fs/fat/fat_cluster.c
-fs/fat/fat_dirent.c
-fs/fat/fat_vnode.c
+fs/fat/fat.c                            optional fat
+fs/fat/fat_cluster.c                    optional fat
+fs/fat/fat_dirent.c                     optional fat
+fs/fat/fat_vnode.c                      optional fat
 
 fs/vfs_file.c
 fs/vfs_mount.c
@@ -45,7 +45,7 @@ init/initcall.c
 init/kmain.c
 init/smp.c
 
-kernel/assert.c
+kernel/assert.c                         optional ENABLE_KASSERT
 kernel/blk_device.c
 kernel/blk_event.c
 kernel/blk_name.c
@@ -57,7 +57,7 @@ kernel/clocksrc.c
 kernel/cmdline.c
 kernel/console.c
 kernel/delay.c
-kernel/fbcons.c
+kernel/fbcons.c                         optional ENABLE_FBCONS
 kernel/intctl.c
 kernel/ireq.c
 kernel/kprintf.c

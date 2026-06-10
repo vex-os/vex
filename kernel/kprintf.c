@@ -58,7 +58,7 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 {
     struct stagebuf st = { 0 };
 
-    spinlock_acquire(&kprintf_lock);
+    bool intr_state = spinlock_acquire_intr(&kprintf_lock);
 
     if(sv <= loglevel) {
         uint64_t timestamp = clocksrc_nsec();
@@ -78,7 +78,7 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
         console_write(st.data, st.size);
     }
 
-    spinlock_release(&kprintf_lock);
+    spinlock_release_intr(&kprintf_lock, intr_state);
 }
 
 static void init_kprintf(void)

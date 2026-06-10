@@ -52,7 +52,7 @@ uintptr_t pdma_alloc(size_t numpages)
     size_t page;
     size_t maxpage;
 
-    spinlock_acquire(&pdma_lock);
+    bool intr_state = spinlock_acquire_intr(&pdma_lock);
 
     maxpage = pdma_numpages - numpages;
     for(page = pdma_lastpage; page < maxpage; page += 1U) {
@@ -61,7 +61,7 @@ uintptr_t pdma_alloc(size_t numpages)
             pdma_lastpage = page + numpages;
             pdma_numused += numpages;
 
-            spinlock_release(&pdma_lock);
+            spinlock_release_intr(&pdma_lock, intr_state);
 
             return page * PAGE_SIZE;
         }
@@ -74,13 +74,13 @@ uintptr_t pdma_alloc(size_t numpages)
             pdma_lastpage = page + numpages;
             pdma_numused += numpages;
 
-            spinlock_release(&pdma_lock);
+            spinlock_release_intr(&pdma_lock, intr_state);
 
             return page * PAGE_SIZE;
         }
     }
 
-    spinlock_release(&pdma_lock);
+    spinlock_release_intr(&pdma_lock, intr_state);
 
     return 0U;
 }
@@ -97,7 +97,7 @@ void pdma_free(uintptr_t physaddr, size_t numpages)
 {
     size_t page = physaddr / PAGE_SIZE;
 
-    spinlock_acquire(&pdma_lock);
+    bool intr_state = spinlock_acquire_intr(&pdma_lock);
 
     if(physaddr) {
         bitmap_range_set(pdma_bitmap, page, page + numpages - 1U);
@@ -105,7 +105,7 @@ void pdma_free(uintptr_t physaddr, size_t numpages)
         pdma_lastpage = page;
     }
 
-    spinlock_release(&pdma_lock);
+    spinlock_release_intr(&pdma_lock, intr_state);
 }
 
 void pdma_free_virt(void* restrict virtaddr, size_t numpages)

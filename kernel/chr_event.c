@@ -12,7 +12,7 @@ struct event_handler {
 
 static struct event_handler* handlers_head = nullptr;
 
-#if CHR_EVENT_LOGGING
+#if TRACE_CHR_EVENTS
 static void log_chr_event(unsigned event, const struct chr_device* restrict device)
 {
     switch(event) {
@@ -79,7 +79,7 @@ void chr_event_notify(unsigned event, const struct chr_device* restrict device)
 {
     struct event_handler* it;
 
-#if CHR_EVENT_LOGGING
+#if TRACE_CHR_EVENTS
     log_chr_event(event, device);
 #endif
 
