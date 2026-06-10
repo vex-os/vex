@@ -1,17 +1,16 @@
 arch/amd64/bus/acpi_glue.c
 arch/amd64/bus/pci_cf8.c
 
-arch/amd64/ireq/ioapic.c
-arch/amd64/ireq/ireq.c
-arch/amd64/ireq/lapic.c
-arch/amd64/ireq/pic.c
-
 arch/amd64/kern/bxcons.c optional bxcons
 arch/amd64/kern/gdt.c
 arch/amd64/kern/hart.c
 arch/amd64/kern/idt.c
 arch/amd64/kern/idts.S
+arch/amd64/kern/ioapic.c
+arch/amd64/kern/ireq.c
 arch/amd64/kern/isr.c
+arch/amd64/kern/lapic.c
+arch/amd64/kern/pic.c
 arch/amd64/kern/pmio.c
 arch/amd64/kern/tss.c
 
