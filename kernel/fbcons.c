@@ -453,13 +453,16 @@ static spinlock_type firework_lock = SPINLOCK_INIT;
     {                                                                             \
         size_t i = (h + s);                                                       \
         for(;;) {                                                                 \
+            bool intr_state = disable_interrupts();                               \
             if(!spinlock_try_acquire(&firework_lock)) {                           \
+                restore_interrupts(intr_state);                                   \
                 sched_yield();                                                    \
                 continue;                                                         \
             }                                                                     \
             render_cell(FIREWORK_COL(s), FIREWORK_ROW(h), firework_chars[i & 3]); \
             i += 1;                                                               \
             spinlock_release(&firework_lock);                                     \
+            restore_interrupts(intr_state);                                       \
             sched_msleep(50 + 25 * h);                                            \
         }                                                                         \
     }
