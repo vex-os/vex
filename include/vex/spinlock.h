@@ -7,28 +7,14 @@
 #include <vex/atomic.h>
 #include <vex/types.h>
 
-#ifdef DEADLOCK_CATCHER
-#include <vex/panic.h>
-#endif
-
 typedef uintptr_t spinlock_type;
 #define SPINLOCK_INIT ((spinlock_type)(0))
 #define SPINLOCK_FREE ((spinlock_type)(0))
 #define SPINLOCK_LOCK ((spinlock_type)(1))
 
-extern volatile bool panic_in_progress;
-
 static __always_inline void spinlock_acquire(spinlock_type* restrict lock)
 {
-    if(atomic_load(&panic_in_progress, ATOMIC_ACQUIRE)) {
-        return;
-    }
-
     spinlock_type expected;
-
-#ifdef DEADLOCK_CATCHER
-    uintptr_t catcher = 0;
-#endif
 
     for(;;) {
         expected = SPINLOCK_FREE;
@@ -38,13 +24,6 @@ static __always_inline void spinlock_acquire(spinlock_type* restrict lock)
         }
 
         while(SPINLOCK_LOCK == atomic_load(lock, ATOMIC_RELAXED)) {
-#ifdef DEADLOCK_CATCHER
-            if(++catcher > 1000000) {
-                panic("spinlock: possible deadlock: lock=%p", (void*)(lock));
-                unreachable();
-            }
-#endif
-
             pause_hart();
         }
     }

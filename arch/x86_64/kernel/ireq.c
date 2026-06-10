@@ -221,12 +221,13 @@ void __used x86_ireq_handler(struct regfile* restrict regs, uint64_t idt_vector)
 {
     lapic_write(LAPIC_REG_EOI, UINT32_C(0));
 
+    struct hart_local* hart = this_hart();
+    struct thread* thrd = hart->curr_thread;
+    uint64_t prev_cs = regs->x86_cs;
+
     dispatch_ireq(idt_vector - ARCH_IREQ_BASE, regs);
 
-    if(regs->x86_cs & 3) {
-        struct hart_local* hart = this_hart();
-        struct thread* thrd = hart->curr_thread;
-
+    if(prev_cs & 3) {
         if(thrd && thrd->owner && signal_pending(thrd)) {
             signal_deliver_auto(thrd, regs);
         }

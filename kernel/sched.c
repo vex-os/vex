@@ -44,7 +44,9 @@ static intptr_t __noreturn idle_thread(void* restrict ctxdata)
 
 void sched_idle(void)
 {
-    pause_hart();
+    enable_interrupts();
+    stop_hart();
+    disable_interrupts();
 }
 
 void sched_preempt(void)
@@ -64,8 +66,6 @@ void sched_preempt(void)
             }
         }
 
-        pr_verbose("sched: reaping thread %lu %p", (unsigned long)(dead->index), (void*)(dead));
-
         thread_destroy(dead);
     }
 
@@ -74,9 +74,17 @@ void sched_preempt(void)
     struct thread* prev = hart->curr_thread;
     struct thread* next = nullptr;
 
-    if(prev != hart->idle_thread && prev && prev->state == THREAD_EXEC) {
-        prev->state = THREAD_WAIT;
-        push_tail(hart, prev);
+    if(prev != hart->idle_thread && prev) {
+        if(prev->state == THREAD_EXEC) {
+            prev->state = THREAD_WAIT;
+            push_tail(hart, prev);
+        }
+        else if(prev->state == THREAD_DEAD || prev->state == THREAD_SEGV) {
+            // Thread was killed while it was curr_thread (not via thread_exit_handler).
+            // Add it to dead_head so it gets reaped on the next sched_preempt call.
+            prev->runq_next = hart->dead_head;
+            hart->dead_head = prev;
+        }
     }
 
     struct thread* rq_item = hart->runq_head;
@@ -137,7 +145,6 @@ void sched_preempt(void)
         vmm_switch(&sys_pagemap);
     }
 
-    pr_verbose("[%hu] switch %p -> %p", hart->index, prev, next);
     thread_switch_hook(hart, next);
     thread_switch(prev, next);
 
@@ -157,7 +164,7 @@ void sched_yield(void)
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
 
-    pr_verbose("[%hu] switch %p -> idle (%p)", hart->index, self, hart->idle_thread);
+    thread_switch_hook(hart, hart->idle_thread);
     thread_switch(self, hart->idle_thread);
 
     restore_interrupts(intr_state);
@@ -177,7 +184,7 @@ void sched_nsleep(uint64_t nsec)
     hart->curr_thread = hart->idle_thread;
     hart->idle_thread->state = THREAD_EXEC;
 
-    pr_verbose("[%hu] switch %p -> idle (%p)", hart->index, self, hart->idle_thread);
+    thread_switch_hook(hart, hart->idle_thread);
     thread_switch(self, hart->idle_thread);
 
     restore_interrupts(intr_state);
