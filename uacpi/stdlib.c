@@ -603,7 +603,7 @@ uacpi_i32 uacpi_vsnprintf(
 
         if (consume(&fmt, "hh")) {
             if (consume(&fmt, "d") || consume(&fmt, "i")) {
-                value = (signed char)uacpi_va_arg(vlist, int);
+                value = (uacpi_u64)uacpi_va_arg(vlist, int);
                 fm.is_signed = UACPI_TRUE;
             } else if (consume_one_of(&fmt, "oxXu", &flag)) {
                 value = (unsigned char)uacpi_va_arg(vlist, int);
@@ -707,22 +707,11 @@ void uacpi_log(uacpi_log_level lvl, const uacpi_char *str, ...)
 
     ret = uacpi_vsnprintf(buf, sizeof(buf), str, vlist);
     if (uacpi_unlikely(ret < 0))
-        return;
-
-    /*
-     * If this log message is too large for the configured buffer size, cut off
-     * the end and transform into "...\n" to indicate that it didn't fit and
-     * prevent the newline from being truncated.
-     */
-    if (uacpi_unlikely(ret >= UACPI_PLAIN_LOG_BUFFER_SIZE)) {
-        buf[UACPI_PLAIN_LOG_BUFFER_SIZE - 5] = '.';
-        buf[UACPI_PLAIN_LOG_BUFFER_SIZE - 4] = '.';
-        buf[UACPI_PLAIN_LOG_BUFFER_SIZE - 3] = '.';
-        buf[UACPI_PLAIN_LOG_BUFFER_SIZE - 2] = '\n';
-    }
+        goto out;
 
     uacpi_kernel_log(lvl, buf);
 
+out:
     uacpi_va_end(vlist);
 }
 #endif

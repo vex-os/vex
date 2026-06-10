@@ -5,7 +5,7 @@
 #include <uacpi/kernel_api.h>
 #include <uacpi/namespace.h>
 
-#define UACPI_MAJOR 4
+#define UACPI_MAJOR 5
 #define UACPI_MINOR 0
 #define UACPI_PATCH 0
 
@@ -196,11 +196,11 @@ uacpi_status uacpi_eval_simple_integer(
  *
  * Use uacpi_object_get_string_or_buffer to retrieve the resulting buffer data.
  */
-uacpi_status uacpi_eval_buffer_or_string(
+uacpi_status uacpi_eval_string_or_buffer(
     uacpi_namespace_node *parent, const uacpi_char *path,
     const uacpi_object_array *args, uacpi_object **ret
 );
-uacpi_status uacpi_eval_simple_buffer_or_string(
+uacpi_status uacpi_eval_simple_string_or_buffer(
     uacpi_namespace_node *parent, const uacpi_char *path, uacpi_object **ret
 );
 

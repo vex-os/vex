@@ -228,7 +228,7 @@ static uacpi_status access_field_unit(
         goto out;
 
     default:
-        uacpi_error("invalid field unit kind %d\n", field->kind);
+        uacpi_error("invalid field unit kind %d", field->kind);
         ret = UACPI_STATUS_INVALID_ARGUMENT;
     }
 
@@ -291,7 +291,7 @@ static uacpi_status wtr_buffer_size(
 
         default:
             uacpi_error(
-                "unsupported field@%p access attribute %d\n",
+                "unsupported field@%p access attribute %d",
                 field, field->attributes
             );
             return UACPI_STATUS_UNIMPLEMENTED;
@@ -555,7 +555,7 @@ static uacpi_status write_generic_field_unit(
             case UACPI_UPDATE_RULE_WRITE_AS_ZEROES:
                 break;
             default:
-                uacpi_error("invalid field@%p update rule %d\n",
+                uacpi_error("invalid field@%p update rule %d",
                             field, field->update_rule);
                 return UACPI_STATUS_INVALID_ARGUMENT;
             }
@@ -722,14 +722,14 @@ static uacpi_status gas_validate(
 
     if (gas->address_space_id != UACPI_ADDRESS_SPACE_SYSTEM_IO &&
         gas->address_space_id != UACPI_ADDRESS_SPACE_SYSTEM_MEMORY) {
-        uacpi_warn("unsupported GAS address space '%s' (%d)\n",
+        uacpi_warn("unsupported GAS address space '%s' (%d)",
                    uacpi_address_space_to_string(gas->address_space_id),
                    gas->address_space_id);
         return UACPI_STATUS_UNIMPLEMENTED;
     }
 
     if (gas->access_size > 4) {
-        uacpi_warn("unsupported GAS access size %d\n",
+        uacpi_warn("unsupported GAS access size %d",
                    gas->access_size);
         return UACPI_STATUS_UNIMPLEMENTED;
     }
@@ -741,7 +741,7 @@ static uacpi_status gas_validate(
 
     if (uacpi_unlikely(aligned_width > 64)) {
         uacpi_warn(
-            "GAS register total width is too large: %zu\n", total_width
+            "GAS register total width is too large: %zu", total_width
         );
         return UACPI_STATUS_UNIMPLEMENTED;
     }
@@ -851,7 +851,7 @@ uacpi_status uacpi_map_gas_noalloc(
 
     if (gas->address_space_id == UACPI_ADDRESS_SPACE_SYSTEM_MEMORY) {
         out_mapped->mapping = uacpi_kernel_map(gas->address, total_width / 8);
-        if (uacpi_unlikely(out_mapped->mapping == UACPI_NULL))
+        if (uacpi_unlikely(out_mapped->mapping == UACPI_MAP_FAILED))
             return UACPI_STATUS_MAPPING_FAILED;
 
         out_mapped->read = uacpi_system_memory_read;
@@ -936,6 +936,48 @@ uacpi_status uacpi_gas_write(const struct acpi_gas *gas, uacpi_u64 in_value)
     return ret;
 }
 
+#ifndef UACPI_NATIVE_MMIO
+uacpi_u8 uacpi_builtin_mmio_read8(void *ptr)
+{
+    return *(volatile uacpi_u8*)ptr;
+}
+
+uacpi_u16 uacpi_builtin_mmio_read16(void *ptr)
+{
+    return *(volatile uacpi_u16*)ptr;
+}
+
+uacpi_u32 uacpi_builtin_mmio_read32(void *ptr)
+{
+    return *(volatile uacpi_u32*)ptr;
+}
+
+uacpi_u64 uacpi_builtin_mmio_read64(void *ptr)
+{
+    return *(volatile uacpi_u64*)ptr;
+}
+
+void uacpi_builtin_mmio_write8(void *ptr, uacpi_u8 data)
+{
+    *(volatile uacpi_u8*)ptr = data;
+}
+
+void uacpi_builtin_mmio_write16(void *ptr, uacpi_u16 data)
+{
+    *(volatile uacpi_u16*)ptr = data;
+}
+
+void uacpi_builtin_mmio_write32(void *ptr, uacpi_u32 data)
+{
+    *(volatile uacpi_u32*)ptr = data;
+}
+
+void uacpi_builtin_mmio_write64(void *ptr, uacpi_u64 data)
+{
+    *(volatile uacpi_u64*)ptr = data;
+}
+#endif
+
 uacpi_status uacpi_system_memory_read(
     void *ptr, uacpi_size offset, uacpi_u8 width, uacpi_u64 *out
 )
@@ -944,16 +986,16 @@ uacpi_status uacpi_system_memory_read(
 
     switch (width) {
     case 1:
-        *out = *(volatile uacpi_u8*)ptr;
+        *out = uacpi_mmio_read8(ptr);
         break;
     case 2:
-        *out = *(volatile uacpi_u16*)ptr;
+        *out = uacpi_mmio_read16(ptr);
         break;
     case 4:
-        *out = *(volatile uacpi_u32*)ptr;
+        *out = uacpi_mmio_read32(ptr);
         break;
     case 8:
-        *out = *(volatile uacpi_u64*)ptr;
+        *out = uacpi_mmio_read64(ptr);
         break;
     default:
         return UACPI_STATUS_INVALID_ARGUMENT;
@@ -970,16 +1012,16 @@ uacpi_status uacpi_system_memory_write(
 
     switch (width) {
     case 1:
-        *(volatile uacpi_u8*)ptr = in;
+        uacpi_mmio_write8(ptr, in);
         break;
     case 2:
-        *(volatile uacpi_u16*)ptr = in;
+        uacpi_mmio_write16(ptr, in);
         break;
     case 4:
-        *(volatile uacpi_u32*)ptr = in;
+        uacpi_mmio_write32(ptr, in);
         break;
     case 8:
-        *(volatile uacpi_u64*)ptr = in;
+        uacpi_mmio_write64(ptr, in);
         break;
     default:
         return UACPI_STATUS_INVALID_ARGUMENT;
@@ -1016,7 +1058,7 @@ uacpi_status uacpi_system_io_read(
         break;
     default:
         uacpi_error(
-            "invalid SystemIO read %p@%zu width=%d\n",
+            "invalid SystemIO read %p@%zu width=%d",
             handle, offset, width
         );
         return UACPI_STATUS_INVALID_ARGUMENT;
@@ -1045,7 +1087,7 @@ uacpi_status uacpi_system_io_write(
         break;
     default:
         uacpi_error(
-            "invalid SystemIO write %p@%zu width=%d\n",
+            "invalid SystemIO write %p@%zu width=%d",
             handle, offset, width
         );
         return UACPI_STATUS_INVALID_ARGUMENT;
@@ -1075,7 +1117,7 @@ uacpi_status uacpi_pci_read(
         break;
     default:
         uacpi_error(
-            "invalid PCI_Config read %p@%zu width=%d\n",
+            "invalid PCI_Config read %p@%zu width=%d",
             handle, offset, width
         );
         return UACPI_STATUS_INVALID_ARGUMENT;
@@ -1104,7 +1146,7 @@ uacpi_status uacpi_pci_write(
         break;
     default:
         uacpi_error(
-            "invalid PCI_Config write %p@%zu width=%d\n",
+            "invalid PCI_Config write %p@%zu width=%d",
             handle, offset, width
         );
         return UACPI_STATUS_INVALID_ARGUMENT;
