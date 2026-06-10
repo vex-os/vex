@@ -62,10 +62,10 @@ static void push_frame(struct thread* restrict thrd, struct regfile* restrict re
     regfile_to_mcontext(regs, &uctx.uc_mcontext);
     uctx.uc_sigmask = thrd->sig_blocked;
 
-    // If a signal handler does a conventional return (which is objectively a retarded
-    // take on whoever may decide to do this) instead of a proper sys_sigreturn, the process
-    // will jump to SIGRETURN_GUARD_VIRT and call sys_exit with a non-zero exit code instead
-    // of faulting into an infinite SIGSEGV loop; the guard page is mapped as VPROT_URX
+    // If a signal handler does a conventional return (which is an objectively retarded take
+    // on whoever may decide to do this) instead of a proper sys_sigreturn, the process will
+    // jump to SIGRETURN_GUARD_VIRT and call sys_exit with a non-zero exit code instead of
+    // faulting into an infinite SIGSEGV loop; the guard page is mapped as VPROT_URX
     uintptr_t guard_virt = SIGRETURN_GUARD_VIRT;
 
     size_t check = 0;
