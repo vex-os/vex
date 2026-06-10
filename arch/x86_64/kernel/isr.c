@@ -125,7 +125,7 @@ static void dump_regfile(const struct regfile* restrict regs)
     pr_emerg("rip=%016lX  cs=%016lX rflags=%016lX  ss=%016lX", regs->x86_rip, regs->x86_cs, regs->x86_rflags, regs->x86_ss);
 }
 
-static void page_fault_handler(struct thread* restrict thrd, struct regfile* restrict regs)
+static void page_fault_handler(struct hart_local* restrict hart, struct thread* restrict thrd, struct regfile* restrict regs)
 {
     struct vmm_fault_info info;
     memset(&info, 0, sizeof(info));
@@ -170,7 +170,7 @@ static void page_fault_handler(struct thread* restrict thrd, struct regfile* res
     else {
         dump_regfile(regs);
         dump_stacktrace(regs->x86_rbp);
-        panic("kernel page fault: fault=%p vprot=%02X present=%d", (void*)(info.fault), info.vprot, info.present);
+        panic("kernel page fault: hart=%hu fault=%p vprot=%02X present=%d", hart->index, (void*)(info.fault), info.vprot, info.present);
     }
 }
 
@@ -184,7 +184,7 @@ void __used x86_isr_handler(struct regfile* restrict regs, uint64_t intvec)
     struct thread* thrd = hart->curr_thread;
 
     if(intvec == 0x0E) {
-        page_fault_handler(thrd, regs);
+        page_fault_handler(hart, thrd, regs);
     }
     else if(regs->x86_cs & 3) {
         struct k_siginfo siginfo;
