@@ -2,7 +2,7 @@
 #define B6C96A31_F759_498A_8FA1_1CAAB6D9A064
 #pragma once
 
-#include <uapi/vex/stat.h>
+#include <usr/vex/stat.h>
 
 #define S_IFBLK  __k_S_IFBLK
 #define S_IFCHR  __k_S_IFCHR

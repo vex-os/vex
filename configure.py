@@ -5,7 +5,7 @@ import os
 import sys
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
-CONF_DIR = os.path.join(ROOT_DIR, 'conf')
+CONF_DIR = os.path.join(ROOT_DIR, 'config')
 
 # Current state of parsed config
 cur_arch = None
@@ -151,8 +151,9 @@ def main():
 
     parse_config(config_path)
 
-    parse_filelist(os.path.join(CONF_DIR, f"files.{cur_arch}.lst"))
+    parse_filelist(os.path.join(CONF_DIR, f"files.arch.{cur_arch}.lst"))
     parse_filelist(os.path.join(CONF_DIR, f"files.generic.lst"))
+    parse_filelist(os.path.join(CONF_DIR, f"files.vendor.lst"))
 
     config_path = os.path.join(ROOT_DIR, ".configuration.mk")
     config_date = datetime.now().strftime("%Y-%m-%d")

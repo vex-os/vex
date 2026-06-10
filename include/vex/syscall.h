@@ -2,8 +2,8 @@
 #define C2F4E5EB_E2C3_4357_ADD8_6EAE11DBCB22
 #pragma once
 
-#include <uapi/vex/syscall.h>
-#include <vex.arch/regs.h>
+#include <usr/vex/syscall.h>
+#include <vex.arch/regfile.h>
 #include <vex/compiler.h>
 #include <vex/types.h>
 

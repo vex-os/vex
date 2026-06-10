@@ -2,7 +2,7 @@
 #define E9456F4D_FA9E_4E06_9DA4_B0D7765C0CAC
 #pragma once
 
-#include <uapi/vex/signal.h>
+#include <usr/vex/signal.h>
 #include <vex/compiler.h>
 #include <vex/types.h>
 

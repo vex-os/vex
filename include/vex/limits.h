@@ -3,7 +3,7 @@
 #pragma once
 
 // #include <vex.arch/limits.h>
-#include <uapi/vex/limits.h>
+#include <usr/vex/limits.h>
 
 #define PATH_MAX  __k_PATH_MAX
 #define PATH_SIZE __k_PATH_SIZE
