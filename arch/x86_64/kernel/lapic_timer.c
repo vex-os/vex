@@ -6,14 +6,13 @@
 #include <vex/ireq.h>
 #include <vex/limits.h>
 #include <vex/panic.h>
-#include <vex/sched.h>
 
 #define CALIB_NS UINT64_C(10000000)
 // #define CALIB_NS UINT64_C(500000000)
 
 static void lapic_timer_handler(unsigned number, const struct regfile* restrict regs, void* restrict ctxdata)
 {
-    sched_preempt();
+    // TODO: sched_preempt();
 }
 
 static void arch_init_lapic_timer(void)

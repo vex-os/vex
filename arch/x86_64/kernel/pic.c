@@ -4,8 +4,6 @@
 #include <vex.x86/pmio.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
-#include <vex/signal.h>
-#include <vex/thread.h>
 
 #define PIC1_COMMAND 0x0020
 #define PIC1_DATA    0x0021
@@ -34,15 +32,6 @@ void __used x86_spur_handler(struct regfile* restrict regs, uint64_t intvec)
     // <<  Because it's a shit chip >>
     //                  - streaksu
     pr_verbose("pic: spurious interrupt: intvec=0x%02zX", (size_t)(intvec));
-
-    if(regs->x86_cs & 3) {
-        struct hart_local* hart = this_hart();
-        struct thread* thrd = hart->curr_thread;
-
-        if(thrd && thrd->owner && signal_pending(thrd)) {
-            signal_deliver_auto(thrd, regs);
-        }
-    }
 }
 
 static void arch_init_pic_bsp(void)

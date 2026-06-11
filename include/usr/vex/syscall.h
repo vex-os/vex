@@ -1,9 +1,0 @@
-#ifndef C31392DC_11D0_4145_904C_1C0101C3E122
-#define C31392DC_11D0_4145_904C_1C0101C3E122
-#pragma once
-
-#define __k_SYS_EXIT      1
-#define __k_SYS_SLEEP     2
-#define __k_SYS_SIGRETURN 3
-
-#endif /* C31392DC_11D0_4145_904C_1C0101C3E122 */

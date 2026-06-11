@@ -188,7 +188,7 @@ static void coalesce(struct memblock* restrict block)
     }
 }
 
-void* kmalloc_notrace(size_t sz)
+void* kmalloc(size_t sz)
 {
     if(sz == 0) {
         return nullptr;
@@ -218,14 +218,14 @@ void* kmalloc_notrace(size_t sz)
     return memset((void*)(block->address), 0, sz);
 }
 
-void* krealloc_notrace(void* restrict ptr, size_t sz)
+void* krealloc(void* restrict ptr, size_t sz)
 {
     if(ptr == nullptr) {
-        return kmalloc_notrace(sz);
+        return kmalloc(sz);
     }
 
     if(sz == 0) {
-        kfree_notrace(ptr);
+        kfree(ptr);
 
         return nullptr;
     }
@@ -251,19 +251,19 @@ void* krealloc_notrace(void* restrict ptr, size_t sz)
 
     spinlock_release_intr(&heap_lock, intr_state);
 
-    void* new_ptr = kmalloc_notrace(aligned_sz);
+    void* new_ptr = kmalloc(aligned_sz);
 
     if(new_ptr == nullptr) {
         return nullptr;
     }
 
     memcpy(new_ptr, ptr, old_length);
-    kfree_notrace(ptr);
+    kfree(ptr);
 
     return new_ptr;
 }
 
-void kfree_notrace(void* restrict ptr)
+void kfree(void* restrict ptr)
 {
     if(ptr == nullptr) {
         return;
@@ -285,14 +285,14 @@ void kfree_notrace(void* restrict ptr)
     spinlock_release_intr(&heap_lock, intr_state);
 }
 
-char* kstrdup_notrace(const char* restrict string)
+char* kstrdup(const char* restrict string)
 {
     if(string == nullptr) {
         return nullptr;
     }
 
     size_t size = 1 + strlen(string);
-    char* result = kmalloc_notrace(size);
+    char* result = kmalloc(size);
 
     if(result == nullptr) {
         return nullptr;
@@ -304,17 +304,17 @@ char* kstrdup_notrace(const char* restrict string)
     return result;
 }
 
-char* kasprintf_notrace(const char* restrict fmt, ...)
+char* kasprintf(const char* restrict fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    char* result = kvasprintf_notrace(fmt, ap);
+    char* result = kvasprintf(fmt, ap);
     va_end(ap);
 
     return result;
 }
 
-char* kvasprintf_notrace(const char* restrict fmt, va_list ap)
+char* kvasprintf(const char* restrict fmt, va_list ap)
 {
     va_list ap_copy;
     va_copy(ap_copy, ap);
@@ -325,7 +325,7 @@ char* kvasprintf_notrace(const char* restrict fmt, va_list ap)
         return nullptr;
     }
 
-    char* result = kmalloc_notrace(length + 1);
+    char* result = kmalloc(length + 1);
 
     if(result == nullptr) {
         va_end(ap_copy);
