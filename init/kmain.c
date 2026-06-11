@@ -25,7 +25,7 @@ void __noreturn kmain(void)
     pr_emerg("hanging around...");
 
     for(;;) {
-        sched_idle();
+        stop_hart();
     }
 
     unreachable();
