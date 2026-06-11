@@ -1,7 +1,7 @@
-#include <vex.arch/hart.h>
 #include <vex.arch/ireq.h>
 #include <vex.x86/lapic.h>
 #include <vex/clocksrc.h>
+#include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/ireq.h>
 #include <vex/limits.h>

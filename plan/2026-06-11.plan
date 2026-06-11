@@ -1,0 +1,446 @@
+SCHEDULER PORTING ROADMAP
+Porting lyre's scheduler/process/thread model to vex
+=======================================================
+
+SOURCE: ext/lyre/sched/, ext/lyre/sys/, ext/lyre/lib/, ext/lyre/dev/
+TARGET: arch-agnostic design (arch/x86_64/ for arch-specific, kernel/ + sched/ for generic)
+
+Overview
+--------
+Lyre implements a preemptive round-robin SMP scheduler backed by a global lock-free
+run queue (CAS array, 65536 slots). Threads are first-class; processes are address-space
+containers. Context switches are driven by per-CPU LAPIC one-shot timers. Idle CPUs
+sleep and are woken via IPIs when new threads become runnable.
+
+The vex kernel already has:
+  - hart abstraction (hart_local, GS-based per-CPU, hart.c / hart.h)
+  - initcall phases (SMP phases: hart, arch, ireq, syscall, timer, late)
+  - LAPIC + IPI infrastructure (lapic.c)
+  - IRQ dispatch framework (ireq.c / intctl.c)
+  - VMM with pagemap (vmm.c)
+  - Spinlock + atomics (spinlock.h / atomic.h)
+
+What is missing and needs to be built:
+  - Thread and process data structures
+  - Arch-agnostic scheduler core
+  - Arch-specific context save/restore
+  - LAPIC timer-driven preemption wired to scheduler
+  - FPU/extended state save/restore
+  - Event (blocking synchronization) primitive
+  - Kernel thread + user thread creation APIs
+  - syscall entry wired to thread context
+
+=======================================================
+STAGE 1: Thread Control Block & Per-CPU Wiring
+=======================================================
+
+Goal: Define the thread struct and wire it into hart_local.
+
+Files to create/modify:
+  include/vex/thread.h          -- arch-agnostic thread struct
+  include/vex/process.h         -- arch-agnostic process struct
+  arch/x86_64/include/vex.arch/thread.h  -- x86_64 arch-specific thread fields
+  arch/x86_64/kernel/thread.c   -- x86_64 thread init (GS, MSRs, FPU storage)
+  arch/x86_64/include/vex.arch/hart.h    -- extend hart_local to hold current_thread ptr
+
+Thread struct (arch-agnostic part, include/vex/thread.h):
+  - tid, state (enum: RUNNABLE, RUNNING, BLOCKED, DEAD)
+  - pointer to owning process
+  - int timeslice_us (default 5000)
+  - spinlock_t lock
+  - kernel_stack pointer
+  - arch_thread_t arch  -- opaque arch-specific block (defined per arch)
+  - event synchronization fields (stage 5)
+
+Arch-specific block for x86_64 (arch/vex.arch/thread.h):
+  - struct cpu_ctx ctx      -- saved GP registers (already defined in idts.S frame layout)
+  - uint64_t cr3
+  - void *gs_base, *fs_base
+  - void *fpu_storage
+  - void *pf_stack           -- dedicated page-fault IST stack
+
+hart_local extension:
+  - struct thread *current_thread  -- pointer to currently running thread
+  - struct thread *idle_thread     -- idle thread for this hart
+
+Use hart_local.current_thread instead of lyre's GS:0x0 thread-pointer trick.
+(vex already uses GS for hart_local; thread pointer lives inside hart_local.)
+
+Acceptance: hart_local has a current_thread field; thread struct compiles; arch fields
+are hidden behind arch_thread_t typedef.
+
+=======================================================
+STAGE 2: Run Queue & Scheduler Core
+=======================================================
+
+Goal: Implement a global lock-free run queue and basic round-robin selection.
+
+Files to create:
+  kernel/sched/sched.c          -- scheduler core
+  include/vex/sched.h           -- public scheduler API
+
+Design (closely following lyre, adapted for vex conventions):
+
+  #define SCHED_QUEUE_SIZE 65536
+  static struct thread *run_queue[SCHED_QUEUE_SIZE];
+
+  Enqueue: CAS-loop over run_queue[], find first NULL slot, atomically claim it.
+  Dequeue: linear scan with CAS; used when a thread is blocked or dies.
+  get_next_thread(hart): round-robin scan from hart->last_queue_idx + 1,
+    try spinlock_tryacquire on each candidate, skip locked threads.
+
+Public API:
+  void sched_enqueue(struct thread *t);
+  void sched_dequeue(struct thread *t);
+  void sched_yield(void);           -- cooperative yield
+  noreturn void sched_dequeue_and_die(void);
+
+sched_entry(struct cpu_ctx *ctx):
+  -- called from timer IRQ handler and IPI handler
+  1. Get current hart; get current_thread.
+  2. If current_thread is not idle and not DEAD: save ctx into thread->arch.ctx,
+     save CR3, GS/FS bases, FPU state; set state = RUNNABLE; enqueue back.
+  3. Call get_next_thread(); if NULL -> run idle thread.
+  4. Set hart->current_thread = next; set state = RUNNING.
+  5. Restore arch state (CR3, GS/FS, FPU, kernel stack into TSS).
+  6. Call arch_thread_spinup(&next->arch.ctx)  -- noreturn, does iretq.
+
+Wire into initcall phase "multicore" (BSP) and "hart" (SMP).
+
+Acceptance: kernel compiles; sched_entry is reachable from timer IRQ path.
+
+=======================================================
+STAGE 3: LAPIC Timer Preemption
+=======================================================
+
+Goal: Drive preemption via per-CPU LAPIC one-shot timer.
+
+Context: lapic_timer.c exists but is commented out / disabled.
+
+Files to modify/create:
+  arch/x86_64/kernel/lapic_timer.c  -- implement lapic_timer_calibrate() and
+                                       lapic_timer_oneshot(uint64_t us, uint8_t vec)
+  arch/x86_64/kernel/lapic.c        -- expose lapic_send_ipi() if not already public
+  kernel/sched/sched.c              -- call lapic_timer_oneshot at end of sched_entry
+
+Calibration (follow lyre's approach):
+  1. Use HPET or PIT as reference clock (vex has both: hpet.c, arch uacpi).
+  2. Disable LAPIC timer; read HPET counter T0.
+  3. Program LAPIC timer with known initial count.
+  4. Spin for known real-time interval (e.g. 10 ms via HPET).
+  5. Read remaining LAPIC count; compute ticks/us.
+  6. Store in hart_local.lapic_freq_per_us.
+
+lapic_timer_oneshot(us, vector):
+  lapic_write(LVT_TIMER, vector | LAPIC_TIMER_ONE_SHOT);
+  lapic_write(TIMER_DIV, 0);
+  lapic_write(TIMER_INITCNT, us * hart->lapic_freq_per_us);
+
+Register a dedicated IRQ vector (e.g. 0x40) for the scheduler; handler calls sched_entry.
+Also register a second vector (e.g. 0x41) for scheduler IPI (wake idle CPUs).
+
+At end of sched_entry, before spinup: arm the one-shot timer for next thread's timeslice.
+
+Idle loop:
+  void idle_thread_fn(void) {
+      for (;;) { sti; hlt; }  -- wait for IPI from sched_enqueue
+  }
+
+On sched_enqueue, if any hart is running its idle thread: send IPI to wake it.
+
+Acceptance: booting with 2+ CPUs, both CPUs cycle through kernel threads visibly.
+
+=======================================================
+STAGE 4: Arch Context Switch (x86_64)
+=======================================================
+
+Goal: Correct save/restore of full CPU state including FPU.
+
+Files to create/modify:
+  arch/x86_64/kernel/thread.c   -- arch_thread_init(), arch_thread_spinup()
+  arch/x86_64/kernel/fpu.c      -- fpu_init(), fpu_save(), fpu_restore()
+  arch/x86_64/include/vex.arch/thread.h
+
+arch_thread_init(struct thread *t, void *entry, void *stack, bool user):
+  - Zero ctx.
+  - Set ctx.rip = entry, ctx.rsp = stack top.
+  - Set ctx.cs = user ? 0x4b : 0x08; ctx.ss = user ? 0x53 : 0x10.
+  - Set ctx.rflags = 0x202 (IF set).
+  - Allocate fpu_storage (XSAVE area or 512B FXSAVE area).
+  - If user: set cr3 from process pagemap; allocate pf_stack (IST2).
+  - If kernel: cr3 = sys_pagemap->cr3.
+
+arch_thread_spinup(struct cpu_ctx *ctx):   -- noreturn
+  -- identical to lyre's thread_spinup():
+  asm volatile (
+      "mov %0, %%rsp\n\t"
+      ... pop all regs ...
+      "add $8, %%rsp\n\t"   // skip error code slot
+      "swapgs\n\t"          // only if returning to user (check CS before call)
+      "iretq"
+      :: "rm"(ctx) : "memory"
+  );
+
+  Caller must decide swapgs based on ctx->cs before calling.
+  Alternative: always swapgs in spinup, but set up GS correctly beforehand.
+
+FPU handling:
+  - On first use of FPU by a thread: catch #NM (Device Not Available, int 7),
+    then fpu_restore for that thread (lazy FPU switching).
+  - Or: always save/restore on every context switch (eager, simpler, lyre's approach).
+  - Recommend eager for now; switch to lazy later.
+  - fpu_init(): CPUID check for XSAVE; set CR4.OSXSAVE if supported.
+  - fpu_save(void *storage): xsave or fxsave.
+  - fpu_restore(void *storage): xrstor or fxrstor.
+
+Acceptance: kernel threads context-switch correctly; no register corruption.
+
+=======================================================
+STAGE 5: Event / Blocking Synchronization
+=======================================================
+
+Goal: Threads can block waiting for an event; other threads/IRQ handlers trigger it.
+
+Files to create:
+  include/vex/event.h
+  kernel/event.c
+
+Port lyre's lib/event.c directly. It is already arch-agnostic; only dependency is
+sched_enqueue / sched_dequeue and spinlock.
+
+struct event {
+    spinlock_t lock;
+    size_t pending;
+    size_t listeners_i;
+    struct event_listener listeners[EVENT_MAX_LISTENERS];  -- 32 or 64
+};
+
+struct event_listener {
+    struct thread *thread;
+    size_t which;   -- distinguishes which event woke a multi-event wait
+};
+
+API:
+  void event_trigger(struct event *e, bool from_irq);
+  ssize_t event_await(struct event **events, size_t count, bool block);
+
+event_await():
+  1. Check pending on each event; if any > 0 return immediately.
+  2. Attach self as listener on each event.
+  3. sched_dequeue(current_thread); set state = BLOCKED.
+  4. sched_yield();  -- switch away
+  5. On resume: return which_event.
+
+event_trigger():
+  1. Enqueue all listening threads.
+  2. Clear listener list.
+  3. If from_irq and any idle hart exists: send IPI.
+
+This primitive is sufficient to implement: process wait, device I/O completion,
+keyboard input, timer sleep, futex.
+
+Acceptance: one thread can block on an event; another thread triggers it and wakes it.
+
+=======================================================
+STAGE 6: Process Creation & Address Space
+=======================================================
+
+Goal: Create and destroy processes with independent virtual address spaces.
+
+Files to create:
+  include/vex/process.h
+  kernel/sched/process.c
+
+struct process {
+    int pid;
+    int ppid;
+    struct pagemap *pagemap;
+    uintptr_t mmap_anon_base;     -- start for anonymous mmap (e.g. 0x0000800000000000)
+    uintptr_t thread_stack_top;   -- user stack allocation pointer
+    spinlock_t lock;
+    struct thread **threads;      -- dynamic array or linked list
+    struct process **children;
+    struct event event;           -- for waitpid
+    struct vfs_node *cwd;
+    struct file_descriptor *fds[MAX_FDS];
+    spinlock_t fds_lock;
+    char name[128];
+};
+
+process_create(const char *name, struct process *parent):
+  - Allocate struct process.
+  - vmm_fork(parent->pagemap) or create fresh pagemap.
+  - Assign PID (atomic counter).
+  - Set ppid, cwd, inherit fds from parent if fork.
+  - Return process pointer.
+
+process_destroy(struct process *p):
+  - Kill and wait for all threads.
+  - vmm_destroy(p->pagemap).
+  - Close all file descriptors.
+  - Trigger p->event to wake waiters.
+
+PID 0 reserved (kernel/idle), PID 1 = init.
+
+Acceptance: kernel can create a process and associate threads to it.
+
+=======================================================
+STAGE 7: User Thread Creation & Stack Layout
+=======================================================
+
+Goal: Create user-mode threads with proper stack setup (argv, envp, auxv).
+
+Files to create:
+  kernel/sched/uthread.c    -- user thread creation helpers
+
+sched_new_user_thread(struct process *proc, void *entry, void *arg):
+  1. Allocate kernel stack (e.g. 64 KB): vmm_alloc_kernel(KERNEL_STACK_SIZE).
+  2. Allocate user stack (e.g. 64 KB): vmm_alloc_user(proc->pagemap, USER_STACK_SIZE).
+     Decrement proc->thread_stack_top by stack size + guard page.
+  3. Allocate page-fault IST stack (8 KB), wire into TSS IST2.
+  4. arch_thread_init(t, entry, user_stack_top, true).
+  5. Enqueue thread.
+
+argv/envp/auxv layout on user stack:
+  Follow System V AMD64 ABI:
+  [argc][argv ptrs...][NULL][envp ptrs...][NULL][auxv pairs...][AT_NULL]
+  Push strings first, then build pointer arrays downward.
+
+Acceptance: a user-mode thread can be created and reaches its entry point.
+
+=======================================================
+STAGE 8: Syscall Entry Wired to Thread Context
+=======================================================
+
+Goal: syscall entry saves/restores thread context correctly; syscalls can block.
+
+Files to modify/create:
+  arch/x86_64/kernel/syscall.S  -- syscall entry stub (SYSCALL instruction or sysenter)
+  arch/x86_64/kernel/syscall.c  -- syscall dispatch table
+  kernel/syscall/syscall.c      -- arch-agnostic syscall dispatch
+
+Syscall entry (SYSCALL path, preferred on x86_64):
+  1. swapgs  -- switch to kernel GS (hart_local)
+  2. Save user RSP; load kernel stack from hart_local->current_thread->arch.kernel_stack
+  3. Push synthetic cpu_ctx frame (RIP=RCX, RFLAGS=R11, RSP=saved user RSP)
+  4. Push all GPRs
+  5. Call syscall_dispatch(nr, ctx)
+  6. Pop GPRs; restore RSP; swapgs; sysretq
+
+syscall_dispatch must be able to:
+  - Block the current thread (call sched_yield after event_await).
+  - Return -EINTR if interrupted by signal (future).
+
+Minimum syscalls for basic userspace:
+  exit, fork (or clone), exec, waitpid, read, write, open, close, mmap, munmap.
+
+Acceptance: a user thread can invoke a syscall; kernel handles it and returns.
+
+=======================================================
+STAGE 9: Integration & Testing
+=======================================================
+
+Tasks:
+  - Wire sched initcall into BSP "multicore" phase:
+      sched_init(): create idle threads for all harts, arm LAPIC timer on BSP.
+  - Wire sched initcall into SMP "hart" phase:
+      sched_ap_init(): create idle thread for this AP, arm LAPIC timer.
+  - Create a test kernel thread in kmain that prints "tick N" every second
+    using a timer event, proving preemption and event-blocking work.
+  - Stress test: spawn N kernel threads, verify all run (no starvation).
+  - Verify panic IPI (existing in lapic.c) still halts all harts while scheduler runs.
+
+=======================================================
+DEPENDENCY GRAPH
+=======================================================
+
+  [Stage 1: Thread/Process structs + hart_local wiring]
+      |
+      v
+  [Stage 2: Run queue + sched_entry skeleton]
+      |
+      v
+  [Stage 3: LAPIC timer calibration + preemption]  <-- needs Stage 2
+  [Stage 4: Arch context switch + FPU]             <-- needs Stage 1
+      |           |
+      v           v
+  [Stage 5: Events / blocking]                     <-- needs Stage 2
+  [Stage 6: Process + address space]               <-- needs Stage 1, VMM
+      |
+      v
+  [Stage 7: User thread creation + stack layout]   <-- needs Stage 4, 6
+      |
+      v
+  [Stage 8: Syscall entry]                         <-- needs Stage 7
+      |
+      v
+  [Stage 9: Integration + testing]
+
+Stages 3 and 4 can proceed in parallel after Stage 2.
+Stages 5 and 6 can proceed in parallel after Stage 2.
+
+=======================================================
+KEY DIFFERENCES FROM LYRE (THINGS TO ADAPT)
+=======================================================
+
+1. Per-CPU state access:
+   Lyre: GS:0x0 == current thread pointer.
+   Vex:  GS == hart_local; current thread at hart_local->current_thread.
+   Impact: sched_current_thread() reads this_hart()->current_thread instead
+   of a direct GS load. Slightly more indirection, no functional change.
+
+2. Interrupt vector allocation:
+   Lyre: hardcodes sched_vector.
+   Vex:  use add_ireq_handler() to register the scheduler IRQ dynamically,
+   or reserve a dedicated vector in ireq.h (e.g. IREQ_SCHED = 0x40).
+
+3. Initcall integration:
+   Lyre: manual call order in main().
+   Vex:  use initcall sections. sched_init registers as INITCALL_MULTICORE;
+   per-AP setup registers as INITCALL_SMP_HART.
+
+4. Spinlock API:
+   Lyre: spinlock_acquire / spinlock_release.
+   Vex:  spinlock_acquire / spinlock_release already exist in spinlock.h.
+   API is compatible; just rename if needed.
+
+5. Pagemap / VMM:
+   Lyre: has its own vmm with pagemap_fork.
+   Vex:  vmm.c exists with sys_pagemap; need to implement vmm_fork() for processes.
+   This is a prerequisite for Stage 6.
+
+6. No process concept yet in lyre's scheduler per se - process is just an owner of
+   a pagemap and file descriptors. The scheduler operates purely on threads.
+   Vex should follow the same separation: scheduler owns threads, not processes.
+
+=======================================================
+WHAT TO COPY VERBATIM (WITH MINOR ADAPTATIONS)
+=======================================================
+
+  ext/lyre/sched/sched.c        -- run queue, get_next_thread, sched_entry, enqueue/dequeue
+  ext/lyre/lib/event.c          -- event_trigger, event_await (replace lyre spinlock with vex)
+  ext/lyre/sys/cpu.c            -- FPU detection, xsave area size calculation
+  ext/lyre/sched/sched.c:74     -- thread_spinup() assembly (arch/x86_64/kernel/thread.c)
+
+WHAT TO REWRITE FROM SCRATCH (lyre version too tightly coupled):
+  CPU init (already done in vex as hart.c + smp.c)
+  LAPIC init (already done in vex as lapic.c)
+  IDT / ISR (already done in vex)
+  GDT / TSS (already done in vex as gdt.c)
+  Syscall entry (vex will have its own conventions)
+
+=======================================================
+ESTIMATED EFFORT PER STAGE
+=======================================================
+
+Stage 1:  small    -- struct definitions, extending hart_local
+Stage 2:  medium   -- run queue + sched_entry logic
+Stage 3:  medium   -- LAPIC timer calibration (finicky but well-understood)
+Stage 4:  medium   -- assembly spinup + FPU (careful, architecture-sensitive)
+Stage 5:  small    -- straight port of event.c
+Stage 6:  small    -- process struct + creation/destruction
+Stage 7:  medium   -- stack layout details (ABI compliance matters)
+Stage 8:  medium   -- syscall entry assembly + dispatch table
+Stage 9:  small    -- wiring + test threads
+
+Total: approximately 2000-3000 lines of new code across all stages.

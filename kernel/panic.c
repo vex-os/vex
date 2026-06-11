@@ -1,6 +1,6 @@
-#include <vex.arch/hart.h>
 #include <vex/atomic.h>
 #include <vex/console.h>
+#include <vex/hart.h>
 #include <vex/kprintf.h>
 #include <vex/panic.h>
 
@@ -15,7 +15,7 @@ void __noreturn fpanic(const char* restrict file, unsigned long line, const char
 
 void __noreturn fvpanic(const char* restrict file, unsigned long line, const char* restrict fmt, va_list ap)
 {
-    broadcast_panic_ipi();
+    hart_panic_ipi();
 
     disable_interrupts();
 

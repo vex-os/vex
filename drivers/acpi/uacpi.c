@@ -1,7 +1,7 @@
 #include <uacpi/kernel_api.h>
-#include <vex.arch/hart.h>
 #include <vex.arch/ireq.h>
 #include <vex/clocksrc.h>
+#include <vex/hart.h>
 #include <vex/hhdm.h>
 #include <vex/intctl.h>
 #include <vex/ireq.h>

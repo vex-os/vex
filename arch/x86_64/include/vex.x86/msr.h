@@ -5,9 +5,6 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-#define MSR_IA32_GS_BASE        0xC0000101
-#define MSR_IA32_KERNEL_GS_BASE 0xC0000102
-
 static __always_inline __nodiscard uint64_t rdmsr(uint32_t msreg)
 {
     uint32_t lo, hi;

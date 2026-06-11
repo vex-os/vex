@@ -1,6 +1,6 @@
 #include <uacpi/uacpi.h>
-#include <vex.arch/hart.h>
 #include <vex/errno.h>
+#include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>

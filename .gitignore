@@ -10,6 +10,8 @@
 /build/*
 /output/
 /output/*
+/ext/
+/ext/*
 
 ## Ignore stuff python runtime generates
 __pycache__/

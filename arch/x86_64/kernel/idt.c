@@ -1,6 +1,6 @@
-#include <vex.arch/hart.h>
 #include <vex.x86/gdt.h>
 #include <vex.x86/idt.h>
+#include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/panic.h>
@@ -95,4 +95,4 @@ static void arch_init_idt_smp(void)
     asm volatile("lidtq %0" ::"m"(idtr));
 }
 
-initcall_smp_arch(arch_init_idt_smp, INIT_EARLY);
+initcall_smp_arch(arch_init_idt_smp, INIT_MIDDLE);

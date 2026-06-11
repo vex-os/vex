@@ -1,5 +1,6 @@
 #include <vex.x86/gdt.h>
 #include <vex/errno.h>
+#include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
@@ -149,4 +150,4 @@ static void arch_init_gdt_smp(void)
     spinlock_release(&gdt_lock);
 }
 
-initcall_smp_arch(arch_init_gdt_smp, INIT_MIDDLE);
+initcall_smp_arch(arch_init_gdt_smp, INIT_EARLY);

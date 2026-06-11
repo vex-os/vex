@@ -1,7 +1,7 @@
-#include <vex.arch/hart.h>
 #include <vex.x86/lapic.h>
 #include <vex.x86/msr.h>
 #include <vex/errno.h>
+#include <vex/hart.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>

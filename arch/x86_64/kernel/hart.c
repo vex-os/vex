@@ -1,36 +1,40 @@
-#include <vex.arch/hart.h>
 #include <vex.arch/ireq.h>
-#include <vex.x86/gdt.h>
 #include <vex.x86/lapic.h>
 #include <vex.x86/msr.h>
-#include <vex/atomic.h>
-#include <vex/errno.h>
-#include <vex/hhdm.h>
+#include <vex/assert.h>
+#include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/ireq.h>
-#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
-#include <vex/page.h>
-#include <vex/panic.h>
-#include <vex/pslab.h>
-#include <vex/string.h>
 
-static unsigned hart_count = 0;
 static unsigned panic_ipi_vector = 0;
 
 static void panic_halt_handler(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
 {
     disable_interrupts();
 
-    pr_emerg("stopping hart %hu", this_hart()->index);
+    struct hart_local* hart = this_hart();
+    pr_emerg("stopping hart %hu", hart->index);
 
     for(;;) {
         hart_spin();
     }
 }
 
-void broadcast_panic_ipi(void)
+struct hart_local* __nodiscard this_hart(void)
+{
+    struct hart_local* hart;
+    asm volatile("movq %%gs:0, %0" : "=r"(hart));
+    return hart;
+}
+
+void hart_setup(struct hart_local* restrict hart)
+{
+    wrmsr(0xC0000101, (uintptr_t)(hart));
+}
+
+void hart_panic_ipi(void)
 {
     lapic_broadcast_ipi(panic_ipi_vector);
 }
@@ -42,19 +46,3 @@ static void arch_init_panic_ipi(void)
 }
 
 initcall_bsp_multicore(arch_init_panic_ipi, INIT_MIDDLE);
-
-static void arch_init_hart(void)
-{
-    struct hart_local* hart = kmalloc(sizeof(struct hart_local));
-
-    if(hart == nullptr) {
-        panic("hart: out of memory");
-    }
-
-    hart->self = hart;
-    hart->index = atomic_fetch_add(&hart_count, 1, ATOMIC_RELAXED);
-
-    wrmsr(MSR_IA32_GS_BASE, (uintptr_t)(hart));
-}
-
-initcall_smp_hart(arch_init_hart, INIT_FIRST);
