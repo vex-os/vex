@@ -54,6 +54,8 @@ static void arch_init_hart(void)
 
     hart->self = hart;
     hart->index = atomic_fetch_add(&hart_count, 1, ATOMIC_RELAXED);
+
+    wrmsr(MSR_IA32_GS_BASE, (uintptr_t)(hart));
 }
 
 initcall_smp_hart(arch_init_hart, INIT_FIRST);
