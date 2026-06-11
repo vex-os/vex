@@ -18,12 +18,7 @@
 
 #define gdt_selector(index, ldt, ring) ((uint16_t)(((ring) & 3) | (((ldt) & 1) << 2) | ((index) << 3)))
 
-// static assertions as per arch/x86_64/kernel/syscall.S
 static_assert(0x43 == gdt_selector(GDT_USER_CODE_64, 0, 3));
 static_assert(0x3B == gdt_selector(GDT_USER_DATA_64, 0, 3));
-
-struct x86_gdt;
-
-void install_tss(struct x86_gdt* restrict gdt, uintptr_t tss_base, size_t tss_size);
 
 #endif /* C0E501A6_2C96_4C65_8667_EC228CA1B283 */

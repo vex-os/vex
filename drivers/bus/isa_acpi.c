@@ -10,7 +10,6 @@
 #include <vex/limits.h>
 #include <vex/string.h>
 
-
 #define ACPI_MAX_ISA_RESOURCES 16
 
 struct parse_context {

@@ -10,13 +10,16 @@
 #define CALIB_NS UINT64_C(10000000)
 // #define CALIB_NS UINT64_C(500000000)
 
-static void lapic_timer_handler(unsigned number, const struct regfile* restrict regs, void* restrict ctxdata)
+#if 0
+static void lapic_timer_handler(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
 {
     // TODO: sched_preempt();
 }
+#endif
 
 static void arch_init_lapic_timer(void)
 {
+#if 0
     lapic_write(LAPIC_REG_TMRDIV, LAPIC_TIMER_DIV1);
     lapic_write(LAPIC_REG_LVT_TIMER, LAPIC_TIMER_MASKED | LAPIC_TIMER_ONESHOT);
 
@@ -44,6 +47,7 @@ static void arch_init_lapic_timer(void)
 
     lapic_write(LAPIC_REG_LVT_TIMER, LAPIC_TIMER_PERIODIC | (irq + ARCH_IREQ_BASE));
     lapic_write(LAPIC_REG_TMRINITCNT, hart->x86_lapic_reload);
+#endif
 }
 
 initcall_smp_timer(arch_init_lapic_timer, INIT_EARLY);

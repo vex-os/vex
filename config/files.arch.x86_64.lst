@@ -13,5 +13,4 @@ arch/x86_64/kernel/paging.c
 arch/x86_64/kernel/pci_cf8.c
 arch/x86_64/kernel/pic.c
 arch/x86_64/kernel/pmio.c
-arch/x86_64/kernel/tss.c
 arch/x86_64/kernel/uacpi.c

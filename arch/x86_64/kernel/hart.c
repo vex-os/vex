@@ -1,5 +1,4 @@
 #include <vex.arch/hart.h>
-#include <vex.arch/intr.h>
 #include <vex.arch/ireq.h>
 #include <vex.x86/gdt.h>
 #include <vex.x86/lapic.h>
@@ -20,14 +19,14 @@
 static unsigned hart_count = 0;
 static unsigned panic_ipi_vector = 0;
 
-static void panic_halt_handler(unsigned number, const struct regfile* restrict regs, void* restrict ctxdata)
+static void panic_halt_handler(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
 {
     disable_interrupts();
 
-    pr_emerg("stopping hart %u", this_hart()->index);
+    pr_emerg("stopping hart %hu", this_hart()->index);
 
     for(;;) {
-        stop_hart();
+        hart_spin();
     }
 }
 

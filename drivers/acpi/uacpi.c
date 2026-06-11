@@ -14,7 +14,6 @@
 #include <vex/vmm.h>
 #include <vex/vprot.h>
 
-
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out)
 {
     *out = rsdp_address;
@@ -147,7 +146,7 @@ void uacpi_kernel_stall(uacpi_u8 usec)
     uacpi_u64 deadline = clocksrc_nsec() + usec * UINT64_C(1000);
 
     while(clocksrc_nsec() < deadline) {
-        pause_hart();
+        hart_spin();
     }
 }
 
@@ -156,7 +155,7 @@ void uacpi_kernel_sleep(uacpi_u64 msec)
     uacpi_u64 deadline = clocksrc_nsec() + msec * UINT64_C(1000000);
 
     while(clocksrc_nsec() < deadline) {
-        pause_hart();
+        hart_spin();
     }
 }
 
@@ -239,18 +238,18 @@ uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* reques
 struct acpi_irq_trampoline {
     unsigned ireq_number;
     uacpi_interrupt_handler handler;
-    uacpi_handle ctx;
+    uacpi_handle ctxdata;
     uint32_t gsi;
 };
 
-static void acpi_irq_dispatch(unsigned number, const struct regfile* restrict regs, void* restrict ctxdata)
+static void acpi_irq_dispatch(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
 {
     struct acpi_irq_trampoline* trampoline = ctxdata;
 
-    trampoline->handler(trampoline->ctx);
+    trampoline->handler(trampoline->ctxdata);
 }
 
-uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interrupt_handler handler, uacpi_handle ctx,
+uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interrupt_handler handler, uacpi_handle ctxdata,
     uacpi_handle* out_handle)
 {
     struct acpi_irq_trampoline* trampoline = kmalloc(sizeof(struct acpi_irq_trampoline));
@@ -268,7 +267,7 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
     }
 
     trampoline->handler = handler;
-    trampoline->ctx = ctx;
+    trampoline->ctxdata = ctxdata;
     trampoline->gsi = gsi;
 
     unsigned ireq_number = add_ireq_handler(UINT_MAX, &acpi_irq_dispatch, trampoline);

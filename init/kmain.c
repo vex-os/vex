@@ -1,6 +1,5 @@
 #include <limine.h>
 #include <vex.arch/hart.h>
-#include <vex.arch/intr.h>
 #include <vex/delay.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
@@ -25,7 +24,7 @@ void __noreturn kmain(void)
     pr_emerg("hanging around...");
 
     for(;;) {
-        stop_hart();
+        hart_spin();
     }
 
     unreachable();

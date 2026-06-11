@@ -12,7 +12,6 @@
 #include <vex/vmm.h>
 #include <vex/vprot.h>
 
-
 #define ACPI_CLOCKSRC_FREQ_HZ UINT64_C(3579545)
 
 struct acpi_clocksrc_privdata {

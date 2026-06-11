@@ -1,5 +1,4 @@
 #include <vex.arch/hart.h>
-#include <vex.arch/intr.h>
 #include <vex/atomic.h>
 #include <vex/console.h>
 #include <vex/kprintf.h>
@@ -30,7 +29,7 @@ void __noreturn fvpanic(const char* restrict file, unsigned long line, const cha
 
     for(;;) {
         disable_interrupts();
-        stop_hart();
+        hart_spin();
         continue;
     }
 }

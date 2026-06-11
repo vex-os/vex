@@ -1,5 +1,4 @@
 #include <vex.arch/hart.h>
-#include <vex.arch/intr.h>
 #include <vex.x86/idt.h>
 #include <vex.x86/pmio.h>
 #include <vex/initcall.h>
@@ -27,7 +26,7 @@ extern void x86_spur_2D(void);
 extern void x86_spur_2E(void);
 extern void x86_spur_2F(void);
 
-void __used x86_spur_handler(struct regfile* restrict regs, uint64_t intvec)
+void __used x86_spur_handler(struct hart_context* restrict ctx, uint64_t intvec)
 {
     // <<  Because it's a shit chip >>
     //                  - streaksu

@@ -3,7 +3,6 @@
 #pragma once
 
 #include <vex.arch/hart.h>
-#include <vex.arch/intr.h>
 #include <vex/atomic.h>
 #include <vex/types.h>
 
@@ -24,7 +23,7 @@ static __always_inline void spinlock_acquire(spinlock_type* restrict lock)
         }
 
         while(SPINLOCK_LOCK == atomic_load(lock, ATOMIC_RELAXED)) {
-            pause_hart();
+            hart_spin();
         }
     }
 }

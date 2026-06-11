@@ -1,6 +1,4 @@
 #include <vex.arch/hart.h>
-#include <vex.arch/intr.h>
-#include <vex.arch/regfile.h>
 #include <vex.x86/idt.h>
 #include <vex/compiler.h>
 #include <vex/initcall.h>
@@ -42,24 +40,24 @@ extern void x86_isr_1D(void);
 extern void x86_isr_1E(void);
 extern void x86_isr_1F(void);
 
-static void page_fault_handler(struct hart_local* restrict hart, struct regfile* restrict regs)
+static void page_fault_handler(struct hart_local* restrict hart, struct hart_context* restrict ctx)
 {
     struct vmm_fault_info info;
     memset(&info, 0, sizeof(info));
 
-    info.present = (bool)(regs->x86_err & 0x1);
+    info.present = ctx->x86_err & 0x1;
 
-    if(regs->x86_err & 0x2) {
+    if(ctx->x86_err & 0x2) {
         info.vprot = VPROT_WRITE;
     }
-    else if(regs->x86_err & 0x10) {
+    else if(ctx->x86_err & 0x10) {
         info.vprot = VPROT_EXEC;
     }
     else {
         info.vprot = VPROT_READ;
     }
 
-    if(regs->x86_err & 0x4) {
+    if(ctx->x86_err & 0x4) {
         info.vprot |= VPROT_USER;
     }
 
@@ -74,7 +72,7 @@ static void page_fault_handler(struct hart_local* restrict hart, struct regfile*
     }
 }
 
-void __used x86_isr_handler(struct regfile* restrict regs, uint64_t intvec)
+void __used x86_isr_handler(struct hart_context* restrict ctx, uint64_t intvec)
 {
     disable_interrupts();
 
@@ -83,7 +81,7 @@ void __used x86_isr_handler(struct regfile* restrict regs, uint64_t intvec)
     struct hart_local* hart = this_hart();
 
     if(intvec == 0x0E) {
-        page_fault_handler(hart, regs);
+        page_fault_handler(hart, ctx);
     }
     else {
         panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));
