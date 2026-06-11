@@ -7,7 +7,6 @@
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 #include <vex/panic.h>
-#include <vex/sched.h>
 #include <vex/vmm.h>
 
 static volatile __used __section(".limine_requests") struct limine_mp_request mp_request = {
@@ -36,7 +35,7 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
     enable_interrupts();
 
     for(;;) {
-        sched_idle();
+        stop_hart();
     }
 }
 #endif

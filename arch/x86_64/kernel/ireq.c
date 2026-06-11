@@ -5,8 +5,6 @@
 #include <vex.x86/lapic.h>
 #include <vex/initcall.h>
 #include <vex/ireq.h>
-#include <vex/signal.h>
-#include <vex/thread.h>
 
 extern void x86_ireq_30(void);
 extern void x86_ireq_31(void);
@@ -221,17 +219,7 @@ void __used x86_ireq_handler(struct regfile* restrict regs, uint64_t idt_vector)
 {
     lapic_write(LAPIC_REG_EOI, UINT32_C(0));
 
-    struct hart_local* hart = this_hart();
-    struct thread* thrd = hart->curr_thread;
-    uint64_t prev_cs = regs->x86_cs;
-
     dispatch_ireq(idt_vector - ARCH_IREQ_BASE, regs);
-
-    if(prev_cs & 3) {
-        if(thrd && thrd->owner && signal_pending(thrd)) {
-            signal_deliver_auto(thrd, regs);
-        }
-    }
 }
 
 static void arch_init_ireq(void)
