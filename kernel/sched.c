@@ -53,7 +53,7 @@ void sched_preempt(void)
 {
     struct hart_local* hart = this_hart();
 
-    bool intr_state = disable_interrupts();
+    disable_interrupts();
 
     if(hart->dead_head) {
         vmm_switch(&sys_pagemap);
@@ -135,7 +135,7 @@ void sched_preempt(void)
     }
 
     if(next == prev) {
-        restore_interrupts(intr_state);
+        next->state = THREAD_EXEC;
         return;
     }
 
@@ -152,8 +152,6 @@ void sched_preempt(void)
     pr_verbose("thread_switch: %p -> %p", prev, next);
     thread_switch_hook(hart, next);
     thread_switch(prev, next);
-
-    restore_interrupts(intr_state);
 }
 
 void sched_yield(void)
