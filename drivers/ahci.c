@@ -1,4 +1,3 @@
-#include <vex.arch/hart.h>
 #include <vex/assert.h>
 #include <vex/ata.h>
 #include <vex/atapi.h>
@@ -6,6 +5,7 @@
 #include <vex/blk_event.h>
 #include <vex/blk_name.h>
 #include <vex/endian.h>
+#include <vex/hart.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>

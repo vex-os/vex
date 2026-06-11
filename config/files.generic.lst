@@ -43,7 +43,6 @@ fs/vfs_vnode.c
 
 init/initcall.c
 init/kmain.c
-init/smp.c
 
 kernel/assert.c                         optional ENABLE_KASSERT
 kernel/blk_device.c
@@ -58,6 +57,7 @@ kernel/cmdline.c
 kernel/console.c
 kernel/delay.c
 kernel/fbcons.c                         optional ENABLE_FBCONS
+kernel/hart.c
 kernel/intctl.c
 kernel/ireq.c
 kernel/kprintf.c

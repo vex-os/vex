@@ -1,7 +1,7 @@
-#include <vex.arch/hart.h>
 #include <vex.arch/ireq.h>
 #include <vex.x86/idt.h>
 #include <vex.x86/lapic.h>
+#include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/ireq.h>
 
@@ -433,4 +433,4 @@ static void arch_init_ireq(void)
     set_idt_entry_kern(0xFF, false, &x86_ireq_FF);
 }
 
-initcall_smp_arch(arch_init_ireq, INIT_MIDDLE);
+initcall_smp_arch(arch_init_ireq, INIT_LATE);

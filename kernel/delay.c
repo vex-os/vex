@@ -1,6 +1,6 @@
-#include <vex.arch/hart.h>
 #include <vex/clocksrc.h>
 #include <vex/delay.h>
+#include <vex/hart.h>
 
 void delay_msec(uint64_t msec)
 {

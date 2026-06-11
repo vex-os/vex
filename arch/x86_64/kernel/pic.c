@@ -1,6 +1,6 @@
-#include <vex.arch/hart.h>
 #include <vex.x86/idt.h>
 #include <vex.x86/pmio.h>
+#include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 

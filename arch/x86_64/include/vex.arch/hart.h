@@ -5,8 +5,6 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-struct thread;
-
 struct hart_context {
     uint64_t x86_ds;
     uint64_t x86_es;
@@ -50,6 +48,9 @@ struct x86_hart_tss {
     uint32_t iopb;
 } __packed;
 
+#define HART_FLAG_BSP    0x0001
+#define HART_FLAG_ACTIVE 0x0002
+
 struct hart_local {
     struct hart_local* self;
     unsigned short index;
@@ -57,17 +58,9 @@ struct hart_local {
     uint32_t x86_lapic_id;
     uint32_t x86_lapic_reload;
     struct x86_hart_tss x86_tss;
-    struct thread* idle_thread;
 };
 
 static_assert(0 == offsetof(struct hart_local, self));
-
-static __always_inline __nodiscard struct hart_local* this_hart(void)
-{
-    struct hart_local* hart;
-    asm volatile("movq %%gs:0, %0" : "=r"(hart));
-    return hart;
-}
 
 static __always_inline void hart_spin(void)
 {
@@ -92,7 +85,7 @@ static __always_inline bool enable_interrupts(void)
     uint64_t rflags;
     asm volatile("pushfq");
     asm volatile("pop %0" : "=r"(rflags));
-    asm volatile("cli");
+    asm volatile("sti");
     return rflags & UINT64_C(0x0000000000000200);
 }
 
@@ -101,7 +94,7 @@ static __always_inline bool disable_interrupts(void)
     uint64_t rflags;
     asm volatile("pushfq");
     asm volatile("pop %0" : "=r"(rflags));
-    asm volatile("sti");
+    asm volatile("cli");
     return rflags & UINT64_C(0x0000000000000200);
 }
 
@@ -115,6 +108,7 @@ static __always_inline void restore_interrupts(bool enabled)
     }
 }
 
-void broadcast_panic_ipi(void);
+void hart_setup(struct hart_local* restrict hart);
+void hart_panic_ipi(void);
 
 #endif /* B15F19F4_C7E1_479A_A8B7_3E8843A71BA6 */

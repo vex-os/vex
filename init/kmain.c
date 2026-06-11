@@ -1,6 +1,6 @@
 #include <limine.h>
-#include <vex.arch/hart.h>
 #include <vex/delay.h>
+#include <vex/hart.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
