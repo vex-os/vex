@@ -138,13 +138,13 @@ static void ahci_stop(struct ahci_port* restrict port)
     port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) & ~PORT_CMD_ST);
 
     while(port_read(port, PORT_REG_CMD) & PORT_CMD_CR) {
-        pause_hart();
+        hart_spin();
     }
 
     port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) & ~PORT_CMD_FRE);
 
     while(port_read(port, PORT_REG_CMD) & PORT_CMD_FR) {
-        pause_hart();
+        hart_spin();
     }
 }
 
@@ -170,7 +170,7 @@ static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
             return -EIO;
         }
 
-        pause_hart();
+        hart_spin();
 
         counter += 1;
     }
@@ -234,7 +234,7 @@ static int ahci_issue(struct ahci_port* restrict port, uintptr_t lba)
     port_write(port, PORT_REG_IS, 0xFFFFFFFF);
 
     while(port_read(port, PORT_REG_TFD) & (PORT_TFD_BSY | PORT_TFD_DRQ)) {
-        pause_hart();
+        hart_spin();
     }
 
     port_write(port, PORT_REG_CI, 1);

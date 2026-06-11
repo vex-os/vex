@@ -33,7 +33,7 @@ void lapic_broadcast_ipi(uint8_t vector)
 {
     if(lapic_mmio) {
         while(lapic_read(LAPIC_REG_ICR_LO) & UINT32_C(0x00001000)) {
-            pause_hart();
+            hart_spin();
         }
 
         lapic_write(LAPIC_REG_ICR_HI, UINT32_C(0));

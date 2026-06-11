@@ -1,6 +1,5 @@
 #include <limine.h>
 #include <vex.arch/hart.h>
-#include <vex.arch/intr.h>
 #include <vex/atomic.h>
 #include <vex/compiler.h>
 #include <vex/errno.h>
@@ -35,7 +34,7 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
     enable_interrupts();
 
     for(;;) {
-        stop_hart();
+        hart_stop();
     }
 }
 #endif
@@ -60,7 +59,7 @@ static void init_smp(void)
     }
 
     while(atomic_load_n(&ready_count, ATOMIC_ACQUIRE) < hart_count) {
-        pause_hart();
+        hart_spin();
     }
 
     pr_inform("smp: %llu harts online", (unsigned long long)(hart_count));

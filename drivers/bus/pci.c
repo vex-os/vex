@@ -11,7 +11,6 @@
 #include <vex/vmm.h>
 #include <vex/vprot.h>
 
-
 #define PCI_MAX_BUS_DEVICES 32
 
 static struct pci_bus* bus_head = nullptr;

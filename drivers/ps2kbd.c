@@ -1,4 +1,3 @@
-#include <vex.arch/intr.h>
 #include <vex.arch/ireq.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
@@ -28,7 +27,7 @@ static void i8042_wait_read(struct pmio_region* restrict region)
     }
 }
 
-static void ps2kbd_ireq(unsigned number, const struct regfile* restrict regs, void* restrict ctxdata)
+static void ps2kbd_ireq(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
 {
     struct isa_device* device = ctxdata;
 

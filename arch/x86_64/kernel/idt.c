@@ -4,6 +4,7 @@
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/panic.h>
+#include <vex/spinlock.h>
 #include <vex/string.h>
 
 #define IDT_TRAP    (0x0F << 0)
@@ -22,13 +23,14 @@ struct idt_entry {
     uint32_t reserved;
 } __packed;
 
-struct x86_idt {
-    struct idt_entry entries[IDT_SIZE];
-    struct {
-        uint16_t size;
-        uintptr_t offset;
-    } __packed idtr;
-};
+struct idt_register {
+    uint16_t size;
+    uint64_t offset;
+} __packed;
+
+static struct idt_entry idt[IDT_SIZE];
+static struct idt_register idtr;
+static spinlock_type idt_lock = SPINLOCK_INIT;
 
 static void set_entry(struct idt_entry* restrict entry, bool trap, uint16_t selector, const void* restrict pfn)
 {
@@ -51,47 +53,46 @@ static void set_entry(struct idt_entry* restrict entry, bool trap, uint16_t sele
 void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn)
 {
     if(vector < IDT_SIZE) {
-        struct hart_local* hart = this_hart();
-        struct x86_idt* idt = hart->x86_idtp;
-        set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
-        idt->entries[vector].flags |= IDT_RING_0;
+        spinlock_acquire(&idt_lock);
+        set_entry(&idt[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
+        idt[vector].flags |= IDT_RING_0;
+        spinlock_release(&idt_lock);
     }
 }
 
 void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn)
 {
     if(vector < IDT_SIZE) {
-        struct hart_local* hart = this_hart();
-        struct x86_idt* idt = hart->x86_idtp;
-        set_entry(&idt->entries[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
-        idt->entries[vector].flags |= IDT_RING_3;
+        spinlock_acquire(&idt_lock);
+        set_entry(&idt[vector], trap, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
+        idt[vector].flags |= IDT_RING_3;
+        spinlock_release(&idt_lock);
     }
 }
 
 void unset_idt_entry(unsigned vector)
 {
     if(vector < IDT_SIZE) {
-        struct hart_local* hart = this_hart();
-        struct x86_idt* idt = hart->x86_idtp;
-        memset(&idt->entries[vector], 0, sizeof(struct idt_entry));
+        spinlock_acquire(&idt_lock);
+        memset(&idt[vector], 0, sizeof(struct idt_entry));
+        spinlock_release(&idt_lock);
     }
 }
 
-static void arch_init_idt(void)
+static void arch_init_idt_bsp(void)
 {
-    struct x86_idt* idt = kmalloc(sizeof(struct x86_idt));
+    memset(idt, 0, sizeof(idt));
+    memset(&idtr, 0, sizeof(idtr));
 
-    if(idt == nullptr) {
-        panic("out of memory");
-    }
-
-    struct hart_local* hart = this_hart();
-    hart->x86_idtp = idt;
-
-    idt->idtr.size = (uint16_t)(sizeof(idt->entries) - 1);
-    idt->idtr.offset = (uintptr_t)(&idt->entries[0]);
-
-    asm volatile("lidtq %0" ::"m"(idt->idtr));
+    idtr.size = (uint16_t)(sizeof(idt) - 1);
+    idtr.offset = (uintptr_t)(&idt[0]);
 }
 
-initcall_smp_arch(arch_init_idt, INIT_EARLY);
+initcall_bsp_arch(arch_init_idt_bsp, INIT_EARLY);
+
+static void arch_init_idt_smp(void)
+{
+    asm volatile("lidtq %0" ::"m"(idtr));
+}
+
+initcall_smp_arch(arch_init_idt_smp, INIT_EARLY);

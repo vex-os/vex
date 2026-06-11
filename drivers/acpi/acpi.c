@@ -1,5 +1,5 @@
 #include <uacpi/uacpi.h>
-#include <vex.arch/intr.h>
+#include <vex.arch/hart.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>

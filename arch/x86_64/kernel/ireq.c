@@ -1,5 +1,4 @@
 #include <vex.arch/hart.h>
-#include <vex.arch/intr.h>
 #include <vex.arch/ireq.h>
 #include <vex.x86/idt.h>
 #include <vex.x86/lapic.h>
@@ -215,11 +214,11 @@ extern void x86_ireq_FD(void);
 extern void x86_ireq_FE(void);
 extern void x86_ireq_FF(void);
 
-void __used x86_ireq_handler(struct regfile* restrict regs, uint64_t idt_vector)
+void __used x86_ireq_handler(struct hart_context* restrict ctx, uint64_t idt_vector)
 {
     lapic_write(LAPIC_REG_EOI, UINT32_C(0));
 
-    dispatch_ireq(idt_vector - ARCH_IREQ_BASE, regs);
+    dispatch_ireq(idt_vector - ARCH_IREQ_BASE, ctx);
 }
 
 static void arch_init_ireq(void)
