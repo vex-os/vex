@@ -56,6 +56,7 @@ kernel/clocksrc.c
 kernel/cmdline.c
 kernel/console.c
 kernel/delay.c
+kernel/event.c
 kernel/fbcons.c                         optional ENABLE_FBCONS
 kernel/hart.c
 kernel/intctl.c
