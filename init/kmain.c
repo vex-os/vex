@@ -18,11 +18,6 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
-static void timer_ireq(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
-{
-    pr_inform("timer interrupt");
-}
-
 void __noreturn kmain(void)
 {
     pr_emerg("%s %s %s", k_sysname, k_release, k_version);
@@ -31,11 +26,7 @@ void __noreturn kmain(void)
 
     pr_emerg("hanging around...");
 
-    unsigned ireq = add_ireq_handler(UINT_MAX, &timer_ireq, NULL);
-
     enable_interrupts();
-
-    clockevt_periodic(ireq, 500); // 500ms
 
     for(;;) {
         hart_spin();

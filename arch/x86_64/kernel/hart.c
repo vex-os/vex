@@ -23,18 +23,10 @@ static void panic_halt_handler(unsigned number, const struct hart_context* restr
     }
 }
 
-struct hart_local* __nodiscard this_hart(void)
-{
-    struct hart_local* hart;
-    asm volatile("movq %%gs:0, %0" : "=r"(hart));
-    return hart;
-}
-
 void hart_setup_1(const struct limine_mp_info* restrict info, const struct limine_mp_response* restrict response)
 {
     struct hart_local* hart = &harts[info->processor_id];
 
-    hart->self = hart;
     hart->index = info->processor_id;
     hart->flags = HART_FLAG_ACTIVE;
     hart->x86_lapic_id = info->lapic_id;
@@ -47,13 +39,17 @@ void hart_setup_1(const struct limine_mp_info* restrict info, const struct limin
 void hart_setup_2(const struct limine_mp_info* restrict info)
 {
     struct hart_local* hart = &harts[info->processor_id];
-
-    wrmsr(0xC0000101, (uintptr_t)(hart));
+    wrmsr(0xC0000101, (uintptr_t)(hart->idle_thread));
 }
 
-void hart_panic_ipi(void)
+void hart_ipi(struct hart_local* restrict target, unsigned ireq_number)
 {
-    lapic_broadcast_ipi(panic_ipi_vector);
+    if(target == nullptr) {
+        lapic_broadcast_ipi((uint8_t)(ireq_number + ARCH_IREQ_BASE));
+    }
+    else {
+        lapic_send_ipi(target->x86_lapic_id, (uint8_t)(ireq_number + ARCH_IREQ_BASE));
+    }
 }
 
 static void arch_init_panic_ipi(void)

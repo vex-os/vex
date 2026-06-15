@@ -11,26 +11,26 @@
 
 #define CALIBRATE_NS UINT64_C(10000000)
 
-void clockevt_oneshot(unsigned ireq, uint64_t msec)
+void clockevt_oneshot(unsigned ireq, uint64_t nsec)
 {
-    kassert(msec >= 1);
+    kassert(nsec >= 1);
 
     struct hart_local* hart = this_hart();
 
     lapic_write(LAPIC_REG_TMRDIV, LAPIC_TIMER_DIV1);
     lapic_write(LAPIC_REG_LVT_TIMER, LAPIC_TIMER_ONESHOT | ((ireq + ARCH_IREQ_BASE) & UINT32_C(0xFF)));
-    lapic_write(LAPIC_REG_TMRINITCNT, msec * hart->x86_lapic_resolution);
+    lapic_write(LAPIC_REG_TMRINITCNT, nsec * hart->x86_lapic_resolution);
 }
 
-void clockevt_periodic(unsigned ireq, uint64_t msec)
+void clockevt_periodic(unsigned ireq, uint64_t nsec)
 {
-    kassert(msec >= 1);
+    kassert(nsec >= 1);
 
     struct hart_local* hart = this_hart();
 
     lapic_write(LAPIC_REG_TMRDIV, LAPIC_TIMER_DIV1);
     lapic_write(LAPIC_REG_LVT_TIMER, LAPIC_TIMER_PERIODIC | ((ireq + ARCH_IREQ_BASE) & UINT32_C(0xFF)));
-    lapic_write(LAPIC_REG_TMRINITCNT, msec * hart->x86_lapic_resolution);
+    lapic_write(LAPIC_REG_TMRINITCNT, nsec * hart->x86_lapic_resolution);
 }
 
 void clockevt_stop(void)
@@ -55,7 +55,7 @@ static void arch_init_clockevt(void)
     struct hart_local* hart = this_hart();
     hart->x86_lapic_resolution = UINT32_C(0xFFFFFFFF);
     hart->x86_lapic_resolution -= lapic_read(LAPIC_REG_TMRCURRCNT);
-    hart->x86_lapic_resolution /= 10; // ticks per millisecond
+    hart->x86_lapic_resolution /= CALIBRATE_NS;
 
     if(hart->x86_lapic_resolution == 0) {
         panic("clockevt: LAPIC timer calibration failed");
