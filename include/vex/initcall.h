@@ -31,7 +31,7 @@ struct initcall {
 #define initcall_bsp_heap(ic_function, ic_order)      __define_initcall(ic_function, ".initcalls.bsp.1300000" ic_order)
 #define initcall_bsp_ireq(ic_function, ic_order)      __define_initcall(ic_function, ".initcalls.bsp.2000000" ic_order)
 #define initcall_bsp_timer(ic_function, ic_order)     __define_initcall(ic_function, ".initcalls.bsp.2100000" ic_order)
-#define inticall_bsp_syscall(ic_function, ic_order)   __define_initcall(ic_function, ".initcalls.bsp.2200000" ic_order)
+#define initcall_bsp_syscall(ic_function, ic_order)   __define_initcall(ic_function, ".initcalls.bsp.2200000" ic_order)
 #define initcall_bsp_multicore(ic_function, ic_order) __define_initcall(ic_function, ".initcalls.bsp.2300000" ic_order)
 #define initcall_bsp_bus(ic_function, ic_order)       __define_initcall(ic_function, ".initcalls.bsp.3000000" ic_order)
 #define initcall_bsp_vfs(ic_function, ic_order)       __define_initcall(ic_function, ".initcalls.bsp.3100000" ic_order)

@@ -65,6 +65,7 @@ kernel/kprintf.c
 kernel/panic.c
 kernel/process.c
 kernel/sched.c
+kernel/syscall.c
 kernel/version.c
 
 libk/bitmap.c
