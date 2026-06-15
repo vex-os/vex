@@ -4,11 +4,11 @@
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/ireq.h>
-#include <vex/kmalloc.h>
 #include <vex/limits.h>
 #include <vex/panic.h>
 #include <vex/pslab.h>
 #include <vex/sched.h>
+#include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 
@@ -19,6 +19,12 @@
 #ifndef SCHED_TIMESLICE
 #define SCHED_TIMESLICE 5000000 // 5ms
 #endif
+
+// Threads and processes are something that gets
+// allocated quite a bit of times across the kernel's
+// lifetime so it makes sense to use a fast allocator
+// for them; the slab allocator is O(1) for both alloc and free but imposes a size limit
+static_assert(sizeof(struct thread) <= (PAGE_SIZE / 2));
 
 static struct thread* run_queue[SCHED_QUEUE_SIZE];
 static unsigned sched_ireq_number;
@@ -74,7 +80,7 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
         }
 
         memcpy(&curr->ctx, ctx, sizeof(struct hart_context));
-        // TODO: save cr3, GS/FS bases, FPU state
+        arch_thread_ctx_save(curr);
 
         curr->state = THREAD_RUNNABLE;
         spinlock_release(&curr->hart_lock);
@@ -83,7 +89,7 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
     if(next == nullptr) {
         hart->flags &= ~HART_FLAG_ACTIVE;
         hart->curr_thread = hart->idle_thread;
-        // TODO (Stage 4): switch to idle thread context (CR3, GS)
+        arch_thread_ctx_load(hart->idle_thread);
         clockevt_oneshot(sched_ireq_number, SCHED_TIMESLICE);
         sched_enter(&hart->idle_thread->ctx);
     }
@@ -92,13 +98,13 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
     next->hart = hart;
     hart->curr_thread = next;
 
-    // TODO (Stage 4): restore CR3, GS/FS bases, FPU; update TSS kernel/pf stacks
+    arch_thread_ctx_load(next);
     clockevt_oneshot(sched_ireq_number, next->timeslice);
 
     sched_enter(&next->ctx);
 }
 
-static void sched_idle(void)
+static void sched_idle(void* restrict arg)
 {
     for(;;) {
         enable_interrupts();
@@ -106,32 +112,43 @@ static void sched_idle(void)
     }
 }
 
-static struct thread* create_idle_thread(void)
+struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
 {
-    struct thread* thrd = kmalloc(sizeof(struct thread));
-    void* stack = pslab_alloc_virt();
+    struct thread* thrd = slab_alloc(sizeof(struct thread));
 
-    if(thrd == nullptr || stack == nullptr) {
-        panic("sched: out of memory");
+    if(thrd == nullptr) {
+        return nullptr;
+    }
+
+    uint8_t* kstack = pslab_alloc_virt();
+
+    if(kstack == nullptr) {
+        slab_free(thrd);
+        return nullptr;
     }
 
     thrd->self = thrd;
     thrd->state = THREAD_RUNNABLE;
-    thrd->timeslice = 0;
+    thrd->timeslice = SCHED_TIMESLICE;
     thrd->owner = nullptr;
     thrd->enqueued = false;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
 
-    // FIXME: these shouldn't be used
-    // outside of arch/x86_64/kernel!!
-    thrd->ctx.x86_ds = 0x30;
-    thrd->ctx.x86_es = 0x30;
-    thrd->ctx.x86_rip = (uint64_t)sched_idle;
-    thrd->ctx.x86_cs = 0x28;
-    thrd->ctx.x86_rflags = 0x202;
-    thrd->ctx.x86_rsp = (uint64_t)stack + 0x1000;
-    thrd->ctx.x86_ss = 0x30;
+    arch_thread_setup_kern(thrd, entry, arg, kstack + PAGE_SIZE);
+
+    return thrd;
+}
+
+struct thread* create_thread_kern_enq(thread_entry_kern entry, void* restrict arg)
+{
+    struct thread* thrd = create_thread_kern(entry, arg);
+
+    if(thrd == nullptr) {
+        return nullptr;
+    }
+
+    sched_enqueue(thrd);
 
     return thrd;
 }
@@ -154,6 +171,8 @@ void sched_enqueue(struct thread* restrict thrd)
                     break;
                 }
             }
+
+            return;
         }
 
         expt = nullptr;
@@ -225,10 +244,17 @@ static void sched_init(void)
 
     if(sched_ireq_number == UINT_MAX) {
         panic("sched: out of ireq vectors");
+        unreachable();
     }
 
     for(unsigned long i = 0; i < num_harts; ++i) {
-        harts[i].idle_thread = create_idle_thread();
+        harts[i].idle_thread = create_thread_kern(&sched_idle, nullptr);
+
+        if(harts[i].idle_thread == nullptr) {
+            panic("sched: out of memory");
+            unreachable();
+        }
+
         harts[i].idle_thread->hart = &harts[i];
         harts[i].curr_thread = harts[i].idle_thread;
     }
