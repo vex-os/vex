@@ -13,6 +13,6 @@ arch/amd64/kernel/paging.c
 arch/amd64/kernel/pci_cf8.c
 arch/amd64/kernel/pic.c
 arch/amd64/kernel/pmio.c
-arch/amd64/kernel/sched.c
 arch/amd64/kernel/scheds.S
+arch/amd64/kernel/thread.c
 arch/amd64/kernel/uacpi.c

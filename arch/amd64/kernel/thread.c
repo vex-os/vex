@@ -1,8 +1,8 @@
 #include <vex.amd64/gdt.h>
 #include <vex.amd64/msr.h>
 #include <vex/hart.h>
-#include <vex/sched.h>
 #include <vex/string.h>
+#include <vex/thread.h>
 
 #define MSR_FS_BASE 0xC0000100
 #define MSR_GS_BASE 0xC0000101
@@ -20,33 +20,33 @@ void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, 
     thrd->ctx.amd64_rdi = (uintptr_t)(arg);
     thrd->ctx.amd64_rflags = 0x202;
 
-    thrd->amd64_gs_base = thrd;
-    thrd->amd64_fs_base = nullptr;
-    thrd->amd64_kernel_stack = stack_top;
+    thrd->arch.gs_base = thrd;
+    thrd->arch.fs_base = nullptr;
+    thrd->arch.kernel_stack = stack_top;
 
     uint64_t cr3;
     asm volatile("movq %%cr3, %0" : "=r"(cr3));
-    thrd->amd64_cr3 = cr3;
+    thrd->arch.cr3 = cr3;
 }
 
 void arch_thread_ctx_save(struct thread* restrict thrd)
 {
-    thrd->amd64_gs_base = (void*)((uintptr_t)(rdmsr(MSR_GS_BASE)));
-    thrd->amd64_fs_base = (void*)((uintptr_t)(rdmsr(MSR_FS_BASE)));
+    thrd->arch.gs_base = (void*)((uintptr_t)(rdmsr(MSR_GS_BASE)));
+    thrd->arch.fs_base = (void*)((uintptr_t)(rdmsr(MSR_FS_BASE)));
 
     uint64_t cr3;
     asm volatile("movq %%cr3, %0" : "=r"(cr3));
-    thrd->amd64_cr3 = cr3;
+    thrd->arch.cr3 = cr3;
 }
 
 void arch_thread_ctx_load(struct thread* restrict thrd)
 {
     struct hart_local* hart = this_hart();
 
-    hart->amd64_tss.rsp_0 = (uintptr_t)(thrd->amd64_kernel_stack);
+    hart->arch.tss.rsp_0 = (uintptr_t)(thrd->arch.kernel_stack);
 
-    wrmsr(MSR_GS_BASE, (uintptr_t)(thrd->amd64_gs_base));
-    wrmsr(MSR_FS_BASE, (uintptr_t)(thrd->amd64_fs_base));
+    wrmsr(MSR_GS_BASE, (uintptr_t)(thrd->arch.gs_base));
+    wrmsr(MSR_FS_BASE, (uintptr_t)(thrd->arch.fs_base));
 
-    asm volatile("movq %0, %%cr3" ::"r"(thrd->amd64_cr3) : "memory");
+    asm volatile("movq %0, %%cr3" ::"r"(thrd->arch.cr3) : "memory");
 }

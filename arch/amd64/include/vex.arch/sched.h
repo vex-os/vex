@@ -2,62 +2,10 @@
 #define FFDED8C1_DEB6_4CC0_8403_D765FAABCD58
 #pragma once
 
-#include <vex/spinlock.h>
+#include <vex/compiler.h>
 
-enum {
-    THREAD_RUNNABLE,
-    THREAD_RUNNING,
-    THREAD_BLOCKED,
-    THREAD_DEAD,
-};
+struct hart_context;
 
-#ifndef MAX_EVENTS
-#define MAX_EVENTS 32
-#endif
-
-struct event;
-struct process;
-struct thread {
-    struct thread* self;
-    uint64_t errno_value;
-
-    unsigned long tid;
-    unsigned short state;
-
-    spinlock_type hart_lock;
-    spinlock_type yield_await;
-    struct hart_local* hart;
-    unsigned short hart_index;
-
-    bool enqueued;
-    bool enqueued_by_signal;
-    struct event* events[MAX_EVENTS];
-    size_t event_index;
-    size_t num_events;
-
-    struct process* owner;
-    struct hart_context ctx;
-    uint64_t timeslice;
-
-    void* amd64_gs_base;
-    void* amd64_fs_base;
-    uint64_t amd64_cr3;
-    void* amd64_kernel_stack;
-    void* amd64_pfault_stack;
-};
-
-static_assert(0 == offsetof(struct thread, self));
-static_assert(8 == offsetof(struct thread, errno_value));
-
-static __always_inline __nodiscard struct thread* this_thread(void)
-{
-    struct thread* thrd;
-    asm volatile("movq %%gs:0, %0" : "=r"(thrd));
-    return thrd;
-}
-
-void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, void* restrict arg, void* restrict stack_top);
-void arch_thread_ctx_save(struct thread* restrict thrd);
-void arch_thread_ctx_load(struct thread* restrict thrd);
+extern void sched_enter(struct hart_context* restrict ctx) __noreturn;
 
 #endif /* FFDED8C1_DEB6_4CC0_8403_D765FAABCD58 */

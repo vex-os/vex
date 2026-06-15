@@ -51,24 +51,12 @@ struct amd64_hart_tss {
 #define HART_FLAG_BSP    0x0001
 #define HART_FLAG_ACTIVE 0x0002
 
-struct hart_local_arch {
+struct hart_local;
+
+struct arch_hart {
     uint32_t lapic_id;
     uint32_t lapic_resolution;
     struct amd64_hart_tss tss;
-};
-
-struct thread;
-struct hart_local {
-    unsigned short index;
-    unsigned short flags;
-
-    struct thread* curr_thread;
-    struct thread* idle_thread;
-    unsigned long last_rq_index;
-
-    uint32_t amd64_lapic_id;
-    uint32_t amd64_lapic_resolution;
-    struct amd64_hart_tss amd64_tss;
 };
 
 static __always_inline void hart_spin(void)

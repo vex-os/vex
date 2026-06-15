@@ -5,6 +5,7 @@
 #include <vex/kprintf.h>
 #include <vex/panic.h>
 #include <vex/sched.h>
+#include <vex/thread.h>
 #include <vex/vmm.h>
 
 LIMINE_REQUEST static volatile struct limine_mp_request mp_request = {
