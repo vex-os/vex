@@ -48,4 +48,8 @@ static __always_inline __nodiscard struct thread* this_thread(void)
     return thrd;
 }
 
+void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, void* restrict arg, void* restrict stack_top);
+void arch_thread_ctx_save(struct thread* restrict thrd);
+void arch_thread_ctx_load(struct thread* restrict thrd);
+
 #endif /* FFDED8C1_DEB6_4CC0_8403_D765FAABCD58 */
