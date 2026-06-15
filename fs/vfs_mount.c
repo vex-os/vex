@@ -11,7 +11,6 @@
 #include <vex/vfs_vcache.h>
 #include <vex/vfs_vnode.h>
 
-
 struct mount_entry {
     struct mount_entry* next;
     struct vfs* fs;

@@ -9,7 +9,6 @@
 #include <vex/string.h>
 #include <vex/strings.h>
 
-
 struct cmdline sys_cmdline;
 
 static volatile __used __section(".limine_requests") struct limine_executable_cmdline_request cmdline_request = {
