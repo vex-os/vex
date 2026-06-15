@@ -40,10 +40,13 @@ struct thread {
     size_t event_index;
     size_t num_events;
 
-    struct process* owner;
-    struct hart_context ctx;
     uint64_t timeslice;
 
+    struct process* proc;
+    struct thread* tnext;
+    struct thread* tprev;
+
+    struct hart_context ctx;
     struct arch_thread arch;
 };
 
