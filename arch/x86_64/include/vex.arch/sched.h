@@ -11,6 +11,11 @@ enum {
     THREAD_DEAD,
 };
 
+#ifndef MAX_EVENTS
+#define MAX_EVENTS 32
+#endif
+
+struct event;
 struct process;
 struct thread {
     struct thread* self;
@@ -26,6 +31,9 @@ struct thread {
 
     bool enqueued;
     bool enqueued_by_signal;
+    struct event* events[MAX_EVENTS];
+    size_t event_index;
+    size_t num_events;
 
     struct process* owner;
     struct hart_context ctx;
