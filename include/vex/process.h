@@ -16,6 +16,10 @@ struct process {
 
     struct pagemap* vm;
 
+    // Stack for each thread is allocated below the previous one
+    // with an additional guard page; this points to the top of the last allocated stack
+    uintptr_t thread_stack_top;
+
     struct thread* threads;
 
     struct process* children;

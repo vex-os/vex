@@ -36,6 +36,7 @@ struct process* process_create(struct process* restrict parent, struct pagemap* 
     proc->ppid = parent ? parent->pid : 0;
     proc->lock = SPINLOCK_INIT;
     proc->vm = vm;
+    proc->thread_stack_top = parent ? parent->thread_stack_top : UINT64_C(0x0000700000000000);
 
     if(name) {
         strncpy(proc->name, name, NAME_SIZE - 1);

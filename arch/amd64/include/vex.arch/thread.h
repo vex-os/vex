@@ -5,6 +5,7 @@
 #include <vex/types.h>
 
 struct thread;
+struct pagemap;
 
 struct arch_thread {
     void* gs_base;
@@ -21,7 +22,9 @@ static __always_inline __nodiscard struct thread* this_thread(void)
     return thrd;
 }
 
-void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, void* restrict arg, void* restrict stack_top);
+void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, void* restrict arg, void* restrict kernel_stack_top);
+void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, void* restrict arg, void* restrict user_stack_top,
+    void* restrict kernel_stack_top, void* restrict pfault_stack_top, struct pagemap* restrict vm);
 void arch_thread_ctx_save(struct thread* restrict thrd);
 void arch_thread_ctx_load(struct thread* restrict thrd);
 

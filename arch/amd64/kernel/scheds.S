@@ -25,7 +25,7 @@ sched_enter:
     popq %r15           # hart_context::x86_r15
     addq $0x08, %rsp    # hart_context::x86_err
 
-    cmpq $0x4B, 8(%rsp) # CS is at 8(%rsp) after err is skipped
-    jne 1f
+    testq $3, 8(%rsp)   # CS is at 8(%rsp); test RPL bits for ring 3
+    jz 1f
     swapgs
 1:  iretq
