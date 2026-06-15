@@ -36,9 +36,8 @@ struct pagemap {
     spinlock_type lock;
     unsigned refcount;
     unsigned pglevels;
-
-    uintptr_t amd64_cr3_phys;
-    pmentry_type* amd64_cr3_virt;
+    pmentry_type* virt;
+    uintptr_t phys;
 };
 
 unsigned vmm_detect_levels(void);
@@ -50,7 +49,7 @@ void pagemap_kcopy(struct pagemap* restrict dest, const struct pagemap* restrict
 
 static __always_inline __nodiscard pmentry_type* pagemap_root(const struct pagemap* restrict vm, uintptr_t virt)
 {
-    return vm->amd64_cr3_virt;
+    return vm->virt;
 }
 
 static __always_inline __nodiscard bool pmentry_valid(pmentry_type entry)
@@ -103,7 +102,7 @@ static __always_inline __nodiscard pmentry_type pmentry_setup(uintptr_t address,
 
 static __always_inline void vmm_switch(const struct pagemap* restrict vm)
 {
-    asm volatile("movq %0, %%cr3" ::"r"(vm->amd64_cr3_phys) : "memory");
+    asm volatile("movq %0, %%cr3" ::"r"(vm->phys) : "memory");
 }
 
 #endif /* A2C71F06_184E_4FD7_8913_D5ED1EB16655 */

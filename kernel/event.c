@@ -3,6 +3,7 @@
 #include <vex/hart.h>
 #include <vex/panic.h>
 #include <vex/sched.h>
+#include <vex/thread.h>
 
 ssize_t event_await(struct event** restrict events, size_t count)
 {

@@ -4,6 +4,19 @@
 
 #include <vex.arch/hart.h>
 
+struct thread;
+
+struct hart_local {
+    unsigned short index;
+    unsigned short flags;
+
+    struct thread* curr_thread;
+    struct thread* idle_thread;
+    unsigned long last_rq_index;
+
+    struct arch_hart arch;
+};
+
 extern struct hart_local* harts;
 extern unsigned long num_harts;
 

@@ -11,13 +11,14 @@
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
+#include <vex/thread.h>
 
 #ifndef SCHED_QUEUE_SIZE
 #define SCHED_QUEUE_SIZE 65536
 #endif
 
 #ifndef SCHED_TIMESLICE
-#define SCHED_TIMESLICE 5000000 // 5ms
+#define SCHED_TIMESLICE 5000000
 #endif
 
 // Threads and processes are something that gets
