@@ -164,14 +164,7 @@ void sched_enqueue(struct thread* restrict thrd)
     for(unsigned long i = 0; i < SCHED_QUEUE_SIZE; ++i) {
         if(atomic_cmpxchg(&run_queue[i], &expt, thrd, ATOMIC_ACQ_REL, ATOMIC_RELAXED)) {
             thrd->enqueued = true;
-
-            for(unsigned long j = 0; j < num_harts; ++j) {
-                if(0 == (harts[j].flags & HART_FLAG_ACTIVE)) {
-                    hart_ipi(&harts[j], sched_ireq_number);
-                    break;
-                }
-            }
-
+            hart_ipi(HART_IPI_EXCEPT_ME, sched_ireq_number);
             return;
         }
 
@@ -264,7 +257,7 @@ initcall_bsp_multicore(sched_init, INIT_LATE);
 
 static void sched_start(void)
 {
-    clockevt_oneshot(sched_ireq_number, SCHED_TIMESLICE);
+    hart_ipi(HART_IPI_EVERYONE, sched_ireq_number);
 }
 
 initcall_bsp_late(sched_start, INIT_FIRST);

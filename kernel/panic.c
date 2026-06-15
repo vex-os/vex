@@ -32,7 +32,7 @@ void __noreturn fpanic(const char* restrict file, unsigned long line, const char
 void __noreturn fvpanic(const char* restrict file, unsigned long line, const char* restrict fmt, va_list ap)
 {
     if(panic_ipi_number < UINT_MAX) {
-        hart_ipi(nullptr, panic_ipi_number);
+        hart_ipi(HART_IPI_EXCEPT_ME, panic_ipi_number);
     }
 
     disable_interrupts();

@@ -10,6 +10,7 @@
 #include <vex/page.h>
 #include <vex/panic.h>
 #include <vex/pslab.h>
+#include <vex/sched.h>
 #include <vex/version.h>
 #include <vex/vmm.h>
 #include <vex/vprot.h>
@@ -18,13 +19,34 @@ static volatile __used __section(".limine_requests") uint64_t limine_base_revisi
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
 static volatile __used __section(".limine_requests_end") uint64_t limine_requests_end_marker[] = LIMINE_REQUESTS_END_MARKER;
 
+static void sched_test_thread(void* restrict arg)
+{
+    const char* name = arg;
+
+    for(unsigned long i = 0;; ++i) {
+        if(i > 10) {
+            sched_terminate();
+            unreachable();
+        }
+
+        pr_inform("[%hu] sched_test: %s tick %lu", this_hart()->index, name, i);
+        sched_yield();
+    }
+}
+
 void __noreturn kmain(void)
 {
     pr_emerg("%s %s %s", k_sysname, k_release, k_version);
 
     invoke_initcalls(initcalls_bsp_start, initcalls_bsp_end);
 
-    pr_emerg("hanging around...");
+    create_thread_kern_enq(sched_test_thread, (void*)"alpha");
+    create_thread_kern_enq(sched_test_thread, (void*)"beta");
+    create_thread_kern_enq(sched_test_thread, (void*)"gamma");
+    create_thread_kern_enq(sched_test_thread, (void*)"delta");
+    create_thread_kern_enq(sched_test_thread, (void*)"epsilon");
+
+    pr_emerg("sched test threads spawned, enabling interrupts");
 
     enable_interrupts();
 

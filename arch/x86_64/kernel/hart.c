@@ -44,12 +44,19 @@ void hart_setup_2(const struct limine_mp_info* restrict info)
 
 void hart_ipi(struct hart_local* restrict target, unsigned ireq_number)
 {
-    if(target == nullptr) {
-        lapic_broadcast_ipi((uint8_t)(ireq_number + ARCH_IREQ_BASE));
+    kassert(target); // old api bro
+
+    if(target == HART_IPI_EVERYONE) {
+        lapic_ipi(0, LAPIC_IPI_EVERYONE, ireq_number + ARCH_IREQ_BASE);
+        return;
     }
-    else {
-        lapic_send_ipi(target->x86_lapic_id, (uint8_t)(ireq_number + ARCH_IREQ_BASE));
+
+    if(target == HART_IPI_EXCEPT_ME) {
+        lapic_ipi(0, LAPIC_IPI_EXCEPT_ME, ireq_number + ARCH_IREQ_BASE);
+        return;
     }
+
+    lapic_ipi(target->x86_lapic_id, LAPIC_IPI_SPECIFIC, ireq_number + ARCH_IREQ_BASE);
 }
 
 static void arch_init_panic_ipi(void)

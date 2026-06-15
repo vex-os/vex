@@ -114,6 +114,9 @@ static __always_inline void restore_interrupts(bool enabled)
 struct limine_mp_response;
 struct limine_mp_info;
 
+#define HART_IPI_EVERYONE  ((struct hart_local*)(-1))
+#define HART_IPI_EXCEPT_ME ((struct hart_local*)(-2))
+
 void hart_setup_1(const struct limine_mp_info* restrict info, const struct limine_mp_response* restrict response);
 void hart_setup_2(const struct limine_mp_info* restrict info);
 void hart_ipi(struct hart_local* restrict target, unsigned ireq_number);

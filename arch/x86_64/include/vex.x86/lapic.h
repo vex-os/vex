@@ -21,10 +21,13 @@
 #define LAPIC_TIMER_MASKED   UINT32_C(0x00010000)
 #define LAPIC_TIMER_DIV1     UINT32_C(0x0000000B)
 
+#define LAPIC_IPI_SPECIFIC  UINT32_C(0x00000000)
+#define LAPIC_IPI_EVERYONE  UINT32_C(0x000C4000)
+#define LAPIC_IPI_EXCEPT_ME UINT32_C(0x00084000)
+
 uint32_t lapic_read(uint32_t reg);
 void lapic_write(uint32_t reg, uint32_t value);
-void lapic_send_ipi(uint32_t lapic_id, uint8_t vector);
-void lapic_broadcast_ipi(uint8_t vector);
+void lapic_ipi(uint32_t target, uint32_t mode, uint8_t vector);
 
 static __always_inline __nodiscard uint32_t lapic_query_id(void)
 {
