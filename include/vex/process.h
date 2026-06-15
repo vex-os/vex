@@ -31,6 +31,7 @@ struct process {
 
 struct process* process_create(struct process* restrict parent, struct pagemap* restrict vm, const char* restrict name) __nodiscard;
 struct process* process_locate(pid_t pid) __nodiscard;
+void process_exit(struct process* proc, int exit_code);
 void process_destroy(struct process* proc);
 
 #endif /* DAD7E4CF_1C26_44A8_B4BF_6ABBD792D805 */

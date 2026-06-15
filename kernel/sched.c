@@ -131,7 +131,7 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
     thrd->self = thrd;
     thrd->state = THREAD_RUNNABLE;
     thrd->timeslice = SCHED_TIMESLICE;
-    thrd->owner = nullptr;
+    thrd->proc = nullptr;
     thrd->enqueued = false;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
