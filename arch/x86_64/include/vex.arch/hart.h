@@ -51,16 +51,19 @@ struct x86_hart_tss {
 #define HART_FLAG_BSP    0x0001
 #define HART_FLAG_ACTIVE 0x0002
 
+struct thread;
 struct hart_local {
-    struct hart_local* self;
     unsigned short index;
     unsigned short flags;
+
+    struct thread* curr_thread;
+    struct thread* idle_thread;
+    unsigned long last_rq_index;
+
     uint32_t x86_lapic_id;
     uint32_t x86_lapic_resolution;
     struct x86_hart_tss x86_tss;
 };
-
-static_assert(0 == offsetof(struct hart_local, self));
 
 static __always_inline void hart_spin(void)
 {
@@ -113,6 +116,6 @@ struct limine_mp_info;
 
 void hart_setup_1(const struct limine_mp_info* restrict info, const struct limine_mp_response* restrict response);
 void hart_setup_2(const struct limine_mp_info* restrict info);
-void hart_panic_ipi(void);
+void hart_ipi(struct hart_local* restrict target, unsigned ireq_number);
 
 #endif /* B15F19F4_C7E1_479A_A8B7_3E8843A71BA6 */

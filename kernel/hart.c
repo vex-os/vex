@@ -4,6 +4,7 @@
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/panic.h>
+#include <vex/sched.h>
 #include <vex/vmm.h>
 
 LIMINE_REQUEST static volatile struct limine_mp_request mp_request = {
@@ -39,7 +40,14 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 }
 #endif
 
-static void init_hart(void)
+struct hart_local* this_hart(void)
+{
+    struct thread* thrd = this_thread();
+
+    return thrd->hart;
+}
+
+static void init_hart_structs(void)
 {
     if(mp_request.response == nullptr) {
         panic("bootloader did not provide multicore information");
@@ -55,7 +63,10 @@ static void init_hart(void)
     for(unsigned long i = 0; i < num_harts; ++i) {
         hart_setup_1(mp_request.response->cpus[i], mp_request.response);
     }
+}
 
+static void init_hart_boot(void)
+{
     for(unsigned long i = 0; i < num_harts; ++i) {
         if(harts[i].flags & HART_FLAG_BSP) {
             hart_setup_2(mp_request.response->cpus[i]);
@@ -80,4 +91,5 @@ static void init_hart(void)
     pr_inform("hart: %lu harts online", num_harts);
 }
 
-initcall_bsp_multicore(init_hart, INIT_EARLY);
+initcall_bsp_multicore(init_hart_structs, INIT_EARLY);
+initcall_bsp_multicore(init_hart_boot, INIT_LAST);
