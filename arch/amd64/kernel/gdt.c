@@ -1,4 +1,4 @@
-#include <vex.x86/gdt.h>
+#include <vex.amd64/gdt.h>
 #include <vex/errno.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
@@ -134,9 +134,9 @@ static void arch_init_gdt_smp(void)
 
     reload_gdt();
 
-    uintptr_t tss_base = (uintptr_t)(&hart->x86_tss);
+    uintptr_t tss_base = (uintptr_t)(&hart->amd64_tss);
 
-    gdt.tss.limit_0 = sizeof(hart->x86_tss) - 1;
+    gdt.tss.limit_0 = sizeof(hart->amd64_tss) - 1;
     gdt.tss.base_0 = (tss_base & 0xFFFF);
     gdt.tss.base_1 = (tss_base >> 16) & 0xFF;
     gdt.tss.base_2 = (tss_base >> 24) & 0xFF;

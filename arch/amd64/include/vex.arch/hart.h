@@ -6,32 +6,32 @@
 #include <vex/types.h>
 
 struct hart_context {
-    uint64_t x86_ds;
-    uint64_t x86_es;
-    uint64_t x86_rax;
-    uint64_t x86_rbx;
-    uint64_t x86_rcx;
-    uint64_t x86_rdx;
-    uint64_t x86_rsi;
-    uint64_t x86_rdi;
-    uint64_t x86_rbp;
-    uint64_t x86_r8;
-    uint64_t x86_r9;
-    uint64_t x86_r10;
-    uint64_t x86_r11;
-    uint64_t x86_r12;
-    uint64_t x86_r13;
-    uint64_t x86_r14;
-    uint64_t x86_r15;
-    uint64_t x86_err;
-    uint64_t x86_rip;
-    uint64_t x86_cs;
-    uint64_t x86_rflags;
-    uint64_t x86_rsp;
-    uint64_t x86_ss;
+    uint64_t amd64_ds;
+    uint64_t amd64_es;
+    uint64_t amd64_rax;
+    uint64_t amd64_rbx;
+    uint64_t amd64_rcx;
+    uint64_t amd64_rdx;
+    uint64_t amd64_rsi;
+    uint64_t amd64_rdi;
+    uint64_t amd64_rbp;
+    uint64_t amd64_r8;
+    uint64_t amd64_r9;
+    uint64_t amd64_r10;
+    uint64_t amd64_r11;
+    uint64_t amd64_r12;
+    uint64_t amd64_r13;
+    uint64_t amd64_r14;
+    uint64_t amd64_r15;
+    uint64_t amd64_err;
+    uint64_t amd64_rip;
+    uint64_t amd64_cs;
+    uint64_t amd64_rflags;
+    uint64_t amd64_rsp;
+    uint64_t amd64_ss;
 } __packed;
 
-struct x86_hart_tss {
+struct amd64_hart_tss {
     uint32_t reserved_0;
     uint64_t rsp_0;
     uint64_t rsp_1;
@@ -51,6 +51,12 @@ struct x86_hart_tss {
 #define HART_FLAG_BSP    0x0001
 #define HART_FLAG_ACTIVE 0x0002
 
+struct hart_local_arch {
+    uint32_t lapic_id;
+    uint32_t lapic_resolution;
+    struct amd64_hart_tss tss;
+};
+
 struct thread;
 struct hart_local {
     unsigned short index;
@@ -60,9 +66,9 @@ struct hart_local {
     struct thread* idle_thread;
     unsigned long last_rq_index;
 
-    uint32_t x86_lapic_id;
-    uint32_t x86_lapic_resolution;
-    struct x86_hart_tss x86_tss;
+    uint32_t amd64_lapic_id;
+    uint32_t amd64_lapic_resolution;
+    struct amd64_hart_tss amd64_tss;
 };
 
 static __always_inline void hart_spin(void)

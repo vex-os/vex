@@ -20,7 +20,7 @@ ${CONFIGURATION_MK}: configure.py ${ALL_CONFIG_FILES} ${ALL_FILES_TABLES}
 	@printf "  CONF\t%s\n" "config/${CONFIGURATION}.conf"
 	@${PYTHON} configure.py ${CONFIGURATION}
 
-ARCH ?= x86_64
+ARCH ?= amd64
 ENVT ?= clang
 
 SYSNAME ?= Vex

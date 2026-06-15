@@ -1,0 +1,18 @@
+arch/amd64/kernel/bxcons.c              optional ENABLE_BXCONS
+arch/amd64/kernel/clockevt.c
+arch/amd64/kernel/gdt.c
+arch/amd64/kernel/hart.c
+arch/amd64/kernel/hpet.c
+arch/amd64/kernel/idt.c
+arch/amd64/kernel/idts.S
+arch/amd64/kernel/ioapic.c
+arch/amd64/kernel/ireq.c
+arch/amd64/kernel/isr.c
+arch/amd64/kernel/lapic.c
+arch/amd64/kernel/paging.c
+arch/amd64/kernel/pci_cf8.c
+arch/amd64/kernel/pic.c
+arch/amd64/kernel/pmio.c
+arch/amd64/kernel/sched.c
+arch/amd64/kernel/scheds.S
+arch/amd64/kernel/uacpi.c

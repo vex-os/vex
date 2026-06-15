@@ -1,6 +1,6 @@
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
-#include <vex.x86/pmio.h>
+#include <vex.amd64/pmio.h>
 #include <vex/clocksrc.h>
 #include <vex/errno.h>
 #include <vex/hhdm.h>
