@@ -40,11 +40,11 @@ void __noreturn kmain(void)
 
     invoke_initcalls(initcalls_bsp_start, initcalls_bsp_end);
 
-    create_thread_kern_enq(sched_test_thread, (void*)"alpha");
-    create_thread_kern_enq(sched_test_thread, (void*)"beta");
-    create_thread_kern_enq(sched_test_thread, (void*)"gamma");
-    create_thread_kern_enq(sched_test_thread, (void*)"delta");
-    create_thread_kern_enq(sched_test_thread, (void*)"epsilon");
+    create_thread_kern_enq(sched_test_thread, (void*)"42");
+    create_thread_kern_enq(sched_test_thread, (void*)"67");
+    create_thread_kern_enq(sched_test_thread, (void*)"69");
+    create_thread_kern_enq(sched_test_thread, (void*)"1337");
+    create_thread_kern_enq(sched_test_thread, (void*)"420");
 
     pr_emerg("sched test threads spawned, enabling interrupts");
 
