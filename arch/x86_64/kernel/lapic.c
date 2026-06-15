@@ -29,27 +29,15 @@ void lapic_write(uint32_t reg, uint32_t value)
     lapic_mmio[reg] = value;
 }
 
-void lapic_send_ipi(uint32_t lapic_id, uint8_t vector)
+void lapic_ipi(uint32_t target, uint32_t mode, uint8_t vector)
 {
     if(lapic_mmio) {
         while(lapic_read(LAPIC_REG_ICR_LO) & UINT32_C(0x00001000)) {
             hart_spin();
         }
 
-        lapic_write(LAPIC_REG_ICR_HI, lapic_id << 24);
-        lapic_write(LAPIC_REG_ICR_LO, vector | UINT32_C(0x00004000));
-    }
-}
-
-void lapic_broadcast_ipi(uint8_t vector)
-{
-    if(lapic_mmio) {
-        while(lapic_read(LAPIC_REG_ICR_LO) & UINT32_C(0x00001000)) {
-            hart_spin();
-        }
-
-        lapic_write(LAPIC_REG_ICR_HI, UINT32_C(0));
-        lapic_write(LAPIC_REG_ICR_LO, vector | UINT32_C(0x000C4000));
+        lapic_write(LAPIC_REG_ICR_HI, target << 24);
+        lapic_write(LAPIC_REG_ICR_LO, vector | mode);
     }
 }
 

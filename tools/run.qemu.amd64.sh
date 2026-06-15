@@ -21,7 +21,7 @@ qargs="${qargs} -debugcon stdio"
 qargs="${qargs} -machine type=q35"
 qargs="${qargs} -vga std"
 qargs="${qargs} -m 512M"
-# qargs="${qargs} -smp 4"
+qargs="${qargs} -smp 4"
 
 for arg in "$@"; do
     case "${arg}" in
