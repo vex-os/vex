@@ -31,6 +31,16 @@ struct hart_context {
     uint64_t amd64_ss;
 } __packed;
 
+#define syscall_pc     amd64_rip
+#define syscall_arg_1  amd64_rdi
+#define syscall_arg_2  amd64_rsi
+#define syscall_arg_3  amd64_rdx
+#define syscall_arg_4  amd64_r10
+#define syscall_arg_5  amd64_r8
+#define syscall_arg_6  amd64_r9
+#define syscall_retval amd64_rax
+#define syscall_number amd64_rax
+
 struct amd64_hart_tss {
     uint32_t reserved_0;
     uint64_t rsp_0;
