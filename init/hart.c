@@ -14,19 +14,14 @@ LIMINE_REQUEST static volatile struct limine_mp_request mp_request = {
 struct hart_local* harts;
 unsigned long num_harts;
 
-#ifdef ENABLE_SMP
-static volatile unsigned long ready_count;
-#endif
+static volatile unsigned long ready_harts;
 
 #ifdef ENABLE_SMP
 static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 {
     vmm_switch(&sys_pagemap);
 
-    struct hart_local* hart = harts[info->processor_id];
-
-    struct hart_local* hart = this_hart();
-    hart->flags &= ~HART_FLAG_BSP;
+    hart_setup_2(info);
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
@@ -34,7 +29,7 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
     //     panic("test panic from hart %u", this_hart()->index);
     // }
 
-    atomic_fetch_add(&ready_count, 1, ATOMIC_RELEASE);
+    atomic_fetch_add(&ready_harts, 1, ATOMIC_RELEASE);
 
     enable_interrupts();
 
@@ -58,20 +53,26 @@ static void init_hart(void)
     }
 
     for(unsigned long i = 0; i < num_harts; ++i) {
-        harts[i].index = i;
-        harts[i].flags = HART_FLAG_BSP; // this is cleared later by non-bsp harts
+        hart_setup_1(mp_request.response->cpus[i], mp_request.response);
+    }
+
+    for(unsigned long i = 0; i < num_harts; ++i) {
+        if(harts[i].flags & HART_FLAG_BSP) {
+            hart_setup_2(mp_request.response->cpus[i]);
+            break;
+        }
     }
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
-#ifdef ENABLE_SMP
-    atomic_store_n(&ready_count, 1, ATOMIC_RELAXED);
+    atomic_store_n(&ready_harts, 1, ATOMIC_RELAXED);
 
+#ifdef ENABLE_SMP
     for(unsigned long i = 0; i < num_harts; ++i) {
         atomic_store_n(&mp_request.response->cpus[i]->goto_address, &smp_entry, ATOMIC_RELEASE);
     }
 
-    while(atomic_load_n(&ready_count, ATOMIC_ACQUIRE) < num_harts) {
+    while(atomic_load_n(&ready_harts, ATOMIC_ACQUIRE) < num_harts) {
         hart_spin();
     }
 #endif
