@@ -138,7 +138,7 @@ static struct thread* create_idle_thread(void)
 
 void sched_enqueue(struct thread* restrict thrd)
 {
-    if(!thrd->enqueued) {
+    if(thrd->enqueued) {
         return;
     }
 
