@@ -1,4 +1,5 @@
 arch/x86_64/kernel/bxcons.c             optional ENABLE_BXCONS
+arch/x86_64/kernel/clockevt.c
 arch/x86_64/kernel/gdt.c
 arch/x86_64/kernel/hart.c
 arch/x86_64/kernel/hpet.c
@@ -8,7 +9,6 @@ arch/x86_64/kernel/ioapic.c
 arch/x86_64/kernel/ireq.c
 arch/x86_64/kernel/isr.c
 arch/x86_64/kernel/lapic.c
-arch/x86_64/kernel/lapic_timer.c
 arch/x86_64/kernel/paging.c
 arch/x86_64/kernel/pci_cf8.c
 arch/x86_64/kernel/pic.c

@@ -56,7 +56,7 @@ struct hart_local {
     unsigned short index;
     unsigned short flags;
     uint32_t x86_lapic_id;
-    uint32_t x86_lapic_reload;
+    uint32_t x86_lapic_resolution;
     struct x86_hart_tss x86_tss;
 };
 
@@ -108,7 +108,11 @@ static __always_inline void restore_interrupts(bool enabled)
     }
 }
 
-void hart_setup(struct hart_local* restrict hart);
+struct limine_mp_response;
+struct limine_mp_info;
+
+void hart_setup_1(const struct limine_mp_info* restrict info, const struct limine_mp_response* restrict response);
+void hart_setup_2(const struct limine_mp_info* restrict info);
 void hart_panic_ipi(void);
 
 #endif /* B15F19F4_C7E1_479A_A8B7_3E8843A71BA6 */

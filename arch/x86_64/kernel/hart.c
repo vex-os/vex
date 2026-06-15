@@ -1,3 +1,4 @@
+#include <limine.h>
 #include <vex.arch/ireq.h>
 #include <vex.x86/lapic.h>
 #include <vex.x86/msr.h>
@@ -29,8 +30,24 @@ struct hart_local* __nodiscard this_hart(void)
     return hart;
 }
 
-void hart_setup(struct hart_local* restrict hart)
+void hart_setup_1(const struct limine_mp_info* restrict info, const struct limine_mp_response* restrict response)
 {
+    struct hart_local* hart = &harts[info->processor_id];
+
+    hart->self = hart;
+    hart->index = info->processor_id;
+    hart->flags = HART_FLAG_ACTIVE;
+    hart->x86_lapic_id = info->lapic_id;
+
+    if(info->lapic_id == response->bsp_lapic_id) {
+        hart->flags |= HART_FLAG_BSP;
+    }
+}
+
+void hart_setup_2(const struct limine_mp_info* restrict info)
+{
+    struct hart_local* hart = &harts[info->processor_id];
+
     wrmsr(0xC0000101, (uintptr_t)(hart));
 }
 

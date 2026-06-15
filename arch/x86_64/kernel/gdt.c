@@ -104,8 +104,6 @@ static void reload_gdt(void)
     asm volatile("movl %0, %%eax" : : "i"(gdt_selector(GDT_KERN_DATA_64, 0, 0)) : "eax");
     asm volatile("movw %%ax, %%ds" : : : "memory");
     asm volatile("movw %%ax, %%es" : : : "memory");
-    asm volatile("movw %%ax, %%fs" : : : "memory");
-    asm volatile("movw %%ax, %%gs" : : : "memory");
     asm volatile("movw %%ax, %%ss" : : : "memory");
 }
 
