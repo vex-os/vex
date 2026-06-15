@@ -4,7 +4,6 @@
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 
-
 struct event_handler {
     struct event_handler* next;
     chr_event_handler_type handler;

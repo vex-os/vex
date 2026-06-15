@@ -15,7 +15,7 @@
         "TRACE_MALLOC"
       ],
       "includePath": [
-        "${workspaceFolder}/arch/x86_64/include",
+        "${workspaceFolder}/arch/amd64/include",
         "${workspaceFolder}/include"
       ],
       "compilerArgs": [
