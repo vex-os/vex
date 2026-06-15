@@ -63,6 +63,7 @@ kernel/intctl.c
 kernel/ireq.c
 kernel/kprintf.c
 kernel/panic.c
+kernel/process.c
 kernel/sched.c
 kernel/version.c
 

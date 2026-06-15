@@ -10,6 +10,11 @@ typedef void (*thread_entry_kern)(void* restrict arg);
 struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg);
 struct thread* create_thread_kern_enq(thread_entry_kern entry, void* restrict arg);
 
+struct process;
+typedef void (*thread_entry_user)(void* restrict arg);
+struct thread* create_thread_user(struct process* restrict proc, thread_entry_user entry, void* restrict arg);
+struct thread* create_thread_user_enq(struct process* restrict proc, thread_entry_user entry, void* restrict arg);
+
 void sched_enqueue(struct thread* restrict thrd);
 void sched_dequeue(struct thread* restrict thrd);
 void sched_terminate(void) __noreturn;
