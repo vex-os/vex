@@ -1,7 +1,7 @@
 #include <limine.h>
+#include <vex.amd64/lapic.h>
+#include <vex.amd64/msr.h>
 #include <vex.arch/ireq.h>
-#include <vex.x86/lapic.h>
-#include <vex.x86/msr.h>
 #include <vex/assert.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
@@ -29,7 +29,7 @@ void hart_setup_1(const struct limine_mp_info* restrict info, const struct limin
 
     hart->index = info->processor_id;
     hart->flags = HART_FLAG_ACTIVE;
-    hart->x86_lapic_id = info->lapic_id;
+    hart->amd64_lapic_id = info->lapic_id;
 
     if(info->lapic_id == response->bsp_lapic_id) {
         hart->flags |= HART_FLAG_BSP;
@@ -56,7 +56,7 @@ void hart_ipi(struct hart_local* restrict target, unsigned ireq_number)
         return;
     }
 
-    lapic_ipi(target->x86_lapic_id, LAPIC_IPI_SPECIFIC, ireq_number + ARCH_IREQ_BASE);
+    lapic_ipi(target->amd64_lapic_id, LAPIC_IPI_SPECIFIC, ireq_number + ARCH_IREQ_BASE);
 }
 
 static void arch_init_panic_ipi(void)

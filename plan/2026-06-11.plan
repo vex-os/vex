@@ -3,7 +3,7 @@ Porting lyre's scheduler/process/thread model to vex
 =======================================================
 
 SOURCE: ext/lyre/sched/, ext/lyre/sys/, ext/lyre/lib/, ext/lyre/dev/
-TARGET: arch-agnostic design (arch/x86_64/ for arch-specific, kernel/ + sched/ for generic)
+TARGET: arch-agnostic design (arch/amd64/ for arch-specific, kernel/ + sched/ for generic)
 
 Overview
 --------
@@ -39,9 +39,9 @@ Goal: Define the thread struct and wire it into hart_local.
 Files to create/modify:
   include/vex/thread.h          -- arch-agnostic thread struct
   include/vex/process.h         -- arch-agnostic process struct
-  arch/x86_64/include/vex.arch/thread.h  -- x86_64 arch-specific thread fields
-  arch/x86_64/kernel/thread.c   -- x86_64 thread init (GS, MSRs, FPU storage)
-  arch/x86_64/include/vex.arch/hart.h    -- extend hart_local to hold current_thread ptr
+  arch/amd64/include/vex.arch/thread.h  -- amd64 arch-specific thread fields
+  arch/amd64/kernel/thread.c   -- amd64 thread init (GS, MSRs, FPU storage)
+  arch/amd64/include/vex.arch/hart.h    -- extend hart_local to hold current_thread ptr
 
 Thread struct (arch-agnostic part, include/vex/thread.h):
   - tid, state (enum: RUNNABLE, RUNNING, BLOCKED, DEAD)
@@ -52,7 +52,7 @@ Thread struct (arch-agnostic part, include/vex/thread.h):
   - arch_thread_t arch  -- opaque arch-specific block (defined per arch)
   - event synchronization fields (stage 5)
 
-Arch-specific block for x86_64 (arch/vex.arch/thread.h):
+Arch-specific block for amd64 (arch/vex.arch/thread.h):
   - struct cpu_ctx ctx      -- saved GP registers (already defined in idts.S frame layout)
   - uint64_t cr3
   - void *gs_base, *fs_base
@@ -118,9 +118,9 @@ Goal: Drive preemption via per-CPU LAPIC one-shot timer.
 Context: lapic_timer.c exists but is commented out / disabled.
 
 Files to modify/create:
-  arch/x86_64/kernel/lapic_timer.c  -- implement lapic_timer_calibrate() and
+  arch/amd64/kernel/lapic_timer.c  -- implement lapic_timer_calibrate() and
                                        lapic_timer_oneshot(uint64_t us, uint8_t vec)
-  arch/x86_64/kernel/lapic.c        -- expose lapic_send_ipi() if not already public
+  arch/amd64/kernel/lapic.c        -- expose lapic_send_ipi() if not already public
   kernel/sched/sched.c              -- call lapic_timer_oneshot at end of sched_entry
 
 Calibration (follow lyre's approach):
@@ -151,15 +151,15 @@ On sched_enqueue, if any hart is running its idle thread: send IPI to wake it.
 Acceptance: booting with 2+ CPUs, both CPUs cycle through kernel threads visibly.
 
 =======================================================
-STAGE 4: Arch Context Switch (x86_64)
+STAGE 4: Arch Context Switch (amd64)
 =======================================================
 
 Goal: Correct save/restore of full CPU state including FPU.
 
 Files to create/modify:
-  arch/x86_64/kernel/thread.c   -- arch_thread_init(), arch_thread_spinup()
-  arch/x86_64/kernel/fpu.c      -- fpu_init(), fpu_save(), fpu_restore()
-  arch/x86_64/include/vex.arch/thread.h
+  arch/amd64/kernel/thread.c   -- arch_thread_init(), arch_thread_spinup()
+  arch/amd64/kernel/fpu.c      -- fpu_init(), fpu_save(), fpu_restore()
+  arch/amd64/include/vex.arch/thread.h
 
 arch_thread_init(struct thread *t, void *entry, void *stack, bool user):
   - Zero ctx.
@@ -315,11 +315,11 @@ STAGE 8: Syscall Entry Wired to Thread Context
 Goal: syscall entry saves/restores thread context correctly; syscalls can block.
 
 Files to modify/create:
-  arch/x86_64/kernel/syscall.S  -- syscall entry stub (SYSCALL instruction or sysenter)
-  arch/x86_64/kernel/syscall.c  -- syscall dispatch table
+  arch/amd64/kernel/syscall.S  -- syscall entry stub (SYSCALL instruction or sysenter)
+  arch/amd64/kernel/syscall.c  -- syscall dispatch table
   kernel/syscall/syscall.c      -- arch-agnostic syscall dispatch
 
-Syscall entry (SYSCALL path, preferred on x86_64):
+Syscall entry (SYSCALL path, preferred on amd64):
   1. swapgs  -- switch to kernel GS (hart_local)
   2. Save user RSP; load kernel stack from hart_local->current_thread->arch.kernel_stack
   3. Push synthetic cpu_ctx frame (RIP=RCX, RFLAGS=R11, RSP=saved user RSP)
@@ -420,7 +420,7 @@ WHAT TO COPY VERBATIM (WITH MINOR ADAPTATIONS)
   ext/lyre/sched/sched.c        -- run queue, get_next_thread, sched_entry, enqueue/dequeue
   ext/lyre/lib/event.c          -- event_trigger, event_await (replace lyre spinlock with vex)
   ext/lyre/sys/cpu.c            -- FPU detection, xsave area size calculation
-  ext/lyre/sched/sched.c:74     -- thread_spinup() assembly (arch/x86_64/kernel/thread.c)
+  ext/lyre/sched/sched.c:74     -- thread_spinup() assembly (arch/amd64/kernel/thread.c)
 
 WHAT TO REWRITE FROM SCRATCH (lyre version too tightly coupled):
   CPU init (already done in vex as hart.c + smp.c)

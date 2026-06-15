@@ -1,4 +1,4 @@
-#include <vex.x86/pmio.h>
+#include <vex.amd64/pmio.h>
 #include <vex/pmio.h>
 
 void pmio_region_setup(struct pmio_region* restrict region)

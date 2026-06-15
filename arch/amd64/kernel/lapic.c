@@ -1,5 +1,5 @@
-#include <vex.x86/lapic.h>
-#include <vex.x86/msr.h>
+#include <vex.amd64/lapic.h>
+#include <vex.amd64/msr.h>
 #include <vex/errno.h>
 #include <vex/hart.h>
 #include <vex/hhdm.h>

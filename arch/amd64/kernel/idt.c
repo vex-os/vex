@@ -1,5 +1,5 @@
-#include <vex.x86/gdt.h>
-#include <vex.x86/idt.h>
+#include <vex.amd64/gdt.h>
+#include <vex.amd64/idt.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>

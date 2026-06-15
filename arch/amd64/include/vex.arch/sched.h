@@ -39,11 +39,11 @@ struct thread {
     struct hart_context ctx;
     uint64_t timeslice;
 
-    void* x86_gs_base;
-    void* x86_fs_base;
-    uint64_t x86_cr3;
-    void* x86_kernel_stack;
-    void* x86_pfault_stack;
+    void* amd64_gs_base;
+    void* amd64_fs_base;
+    uint64_t amd64_cr3;
+    void* amd64_kernel_stack;
+    void* amd64_pfault_stack;
 };
 
 static_assert(0 == offsetof(struct thread, self));

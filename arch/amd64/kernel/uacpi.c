@@ -1,6 +1,6 @@
 #include <limine.h>
 #include <uacpi/kernel_api.h>
-#include <vex.x86/pmio.h>
+#include <vex.amd64/pmio.h>
 #include <vex/hart.h>
 #include <vex/hhdm.h>
 #include <vex/kmalloc.h>
