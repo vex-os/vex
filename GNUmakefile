@@ -52,6 +52,8 @@ override CPPFLAGS += -D UTSNAME_RELEASE='"${RELEASE}"'
 override CPPFLAGS += -D UTSNAME_VERSION='"${GIT_REV}-${ENVT}"'
 override CPPFLAGS += -D UTSNAME_MACHINE='"${ARCH}"'
 
+override CPPFLAGS += -D ELF_ARCH=${ELF_ARCH}
+
 override LDFLAGS += -nostdlib
 
 BUILD_DIR := build
