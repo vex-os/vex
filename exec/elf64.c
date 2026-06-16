@@ -66,21 +66,38 @@ static int load_segment(struct process* restrict proc, struct file* restrict fp,
     uintptr_t seg_end = page_align_up(phdr->p_vaddr + phdr->p_memsz);
 
     for(uintptr_t page_uva = seg_start; page_uva < seg_end; page_uva += PAGE_SIZE) {
-        uintptr_t phys = pslab_alloc_phys();
+        unsigned existing_vprot = vmm_query(proc->vm, page_uva);
+        uintptr_t phys;
 
-        if(phys == 0) {
-            return -ENOMEM;
+        if(existing_vprot) {
+            phys = vmm_resolve(proc->vm, page_uva);
+
+            if(0 == (existing_vprot & VPROT_WRITE)) {
+                int retval = vmm_patch(proc->vm, page_uva, existing_vprot | VPROT_WRITE);
+
+                if(retval < 0) {
+                    return retval;
+                }
+            }
+        }
+        else {
+            phys = pslab_alloc_phys();
+
+            if(phys == 0) {
+                return -ENOMEM;
+            }
+
+            memset(phys_to_virt(phys), 0, PAGE_SIZE);
+
+            int retval = vmm_map(proc->vm, page_uva, phys, vprot | VPROT_WRITE);
+
+            if(retval < 0) {
+                pslab_free_phys(phys);
+                return retval;
+            }
         }
 
         uint8_t* virt = phys_to_virt(phys);
-        memset(virt, 0, PAGE_SIZE);
-
-        int retval = vmm_map(proc->vm, page_uva, phys, vprot | VPROT_WRITE);
-
-        if(retval < 0) {
-            pslab_free_phys(phys);
-            return retval;
-        }
 
         uintptr_t file_lo = phdr->p_vaddr;
         uintptr_t file_hi = phdr->p_vaddr + phdr->p_filesz;
@@ -104,7 +121,7 @@ static int load_segment(struct process* restrict proc, struct file* restrict fp,
             size_t length = copy_hi - copy_lo;
             off_t offset = phdr->p_offset + copy_lo - phdr->p_vaddr;
 
-            retval = file_seek(fp, offset, SEEK_SET);
+            int retval = file_seek(fp, offset, SEEK_SET);
 
             if(retval < 0) {
                 return -EIO;
@@ -117,8 +134,22 @@ static int load_segment(struct process* restrict proc, struct file* restrict fp,
             }
         }
 
-        if(0 == (vprot & VPROT_WRITE)) {
-            vmm_patch(proc->vm, page_uva, vprot);
+        // The page's final protection is the union of every segment that
+        // touches it, not just this one - otherwise loading a second,
+        // less-permissive segment over a shared page could needlessly
+        // revoke permissions the first segment still needs.
+        unsigned final_vprot = vprot;
+
+        if(existing_vprot) {
+            final_vprot |= existing_vprot;
+        }
+
+        if(0 == (final_vprot & VPROT_WRITE)) {
+            int retval = vmm_patch(proc->vm, page_uva, final_vprot);
+
+            if(retval < 0) {
+                return retval;
+            }
         }
     }
 
@@ -296,6 +327,14 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
 
         if(phdr.p_type != PT_LOAD) {
             continue;
+        }
+
+        if(phdr.p_filesz > phdr.p_memsz) {
+            return -ENOEXEC;
+        }
+
+        if(phdr.p_vaddr > UINTPTR_MAX - phdr.p_memsz) {
+            return -ENOEXEC;
         }
 
         int retval = load_segment(proc, fp, &phdr);
