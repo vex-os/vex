@@ -9,8 +9,8 @@ bus/pci.c
 crypto/crc32.c
 crypto/crc32_iso3309.c
 
-dev/ata.c
-dev/atapi.c
+dev/blk_ata.c
+dev/blk_atapi.c
 dev/blk_device.c
 dev/blk_event.c
 dev/blk_name.c
