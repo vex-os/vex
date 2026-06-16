@@ -1,22 +1,336 @@
 #include <vex/binfmt.h>
 #include <vex/elf.h>
 #include <vex/errno.h>
+#include <vex/hhdm.h>
 #include <vex/initcall.h>
+#include <vex/page.h>
+#include <vex/process.h>
+#include <vex/pslab.h>
+#include <vex/string.h>
 #include <vex/vfs_file.h>
+#include <vex/vmm.h>
+#include <vex/vprot.h>
 
 #ifndef ELF64_ARCH
 #define ELF64_ARCH EM_NONE
 #endif
 
+#define ELF64_STACK_UVA  UINT64_C(0x0000700000000000)
+#define ELF64_STACK_SIZE PAGE_SIZE
+#define ELF64_ARGV_MAX   32
+
+static bool ehdr_valid(const struct elf64_ehdr* restrict ehdr)
+{
+    bool result = true;
+    result = result && ehdr->e_ident[0] == 0x7F;
+    result = result && ehdr->e_ident[1] == 0x45; // ASCII E
+    result = result && ehdr->e_ident[2] == 0x4C; // ASCII L
+    result = result && ehdr->e_ident[3] == 0x46; // ASCII F
+    result = result && ehdr->e_ident[4] == 0x02; // ELFCLASS64
+
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    result = result && ehdr->e_ident[5] == 0x01; // ELFDATA2LSB
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    result = result && ehdr->e_ident[5] == 0x02; // ELFDATA2MSB
+#else
+#error Unknown endianness
+#endif
+
+    result = result && ehdr->e_machine == ELF64_ARCH;
+    result = result && ehdr->e_type == ET_EXEC;
+    result = result && ehdr->e_phentsize == sizeof(struct elf64_phdr);
+    result = result && ehdr->e_phnum > 0;
+
+    return result;
+}
+
+static unsigned phdr_vprot(uint32_t p_flags)
+{
+    unsigned vprot = VPROT_USER;
+
+    if(p_flags & PF_R)
+        vprot |= VPROT_READ;
+    if(p_flags & PF_W)
+        vprot |= VPROT_WRITE;
+    if(p_flags & PF_X)
+        vprot |= VPROT_EXEC;
+
+    return vprot;
+}
+
+static int load_segment(struct process* restrict proc, struct file* restrict fp, const struct elf64_phdr* restrict phdr)
+{
+    unsigned vprot = phdr_vprot(phdr->p_flags);
+
+    uintptr_t seg_start = page_align(phdr->p_vaddr);
+    uintptr_t seg_end = page_align_up(phdr->p_vaddr + phdr->p_memsz);
+
+    for(uintptr_t page_uva = seg_start; page_uva < seg_end; page_uva += PAGE_SIZE) {
+        uintptr_t phys = pslab_alloc_phys();
+
+        if(phys == 0) {
+            return -ENOMEM;
+        }
+
+        uint8_t* virt = phys_to_virt(phys);
+        memset(virt, 0, PAGE_SIZE);
+
+        int retval = vmm_map(proc->vm, page_uva, phys, vprot | VPROT_WRITE);
+
+        if(retval < 0) {
+            pslab_free_phys(phys);
+            return retval;
+        }
+
+        uintptr_t file_lo = phdr->p_vaddr;
+        uintptr_t file_hi = phdr->p_vaddr + phdr->p_filesz;
+        uintptr_t copy_lo, copy_hi;
+
+        if(page_uva > file_lo) {
+            copy_lo = page_uva;
+        }
+        else {
+            copy_lo = file_lo;
+        }
+
+        if((page_uva + PAGE_SIZE) < file_hi) {
+            copy_hi = page_uva + PAGE_SIZE;
+        }
+        else {
+            copy_hi = file_hi;
+        }
+
+        if(copy_lo < copy_hi) {
+            size_t length = copy_hi - copy_lo;
+            off_t offset = phdr->p_offset + copy_lo - phdr->p_vaddr;
+
+            retval = file_seek(fp, offset, SEEK_SET);
+
+            if(retval < 0) {
+                return -EIO;
+            }
+
+            uint8_t* dest = virt + copy_lo - page_uva;
+
+            if(file_read(fp, dest, length) != length) {
+                return -EIO;
+            }
+        }
+
+        if(0 == (vprot & VPROT_WRITE)) {
+            vmm_patch(proc->vm, page_uva, vprot);
+        }
+    }
+
+    return 0;
+}
+
+static __always_inline bool ustack_reserve(uint8_t** restrict kva, uintptr_t* restrict uva, uintptr_t low_bound, size_t sz)
+{
+    if(uva[0] - low_bound >= sz) {
+        kva[0] -= sz;
+        uva[0] -= sz;
+        return true;
+    }
+
+    return false;
+}
+
+static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t avail, const char** restrict argv,
+    const char** restrict envp, const struct elf64_ehdr* restrict ehdr)
+{
+    int argc = 0;
+
+    while(argv && argv[argc]) {
+        if(argc >= ELF64_ARGV_MAX)
+            return 0;
+        argc += 1;
+    }
+
+    int envc = 0;
+
+    while(envp && envp[envc]) {
+        if(envc >= ELF64_ARGV_MAX)
+            return 0;
+        envc += 1;
+    }
+
+    uint8_t* kva = top_kva;
+    uintptr_t uva = top_uva;
+    uintptr_t low_bound = top_uva - avail;
+
+    uintptr_t argv_uva[ELF64_ARGV_MAX];
+    uintptr_t envp_uva[ELF64_ARGV_MAX];
+
+    for(int i = argc - 1; i >= 0; --i) {
+        size_t len = strlen(argv[i]) + 1;
+
+        if(!ustack_reserve(&kva, &uva, low_bound, len)) {
+            return 0;
+        }
+
+        memcpy(kva, argv[i], len);
+        argv_uva[i] = uva;
+    }
+
+    for(int i = envc - 1; i >= 0; --i) {
+        size_t len = strlen(envp[i]) + 1;
+
+        if(!ustack_reserve(&kva, &uva, low_bound, len)) {
+            return 0;
+        }
+
+        memcpy(kva, envp[i], len);
+        envp_uva[i] = uva;
+    }
+
+    if(!ustack_reserve(&kva, &uva, low_bound, uva % sizeof(uintptr_t))) {
+        return 0;
+    }
+
+    struct elf64_auxv auxv[] = {
+        { AT_PHDR, ehdr->e_phoff },
+        { AT_PHENT, ehdr->e_phentsize },
+        { AT_PHNUM, ehdr->e_phnum },
+        { AT_ENTRY, ehdr->e_entry },
+        { AT_PAGESZ, PAGE_SIZE },
+        { AT_NULL, 0 },
+    };
+
+    size_t auxv_bytes = sizeof(auxv);
+
+    if(!ustack_reserve(&kva, &uva, low_bound, auxv_bytes)) {
+        return 0;
+    }
+
+    memcpy(kva, auxv, auxv_bytes);
+
+    size_t fixed_size = 0;
+    fixed_size += sizeof(uintptr_t) * (envc + 1);
+    fixed_size += sizeof(uintptr_t) * (argc + 1);
+    fixed_size += sizeof(uintptr_t); // argc
+
+    if((uva - fixed_size) % (2 * sizeof(uintptr_t)) != 0) {
+        if(!ustack_reserve(&kva, &uva, low_bound, sizeof(uintptr_t))) {
+            return 0;
+        }
+    }
+
+    if(!ustack_reserve(&kva, &uva, low_bound, sizeof(uintptr_t))) {
+        return 0;
+    }
+
+    ((uintptr_t*)(kva))[0] = 0;
+
+    for(int i = envc - 1; i >= 0; --i) {
+        if(!ustack_reserve(&kva, &uva, low_bound, sizeof(uintptr_t))) {
+            return 0;
+        }
+
+        ((uintptr_t*)(kva))[0] = envp_uva[i];
+    }
+
+    if(!ustack_reserve(&kva, &uva, low_bound, sizeof(uintptr_t))) {
+        return 0;
+    }
+
+    ((uintptr_t*)(kva))[0] = 0;
+
+    for(int i = argc - 1; i >= 0; --i) {
+        if(!ustack_reserve(&kva, &uva, low_bound, sizeof(uintptr_t))) {
+            return 0;
+        }
+
+        ((uintptr_t*)(kva))[0] = argv_uva[i];
+    }
+
+    if(!ustack_reserve(&kva, &uva, low_bound, sizeof(uintptr_t))) {
+        return 0;
+    }
+
+    ((uintptr_t*)(kva))[0] = (uintptr_t)(argc);
+
+    return uva;
+}
+
 static int elf64_probe(struct file* restrict fp, const uint8_t* restrict header, size_t header_size)
 {
-    return -ENOEXEC;
+    if(header_size < sizeof(struct elf64_ehdr))
+        return -ENOEXEC;
+    if(!ehdr_valid((const struct elf64_ehdr*)(header)))
+        return -ENOEXEC;
+    return 0;
 }
 
 static int elf64_setup(struct process* restrict proc, struct file* restrict fp, const char** restrict argv, const char** restrict envp,
     struct entry_point* restrict out)
 {
-    return -EINVAL;
+    struct elf64_ehdr ehdr;
+
+    if(file_seek(fp, 0, SEEK_SET) < 0) {
+        return -EIO;
+    }
+
+    if(file_read(fp, &ehdr, sizeof(ehdr)) != (ssize_t)(sizeof(ehdr))) {
+        return -EIO;
+    }
+
+    if(!ehdr_valid(&ehdr)) {
+        return -ENOEXEC;
+    }
+
+    for(uint16_t i = 0; i < ehdr.e_phnum; ++i) {
+        struct elf64_phdr phdr;
+
+        if(file_seek(fp, ehdr.e_phoff + i * ehdr.e_phentsize, SEEK_SET) < 0) {
+            return -EIO;
+        }
+
+        if(file_read(fp, &phdr, sizeof(phdr)) != (ssize_t)(sizeof(phdr))) {
+            return -EIO;
+        }
+
+        if(phdr.p_type == PT_INTERP || phdr.p_type == PT_DYNAMIC) {
+            return -ENOSYS;
+        }
+
+        if(phdr.p_type != PT_LOAD) {
+            continue;
+        }
+
+        int retval = load_segment(proc, fp, &phdr);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
+    uintptr_t stack_phys = pslab_alloc_phys();
+
+    if(stack_phys == 0) {
+        return -ENOMEM;
+    }
+
+    memset(phys_to_virt(stack_phys), 0, PAGE_SIZE);
+
+    if(vmm_map(proc->vm, ELF64_STACK_UVA, stack_phys, VPROT_URW) < 0) {
+        pslab_free_phys(stack_phys);
+        return -ENOMEM;
+    }
+
+    void* stack_top_kva = phys_to_virt(stack_phys) + ELF64_STACK_SIZE;
+    uintptr_t stack_top_uva = ELF64_STACK_UVA + ELF64_STACK_SIZE;
+
+    uintptr_t entry_rsp = build_ustack(stack_top_kva, stack_top_uva, ELF64_STACK_SIZE, argv, envp, &ehdr);
+
+    if(entry_rsp == 0) {
+        return -E2BIG;
+    }
+
+    out->address = ehdr.e_entry;
+    out->ustack = entry_rsp;
+
+    return 0;
 }
 
 static const struct binfmt_ops elf64_ops = {
