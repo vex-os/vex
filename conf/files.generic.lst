@@ -1,0 +1,92 @@
+acpi/acpi.c
+acpi/rsdp.c
+acpi/uacpi.c
+
+bus/isa.c
+bus/isa_acpi.c
+bus/pci.c
+
+crypto/crc32.c
+crypto/crc32_iso3309.c
+
+dev/ata.c
+dev/atapi.c
+dev/blk_device.c
+dev/blk_event.c
+dev/blk_name.c
+dev/blk_ptable.c
+dev/chr_device.c
+dev/chr_event.c
+dev/chr_name.c
+dev/ptable_gpt.c                        optional ptable-gpt
+dev/ptable_mbr.c                        optional ptable-mbr
+
+drivers/ahci.c                          optional ahci
+drivers/ps2kbd.c                        optional ps2kbd
+
+exec/binfmt.c
+
+fs/devfs/devfs.c                        optional devfs
+fs/devfs/devfs_blk.c                    optional devfs
+fs/devfs/devfs_chr.c                    optional devfs
+fs/devfs/devfs_dir.c                    optional devfs
+
+fs/echfs/echfs.c                        optional echfs
+fs/echfs/echfs_block.c                  optional echfs
+fs/echfs/echfs_dirent.c                 optional echfs
+fs/echfs/echfs_vnode.c                  optional echfs
+
+fs/fat/fat.c                            optional fat
+fs/fat/fat_cluster.c                    optional fat
+fs/fat/fat_dirent.c                     optional fat
+fs/fat/fat_vnode.c                      optional fat
+
+fs/vfs_file.c
+fs/vfs_mount.c
+fs/vfs_path.c
+fs/vfs_vcache.c
+fs/vfs_vnode.c
+
+init/initcall.c
+init/kmain.c
+
+ireq/intctl.c
+ireq/ireq.c
+
+kern/assert.c                           optional ENABLE_KASSERT
+kern/cmdline.c
+kern/console.c
+kern/fbcons.c                           optional ENABLE_FBCONS
+kern/kprintf.c
+kern/panic.c
+kern/version.c
+
+libk/bitmap.c
+libk/ctype.c
+libk/format.c
+libk/hrsize.c
+libk/sprintf.c
+libk/stdlib.c
+libk/string.c
+libk/strings.c
+
+mm/hhdm.c
+mm/kbase.c
+mm/kmalloc.c
+mm/memmap.c
+mm/pdma.c
+mm/pslab.c
+mm/slab.c
+mm/vmm.c
+
+proc/event.c
+proc/hart.c
+proc/process.c
+proc/sched.c
+proc/syscall.c
+
+time/acpi_pmt.c
+time/clocksrc.c
+time/delay.c
+
+proc/syscall_test.c

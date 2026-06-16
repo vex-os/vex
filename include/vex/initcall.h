@@ -38,6 +38,7 @@ struct initcall {
 #define initcall_bsp_dev(ic_function, ic_order)       __define_initcall(ic_function, ".initcalls.bsp.3200000" ic_order)
 #define initcall_bsp_fs(ic_function, ic_order)        __define_initcall(ic_function, ".initcalls.bsp.3300000" ic_order)
 #define initcall_bsp_cpudev(ic_function, ic_order)    __define_initcall(ic_function, ".initcalls.bsp.3400000" ic_order)
+#define initcall_bsp_binfmt(ic_function, ic_order)    __define_initcall(ic_function, ".initcalls.bsp.3500000" ic_order)
 #define initcall_bsp_services(ic_function, ic_order)  __define_initcall(ic_function, ".initcalls.bsp.4000000" ic_order)
 #define initcall_bsp_late(ic_function, ic_order)      __define_initcall(ic_function, ".initcalls.bsp.ff00000" ic_order)
 

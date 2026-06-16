@@ -2,8 +2,8 @@
 #define C7E3A2B1_4F9D_4E8C_B6A5_D2C3E4F5A6B7
 #pragma once
 
-#include <vex.arch/hart.h>
-#include <vex.arch/thread.h>
+#include <arch/hart.h>
+#include <arch/thread.h>
 #include <vex/spinlock.h>
 #include <vex/types.h>
 

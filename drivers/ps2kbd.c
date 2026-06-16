@@ -1,4 +1,4 @@
-#include <vex.arch/ireq.h>
+#include <arch/ireq.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/isa.h>

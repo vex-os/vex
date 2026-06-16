@@ -1,0 +1,27 @@
+arch/amd64/acpi/uacpi.c
+
+arch/amd64/bus/pci_cf8.c
+
+arch/amd64/ireq/idt.c
+arch/amd64/ireq/idts.S
+arch/amd64/ireq/ioapic.c
+arch/amd64/ireq/ireq.c
+arch/amd64/ireq/isr.c
+arch/amd64/ireq/pic.c
+
+arch/amd64/kern/bxcons.c                optional ENABLE_BXCONS
+arch/amd64/kern/gdt.c
+arch/amd64/kern/lapic.c
+arch/amd64/kern/pmio.c
+
+arch/amd64/mm/paging.c
+
+arch/amd64/proc/hart.c
+arch/amd64/proc/sched.S
+arch/amd64/proc/syscall.c
+arch/amd64/proc/syscall.S
+arch/amd64/proc/thread.c
+arch/amd64/proc/utest.S
+
+arch/amd64/time/clockevt.c
+arch/amd64/time/hpet.c

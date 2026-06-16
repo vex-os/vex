@@ -2,7 +2,7 @@
 #define C2E4BB53_C260_4DF2_A71B_28802A280F44
 #pragma once
 
-#include <vex.arch/hart.h>
+#include <arch/hart.h>
 
 struct thread;
 
