@@ -14,4 +14,5 @@ override LDFLAGS += -z max-page-size=0x1000
 override LDFLAGS += -z text
 
 EFI_ARCH := X64
-ELF_ARCH := EM_X86_64
+ELF32_ARCH := EM_NONE
+ELF64_ARCH := EM_X86_64

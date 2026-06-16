@@ -1,10 +1,11 @@
 #include <vex/binfmt.h>
+#include <vex/elf.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/vfs_file.h>
 
-#ifndef ELF_ARCH
-#define ELF_ARCH EM_NONE
+#ifndef ELF64_ARCH
+#define ELF64_ARCH EM_NONE
 #endif
 
 static int elf64_probe(struct file* restrict fp, const uint8_t* restrict header, size_t header_size)
