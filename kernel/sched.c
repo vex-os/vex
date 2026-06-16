@@ -14,7 +14,6 @@
 #include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/thread.h>
-#include <vex/vmm.h>
 
 #ifndef SCHED_QUEUE_SIZE
 #define SCHED_QUEUE_SIZE 65536
@@ -23,8 +22,6 @@
 #ifndef SCHED_TIMESLICE
 #define SCHED_TIMESLICE 5000000
 #endif
-
-#define USER_STACK_SIZE PAGE_SIZE
 
 // Threads and processes are something that gets
 // allocated quite a bit of times across the kernel's
@@ -159,7 +156,13 @@ struct thread* create_thread_kern_enq(thread_entry_kern entry, void* restrict ar
     return thrd;
 }
 
-struct thread* create_thread_user(struct process* restrict proc, thread_entry_user entry, void* restrict arg)
+// proc->vm, entry and stack_top are entirely the caller's responsibility:
+// sched.c only deals with thread/kernel-stack bookkeeping, not with how a
+// particular executable format wants its address space or entry stack
+// laid out. The caller (today, the test harness in kmain.c; eventually
+// whatever loads ELF/a.out/etc.) allocates and maps the user stack itself
+// and just hands over the resulting virtual addresses.
+struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry, uintptr_t stack_top, void* restrict arg)
 {
     struct thread* thrd = slab_alloc(sizeof(struct thread));
 
@@ -182,27 +185,6 @@ struct thread* create_thread_user(struct process* restrict proc, thread_entry_us
         return nullptr;
     }
 
-    uintptr_t ustack_phys = pslab_alloc_phys();
-
-    if(ustack_phys == 0) {
-        pslab_free_virt(pfstack);
-        pslab_free_virt(kstack);
-        slab_free(thrd);
-        return nullptr;
-    }
-
-    uintptr_t ustack_virt = proc->thread_stack_top - USER_STACK_SIZE;
-
-    if(vmm_map(proc->vm, ustack_virt, ustack_phys, VPROT_USER | VPROT_READ | VPROT_WRITE) < 0) {
-        pslab_free_phys(ustack_phys);
-        pslab_free_virt(pfstack);
-        pslab_free_virt(kstack);
-        slab_free(thrd);
-        return nullptr;
-    }
-
-    proc->thread_stack_top = ustack_virt - PAGE_SIZE; // guard page
-
     thrd->self = thrd;
     thrd->state = THREAD_RUNNABLE;
     thrd->timeslice = SCHED_TIMESLICE;
@@ -211,7 +193,7 @@ struct thread* create_thread_user(struct process* restrict proc, thread_entry_us
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
 
-    arch_thread_setup_user(thrd, entry, arg, (void*)(ustack_virt + USER_STACK_SIZE), kstack + PAGE_SIZE, pfstack + PAGE_SIZE, proc->vm);
+    arch_thread_setup_user(thrd, (void*)(entry), arg, (void*)(stack_top), kstack + PAGE_SIZE, pfstack + PAGE_SIZE, proc->vm);
 
     spinlock_acquire(&proc->lock);
 
@@ -228,9 +210,9 @@ struct thread* create_thread_user(struct process* restrict proc, thread_entry_us
     return thrd;
 }
 
-struct thread* create_thread_user_enq(struct process* restrict proc, thread_entry_user entry, void* restrict arg)
+struct thread* create_thread_user_enq(struct process* restrict proc, uintptr_t entry, uintptr_t stack_top, void* restrict arg)
 {
-    struct thread* thrd = create_thread_user(proc, entry, arg);
+    struct thread* thrd = create_thread_user(proc, entry, stack_top, arg);
 
     if(thrd == nullptr) {
         return nullptr;

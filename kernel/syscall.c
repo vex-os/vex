@@ -24,7 +24,15 @@ void dispatch_syscall(struct hart_context* restrict regs)
         return;
     }
 
-    syscall_table[regs->syscall_number].function(regs);
+    uintptr_t args[6];
+    args[0] = regs->syscall_arg_1;
+    args[1] = regs->syscall_arg_2;
+    args[2] = regs->syscall_arg_3;
+    args[3] = regs->syscall_arg_4;
+    args[4] = regs->syscall_arg_5;
+    args[5] = regs->syscall_arg_6;
+
+    regs->syscall_retval = syscall_table[regs->syscall_number].function(args);
 }
 
 static void init_syscall(void)
