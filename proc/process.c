@@ -1,4 +1,5 @@
 #include <vex/atomic.h>
+#include <vex/kprintf.h>
 #include <vex/process.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
@@ -22,7 +23,7 @@ static __always_inline __nodiscard size_t pid_bucket(pid_t pid)
     return (size_t)(pid % PROCTABLE_BUCKETS);
 }
 
-struct process* process_create(struct process* restrict parent, struct pagemap* restrict vm, const char* restrict name)
+struct process* process_create(struct process* restrict parent, struct pagemap* restrict vm)
 {
     struct process* proc = slab_alloc(sizeof(struct process));
 
@@ -37,10 +38,6 @@ struct process* process_create(struct process* restrict parent, struct pagemap* 
     proc->lock = SPINLOCK_INIT;
     proc->vm = vm;
     proc->thread_stack_top = parent ? parent->thread_stack_top : UINT64_C(0x0000700000000000);
-
-    if(name) {
-        strncpy(proc->name, name, NAME_SIZE - 1);
-    }
 
     if(parent) {
         spinlock_acquire(&parent->lock);
@@ -88,6 +85,8 @@ struct process* process_locate(pid_t pid)
 
 void process_exit(struct process* proc, int exit_code)
 {
+    pr_verbose("process[%lu]: exiting with exit_code=%d", (unsigned long)(proc->pid), exit_code);
+
     proc->exit_code = exit_code;
 
     vmm_release(proc->vm);
