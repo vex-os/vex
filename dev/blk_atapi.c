@@ -1,4 +1,4 @@
-#include <vex/atapi.h>
+#include <vex/blk_atapi.h>
 #include <vex/blk_device.h>
 #include <vex/blk_name.h>
 #include <vex/errno.h>

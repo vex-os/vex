@@ -1,6 +1,6 @@
 #include <vex/assert.h>
-#include <vex/ata.h>
-#include <vex/atapi.h>
+#include <vex/blk_ata.h>
+#include <vex/blk_atapi.h>
 #include <vex/blk_device.h>
 #include <vex/blk_event.h>
 #include <vex/blk_name.h>
