@@ -10,8 +10,8 @@ _start:
 
     call main
 
-    movq %rax, %rdi # exit code
-    movq $1, %rax   # __k_SYS_EXIT (include/usr/vex/syscall.h)
+    movq %rax, %rdi             # exit code
+    movq $1, %rax               # SYS_EXIT [vex/syscall.h]
     syscall
 
 .Lspin:

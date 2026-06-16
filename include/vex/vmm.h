@@ -27,6 +27,7 @@ int vmm_patch(struct pagemap* restrict vm, uintptr_t virt, unsigned vprot);
 int vmm_unmap(struct pagemap* restrict vm, uintptr_t virt);
 
 uintptr_t vmm_resolve(const struct pagemap* restrict vm, uintptr_t virt);
+unsigned vmm_query(const struct pagemap* restrict vm, uintptr_t virt);
 
 struct pagemap* vmm_handle_fault(struct pagemap* restrict vm, const struct vmm_fault_info* restrict info);
 
