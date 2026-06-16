@@ -45,6 +45,7 @@ init/initcall.c
 init/kmain.c
 
 kernel/assert.c                         optional ENABLE_KASSERT
+kernel/binfmt.c
 kernel/blk_device.c
 kernel/blk_event.c
 kernel/blk_name.c

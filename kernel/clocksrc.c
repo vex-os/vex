@@ -18,9 +18,7 @@ static void compute_mult_shift(struct clocksrc* restrict src, uint64_t scale, ui
 
 int add_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
 {
-    struct clocksrc* it;
-
-    for(it = clocksrc_head; it; it = it->priv.next) {
+    for(struct clocksrc* it = clocksrc_head; it; it = it->priv.next) {
         if(it == src) {
             return -EEXIST;
         }
@@ -46,9 +44,7 @@ int add_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t fre
 
 int calibrate_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
 {
-    struct clocksrc* it;
-
-    for(it = clocksrc_head; it; it = it->priv.next) {
+    for(struct clocksrc* it = clocksrc_head; it; it = it->priv.next) {
         if(it == src) {
             compute_mult_shift(src, scale, frequency);
             return 0;
@@ -60,12 +56,11 @@ int calibrate_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64
 
 int remove_clocksrc(struct clocksrc* restrict src)
 {
-    struct clocksrc* it;
-
     if(clocksrc_head == src) {
         clocksrc_head = src->priv.next;
     }
     else {
+        struct clocksrc* it;
         struct clocksrc* prev = nullptr;
 
         for(it = clocksrc_head; it; it = it->priv.next) {
@@ -85,7 +80,7 @@ int remove_clocksrc(struct clocksrc* restrict src)
     if(clocksrc_active == src) {
         clocksrc_active = nullptr;
 
-        for(it = clocksrc_head; it; it = it->priv.next) {
+        for(struct clocksrc* it = clocksrc_head; it; it = it->priv.next) {
             if(clocksrc_active == nullptr || it->rating > clocksrc_active->rating) {
                 clocksrc_active = it;
             }
