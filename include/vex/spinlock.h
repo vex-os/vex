@@ -2,7 +2,7 @@
 #define A6A7BDE1_6F01_427C_80B6_14BB87B2C2AD
 #pragma once
 
-#include <vex.arch/hart.h>
+#include <arch/hart.h>
 #include <vex/atomic.h>
 #include <vex/types.h>
 

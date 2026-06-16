@@ -2,7 +2,7 @@
 #define CBE16F75_0279_489A_A726_4EE92C6FEFF2
 #pragma once
 
-#include <vex.arch/paging.h>
+#include <arch/paging.h>
 #include <vex/limits.h>
 #include <vex/types.h>
 #include <vex/vprot.h>

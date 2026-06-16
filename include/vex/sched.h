@@ -2,7 +2,7 @@
 #define D251CACE_9BF6_4463_A9B0_D2450E2BA6CC
 #pragma once
 
-#include <vex.arch/sched.h>
+#include <arch/sched.h>
 #include <vex/types.h>
 
 struct thread;
