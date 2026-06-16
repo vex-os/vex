@@ -21,7 +21,6 @@ arch/amd64/proc/sched.S
 arch/amd64/proc/syscall.c
 arch/amd64/proc/syscall.S
 arch/amd64/proc/thread.c
-arch/amd64/proc/utest.S
 
 arch/amd64/time/clockevt.c
 arch/amd64/time/hpet.c

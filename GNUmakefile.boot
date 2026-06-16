@@ -3,10 +3,27 @@ BOOTABLE_IMAGE_1 := ${BUILD_DIR}/vexsys.boot.1.img	# Has partition table and fil
 BOOTABLE_IMAGE_2 := ${BUILD_DIR}/vexsys.boot.img	# Has partition table, files, and the kernel binary
 SFDISK_SCRIPT := ${BUILD_DIR}/vexsys.boot.sfdisk.txt
 
+# UTEST_ELF is a tiny standalone ET_EXEC binary (boot/utest/utest.S +
+# utest.lds), built outside the kernel's own object/link pipeline since it
+# needs a completely different ABI (flat userspace ELF, no -mcmodel=kernel,
+# no -fPIE, no kernel CPPFLAGS). It exists purely so kmain.c has a real file
+# to feed through load_binary() instead of hand-mapping kernel code into a
+# process - see init/kmain.c.
+UTEST_OBJECT := ${BUILD_DIR}/boot/utest/utest.S.o
+UTEST_ELF := ${BUILD_DIR}/utest.elf
+
+UTEST_AFLAGS := -m64 -march=x86-64 -mno-red-zone -ffreestanding -fno-pic -fno-pie -nostdlib
+
+ifeq (${ENVT},clang)
+UTEST_AFLAGS += --target=x86_64-none-elf
+endif
+
 CLEAN_S += ${BOOTABLE_IMAGE_0}
 CLEAN_S += ${BOOTABLE_IMAGE_1}
 CLEAN_S += ${BOOTABLE_IMAGE_2}
 CLEAN_S += ${SFDISK_SCRIPT}
+CLEAN_S += ${UTEST_OBJECT}
+CLEAN_S += ${UTEST_ELF}
 
 PHONIES += bootimg
 
@@ -35,7 +52,17 @@ ${BOOTABLE_IMAGE_1}: ${BOOTABLE_IMAGE_0} boot/uefi/BOOT${EFI_ARCH}.EFI boot/limi
 	@mcopy -i $@@@2048s boot/uefi/BOOT${EFI_ARCH}.EFI ::/EFI/BOOT/BOOT${EFI_ARCH}.EFI
 	@mcopy -i $@@@2048s boot/limine.conf ::/limine.conf
 
-${BOOTABLE_IMAGE_2}: ${BOOTABLE_IMAGE_1} ${KERNEL_BINARY}
+${UTEST_OBJECT}: boot/utest/utest.S | ${BUILD_DIR}
+	@printf "U AS\t%s\n" "$<"
+	@test -d $(dir $@) || mkdir -p $(dir $@)
+	@${CC} ${UTEST_AFLAGS} -c -o $@ $<
+
+${UTEST_ELF}: ${UTEST_OBJECT} boot/utest/utest.lds
+	@printf "U LD\t%s\n" "$@"
+	@${LD} -m elf_x86_64 -nostdlib -T boot/utest/utest.lds -o $@ ${UTEST_OBJECT}
+
+${BOOTABLE_IMAGE_2}: ${BOOTABLE_IMAGE_1} ${KERNEL_BINARY} ${UTEST_ELF}
 	@printf "  IMAG3\t%s\n" $@
 	@cp ${BOOTABLE_IMAGE_1} $@
 	@mcopy -i $@@@2048s ${KERNEL_BINARY} ::/vexsys.elf
+	@mcopy -i $@@@2048s ${UTEST_ELF} ::/utest.elf

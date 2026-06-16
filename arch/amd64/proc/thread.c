@@ -28,7 +28,7 @@ void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, 
     thrd->arch.cr3 = cr3;
 }
 
-void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, void* restrict arg, void* restrict user_stack_top,
+void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, void* restrict user_stack_top,
     void* restrict kernel_stack_top, void* restrict pfault_stack_top, struct pagemap* restrict vm)
 {
     memset(&thrd->ctx, 0, sizeof(thrd->ctx));
@@ -39,7 +39,6 @@ void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, 
     thrd->ctx.amd64_ss = gdt_selector(GDT_USER_DATA_64, 0, 3);
     thrd->ctx.amd64_rip = (uintptr_t)(entry);
     thrd->ctx.amd64_rsp = (uintptr_t)(user_stack_top);
-    thrd->ctx.amd64_rdi = (uintptr_t)(arg);
     thrd->ctx.amd64_rflags = 0x202;
 
     thrd->arch.gs_base = nullptr;
