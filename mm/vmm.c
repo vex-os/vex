@@ -301,6 +301,17 @@ uintptr_t vmm_resolve(const struct pagemap* restrict vm, uintptr_t virt)
     return 0;
 }
 
+unsigned vmm_query(const struct pagemap* restrict vm, uintptr_t virt)
+{
+    pmentry_type* entry = vmm_pte_walk((struct pagemap*)vm, virt, false);
+
+    if(entry && pmentry_valid(*entry)) {
+        return pmentry_vprot(*entry);
+    }
+
+    return 0;
+}
+
 struct pagemap* vmm_handle_fault(struct pagemap* restrict vm, const struct vmm_fault_info* restrict info)
 {
     if(info->present && (info->vprot & VPROT_WRITE)) {
