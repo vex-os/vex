@@ -90,9 +90,13 @@ ssize_t event_await_blocking(struct event** restrict events, size_t count)
         spinlock_release(&events[i]->lock);
     }
 
-    sched_yield();
-
+    // sched_yield() busy-waits with interrupts enabled to receive its own
+    // wakeup IPI; restore the caller's interrupt state before calling it
+    // rather than after, or that wait deadlocks with interrupts left
+    // disabled on this hart.
     restore_interrupts(intr_state);
+
+    sched_yield();
 
     for(size_t i = 0; i < thrd->num_events; ++i) {
         struct event* evnt = thrd->events[i];
