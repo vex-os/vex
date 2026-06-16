@@ -116,6 +116,8 @@ static void arch_init_gdt_bsp(void)
     write_entry_32(&gdt.kern_data_32, GDT_KERN_DATA_32, 0x00000000, 0xFFFFF, PREDEF_DATA_FLAGS | GDT_RING_0);
     write_entry_64(&gdt.kern_code_64, GDT_KERN_CODE_64, PREDEF_CODE_FLAGS | GDT_RING_0);
     write_entry_64(&gdt.kern_data_64, GDT_KERN_DATA_64, PREDEF_DATA_FLAGS | GDT_RING_0);
+    write_entry_64(&gdt.user_data_64, GDT_USER_DATA_64, PREDEF_DATA_FLAGS | GDT_RING_3);
+    write_entry_64(&gdt.user_code_64, GDT_USER_CODE_64, PREDEF_CODE_FLAGS | GDT_RING_3);
 
     memset(&gdtr, 0, sizeof(gdtr));
     gdtr.size = sizeof(gdt) - 1;

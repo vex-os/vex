@@ -15,7 +15,7 @@ struct hart_context;
 #define SYS_TEST __k_SYS_TEST
 
 struct syscall {
-    void (*function)(struct hart_context* restrict regs);
+    intptr_t (*function)(const uintptr_t* restrict args);
     const char* identifier;
     unsigned long number;
 };

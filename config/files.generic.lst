@@ -68,6 +68,8 @@ kernel/sched.c
 kernel/syscall.c
 kernel/version.c
 
+kernel/syscall_test.c
+
 libk/bitmap.c
 libk/ctype.c
 libk/format.c
