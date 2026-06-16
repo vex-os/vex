@@ -45,8 +45,8 @@
 .endm
 
 .macro swapgs_if_user
-    cmpq $0x4B, 16(%rsp)
-    jne 1f
+    testq $3, 16(%rsp)  # hart_context::x86_cs RPL bits
+    jz 1f
     swapgs
     1:
 .endm
