@@ -10,11 +10,9 @@ static struct console* console_head = nullptr;
 
 int add_console(struct console* restrict cons)
 {
-    struct console* it;
-
     bool ireq_state = spinlock_acquire_intr(&console_lock);
 
-    for(it = console_head; it; it = it->priv.next) {
+    for(struct console* it = console_head; it; it = it->priv.next) {
         if(it == cons) {
             spinlock_release_intr(&console_lock, ireq_state);
             return -EEXIST;
@@ -58,8 +56,6 @@ int add_console(struct console* restrict cons)
 
 int remove_console(struct console* restrict cons)
 {
-    struct console* it;
-
     bool ireq_state = spinlock_acquire_intr(&console_lock);
 
     if(console_head == cons) {
@@ -74,7 +70,7 @@ int remove_console(struct console* restrict cons)
 
     struct console* prev = nullptr;
 
-    for(it = console_head; it; it = it->priv.next) {
+    for(struct console* it = console_head; it; it = it->priv.next) {
         if(it == cons) {
             if(prev) {
                 prev->priv.next = it->priv.next;
@@ -97,11 +93,9 @@ int remove_console(struct console* restrict cons)
 
 void console_write(const void* restrict data, size_t size)
 {
-    struct console* it;
-
     bool ireq_state = spinlock_acquire_intr(&console_lock);
 
-    for(it = console_head; it; it = it->priv.next) {
+    for(struct console* it = console_head; it; it = it->priv.next) {
         if(it->ops->write == nullptr)
             continue;
         if(it->consflags & CONSF_BLANKED)
@@ -114,11 +108,9 @@ void console_write(const void* restrict data, size_t size)
 
 void console_unblank(void)
 {
-    struct console* it;
-
     bool ireq_state = spinlock_acquire_intr(&console_lock);
 
-    for(it = console_head; it; it = it->priv.next) {
+    for(struct console* it = console_head; it; it = it->priv.next) {
         if(it->ops->unblank)
             it->ops->unblank(it);
         it->consflags &= ~CONSF_BLANKED;
