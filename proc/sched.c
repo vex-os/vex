@@ -162,7 +162,7 @@ struct thread* create_thread_kern_enq(thread_entry_kern entry, void* restrict ar
 // laid out. The caller (today, the test harness in kmain.c; eventually
 // whatever loads ELF/a.out/etc.) allocates and maps the user stack itself
 // and just hands over the resulting virtual addresses.
-struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry, uintptr_t stack_top, void* restrict arg)
+struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry, uintptr_t stack_top)
 {
     struct thread* thrd = slab_alloc(sizeof(struct thread));
 
@@ -193,7 +193,7 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
 
-    arch_thread_setup_user(thrd, (void*)(entry), arg, (void*)(stack_top), kstack + PAGE_SIZE, pfstack + PAGE_SIZE, proc->vm);
+    arch_thread_setup_user(thrd, (void*)(entry), (void*)(stack_top), kstack + PAGE_SIZE, pfstack + PAGE_SIZE, proc->vm);
 
     spinlock_acquire(&proc->lock);
 
@@ -210,9 +210,9 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
     return thrd;
 }
 
-struct thread* create_thread_user_enq(struct process* restrict proc, uintptr_t entry, uintptr_t stack_top, void* restrict arg)
+struct thread* create_thread_user_enq(struct process* restrict proc, uintptr_t entry, uintptr_t stack_top)
 {
-    struct thread* thrd = create_thread_user(proc, entry, stack_top, arg);
+    struct thread* thrd = create_thread_user(proc, entry, stack_top);
 
     if(thrd == nullptr) {
         return nullptr;
