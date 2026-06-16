@@ -17,6 +17,16 @@ _start:
     movq $2, %rax          # SYS_TEST
     syscall
 
+    # Deliberate #DE (divide error): the kernel currently has no handler for
+    # this vector (arch/amd64/ireq/isr.c only handles #PF) and falls through
+    # to panic() for anything else, so this takes the whole kernel down
+    # instead of just this process. Left in on purpose to demonstrate the
+    # gap, not a real userland fault test.
+    xorl %edx, %edx
+    xorl %eax, %eax
+    xorl %ecx, %ecx
+    divl %ecx
+
     movq $1, %rax          # SYS_EXIT
     syscall
 

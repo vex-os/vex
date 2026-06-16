@@ -4,7 +4,10 @@
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 #include <vex/panic.h>
+#include <vex/process.h>
+#include <vex/sched.h>
 #include <vex/string.h>
+#include <vex/thread.h>
 #include <vex/vmm.h>
 
 extern void amd64_isr_00(void);
@@ -63,12 +66,41 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
 
     asm volatile("movq %%cr2, %0" : "=r"(info.fault));
 
-    struct pagemap* old_vm = &sys_pagemap;
-    struct pagemap* new_vm = vmm_handle_fault(old_vm, &info);
+    struct pagemap* old_vm;
+    struct pagemap* new_vm;
+
+    struct thread* thrd = hart->curr_thread;
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr && 3 == (ctx->amd64_cs & 3)) {
+        // How come a user thread exists
+        // without a process attached?
+        sched_terminate();
+        unreachable();
+    }
+
+    if(3 == (ctx->amd64_cs & 3)) {
+        old_vm = proc->vm;
+    }
+    else {
+        old_vm = &sys_pagemap;
+    }
+
+    new_vm = vmm_handle_fault(old_vm, &info);
 
     if(new_vm == nullptr) {
+        if(3 == (ctx->amd64_cs & 3)) {
+            process_exit(proc, -1);
+            sched_terminate();
+            unreachable();
+        }
+
         panic("kernel page fault: hart=%hu fault=%p vprot=%02X present=%d", hart->index, (void*)(info.fault), info.vprot, info.present);
         unreachable();
+    }
+
+    if(3 == (ctx->amd64_cs & 3)) {
+        proc->vm = new_vm;
     }
 }
 
@@ -82,10 +114,22 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
 
     if(intvec == 0x0E) {
         page_fault_handler(hart, ctx);
+        return;
     }
-    else {
-        panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));
+
+    if(3 == (ctx->amd64_cs & 3)) {
+        struct thread* thrd = hart->curr_thread;
+        struct process* proc = thrd->proc;
+
+        if(proc) {
+            process_exit(proc, -1);
+        }
+
+        sched_terminate();
+        unreachable();
     }
+
+    panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));
 }
 
 static void arch_init_isr(void)

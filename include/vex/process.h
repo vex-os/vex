@@ -29,11 +29,9 @@ struct process {
     struct process* pnext;
 
     struct event evnt;
-
-    char name[NAME_SIZE];
 };
 
-struct process* process_create(struct process* restrict parent, struct pagemap* restrict vm, const char* restrict name) __nodiscard;
+struct process* process_create(struct process* restrict parent, struct pagemap* restrict vm) __nodiscard;
 struct process* process_locate(pid_t pid) __nodiscard;
 void process_exit(struct process* proc, int exit_code);
 void process_destroy(struct process* proc);

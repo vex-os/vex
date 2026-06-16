@@ -46,7 +46,7 @@ void __noreturn kmain(void)
         panic("failed to create process pagemap");
     }
 
-    struct process* proc = process_create(nullptr, vm, "utest");
+    struct process* proc = process_create(nullptr, vm);
 
     if(proc == nullptr) {
         panic("failed to create process");
