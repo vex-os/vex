@@ -25,6 +25,7 @@ drivers/ahci.c                          optional ahci
 drivers/ps2kbd.c                        optional ps2kbd
 
 exec/binfmt.c
+exec/elf64.c
 
 fs/devfs/devfs.c                        optional devfs
 fs/devfs/devfs_blk.c                    optional devfs
