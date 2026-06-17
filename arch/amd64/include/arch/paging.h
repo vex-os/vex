@@ -13,7 +13,6 @@
 #define AMD64_PML_WRITE   UINT64_C(0x0000000000000002)
 #define AMD64_PML_USER    UINT64_C(0x0000000000000004)
 #define AMD64_PML_PCD     UINT64_C(0x0000000000000010)
-#define AMD64_PML_COW     UINT64_C(0x0000000000000200) // software bit 9
 #define AMD64_PML_NOEXEC  UINT64_C(0x8000000000000000)
 
 #define AMD64_PAGEMAP_KERN 256U
@@ -34,7 +33,6 @@ typedef uint64_t pmentry_type;
 
 struct pagemap {
     spinlock_type lock;
-    unsigned refcount;
     unsigned pglevels;
     pmentry_type* virt;
     uintptr_t phys;
@@ -73,8 +71,6 @@ static __always_inline __nodiscard unsigned pmentry_vprot(pmentry_type entry)
         vprot |= VPROT_EXEC;
     if(entry & AMD64_PML_PCD)
         vprot |= VPROT_NOCACHE;
-    if(entry & AMD64_PML_COW)
-        vprot |= VPROT__COW;
     return vprot;
 }
 
@@ -94,8 +90,6 @@ static __always_inline __nodiscard pmentry_type pmentry_setup(uintptr_t address,
         result &= ~AMD64_PML_NOEXEC;
     if(vprot & VPROT_NOCACHE)
         result |= AMD64_PML_PCD;
-    if(vprot & VPROT__COW)
-        result |= AMD64_PML_COW;
 
     return result;
 }

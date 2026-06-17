@@ -25,7 +25,7 @@ static intptr_t sys_test(const uintptr_t* restrict args)
     char buffer[SYS_TEST_BUFSIZE];
 
     struct pagemap* vm = this_hart()->curr_thread->proc->vm;
-    size_t remaining = memcpy_vm_to_sys(buffer, vm, ptr, sz);
+    size_t remaining = copy_vm_to_sys(buffer, vm, ptr, sz);
     size_t copied = sz - remaining;
 
     buffer[copied] = 0;
@@ -39,6 +39,10 @@ define_syscall(sys_test, SYS_TEST);
 
 static intptr_t sys_exit(const uintptr_t* restrict args)
 {
+    struct thread* thrd = this_thread();
+
+    if(thrd->proc)
+        process_exit(thrd->proc, args[0]);
     sched_terminate();
     unreachable();
 }
