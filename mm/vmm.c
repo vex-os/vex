@@ -84,16 +84,13 @@ static pmentry_type* vmm_pte_walk(struct pagemap* restrict vm, uintptr_t virt, b
 
 static void vmm_table_free(pmentry_type* restrict table, size_t begin, size_t end, unsigned depth)
 {
-    for(size_t i = begin; i < end; ++i) {
-        if(!pmentry_valid(table[i]))
-            continue;
-        if(depth) {
-            pmentry_type* child = phys_to_virt(pmentry_address(table[i]));
-            vmm_table_free(child, 0, PAGEMAP_SIZE, depth - 1);
-            pslab_free_phys(virt_to_phys(child));
-        }
-        else {
-            pslab_free_phys(pmentry_address(table[i]));
+    if(depth) {
+        for(size_t i = begin; i < end; ++i) {
+            if(pmentry_valid(table[i])) {
+                pmentry_type* child = phys_to_virt(pmentry_address(table[i]));
+                vmm_table_free(child, 0, PAGEMAP_SIZE, depth - 1);
+                pslab_free_phys(virt_to_phys(child));
+            }
         }
     }
 }

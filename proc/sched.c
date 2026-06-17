@@ -14,6 +14,7 @@
 #include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/thread.h>
+#include <vex/vmm.h>
 
 #ifndef SCHED_QUEUE_SIZE
 #define SCHED_QUEUE_SIZE 65536
@@ -205,6 +206,8 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
 
     proc->threads = thrd;
 
+    atomic_fetch_add(&proc->num_threads, 1, ATOMIC_RELAXED);
+
     spinlock_release(&proc->lock);
 
     return thrd;
@@ -268,9 +271,16 @@ void __noreturn sched_terminate(void)
     disable_interrupts();
 
     struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     thrd->state = THREAD_DEAD;
     sched_dequeue(thrd);
+
+    if(proc && 1 == atomic_fetch_sub(&proc->num_threads, 1, ATOMIC_ACQ_REL)) {
+        vms_unmap_all(&proc->vms, proc->vm);
+        vmm_release(proc->vm);
+        proc->vm = nullptr;
+    }
 
     struct hart_local* hart = this_hart();
     hart_ipi(hart, sched_ireq_number);

@@ -79,6 +79,7 @@ mm/pdma.c
 mm/pslab.c
 mm/slab.c
 mm/vmm.c
+mm/vmsp.c
 
 proc/event.c
 proc/hart.c
