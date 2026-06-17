@@ -72,10 +72,12 @@ int vms_patch(struct vmspace* restrict vms, struct pagemap* restrict vm, uintptr
 
     spinlock_release_intr(&vms->lock, intr_state);
 
-    if(page == nullptr)
+    if(page == nullptr) {
         return -ENOENT;
+    }
 
     page->vprot = vprot;
+
     return vmm_patch(vm, virt, vprot);
 }
 
