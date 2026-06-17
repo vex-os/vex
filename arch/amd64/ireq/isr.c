@@ -66,41 +66,40 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
 
     asm volatile("movq %%cr2, %0" : "=r"(info.fault));
 
-    struct pagemap* old_vm;
-    struct pagemap* new_vm;
-
     struct thread* thrd = hart->curr_thread;
     struct process* proc = thrd->proc;
 
     if(proc == nullptr && 3 == (ctx->amd64_cs & 3)) {
-        // How come a user thread exists
-        // without a process attached?
         sched_terminate();
         unreachable();
     }
 
+    struct pagemap* old_vm;
+    struct pagemap* new_vm;
+
     if(3 == (ctx->amd64_cs & 3)) {
         old_vm = proc->vm;
+        new_vm = vmm_handle_fault(old_vm, &info);
+
+        if(new_vm != nullptr) {
+            proc->vm = new_vm;
+            return;
+        }
+
+        process_exit(proc, -1);
+        sched_terminate();
+        unreachable();
     }
     else {
         old_vm = &sys_pagemap;
-    }
+        new_vm = vmm_handle_fault(old_vm, &info);
 
-    new_vm = vmm_handle_fault(old_vm, &info);
-
-    if(new_vm == nullptr) {
-        if(3 == (ctx->amd64_cs & 3)) {
-            process_exit(proc, -1);
-            sched_terminate();
-            unreachable();
+        if(new_vm != nullptr) {
+            vmm_switch(new_vm);
+            return;
         }
 
         panic("kernel page fault: hart=%hu fault=%p vprot=%02X present=%d", hart->index, (void*)(info.fault), info.vprot, info.present);
-        unreachable();
-    }
-
-    if(3 == (ctx->amd64_cs & 3)) {
-        proc->vm = new_vm;
     }
 }
 
