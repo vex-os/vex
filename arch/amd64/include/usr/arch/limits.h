@@ -3,7 +3,8 @@
 
 #include <limits.h>
 
-#define __k_PAGE_SIZE 4096
-#define __k_PAGE_MAX  4095
+#define __k_PAGE_SIZE  4096
+#define __k_PAGE_MAX   4095
+#define __k_PAGE_SHIFT 12
 
 #endif /* F279FA9D_9970_42B2_A48D_E2C52FA1B40B */

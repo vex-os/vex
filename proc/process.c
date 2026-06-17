@@ -4,7 +4,6 @@
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
-#include <vex/vmm.h>
 
 #define PROCTABLE_BUCKETS 1024
 
@@ -31,13 +30,17 @@ struct process* process_create(struct process* restrict parent, struct pagemap* 
         return nullptr;
     }
 
-    memset(proc, 0, sizeof(struct process));
+    if(parent) {
+        proc->ppid = parent->pid;
+        proc->thread_stack_top = parent->thread_stack_top;
+    }
+    else {
+        proc->thread_stack_top = UINT64_C(0x0000700000000000);
+    }
 
     proc->pid = atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);
-    proc->ppid = parent ? parent->pid : 0;
     proc->lock = SPINLOCK_INIT;
     proc->vm = vm;
-    proc->thread_stack_top = parent ? parent->thread_stack_top : UINT64_C(0x0000700000000000);
 
     if(parent) {
         spinlock_acquire(&parent->lock);
@@ -88,9 +91,6 @@ void process_exit(struct process* proc, int exit_code)
     pr_verbose("process[%lu]: exiting with exit_code=%d", (unsigned long)(proc->pid), exit_code);
 
     proc->exit_code = exit_code;
-
-    vmm_release(proc->vm);
-    proc->vm = nullptr;
 
     event_trigger(&proc->evnt, true);
 }
