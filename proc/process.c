@@ -4,6 +4,7 @@
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
+#include <vex/vmmap.h>
 
 #define PROCTABLE_BUCKETS 1024
 
@@ -22,11 +23,18 @@ static __always_inline __nodiscard size_t pid_bucket(pid_t pid)
     return (size_t)(pid % PROCTABLE_BUCKETS);
 }
 
-struct process* process_create(struct process* restrict parent, struct pagemap* restrict vm)
+struct process* process_create(struct process* restrict parent)
 {
     struct process* proc = slab_alloc(sizeof(struct process));
 
     if(proc == nullptr) {
+        return nullptr;
+    }
+
+    proc->map = vmmap_create();
+
+    if(proc->map == nullptr) {
+        slab_free(proc);
         return nullptr;
     }
 
@@ -40,7 +48,6 @@ struct process* process_create(struct process* restrict parent, struct pagemap* 
 
     proc->pid = atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);
     proc->lock = SPINLOCK_INIT;
-    proc->vm = vm;
 
     if(parent) {
         spinlock_acquire(&parent->lock);

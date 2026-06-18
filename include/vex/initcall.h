@@ -27,7 +27,7 @@ struct initcall {
 #define initcall_bsp_bootinfo(ic_function, ic_order)  __define_initcall(ic_function, ".initcalls.bsp.0200000" ic_order)
 #define initcall_bsp_pmm(ic_function, ic_order)       __define_initcall(ic_function, ".initcalls.bsp.1000000" ic_order)
 #define initcall_bsp_slab(ic_function, ic_order)      __define_initcall(ic_function, ".initcalls.bsp.1100000" ic_order)
-#define initcall_bsp_vmm(ic_function, ic_order)       __define_initcall(ic_function, ".initcalls.bsp.1200000" ic_order)
+#define initcall_bsp_mmu(ic_function, ic_order)       __define_initcall(ic_function, ".initcalls.bsp.1200000" ic_order)
 #define initcall_bsp_heap(ic_function, ic_order)      __define_initcall(ic_function, ".initcalls.bsp.1300000" ic_order)
 #define initcall_bsp_ireq(ic_function, ic_order)      __define_initcall(ic_function, ".initcalls.bsp.2000000" ic_order)
 #define initcall_bsp_timer(ic_function, ic_order)     __define_initcall(ic_function, ".initcalls.bsp.2100000" ic_order)

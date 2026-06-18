@@ -14,7 +14,7 @@
 #include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/thread.h>
-#include <vex/vmm.h>
+#include <vex/vmmap.h>
 
 #ifndef SCHED_QUEUE_SIZE
 #define SCHED_QUEUE_SIZE 65536
@@ -157,12 +157,6 @@ struct thread* create_thread_kern_enq(thread_entry_kern entry, void* restrict ar
     return thrd;
 }
 
-// proc->vm, entry and stack_top are entirely the caller's responsibility:
-// sched.c only deals with thread/kernel-stack bookkeeping, not with how a
-// particular executable format wants its address space or entry stack
-// laid out. The caller (today, the test harness in kmain.c; eventually
-// whatever loads ELF/a.out/etc.) allocates and maps the user stack itself
-// and just hands over the resulting virtual addresses.
 struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry, uintptr_t stack_top)
 {
     struct thread* thrd = slab_alloc(sizeof(struct thread));
@@ -194,7 +188,7 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
 
-    arch_thread_setup_user(thrd, (void*)(entry), (void*)(stack_top), kstack + PAGE_SIZE, pfstack + PAGE_SIZE, proc->vm);
+    arch_thread_setup_user(thrd, (void*)(entry), (void*)(stack_top), kstack + PAGE_SIZE, pfstack + PAGE_SIZE, proc->map);
 
     spinlock_acquire(&proc->lock);
 
@@ -277,9 +271,8 @@ void __noreturn sched_terminate(void)
     sched_dequeue(thrd);
 
     if(proc && 1 == atomic_fetch_sub(&proc->num_threads, 1, ATOMIC_ACQ_REL)) {
-        vms_unmap_all(&proc->vms, proc->vm);
-        vmm_release(proc->vm);
-        proc->vm = nullptr;
+        vmmap_release(proc->map);
+        proc->map = nullptr;
     }
 
     struct hart_local* hart = this_hart();

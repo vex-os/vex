@@ -7,9 +7,9 @@
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
+#include <vex/mmu.h>
 #include <vex/panic.h>
 #include <vex/string.h>
-#include <vex/vmm.h>
 #include <vex/vprot.h>
 
 #define ACPI_CLOCKSRC_FREQ_HZ UINT64_C(3579545)
@@ -65,10 +65,10 @@ static void init_acpi_pmt(void)
         if(fadt->x_pm_tmr_blk.address_space_id == ACPI_AS_ID_SYS_MEM) {
             priv->mmio = phys_to_virt(fadt->x_pm_tmr_blk.address);
 
-            int retval = vmm_map(&sys_pagemap, (uintptr_t)(priv->mmio), fadt->x_pm_tmr_blk.address, VPROT_MMIO);
+            int retval = mmu_map(&sys_mmu_ctx, (uintptr_t)(priv->mmio), fadt->x_pm_tmr_blk.address, VPROT_MMIO);
 
             if(retval < 0 && retval != -EEXIST) {
-                pr_warning("acpi_pmt: vmm_map failed: %s", strerror(retval));
+                pr_warning("acpi_pmt: mmu_map failed: %s", strerror(retval));
 
                 kfree(priv);
 

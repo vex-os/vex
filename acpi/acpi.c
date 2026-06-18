@@ -24,7 +24,7 @@ static void init_acpi_tables(void)
     }
 }
 
-initcall_bsp_vmm(init_acpi_tables, INIT_LAST);
+initcall_bsp_mmu(init_acpi_tables, INIT_LAST);
 
 static void init_acpi(void)
 {

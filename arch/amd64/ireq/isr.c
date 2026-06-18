@@ -3,12 +3,13 @@
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
+#include <vex/mmu.h>
 #include <vex/panic.h>
 #include <vex/process.h>
 #include <vex/sched.h>
 #include <vex/string.h>
 #include <vex/thread.h>
-#include <vex/vmm.h>
+#include <vex/vmmap.h>
 
 extern void amd64_isr_00(void);
 extern void amd64_isr_01(void);
@@ -45,7 +46,7 @@ extern void amd64_isr_1F(void);
 
 static void page_fault_handler(struct hart_local* restrict hart, struct hart_context* restrict ctx)
 {
-    struct vmm_fault_info info;
+    struct page_fault_info info;
     memset(&info, 0, sizeof(info));
 
     info.present = ctx->amd64_err & 0x1;
@@ -74,15 +75,15 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
         unreachable();
     }
 
-    struct pagemap* old_vm;
-    struct pagemap* new_vm;
+    struct mmu_ctx* old_ctx;
+    struct mmu_ctx* new_ctx;
 
     if(3 == (ctx->amd64_cs & 3)) {
-        old_vm = proc->vm;
-        new_vm = vmm_handle_fault(old_vm, &info);
+        old_ctx = proc->map->ctx;
+        new_ctx = mmu_page_fault(old_ctx, &info);
 
-        if(new_vm != nullptr) {
-            proc->vm = new_vm;
+        if(new_ctx != nullptr) {
+            proc->map->ctx = new_ctx;
             return;
         }
 
@@ -91,11 +92,11 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
         unreachable();
     }
     else {
-        old_vm = &sys_pagemap;
-        new_vm = vmm_handle_fault(old_vm, &info);
+        old_ctx = &sys_mmu_ctx;
+        new_ctx = mmu_page_fault(old_ctx, &info);
 
-        if(new_vm != nullptr) {
-            vmm_switch(new_vm);
+        if(new_ctx) {
+            mmu_switch_ctx(new_ctx);
             return;
         }
 
@@ -107,7 +108,7 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
 {
     disable_interrupts();
 
-    vmm_switch(&sys_pagemap);
+    mmu_switch_ctx(&sys_mmu_ctx);
 
     struct hart_local* hart = this_hart();
 
