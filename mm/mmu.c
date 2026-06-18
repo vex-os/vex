@@ -161,6 +161,7 @@ int mmu_patch(struct mmu_ctx* restrict ctx, uintptr_t virt, unsigned vprot)
     }
     else {
         *entry = mmu_entry_setup(mmu_entry_address(*entry), vprot);
+        mmu_flush_tlb(virt);
         retval = 0;
     }
 
@@ -184,6 +185,7 @@ int mmu_unmap(struct mmu_ctx* restrict ctx, uintptr_t virt)
     }
     else {
         *entry = MMU_ENTRY_NULL;
+        mmu_flush_tlb(virt);
         retval = 0;
     }
 
@@ -192,32 +194,40 @@ int mmu_unmap(struct mmu_ctx* restrict ctx, uintptr_t virt)
     return retval;
 }
 
-uintptr_t mmu_resolve_address(const struct mmu_ctx* restrict ctx, uintptr_t virt)
+uintptr_t mmu_resolve_address(struct mmu_ctx* restrict ctx, uintptr_t virt)
 {
-    mmu_entry_type* entry = mmu_entry_walk((struct mmu_ctx*)ctx, virt, false);
+    bool intr_state = spinlock_acquire_intr(&ctx->lock);
+
+    mmu_entry_type* entry = mmu_entry_walk(ctx, virt, false);
+    uintptr_t result = 0;
 
     if(entry && mmu_entry_valid(*entry)) {
-        return mmu_entry_address(*entry) + (virt & (PAGE_SIZE - 1));
+        result = mmu_entry_address(*entry) + (virt & (PAGE_SIZE - 1));
     }
 
-    return 0;
+    spinlock_release_intr(&ctx->lock, intr_state);
+
+    return result;
 }
 
-unsigned mmu_resolve_vprot(const struct mmu_ctx* restrict ctx, uintptr_t virt)
+unsigned mmu_resolve_vprot(struct mmu_ctx* restrict ctx, uintptr_t virt)
 {
-    mmu_entry_type* entry = mmu_entry_walk((struct mmu_ctx*)ctx, virt, false);
+    bool intr_state = spinlock_acquire_intr(&ctx->lock);
+
+    mmu_entry_type* entry = mmu_entry_walk(ctx, virt, false);
+    unsigned result = 0;
 
     if(entry && mmu_entry_valid(*entry)) {
-        return mmu_entry_vprot(*entry);
+        result = mmu_entry_vprot(*entry);
     }
 
-    return 0;
+    spinlock_release_intr(&ctx->lock, intr_state);
+
+    return result;
 }
 
 struct mmu_ctx* mmu_page_fault(struct mmu_ctx* restrict ctx, const struct page_fault_info* restrict info)
 {
-    (void)ctx;
-    (void)info;
     return nullptr;
 }
 
@@ -248,12 +258,12 @@ size_t mmu_memcpy_to_ctx(struct mmu_ctx* restrict ctx, uintptr_t v_dst, const vo
     return 0;
 }
 
-size_t mmu_memcpy_from_ctx(void* restrict s_dst, const struct mmu_ctx* restrict ctx, uintptr_t v_src, size_t sz)
+size_t mmu_memcpy_from_ctx(void* restrict s_dst, struct mmu_ctx* restrict ctx, uintptr_t v_src, size_t sz)
 {
     uint8_t* p_dst = s_dst;
 
     while(sz) {
-        uintptr_t src_phys = mmu_resolve_address((struct mmu_ctx*)ctx, v_src);
+        uintptr_t src_phys = mmu_resolve_address(ctx, v_src);
 
         if(src_phys == 0) {
             return sz;
@@ -327,8 +337,6 @@ static void init_mmu(void)
     if(retval < 0) {
         panic("mmu: out of memory");
     }
-
-    arch_mmu_zero(&sys_mmu_ctx);
 
     retval = map_kernel_section(&text_start, &text_end, VPROT_RX);
 

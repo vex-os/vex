@@ -120,13 +120,14 @@ int vmmap_patch(struct vmmap* restrict map, uintptr_t virt, unsigned vprot)
         entry = entry->next;
     }
 
-    spinlock_release_intr(&map->lock, intr_state);
-
     if(entry == nullptr) {
+        spinlock_release_intr(&map->lock, intr_state);
         return -ENOENT;
     }
 
     entry->vprot = vprot;
+
+    spinlock_release_intr(&map->lock, intr_state);
 
     return mmu_patch(map->ctx, virt, vprot);
 }
@@ -196,11 +197,14 @@ int vmmap_unmap_all(struct vmmap* restrict map)
 
 int vmmap_clone(struct vmmap* restrict map, const struct vmmap* restrict stem)
 {
+    bool intr_state = spinlock_acquire_intr(&((struct vmmap*)stem)->lock);
+
     for(size_t i = 0; i < VMMAP_BUCKETS; ++i) {
         for(struct vmmap_entry* entry = stem->buckets[i]; entry; entry = entry->next) {
             struct vmmap_entry* copy = slab_alloc(sizeof(struct vmmap_entry));
 
             if(copy == nullptr) {
+                spinlock_release_intr(&((struct vmmap*)stem)->lock, intr_state);
                 return -ENOMEM;
             }
 
@@ -208,6 +212,7 @@ int vmmap_clone(struct vmmap* restrict map, const struct vmmap* restrict stem)
 
             if(phys == 0) {
                 slab_free(copy);
+                spinlock_release_intr(&((struct vmmap*)stem)->lock, intr_state);
                 return -ENOMEM;
             }
 
@@ -218,6 +223,7 @@ int vmmap_clone(struct vmmap* restrict map, const struct vmmap* restrict stem)
             if(retval < 0) {
                 pslab_free_phys(phys);
                 slab_free(copy);
+                spinlock_release_intr(&((struct vmmap*)stem)->lock, intr_state);
                 return retval;
             }
 
@@ -230,6 +236,8 @@ int vmmap_clone(struct vmmap* restrict map, const struct vmmap* restrict stem)
             map->buckets[bucket] = copy;
         }
     }
+
+    spinlock_release_intr(&((struct vmmap*)stem)->lock, intr_state);
 
     return 0;
 }

@@ -84,6 +84,7 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
 
         if(new_ctx != nullptr) {
             proc->map->ctx = new_ctx;
+            thrd->arch.cr3 = new_ctx->phys;
             return;
         }
 
