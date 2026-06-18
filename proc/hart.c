@@ -3,10 +3,10 @@
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
+#include <vex/mmu.h>
 #include <vex/panic.h>
 #include <vex/sched.h>
 #include <vex/thread.h>
-#include <vex/vmm.h>
 
 LIMINE_REQUEST static volatile struct limine_mp_request mp_request = {
     .id = LIMINE_MP_REQUEST_ID,
@@ -21,7 +21,7 @@ static volatile unsigned long ready_harts;
 #ifdef ENABLE_SMP
 static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 {
-    vmm_switch(&sys_pagemap);
+    mmu_switch_ctx(&sys_mmu_ctx);
 
     hart_setup_2(info);
 

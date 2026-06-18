@@ -3,12 +3,12 @@
 #include <vex/errno.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
+#include <vex/mmu.h>
 #include <vex/page.h>
 #include <vex/process.h>
 #include <vex/string.h>
 #include <vex/vfs_file.h>
-#include <vex/vmm.h>
-#include <vex/vmsp.h>
+#include <vex/vmmap.h>
 #include <vex/vprot.h>
 
 #ifndef ELF64_ARCH
@@ -66,13 +66,13 @@ static int load_segment(struct process* restrict proc, struct file* restrict fp,
     uintptr_t seg_end = page_align_up(phdr->p_vaddr + phdr->p_memsz);
 
     for(uintptr_t page_uva = seg_start; page_uva < seg_end; page_uva += PAGE_SIZE) {
-        unsigned existing_vprot = vmm_query(proc->vm, page_uva);
+        unsigned existing_vprot = mmu_resolve_vprot(proc->map->ctx, page_uva);
 
         if(existing_vprot) {
             unsigned merged = vprot | existing_vprot;
 
             if(merged != existing_vprot) {
-                int retval = vms_patch(&proc->vms, proc->vm, page_uva, merged);
+                int retval = vmmap_patch(proc->map, page_uva, merged);
 
                 if(retval < 0) {
                     return retval;
@@ -80,14 +80,14 @@ static int load_segment(struct process* restrict proc, struct file* restrict fp,
             }
         }
         else {
-            int retval = vms_map_anon(&proc->vms, proc->vm, page_uva, vprot);
+            int retval = vmmap_anon(proc->map, page_uva, vprot);
 
             if(retval < 0) {
                 return retval;
             }
         }
 
-        uintptr_t phys = vmm_resolve(proc->vm, page_uva);
+        uintptr_t phys = mmu_resolve_address(proc->map->ctx, page_uva);
         uint8_t* kva = phys_to_virt(phys);
 
         uintptr_t file_lo = phdr->p_vaddr;
@@ -313,12 +313,13 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
         }
     }
 
-    if(vms_map_anon(&proc->vms, proc->vm, ELF64_STACK_UVA, VPROT_URW) < 0) {
+    if(vmmap_anon(proc->map, ELF64_STACK_UVA, VPROT_URW) < 0) {
         return -ENOMEM;
     }
 
-    void* stack_top_kva = phys_to_virt(vmm_resolve(proc->vm, ELF64_STACK_UVA)) + ELF64_STACK_SIZE;
-    uintptr_t stack_top_uva = ELF64_STACK_UVA + ELF64_STACK_SIZE;
+    uintptr_t stack_top_uva = ELF64_STACK_SIZE + ELF64_STACK_UVA;
+    uintptr_t stack_top_kva_phys = ELF64_STACK_SIZE + mmu_resolve_address(proc->map->ctx, ELF64_STACK_UVA);
+    void* stack_top_kva = phys_to_virt(stack_top_kva_phys);
 
     uintptr_t entry_rsp = build_ustack(stack_top_kva, stack_top_uva, ELF64_STACK_SIZE, argv, envp, &ehdr);
 

@@ -4,13 +4,13 @@
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
+#include <vex/mmu.h>
 #include <vex/panic.h>
 #include <vex/process.h>
 #include <vex/sched.h>
 #include <vex/version.h>
 #include <vex/vfs_file.h>
 #include <vex/vfs_mount.h>
-#include <vex/vmm.h>
 
 static volatile __used __section(".limine_requests") uint64_t limine_base_revision[] = LIMINE_BASE_REVISION(6);
 static volatile __used __section(".limine_requests_start") uint64_t limine_requests_start_marker[] = LIMINE_REQUESTS_START_MARKER;
@@ -40,13 +40,7 @@ void __noreturn kmain(void)
         panic("failed to open process executable");
     }
 
-    struct pagemap* vm = vmm_create();
-
-    if(vm == nullptr) {
-        panic("failed to create process pagemap");
-    }
-
-    struct process* proc = process_create(nullptr, vm);
+    struct process* proc = process_create(nullptr);
 
     if(proc == nullptr) {
         panic("failed to create process");

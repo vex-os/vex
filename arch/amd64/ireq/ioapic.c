@@ -5,10 +5,10 @@
 #include <vex/initcall.h>
 #include <vex/intctl.h>
 #include <vex/kmalloc.h>
+#include <vex/mmu.h>
 #include <vex/panic.h>
 #include <vex/sprintf.h>
 #include <vex/string.h>
-#include <vex/vmm.h>
 #include <vex/vprot.h>
 
 #define IOAPIC_MMIO_SELECT 0
@@ -143,10 +143,10 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
 
         data->base = phys_to_virt(ioapic->address);
 
-        int retval = vmm_map(&sys_pagemap, (uintptr_t)(data->base), ioapic->address, VPROT_MMIO);
+        int retval = mmu_map(&sys_mmu_ctx, (uintptr_t)(data->base), ioapic->address, VPROT_MMIO);
 
         if(retval < 0 && retval != -EEXIST) {
-            panic("ioapic: vmm_map: %s", strerror(retval));
+            panic("ioapic: mmu_map: %s", strerror(retval));
         }
 
         uint32_t id = ioapic_read(data, IOAPIC_REG_ID) >> 24;

@@ -14,7 +14,7 @@ arch/amd64/kern/gdt.c
 arch/amd64/kern/lapic.c
 arch/amd64/kern/pmio.c
 
-arch/amd64/mm/paging.c
+arch/amd64/mm/mmu.c
 
 arch/amd64/proc/hart.c
 arch/amd64/proc/sched.S

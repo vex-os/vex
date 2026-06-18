@@ -3,6 +3,7 @@
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/linker.h>
+#include <vex/mmu.h>
 #include <vex/page.h>
 #include <vex/panic.h>
 #include <vex/pslab.h>
@@ -11,7 +12,6 @@
 #include <vex/sprintf.h>
 #include <vex/string.h>
 #include <vex/strings.h>
-#include <vex/vmm.h>
 #include <vex/vprot.h>
 
 #define MALLOC_ALIGNMENT sizeof(uintptr_t)
@@ -72,7 +72,7 @@ static struct memblock* extend_heap(size_t sz)
         }
 
         virt = block->address + i * PAGE_SIZE;
-        int retval = vmm_map(&sys_pagemap, virt, phys, VPROT_RW);
+        int retval = mmu_map(&sys_mmu_ctx, virt, phys, VPROT_RW);
 
         if(retval < 0) {
             pslab_free_phys(phys);
@@ -96,8 +96,8 @@ static struct memblock* extend_heap(size_t sz)
 error_cleanup:
     while(i--) {
         virt = block->address + i * PAGE_SIZE;
-        pslab_free_phys(vmm_resolve(&sys_pagemap, virt));
-        vmm_unmap(&sys_pagemap, virt);
+        pslab_free_phys(mmu_resolve_address(&sys_mmu_ctx, virt));
+        mmu_unmap(&sys_mmu_ctx, virt);
     }
 
     slab_free(block);

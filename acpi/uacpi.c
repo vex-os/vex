@@ -8,10 +8,10 @@
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
+#include <vex/mmu.h>
 #include <vex/page.h>
 #include <vex/pci.h>
 #include <vex/rsdp.h>
-#include <vex/vmm.h>
 #include <vex/vprot.h>
 
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out)
@@ -61,7 +61,7 @@ void* uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
     uintptr_t end = page_align_up(addr + len);
 
     while(phys < end) {
-        vmm_map(&sys_pagemap, virt, phys, VPROT_RW);
+        mmu_map(&sys_mmu_ctx, virt, phys, VPROT_RW);
         phys += PAGE_SIZE;
         virt += PAGE_SIZE;
     }
@@ -75,7 +75,7 @@ void uacpi_kernel_unmap(void* addr, uacpi_size len)
     uintptr_t end = page_align_up((uintptr_t)addr + len);
 
     while(virt < end) {
-        vmm_unmap(&sys_pagemap, virt);
+        mmu_unmap(&sys_mmu_ctx, virt);
 
         virt += PAGE_SIZE;
     }

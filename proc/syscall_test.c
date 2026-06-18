@@ -1,11 +1,12 @@
 #include <arch/hart.h>
 #include <vex/hart.h>
 #include <vex/kprintf.h>
+#include <vex/mmu.h>
 #include <vex/process.h>
 #include <vex/sched.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
-#include <vex/vmm.h>
+#include <vex/vmmap.h>
 
 // Placeholder syscalls for boot/utest/utest.S, the smoke test exercising
 // the syscall entry trampoline and elf64 loader end to end. Real syscalls
@@ -24,8 +25,11 @@ static intptr_t sys_test(const uintptr_t* restrict args)
 
     char buffer[SYS_TEST_BUFSIZE];
 
-    struct pagemap* vm = this_hart()->curr_thread->proc->vm;
-    size_t remaining = copy_vm_to_sys(buffer, vm, ptr, sz);
+    // FIXME: this looks horrible, TODO: possibly make something that
+    // looks like Linux's copy_from_user and copy_to_user? Where do we put it?
+    struct mmu_ctx* ctx = this_hart()->curr_thread->proc->map->ctx;
+
+    size_t remaining = mmu_memcpy_from_ctx(buffer, ctx, ptr, sz);
     size_t copied = sz - remaining;
 
     buffer[copied] = 0;

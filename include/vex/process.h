@@ -5,7 +5,8 @@
 #include <vex/event.h>
 #include <vex/limits.h>
 #include <vex/spinlock.h>
-#include <vex/vmsp.h>
+
+struct vmmap;
 
 struct thread;
 struct process {
@@ -15,8 +16,7 @@ struct process {
 
     spinlock_type lock;
 
-    struct pagemap* vm;
-    struct vmspace vms;
+    struct vmmap* map;
 
     // Stack for each thread is allocated below the previous one
     // with an additional guard page; this points to the top of the last allocated stack
@@ -34,7 +34,7 @@ struct process {
     struct event evnt;
 };
 
-struct process* process_create(struct process* restrict parent, struct pagemap* restrict vm) __nodiscard;
+struct process* process_create(struct process* restrict parent) __nodiscard;
 struct process* process_locate(pid_t pid) __nodiscard;
 void process_exit(struct process* proc, int exit_code);
 void process_destroy(struct process* proc);

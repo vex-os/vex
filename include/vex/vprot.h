@@ -2,7 +2,7 @@
 #define AB66BCFE_D7D1_4116_8D38_EE7F447F0FD4
 #pragma once
 
-#define VPROT_NONE    0x0000U // Empty VMM protection flags
+#define VPROT_NONE    0x0000U // Empty MMU protection flags
 #define VPROT_READ    0x0001U // Page can be read from
 #define VPROT_WRITE   0x0002U // Page can be written to
 #define VPROT_EXEC    0x0004U // Page can be executed

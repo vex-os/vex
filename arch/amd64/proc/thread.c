@@ -1,9 +1,10 @@
 #include <arch/amd64.gdt.h>
 #include <arch/amd64.msr.h>
 #include <vex/hart.h>
+#include <vex/mmu.h>
 #include <vex/string.h>
 #include <vex/thread.h>
-#include <vex/vmm.h>
+#include <vex/vmmap.h>
 
 void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, void* restrict arg, void* restrict kernel_stack_top)
 {
@@ -29,7 +30,7 @@ void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, 
 }
 
 void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, void* restrict user_stack_top,
-    void* restrict kernel_stack_top, void* restrict pfault_stack_top, struct pagemap* restrict vm)
+    void* restrict kernel_stack_top, void* restrict pfault_stack_top, struct vmmap* restrict map)
 {
     memset(&thrd->ctx, 0, sizeof(thrd->ctx));
 
@@ -45,7 +46,7 @@ void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, 
     thrd->arch.fs_base = nullptr;
     thrd->arch.kernel_stack = kernel_stack_top;
     thrd->arch.pfault_stack = pfault_stack_top;
-    thrd->arch.cr3 = vm->phys;
+    thrd->arch.cr3 = map->ctx->phys;
     thrd->kernel_rsp = kernel_stack_top;
 }
 

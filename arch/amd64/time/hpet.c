@@ -5,9 +5,9 @@
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
+#include <vex/mmu.h>
 #include <vex/panic.h>
 #include <vex/string.h>
-#include <vex/vmm.h>
 #include <vex/vprot.h>
 
 #define HPET_REG_CAPS   0x000
@@ -56,10 +56,10 @@ static void arch_init_hpet(void)
         if(hpet->address.address) {
             volatile uint64_t* mmio = phys_to_virt(hpet->address.address);
 
-            int retval = vmm_map(&sys_pagemap, (uintptr_t)(mmio), hpet->address.address, VPROT_MMIO);
+            int retval = mmu_map(&sys_mmu_ctx, (uintptr_t)(mmio), hpet->address.address, VPROT_MMIO);
 
             if(retval < 0 && retval != -EEXIST) {
-                panic("hpet: vmm_map: %s", strerror(retval));
+                panic("hpet: mmu_map: %s", strerror(retval));
             }
 
             hpet_clocksrc.ctxdata = (void*)(mmio); // this removes the volatile qualifier without a warning
