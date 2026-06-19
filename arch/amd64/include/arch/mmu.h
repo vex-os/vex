@@ -99,7 +99,14 @@ static __always_inline void mmu_switch_ctx(const struct mmu_ctx* restrict ctx)
     asm volatile("movq %0, %%cr3" ::"r"(ctx->phys) : "memory");
 }
 
-static __always_inline void mmu_flush_tlb(uintptr_t virt)
+static __always_inline void mmu_flush_all(void)
+{
+    uint64_t cr3;
+    asm volatile("movq %%cr3, %0" : "=r"(cr3)::"memory");
+    asm volatile("movq %0, %%cr3" ::"r"(cr3) : "memory");
+}
+
+static __always_inline void mmu_flush(uintptr_t virt)
 {
     asm volatile("invlpg (%0)" ::"r"(virt) : "memory");
 }

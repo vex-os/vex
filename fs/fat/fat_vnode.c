@@ -285,11 +285,11 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     struct fat_dirent dirent;
     memset(&dirent, 0, sizeof(struct fat_dirent));
 
-    bitmap_t taken[32] = { 0 };
+    bitmap_type taken[32] = { 0 };
     struct fat_dirent taken_dirent;
     size_t taken_offset = 0;
 
-    static_assert(sizeof(taken) * sizeof(bitmap_t) * CHAR_BIT > 999);
+    static_assert(sizeof(taken) * sizeof(bitmap_type) * CHAR_BIT > 999);
 
     while(0 == fat_dirent_read(fs, context->first_cluster, &taken_offset, &taken_dirent)) {
         int tilde = -1;

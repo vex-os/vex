@@ -10,7 +10,7 @@
 #include <vex/pdma.h>
 #include <vex/spinlock.h>
 
-static bitmap_t* pdma_bitmap = nullptr;
+static bitmap_type* pdma_bitmap = nullptr;
 static size_t pdma_numpages = 0U;
 static size_t pdma_numused = 0U;
 static size_t pdma_lastpage = 0U;
