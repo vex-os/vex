@@ -4,7 +4,7 @@
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
-#include <vex/vmmap.h>
+#include <vex/vms.h>
 
 #define PROCTABLE_BUCKETS 1024
 
@@ -31,9 +31,9 @@ struct process* process_create(struct process* restrict parent)
         return nullptr;
     }
 
-    proc->map = vmmap_create();
+    proc->vms = vms_create();
 
-    if(proc->map == nullptr) {
+    if(proc->vms == nullptr) {
         slab_free(proc);
         return nullptr;
     }

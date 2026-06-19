@@ -4,8 +4,8 @@
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
-#include <vex/mmu.h>
 #include <vex/panic.h>
+#include <vex/pmap.h>
 #include <vex/process.h>
 #include <vex/sched.h>
 #include <vex/version.h>

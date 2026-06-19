@@ -8,9 +8,9 @@
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
-#include <vex/mmu.h>
 #include <vex/page.h>
 #include <vex/pci.h>
+#include <vex/pmap.h>
 #include <vex/rsdp.h>
 #include <vex/vprot.h>
 
@@ -61,7 +61,7 @@ void* uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
     uintptr_t end = page_align_up(addr + len);
 
     while(phys < end) {
-        mmu_map(&sys_mmu_ctx, virt, phys, VPROT_RW);
+        pmap_map(&sys_pmap, virt, phys, VPROT_RW);
         phys += PAGE_SIZE;
         virt += PAGE_SIZE;
     }
@@ -75,7 +75,7 @@ void uacpi_kernel_unmap(void* addr, uacpi_size len)
     uintptr_t end = page_align_up((uintptr_t)addr + len);
 
     while(virt < end) {
-        mmu_unmap(&sys_mmu_ctx, virt);
+        pmap_unmap(&sys_pmap, virt);
 
         virt += PAGE_SIZE;
     }

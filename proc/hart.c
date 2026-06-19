@@ -3,8 +3,8 @@
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/mmu.h>
 #include <vex/panic.h>
+#include <vex/pmap.h>
 #include <vex/sched.h>
 #include <vex/thread.h>
 
@@ -21,7 +21,7 @@ static volatile unsigned long ready_harts;
 #ifdef ENABLE_SMP
 static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 {
-    mmu_switch_ctx(&sys_mmu_ctx);
+    pmap_switch(&sys_pmap);
 
     hart_setup_2(info);
 

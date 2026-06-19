@@ -75,11 +75,11 @@ mm/hhdm.c
 mm/kbase.c
 mm/kmalloc.c
 mm/memmap.c
-mm/mmu.c
 mm/pdma.c
+mm/pmap.c
 mm/pslab.c
 mm/slab.c
-mm/vmmap.c
+mm/vms.c
 
 proc/event.c
 proc/hart.c
