@@ -79,16 +79,20 @@ mm/pdma.c
 mm/pmap.c
 mm/pslab.c
 mm/slab.c
+mm/uaccess.c
 mm/vms.c
 
 proc/event.c
 proc/hart.c
 proc/process.c
 proc/sched.c
+proc/sys_file.c
+proc/sys_mman.c
+proc/sys_process.c
+proc/sys_time.c
+proc/sys_uname.c
 proc/syscall.c
 
 time/acpi_pmt.c
 time/clocksrc.c
 time/delay.c
-
-proc/syscall_test.c

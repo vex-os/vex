@@ -6,13 +6,35 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-#define SYS_EXIT __k_SYS_EXIT
-#define SYS_TEST __k_SYS_TEST
+#define SYS_EXIT     __k_SYS_EXIT
+#define SYS_FORK     __k_SYS_FORK
+#define SYS_EXEC     __k_SYS_EXEC
+#define SYS_WAITPID  __k_SYS_WAITPID
+#define SYS_GETPID   __k_SYS_GETPID
+#define SYS_GETPPID  __k_SYS_GETPPID
+#define SYS_YIELD    __k_SYS_YIELD
+#define SYS_OPEN     __k_SYS_OPEN
+#define SYS_CLOSE    __k_SYS_CLOSE
+#define SYS_READ     __k_SYS_READ
+#define SYS_WRITE    __k_SYS_WRITE
+#define SYS_SEEK     __k_SYS_SEEK
+#define SYS_STAT     __k_SYS_STAT
+#define SYS_UNLINK   __k_SYS_UNLINK
+#define SYS_MKDIR    __k_SYS_MKDIR
+#define SYS_RMDIR    __k_SYS_RMDIR
+#define SYS_READDIR  __k_SYS_READDIR
+#define SYS_GETCWD   __k_SYS_GETCWD
+#define SYS_CHDIR    __k_SYS_CHDIR
+#define SYS_DUP      __k_SYS_DUP
+#define SYS_DUP2     __k_SYS_DUP2
+#define SYS_IOCTL    __k_SYS_IOCTL
+#define SYS_MMAP     __k_SYS_MMAP
+#define SYS_MUNMAP   __k_SYS_MUNMAP
+#define SYS_MPROTECT __k_SYS_MPROTECT
+#define SYS_UNAME    __k_SYS_UNAME
+#define SYS_GETTIME  __k_SYS_GETTIME
 
 struct hart_context;
-
-#define SYS_EXIT __k_SYS_EXIT
-#define SYS_TEST __k_SYS_TEST
 
 struct syscall {
     intptr_t (*function)(const uintptr_t* restrict args);
