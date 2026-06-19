@@ -1,3 +1,4 @@
+#include <vex/limits.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/vfs_mount.h>
@@ -5,6 +6,8 @@
 #include <vex/vfs_vnode.h>
 
 #define NUM_BUCKETS 256
+
+static_assert(sizeof(struct vcache) <= (PAGE_SIZE / 2));
 
 static struct vcache* cache[NUM_BUCKETS];
 static spinlock_type cache_lock = SPINLOCK_INIT;

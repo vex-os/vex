@@ -4,13 +4,13 @@
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/ireq.h>
+#include <vex/kmalloc.h>
 #include <vex/limits.h>
 #include <vex/page.h>
 #include <vex/panic.h>
 #include <vex/process.h>
 #include <vex/pslab.h>
 #include <vex/sched.h>
-#include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/thread.h>
@@ -23,12 +23,6 @@
 #ifndef SCHED_TIMESLICE
 #define SCHED_TIMESLICE 5000000
 #endif
-
-// Threads and processes are something that gets
-// allocated quite a bit of times across the kernel's
-// lifetime so it makes sense to use a fast allocator
-// for them; the slab allocator is O(1) for both alloc and free but imposes a size limit
-static_assert(sizeof(struct thread) <= (PAGE_SIZE / 2));
 
 static struct thread* run_queue[SCHED_QUEUE_SIZE];
 static unsigned sched_ireq_number;
@@ -118,7 +112,7 @@ static void sched_idle(void* restrict arg)
 
 struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
 {
-    struct thread* thrd = slab_alloc(sizeof(struct thread));
+    struct thread* thrd = kmalloc(sizeof(struct thread));
 
     if(thrd == nullptr) {
         return nullptr;
@@ -127,7 +121,7 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
     uint8_t* kstack = pslab_alloc_virt();
 
     if(kstack == nullptr) {
-        slab_free(thrd);
+        kfree(thrd);
         return nullptr;
     }
 
@@ -159,7 +153,7 @@ struct thread* create_thread_kern_enq(thread_entry_kern entry, void* restrict ar
 
 struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry, uintptr_t stack_top)
 {
-    struct thread* thrd = slab_alloc(sizeof(struct thread));
+    struct thread* thrd = kmalloc(sizeof(struct thread));
 
     if(thrd == nullptr) {
         return nullptr;
@@ -168,7 +162,7 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
     uint8_t* kstack = pslab_alloc_virt();
 
     if(kstack == nullptr) {
-        slab_free(thrd);
+        kfree(thrd);
         return nullptr;
     }
 
@@ -176,7 +170,7 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
 
     if(pfstack == nullptr) {
         pslab_free_virt(kstack);
-        slab_free(thrd);
+        kfree(thrd);
         return nullptr;
     }
 

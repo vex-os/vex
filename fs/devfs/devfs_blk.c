@@ -16,6 +16,8 @@ struct devfs_blk_context {
     uint8_t* bounce_buffer;
 };
 
+static_assert(sizeof(struct devfs_blk_context) <= (PAGE_SIZE / 2));
+
 static void devfs_blk_release(struct vnode* restrict node)
 {
     struct devfs_blk_context* context = node->ctxdata;

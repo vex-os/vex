@@ -12,6 +12,8 @@
 
 #include "fat.h"
 
+static_assert(sizeof(struct fat_vfs_context) <= (PAGE_SIZE / 2));
+
 static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
 {
     if(context->filesystem_type != FAT_TYPE_32 || context->fsinfo_lba == 0) {

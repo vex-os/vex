@@ -12,6 +12,8 @@ struct devfs_chr_context {
     const struct chr_device* device;
 };
 
+static_assert(sizeof(struct devfs_chr_context) <= (PAGE_SIZE / 2));
+
 static void devfs_chr_release(struct vnode* restrict node)
 {
     slab_free(node->ctxdata);
