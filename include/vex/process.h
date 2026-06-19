@@ -6,9 +6,9 @@
 #include <vex/limits.h>
 #include <vex/spinlock.h>
 
-struct vmmap;
-
 struct thread;
+struct vmspace;
+
 struct process {
     pid_t pid;
     pid_t ppid;
@@ -16,7 +16,7 @@ struct process {
 
     spinlock_type lock;
 
-    struct vmmap* map;
+    struct vmspace* vms;
 
     // Stack for each thread is allocated below the previous one
     // with an additional guard page; this points to the top of the last allocated stack

@@ -6,9 +6,9 @@
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
-#include <vex/mmu.h>
 #include <vex/page.h>
 #include <vex/pci.h>
+#include <vex/pmap.h>
 #include <vex/vprot.h>
 
 #define PCI_MAX_BUS_DEVICES 32
@@ -144,7 +144,7 @@ static void* bar_map_mmio(struct pci_device* restrict device, unsigned bar_index
     size_t size = bar_length(device, bar_index);
 
     for(size_t i = 0; i < size; i += PAGE_SIZE) {
-        mmu_map(&sys_mmu_ctx, (uintptr_t)phys_to_virt(phys + i), phys + i, VPROT_MMIO);
+        pmap_map(&sys_pmap, (uintptr_t)phys_to_virt(phys + i), phys + i, VPROT_MMIO);
     }
 
     return phys_to_virt(phys);
@@ -156,7 +156,7 @@ static void bar_unmap_mmio(struct pci_device* restrict device, unsigned bar_inde
     size_t size = bar_length(device, bar_index);
 
     for(size_t i = 0; i < size; i += PAGE_SIZE) {
-        mmu_unmap(&sys_mmu_ctx, (uintptr_t)phys_to_virt(phys + i));
+        pmap_unmap(&sys_pmap, (uintptr_t)phys_to_virt(phys + i));
     }
 }
 

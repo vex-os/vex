@@ -3,9 +3,9 @@
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/linker.h>
-#include <vex/mmu.h>
 #include <vex/page.h>
 #include <vex/panic.h>
+#include <vex/pmap.h>
 #include <vex/pslab.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
@@ -72,7 +72,7 @@ static struct memblock* extend_heap(size_t sz)
         }
 
         virt = block->address + i * PAGE_SIZE;
-        int retval = mmu_map(&sys_mmu_ctx, virt, phys, VPROT_RW);
+        int retval = pmap_map(&sys_pmap, virt, phys, VPROT_RW);
 
         if(retval < 0) {
             pslab_free_phys(phys);
@@ -96,8 +96,8 @@ static struct memblock* extend_heap(size_t sz)
 error_cleanup:
     while(i--) {
         virt = block->address + i * PAGE_SIZE;
-        pslab_free_phys(mmu_resolve_address(&sys_mmu_ctx, virt));
-        mmu_unmap(&sys_mmu_ctx, virt);
+        pslab_free_phys(pmap_resolve_address(&sys_pmap, virt));
+        pmap_unmap(&sys_pmap, virt);
     }
 
     slab_free(block);

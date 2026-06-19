@@ -1,10 +1,10 @@
-#include <arch/mmu.h>
 #include <limine.h>
 #include <vex/assert.h>
 #include <vex/errno.h>
 #include <vex/hhdm.h>
 #include <vex/page.h>
 #include <vex/panic.h>
+#include <vex/pmap.h>
 #include <vex/pslab.h>
 #include <vex/string.h>
 
@@ -14,7 +14,7 @@ static volatile __used __section(".limine_requests") struct limine_paging_mode_r
     .revision = 2,
 };
 
-unsigned mmu_detect_levels(void)
+unsigned pmap_detect_levels(void)
 {
     if(paging_mode.response == nullptr) {
         panic("mmu: bootloader did not negotiate paging mode");
@@ -31,37 +31,37 @@ unsigned mmu_detect_levels(void)
     return 3;
 }
 
-int arch_mmu_alloc(struct mmu_ctx* restrict ctx)
+int arch_pmap_alloc(struct pagemap* restrict pmap)
 {
-    ctx->phys = pslab_alloc_phys();
+    pmap->phys = pslab_alloc_phys();
 
-    if(ctx->phys == 0) {
+    if(pmap->phys == 0) {
         return -ENOMEM;
     }
 
-    ctx->virt = phys_to_virt(ctx->phys);
+    pmap->virt = phys_to_virt(pmap->phys);
 
-    arch_mmu_zero(ctx);
+    arch_pmap_zero(pmap);
 
     return 0;
 }
 
-void arch_mmu_free(struct mmu_ctx* restrict ctx)
+void arch_pmap_free(struct pagemap* restrict pmap)
 {
-    pslab_free_virt(ctx->virt);
+    pslab_free_virt(pmap->virt);
 
-    ctx->phys = 0;
-    ctx->virt = nullptr;
+    pmap->phys = 0;
+    pmap->virt = nullptr;
 }
 
-void arch_mmu_zero(struct mmu_ctx* restrict ctx)
+void arch_pmap_zero(struct pagemap* restrict pmap)
 {
-    memset(ctx->virt, 0, PAGE_SIZE);
+    memset(pmap->virt, 0, PAGE_SIZE);
 }
 
-void arch_mmu_kcopy(struct mmu_ctx* restrict dest, const struct mmu_ctx* restrict stem)
+void arch_pmap_kcopy(struct pagemap* restrict dest, const struct pagemap* restrict stem)
 {
-    for(size_t i = AMD64_MMU_START_KERN; i < MMU_CTX_SIZE; ++i) {
+    for(size_t i = AMD64_PAGEMAP_START_KERN; i < PAGEMAP_SIZE; ++i) {
         dest->virt[i] = stem->virt[i];
     }
 }

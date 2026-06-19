@@ -637,14 +637,14 @@ struct limine_bootloader_performance_request {
 
 #define LIMINE_X86_64_KEEP_IOMMU_REQUEST_ID { LIMINE_COMMON_MAGIC, 0x8ebaabe51f490179, 0x2aa86a59ffb4ab0f }
 
-struct limine_x86_64_keep_iommu_response {
+struct limine_x86_64_keep_iopmap_response {
     uint64_t revision;
 };
 
-struct limine_x86_64_keep_iommu_request {
+struct limine_x86_64_keep_iopmap_request {
     uint64_t id[4];
     uint64_t revision;
-    LIMINE_PTR(struct limine_x86_64_keep_iommu_response *) response;
+    LIMINE_PTR(struct limine_x86_64_keep_iopmap_response *) response;
 };
 
 /* TSC (Timestamp Counter) Frequency */

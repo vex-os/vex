@@ -5,9 +5,9 @@
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
-#include <vex/mmu.h>
 #include <vex/page.h>
 #include <vex/panic.h>
+#include <vex/pmap.h>
 #include <vex/string.h>
 
 #define MSR_IA32_APIC_BASE     UINT32_C(0x0000001B)
@@ -52,10 +52,10 @@ static void arch_init_lapic(void)
     uintptr_t lapic_phys = msr & MSR_APIC_BASE_PHYSMASK;
     lapic_mmio = phys_to_virt(lapic_phys);
 
-    int retval = mmu_map(&sys_mmu_ctx, (uintptr_t)(lapic_mmio), lapic_phys, VPROT_MMIO);
+    int retval = pmap_map(&sys_pmap, (uintptr_t)(lapic_mmio), lapic_phys, VPROT_MMIO);
 
     if(retval < 0 && retval != -EEXIST) {
-        panic("lapic: mmu_map: %s", strerror(retval));
+        panic("lapic: pmap_map: %s", strerror(retval));
     }
 
     uint32_t svr = lapic_read(LAPIC_REG_SVR);
