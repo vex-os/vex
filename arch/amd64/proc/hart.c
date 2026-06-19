@@ -41,14 +41,6 @@ void hart_setup_2(const struct limine_mp_info* restrict info)
 {
     struct hart_local* hart = &harts[info->processor_id];
 
-    // Can't go through arch_thread_ctx_load() here: it calls this_hart(),
-    // which itself depends on GS_BASE already being valid on this hart -
-    // exactly what we're priming for the first time. Set both halves of
-    // the GS pair by hand instead. KERNEL_GS_BASE is what swapgs_if_user
-    // will swap into GS_BASE on return to ring 3; the idle thread never
-    // gets there, but keeping the pair consistent from boot avoids a
-    // stale/garbage KERNEL_GS_BASE the first time any hart does take an
-    // interrupt from ring 3.
     wrmsr(0xC0000101, (uintptr_t)(hart->idle_thread));
     wrmsr(0xC0000102, (uintptr_t)(hart->idle_thread->arch.gs_base));
 }
