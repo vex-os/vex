@@ -12,9 +12,9 @@
 .global _start
 .type _start, @function
 _start:
-    movq $message, %rdi    # ptr
+    movq $message, %rdi     # ptr
     movq $message_len, %rsi # sz
-    movq $2, %rax          # SYS_TEST
+    movq $32, %rax          # SYS_TEST
     syscall
 
     # Deliberate #DE (divide error): the kernel currently has no handler for

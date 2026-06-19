@@ -28,5 +28,6 @@
 #define __k_SYS_MPROTECT 25
 #define __k_SYS_UNAME    26
 #define __k_SYS_GETTIME  27
+#define __k_SYS_TEST     32 /* for testing purposes */
 
 #endif /* EA2F614B_CC26_4194_9F67_1556412D7D11 */
