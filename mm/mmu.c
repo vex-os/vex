@@ -1,6 +1,8 @@
 #include <vex/errno.h>
+#include <vex/hart.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
+#include <vex/ireq.h>
 #include <vex/kbase.h>
 #include <vex/kprintf.h>
 #include <vex/linker.h>
@@ -15,7 +17,14 @@
 
 static_assert(sizeof(struct mmu_ctx) <= (PAGE_SIZE / 2));
 
+static unsigned flush_ipi_ireq;
+
 struct mmu_ctx sys_mmu_ctx;
+
+static void flush_ipi_handler(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
+{
+    mmu_flush_all();
+}
 
 static size_t pte_index(uintptr_t virt, uintptr_t shift)
 {
@@ -138,6 +147,7 @@ int mmu_map(struct mmu_ctx* restrict ctx, uintptr_t virt, uintptr_t phys, unsign
     }
     else {
         *entry = mmu_entry_setup(page_align(phys), vprot);
+        mmu_flush(virt);
         retval = 0;
     }
 
@@ -161,7 +171,8 @@ int mmu_patch(struct mmu_ctx* restrict ctx, uintptr_t virt, unsigned vprot)
     }
     else {
         *entry = mmu_entry_setup(mmu_entry_address(*entry), vprot);
-        mmu_flush_tlb(virt);
+        hart_ipi(HART_IPI_EXCEPT_ME, flush_ipi_ireq);
+        mmu_flush(virt);
         retval = 0;
     }
 
@@ -185,7 +196,8 @@ int mmu_unmap(struct mmu_ctx* restrict ctx, uintptr_t virt)
     }
     else {
         *entry = MMU_ENTRY_NULL;
-        mmu_flush_tlb(virt);
+        hart_ipi(HART_IPI_EXCEPT_ME, flush_ipi_ireq);
+        mmu_flush(virt);
         retval = 0;
     }
 
@@ -329,6 +341,12 @@ static int map_memmap_entry(const struct limine_memmap_entry* restrict entry)
 
 static void init_mmu(void)
 {
+    flush_ipi_ireq = add_ireq_handler(UINT_MAX, &flush_ipi_handler, nullptr);
+
+    if(flush_ipi_ireq == UINT_MAX) {
+        panic("mmu: out of ireq numbers");
+    }
+
     sys_mmu_ctx.lock = SPINLOCK_INIT;
     sys_mmu_ctx.num_levels = mmu_detect_levels();
 
