@@ -21,7 +21,6 @@
 #define SYS_STAT     __k_SYS_STAT
 #define SYS_UNLINK   __k_SYS_UNLINK
 #define SYS_MKDIR    __k_SYS_MKDIR
-#define SYS_RMDIR    __k_SYS_RMDIR
 #define SYS_READDIR  __k_SYS_READDIR
 #define SYS_GETCWD   __k_SYS_GETCWD
 #define SYS_CHDIR    __k_SYS_CHDIR

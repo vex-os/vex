@@ -6,8 +6,10 @@
 #include <vex/limits.h>
 #include <vex/spinlock.h>
 
+struct file;
 struct thread;
 struct vmspace;
+struct vnode;
 
 struct process {
     pid_t pid;
@@ -32,11 +34,21 @@ struct process {
     struct process* pnext;
 
     struct event evnt;
+
+    struct vnode* cwd;
+    struct file** fds;
+    size_t num_fds;
+    size_t max_fds;
 };
 
 struct process* process_create(struct process* restrict parent) __nodiscard;
 struct process* process_locate(pid_t pid) __nodiscard;
 void process_exit(struct process* proc, int exit_code);
 void process_destroy(struct process* proc);
+
+struct file* dereference_fd(struct process* proc, int fd) __nodiscard;
+int allocate_fd(struct process* proc, struct file* file) __nodiscard;
+int duplicate_fd(struct process* proc, int old_fd, int new_fd) __nodiscard;
+void release_fd(struct process* proc, int fd);
 
 #endif /* DAD7E4CF_1C26_44A8_B4BF_6ABBD792D805 */

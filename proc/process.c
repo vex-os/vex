@@ -1,10 +1,14 @@
 #include <vex/atomic.h>
+#include <vex/errno.h>
 #include <vex/event.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/process.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
+#include <vex/vfs_file.h>
+#include <vex/vfs_mount.h>
+#include <vex/vfs_vnode.h>
 #include <vex/vms.h>
 
 #define PROCTABLE_BUCKETS 1024
@@ -44,6 +48,14 @@ struct process* process_create(struct process* restrict parent)
     proc->pid = atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);
     proc->lock = SPINLOCK_INIT;
     event_init(&proc->evnt);
+
+    if(parent && parent->cwd) {
+        vnode_incref(parent->cwd);
+        proc->cwd = parent->cwd;
+    }
+    else {
+        vfs_get_root(&proc->cwd);
+    }
 
     if(parent) {
         spinlock_acquire(&parent->lock);
@@ -143,5 +155,132 @@ void process_destroy(struct process* proc)
     }
 
     event_deinit(&proc->evnt);
+
+    if(proc->cwd) {
+        vnode_decref(proc->cwd);
+    }
+
+    for(size_t i = 0; i < proc->max_fds; i += 1) {
+        if(proc->fds[i] != nullptr) {
+            file_close(proc->fds[i]);
+        }
+    }
+
+    kfree(proc->fds);
     kfree(proc);
+}
+
+struct file* dereference_fd(struct process* proc, int fd)
+{
+    if(fd < 0 || fd >= proc->max_fds) {
+        return nullptr;
+    }
+
+    return proc->fds[fd];
+}
+
+int allocate_fd(struct process* proc, struct file* file)
+{
+    for(int fd = 0; fd < proc->max_fds; fd += 1) {
+        if(proc->fds[fd] == nullptr) {
+            proc->fds[fd] = file;
+            proc->num_fds += 1;
+            return fd;
+        }
+    }
+
+    size_t new_max_fds = 4;
+
+    if(proc->max_fds > 0) {
+        new_max_fds = proc->max_fds * 2;
+    }
+
+    struct file** new_fds = krealloc(proc->fds, new_max_fds * sizeof(struct file*));
+
+    if(new_fds == nullptr) {
+        return -ENOMEM;
+    }
+
+    for(size_t i = proc->max_fds; i < new_max_fds; i += 1) {
+        new_fds[i] = nullptr;
+    }
+
+    proc->fds = new_fds;
+    proc->fds[proc->max_fds] = file;
+
+    int new_fd = proc->max_fds;
+    proc->max_fds = new_max_fds;
+    proc->num_fds += 1;
+
+    return new_fd;
+}
+
+int duplicate_fd(struct process* proc, int old_fd, int new_fd)
+{
+    struct file* fp = dereference_fd(proc, old_fd);
+
+    if(fp == nullptr) {
+        return -EBADF;
+    }
+
+    if(old_fd == new_fd) {
+        return new_fd;
+    }
+
+    struct file* copy = file_dupe(fp);
+
+    if(copy == nullptr) {
+        return -ENOMEM;
+    }
+
+    if(new_fd < 0) {
+        int fd = allocate_fd(proc, copy);
+
+        if(fd < 0) {
+            file_close(copy);
+        }
+
+        return fd;
+    }
+
+    release_fd(proc, new_fd);
+
+    if((size_t)new_fd >= proc->max_fds) {
+        size_t new_max = proc->max_fds ? proc->max_fds * 2 : 4;
+
+        while(new_max <= (size_t)new_fd) {
+            new_max *= 2;
+        }
+
+        struct file** grown = krealloc(proc->fds, new_max * sizeof(struct file*));
+
+        if(grown == nullptr) {
+            file_close(copy);
+            return -ENOMEM;
+        }
+
+        for(size_t i = proc->max_fds; i < new_max; i += 1) {
+            grown[i] = nullptr;
+        }
+
+        proc->fds = grown;
+        proc->max_fds = new_max;
+    }
+
+    proc->fds[new_fd] = copy;
+    proc->num_fds += 1;
+
+    return new_fd;
+}
+
+void release_fd(struct process* proc, int fd)
+{
+    if(fd < 0 || fd >= proc->max_fds || proc->fds[fd] == nullptr) {
+        return;
+    }
+
+    file_close(proc->fds[fd]);
+
+    proc->fds[fd] = nullptr;
+    proc->num_fds -= 1;
 }

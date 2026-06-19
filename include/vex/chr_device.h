@@ -12,7 +12,7 @@ struct chr_device;
 struct chr_device_ops {
     ssize_t (*read)(const struct chr_device* restrict device, off_t offset, void* restrict buffer, size_t sz);
     ssize_t (*write)(const struct chr_device* restrict device, off_t offset, const void* restrict buffer, size_t sz);
-    int (*ioctl)(const struct chr_device* restrict device, uint32_t request, void* restrict arg);
+    int (*ioctl)(const struct chr_device* restrict device, uint32_t request, uintptr_t argument);
     void (*release)(const struct chr_device* restrict device);
 };
 
@@ -52,11 +52,11 @@ static __always_inline ssize_t chr_device_write(const struct chr_device* restric
     return device->ops->write(device, offset, buffer, sz);
 }
 
-static __always_inline int chr_device_ioctl(const struct chr_device* restrict device, uint32_t request, void* restrict arg)
+static __always_inline int chr_device_ioctl(const struct chr_device* restrict device, uint32_t request, uintptr_t argument)
 {
     if(device->ops->ioctl == nullptr)
         return -ENOTTY;
-    return device->ops->ioctl(device, request, arg);
+    return device->ops->ioctl(device, request, argument);
 }
 
 #endif /* B2600BF7_96F9_4B83_8FA8_6C2C28124FF2 */
