@@ -107,6 +107,8 @@ void process_exit(struct process* proc, int exit_code)
 
     proc->exit_code = exit_code;
 
+    vfs_sync("/"); // a nasty crutch
+
     event_trigger(&proc->evnt, true);
 }
 
