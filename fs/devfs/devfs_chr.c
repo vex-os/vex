@@ -33,11 +33,11 @@ static ssize_t devfs_chr_write(struct vnode* restrict node, const void* restrict
     return chr_device_write(context->device, offset, buffer, sz);
 }
 
-static int devfs_chr_ioctl(struct vnode* restrict node, unsigned request, void* restrict arg)
+static int devfs_chr_ioctl(struct vnode* restrict node, unsigned request, uintptr_t argument)
 {
     const struct devfs_chr_context* context = node->ctxdata;
 
-    return chr_device_ioctl(context->device, request, arg);
+    return chr_device_ioctl(context->device, request, argument);
 }
 
 static int devfs_chr_stat(struct vnode* restrict node, struct k_stat* restrict out)

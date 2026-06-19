@@ -210,7 +210,7 @@ apply_offset:
     return 0;
 }
 
-int file_ioctl(struct file* restrict fp, uint32_t request, void* restrict argument)
+int file_ioctl(struct file* restrict fp, uint32_t request, uintptr_t argument)
 {
     if(fp == nullptr)
         return -EINVAL;
