@@ -1,6 +1,7 @@
 #include <limine.h>
 #include <vex/binfmt.h>
 #include <vex/blk_device.h>
+#include <vex/fcntl.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>

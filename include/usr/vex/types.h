@@ -1,6 +1,8 @@
 #ifndef D2A4146C_35A7_4524_B3D3_57C05E72B76A
 #define D2A4146C_35A7_4524_B3D3_57C05E72B76A
 
+#include <limits.h>
+
 #if defined(__cplusplus) || defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
 #include <stddef.h>
 #include <stdint.h>

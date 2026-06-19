@@ -13,7 +13,7 @@ UTEST_OBJECT := ${BUILD_DIR}/usr/utest/utest.c.o
 UTEST_ELF    := ${BUILD_DIR}/utest.elf
 
 UTEST_FLAGS := -m64 -march=x86-64 -mno-red-zone -ffreestanding -fno-pic -fno-pie -nostdlib
-UTEST_FLAGS += -I${CURDIR}/include
+UTEST_FLAGS += -I${CURDIR}/include/usr
 
 ifeq (${ENVT},clang)
 UTEST_FLAGS += --target=x86_64-none-elf

@@ -1,4 +1,5 @@
 #include <vex/atomic.h>
+#include <vex/fcntl.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
 #include <vex/string.h>
