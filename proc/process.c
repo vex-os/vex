@@ -1,18 +1,13 @@
 #include <vex/atomic.h>
+#include <vex/event.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/process.h>
-#include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/vms.h>
 
 #define PROCTABLE_BUCKETS 1024
-
-// Threads and processes are something that gets
-// allocated quite a bit of times across the kernel's
-// lifetime so it makes sense to use a fast allocator
-// for them; the slab allocator is O(1) for both alloc and free but imposes a size limit
-static_assert(sizeof(struct process) <= (PAGE_SIZE / 2));
 
 static struct process* proctable[PROCTABLE_BUCKETS];
 static spinlock_type proctable_lock;
@@ -20,12 +15,12 @@ static pid_t next_pid = 1;
 
 static __always_inline __nodiscard size_t pid_bucket(pid_t pid)
 {
-    return (size_t)(pid % PROCTABLE_BUCKETS);
+    return pid % PROCTABLE_BUCKETS;
 }
 
 struct process* process_create(struct process* restrict parent)
 {
-    struct process* proc = slab_alloc(sizeof(struct process));
+    struct process* proc = kmalloc(sizeof(struct process));
 
     if(proc == nullptr) {
         return nullptr;
@@ -34,7 +29,7 @@ struct process* process_create(struct process* restrict parent)
     proc->vms = vms_create();
 
     if(proc->vms == nullptr) {
-        slab_free(proc);
+        kfree(proc);
         return nullptr;
     }
 
@@ -48,6 +43,7 @@ struct process* process_create(struct process* restrict parent)
 
     proc->pid = atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);
     proc->lock = SPINLOCK_INIT;
+    event_init(&proc->evnt);
 
     if(parent) {
         spinlock_acquire(&parent->lock);
@@ -146,5 +142,6 @@ void process_destroy(struct process* proc)
         spinlock_release(&parent->lock);
     }
 
-    slab_free(proc);
+    event_deinit(&proc->evnt);
+    kfree(proc);
 }

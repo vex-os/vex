@@ -7,7 +7,7 @@ static intptr_t sys_test(const uintptr_t* restrict args)
     uintptr_t ptr = args[0];
     char buffer[256];
 
-    ssize_t copied = user_copyin(buffer, ptr, sizeof(buffer));
+    ssize_t copied = user_copyin_str(buffer, ptr, sizeof(buffer));
 
     if(copied < 0) {
         return copied;

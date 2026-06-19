@@ -1,9 +1,29 @@
 #include <vex/errno.h>
 #include <vex/event.h>
 #include <vex/hart.h>
+#include <vex/kmalloc.h>
 #include <vex/panic.h>
 #include <vex/sched.h>
 #include <vex/thread.h>
+
+void event_init(struct event* restrict evnt)
+{
+    evnt->lock = SPINLOCK_INIT;
+    evnt->num_pending = 0;
+    evnt->num_listeners = 0;
+    evnt->max_listeners = 0;
+    evnt->listeners = nullptr;
+}
+
+void event_deinit(struct event* restrict evnt)
+{
+    kfree(evnt->listeners);
+
+    evnt->num_pending = 0;
+    evnt->num_listeners = 0;
+    evnt->max_listeners = 0;
+    evnt->listeners = nullptr;
+}
 
 ssize_t event_await(struct event** restrict events, size_t count)
 {
@@ -64,19 +84,62 @@ ssize_t event_await_blocking(struct event** restrict events, size_t count)
         }
     }
 
-    if(count > MAX_EVENTS) {
-        panic("too many events");
+    if(count > thrd->max_events) {
+        struct event** grown = krealloc(thrd->events, count * sizeof(struct event*));
+
+        if(grown == nullptr) {
+            for(size_t i = 0; i < count; ++i) {
+                spinlock_release(&events[i]->lock);
+            }
+
+            restore_interrupts(intr_state);
+            return -ENOMEM;
+        }
+
+        thrd->events = grown;
+        thrd->max_events = count;
     }
 
     for(size_t i = 0; i < count; ++i) {
         struct event* evnt = events[i];
 
-        if(evnt->num_listeners >= MAX_LISTENERS) {
-            panic("listener slots exhausted");
+        if(evnt->num_listeners >= evnt->max_listeners) {
+            size_t new_max_listeners = 4;
+
+            if(evnt->max_listeners) {
+                new_max_listeners = evnt->max_listeners * 2;
+            }
+
+            struct listener* grown = krealloc(evnt->listeners, new_max_listeners * sizeof(struct listener));
+
+            if(grown == nullptr) {
+                for(size_t j = 0; j < i; ++j) {
+                    struct event* registered = events[j];
+
+                    registered->num_listeners -= 1;
+
+                    for(size_t k = 0; k < registered->num_listeners; ++k) {
+                        if(registered->listeners[k].thrd == thrd) {
+                            registered->listeners[k] = registered->listeners[registered->num_listeners];
+                            break;
+                        }
+                    }
+                }
+
+                for(size_t j = 0; j < count; ++j) {
+                    spinlock_release(&events[j]->lock);
+                }
+
+                restore_interrupts(intr_state);
+                return -ENOMEM;
+            }
+
+            evnt->listeners = grown;
+            evnt->max_listeners = new_max_listeners;
         }
 
         struct listener* dest = &evnt->listeners[evnt->num_listeners++];
-        dest->event_index = i;
+        dest->wakeup_index = i;
         dest->thrd = thrd;
 
         thrd->events[i] = evnt;
@@ -120,7 +183,7 @@ ssize_t event_await_blocking(struct event** restrict events, size_t count)
         return -EINTR;
     }
 
-    return thrd->event_index;
+    return thrd->wakeup_index;
 }
 
 size_t event_trigger(struct event* restrict evnt, bool linger_pending)
@@ -146,7 +209,7 @@ size_t event_trigger(struct event* restrict evnt, bool linger_pending)
         struct listener* dest = &evnt->listeners[i];
         struct thread* thrd = dest->thrd;
 
-        thrd->event_index = dest->event_index;
+        thrd->wakeup_index = dest->wakeup_index;
 
         sched_enqueue(thrd);
     }

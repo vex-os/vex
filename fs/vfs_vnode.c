@@ -1,11 +1,14 @@
-#include <vex/assert.h> // kassert
+#include <vex/assert.h>
 #include <vex/atomic.h>
+#include <vex/limits.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/vfs_mount.h>
 #include <vex/vfs_vcache.h>
 #include <vex/vfs_vnode.h>
+
+static_assert(sizeof(struct vnode) <= (PAGE_SIZE / 2));
 
 static __always_inline struct vnode* resolve_mount(struct vnode* node)
 {

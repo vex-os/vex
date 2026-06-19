@@ -14,6 +14,9 @@
 
 #include "devfs.h"
 
+static_assert(sizeof(struct devfs_node) <= (PAGE_SIZE / 2));
+static_assert(sizeof(struct devfs_state) <= (PAGE_SIZE / 2));
+
 int devfs_insert(struct vfs* restrict fs, const char* restrict name, struct vnode* restrict node)
 {
     struct devfs_state* state = fs->root->ctxdata;

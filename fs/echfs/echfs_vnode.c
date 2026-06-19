@@ -9,6 +9,8 @@
 
 #include "echfs.h"
 
+static_assert(sizeof(struct echfs_vnode_context) <= (PAGE_SIZE / 2));
+
 static void echfs_vnode_release(struct vnode* restrict node);
 static int echfs_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out);
 static int echfs_vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index);

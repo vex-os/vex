@@ -7,10 +7,6 @@
 #include <vex/spinlock.h>
 #include <vex/types.h>
 
-#ifndef MAX_EVENTS
-#define MAX_EVENTS 32
-#endif
-
 struct event;
 struct process;
 struct hart_local;
@@ -44,9 +40,11 @@ struct thread {
 
     bool enqueued;
     bool enqueued_by_signal;
-    struct event* events[MAX_EVENTS];
-    size_t event_index;
+
+    struct event** events; // events that can wake up this thread
+    size_t wakeup_index;
     size_t num_events;
+    size_t max_events;
 
     uint64_t timeslice;
 
