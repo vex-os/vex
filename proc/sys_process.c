@@ -1,8 +1,10 @@
 #include <vex/errno.h>
+#include <vex/event.h>
 #include <vex/process.h>
 #include <vex/sched.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
+#include <vex/uaccess.h>
 
 static intptr_t __noreturn sys_exit(const uintptr_t* restrict args)
 {
@@ -28,17 +30,66 @@ static intptr_t sys_exec(const uintptr_t* restrict args)
 
 static intptr_t sys_waitpid(const uintptr_t* restrict args)
 {
-    return -ENOSYS;
+    pid_t pid = args[0];
+    uintptr_t wstatus = args[1];
+
+    struct process* target = process_locate(pid);
+
+    if(target == nullptr) {
+        return -ESRCH;
+    }
+
+    struct thread* thrd = this_thread();
+    struct process* caller = thrd->proc;
+
+    if(caller == nullptr || target->ppid != caller->pid) {
+        return -ECHILD;
+    }
+
+    struct event* evnt = &target->evnt;
+    ssize_t result = event_await_blocking(&evnt, 1);
+
+    if(result < 0) {
+        return result;
+    }
+
+    int exit_code = target->exit_code;
+
+    if(wstatus) {
+        ssize_t copied = user_copyout(wstatus, &exit_code, sizeof(exit_code));
+
+        if(copied < 0) {
+            return copied;
+        }
+    }
+
+    process_destroy(target);
+
+    return pid;
 }
 
 static intptr_t sys_getpid(const uintptr_t* restrict args)
 {
-    return -ENOSYS;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr) {
+        return -ESRCH;
+    }
+
+    return proc->pid;
 }
 
 static intptr_t sys_getppid(const uintptr_t* restrict args)
 {
-    return -ENOSYS;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr) {
+        return -ESRCH;
+    }
+
+    return proc->ppid;
 }
 
 static intptr_t sys_yield(const uintptr_t* restrict args)

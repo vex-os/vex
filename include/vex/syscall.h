@@ -33,6 +33,7 @@
 #define SYS_MPROTECT __k_SYS_MPROTECT
 #define SYS_UNAME    __k_SYS_UNAME
 #define SYS_GETTIME  __k_SYS_GETTIME
+#define SYS_TEST     __k_SYS_TEST /* for testing purposes */
 
 struct hart_context;
 

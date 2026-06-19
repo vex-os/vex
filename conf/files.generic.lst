@@ -89,6 +89,7 @@ proc/sched.c
 proc/sys_file.c
 proc/sys_mman.c
 proc/sys_process.c
+proc/sys_testing.c
 proc/sys_time.c
 proc/sys_uname.c
 proc/syscall.c
