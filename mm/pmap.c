@@ -243,66 +243,135 @@ struct pagemap* handle_page_fault(struct pagemap* restrict pmap, const struct pa
     return nullptr;
 }
 
-size_t copy_to_pmap(struct pagemap* restrict pmap, uintptr_t v_dst, const void* restrict s_src, size_t sz)
+ssize_t pmap_copyin(void* restrict dst, struct pagemap* restrict pmap, uintptr_t src, size_t sz)
 {
-    const uint8_t* p_src = s_src;
-    bool intr_state = spinlock_acquire_intr(&pmap->lock);
+    uint8_t* ptr = dst;
 
-    while(sz > 0) {
-        uintptr_t dst_phys = pmap_resolve_address_nolock(pmap, v_dst);
-
-        if(dst_phys == 0) {
-            spinlock_release_intr(&pmap->lock, intr_state);
-            return sz;
-        }
-
-        size_t chunk = PAGE_SIZE - (v_dst & (PAGE_SIZE - 1));
-
-        if(chunk > sz) {
-            chunk = sz;
-        }
-
-        memcpy(phys_to_virt(dst_phys), p_src, chunk);
-
-        v_dst += chunk;
-        p_src += chunk;
-        sz -= chunk;
-    }
-
-    spinlock_release_intr(&pmap->lock, intr_state);
-
-    return 0;
-}
-
-size_t copy_from_pmap(void* restrict s_dst, struct pagemap* restrict pmap, uintptr_t v_src, size_t sz)
-{
-    uint8_t* p_dst = s_dst;
     bool intr_state = spinlock_acquire_intr(&pmap->lock);
 
     while(sz) {
-        uintptr_t src_phys = pmap_resolve_address_nolock(pmap, v_src);
+        uintptr_t src_phys = pmap_resolve_address_nolock(pmap, src);
 
         if(src_phys == 0) {
             spinlock_release_intr(&pmap->lock, intr_state);
-            return sz;
+            return -EFAULT;
         }
 
-        size_t chunk = PAGE_SIZE - (v_src & (PAGE_SIZE - 1));
+        size_t chunk = PAGE_SIZE - page_offset(src);
 
         if(chunk > sz) {
             chunk = sz;
         }
 
-        memcpy(p_dst, phys_to_virt(src_phys), chunk);
+        memcpy(ptr, phys_to_virt(src_phys), chunk);
 
-        v_src += chunk;
-        p_dst += chunk;
+        src += chunk;
+        ptr += chunk;
         sz -= chunk;
     }
 
     spinlock_release_intr(&pmap->lock, intr_state);
 
-    return 0;
+    return ptr - (uint8_t*)(dst);
+}
+
+ssize_t pmap_copyin_str(char* restrict dst, struct pagemap* restrict pmap, uintptr_t src, size_t max_sz)
+{
+    if(max_sz == 0) {
+        return -EINVAL;
+    }
+
+    char* ptr = dst;
+    size_t remaining = max_sz;
+
+    bool intr_state = spinlock_acquire_intr(&pmap->lock);
+
+    while(remaining) {
+        uintptr_t src_phys = pmap_resolve_address_nolock(pmap, src);
+
+        if(src_phys == 0) {
+            spinlock_release_intr(&pmap->lock, intr_state);
+            return -EFAULT;
+        }
+
+        size_t chunk = PAGE_SIZE - (src & (PAGE_SIZE - 1));
+
+        if(chunk > remaining) {
+            chunk = remaining;
+        }
+
+        const char* page = phys_to_virt(src_phys);
+        const char* null_pos = memchr(page, 0x00, chunk);
+
+        if(null_pos) {
+            size_t len = null_pos - page + 1;
+
+            memcpy(ptr, page, len);
+
+            spinlock_release_intr(&pmap->lock, intr_state);
+
+            return ptr - dst + len - 1;
+        }
+
+        memcpy(ptr, page, chunk);
+
+        src += chunk;
+        ptr += chunk;
+        remaining -= chunk;
+    }
+
+    spinlock_release_intr(&pmap->lock, intr_state);
+
+    dst[max_sz - 1] = 0x00;
+
+    return -ENAMETOOLONG;
+}
+
+ssize_t pmap_copyout(struct pagemap* restrict pmap, uintptr_t dst, const void* restrict src, size_t sz)
+{
+    const uint8_t* ptr = src;
+
+    bool intr_state = spinlock_acquire_intr(&pmap->lock);
+
+    while(sz) {
+        uintptr_t dst_phys = pmap_resolve_address_nolock(pmap, dst);
+
+        if(dst_phys == 0) {
+            spinlock_release_intr(&pmap->lock, intr_state);
+            return -EFAULT;
+        }
+
+        size_t chunk = PAGE_SIZE - page_offset(dst);
+
+        if(chunk > sz) {
+            chunk = sz;
+        }
+
+        memcpy(phys_to_virt(dst_phys), ptr, chunk);
+
+        dst += chunk;
+        ptr += chunk;
+        sz -= chunk;
+    }
+
+    spinlock_release_intr(&pmap->lock, intr_state);
+
+    return ptr - (const uint8_t*)(src);
+}
+
+ssize_t pmap_copyout_str(struct pagemap* restrict pmap, uintptr_t dst, const char* restrict src, size_t max_sz)
+{
+    if(max_sz == 0) {
+        return -EINVAL;
+    }
+
+    size_t len = strnlen(src, max_sz);
+
+    if(len < max_sz) {
+        return pmap_copyout(pmap, dst, src, len + 1);
+    }
+
+    return -ENAMETOOLONG;
 }
 
 static int map_kernel_section(const void* restrict start, const void* restrict end, unsigned vprot)

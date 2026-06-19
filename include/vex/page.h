@@ -31,4 +31,9 @@ static __always_inline __nodiscard size_t page_count(size_t sz)
     return align_ceil(sz, PAGE_SIZE) / PAGE_SIZE;
 }
 
+static __always_inline __nodiscard size_t page_offset(uintptr_t address)
+{
+    return address & (PAGE_SIZE - 1);
+}
+
 #endif /* AE9FFA1D_8A1C_4366_9EC8_7085B303971C */
