@@ -279,19 +279,26 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
         return -ENOEXEC;
     }
 
+    vms_unmap_all(proc->vms); // clear all existing mappings in case we're SYS_EXEC'ing
+
+    int retval;
+
     for(uint16_t i = 0; i < ehdr.e_phnum; ++i) {
         struct elf64_phdr phdr;
 
         if(file_seek(fp, ehdr.e_phoff + i * ehdr.e_phentsize, SEEK_SET) < 0) {
-            return -EIO;
+            retval = -EIO;
+            goto error;
         }
 
         if(file_read(fp, &phdr, sizeof(phdr)) != (ssize_t)(sizeof(phdr))) {
-            return -EIO;
+            retval = -EIO;
+            goto error;
         }
 
         if(phdr.p_type == PT_INTERP || phdr.p_type == PT_DYNAMIC) {
-            return -ENOSYS;
+            retval = -ENOSYS;
+            goto error;
         }
 
         if(phdr.p_type != PT_LOAD) {
@@ -299,22 +306,25 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
         }
 
         if(phdr.p_filesz > phdr.p_memsz) {
-            return -ENOEXEC;
+            retval = -ENOEXEC;
+            goto error;
         }
 
         if(phdr.p_vaddr > UINTPTR_MAX - phdr.p_memsz) {
-            return -ENOEXEC;
+            retval = -ENOEXEC;
+            goto error;
         }
 
-        int retval = load_segment(proc, fp, &phdr);
+        retval = load_segment(proc, fp, &phdr);
 
         if(retval < 0) {
-            return retval;
+            goto error;
         }
     }
 
     if(vms_anon(proc->vms, ELF64_STACK_UVA, VPROT_URW) < 0) {
-        return -ENOMEM;
+        retval = -ENOMEM;
+        goto error;
     }
 
     uintptr_t stack_top_uva = ELF64_STACK_SIZE + ELF64_STACK_UVA;
@@ -324,13 +334,18 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
     uintptr_t entry_rsp = build_ustack(stack_top_kva, stack_top_uva, ELF64_STACK_SIZE, argv, envp, &ehdr);
 
     if(entry_rsp == 0) {
-        return -E2BIG;
+        retval = -E2BIG;
+        goto error;
     }
 
     out->address = ehdr.e_entry;
     out->ustack = entry_rsp;
 
     return 0;
+
+error:
+    vms_unmap_all(proc->vms);
+    return retval;
 }
 
 static const struct binfmt_ops elf64_ops = {
