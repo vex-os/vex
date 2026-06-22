@@ -3,8 +3,8 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/path.h>
 #include <vex/spinlock.h>
-#include <vex/vfs_path.h>
 
 struct blk_device;
 struct chr_device;

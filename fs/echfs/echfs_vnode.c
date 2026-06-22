@@ -1,11 +1,11 @@
 #include <vex/blk_device.h>
+#include <vex/dirent.h>
 #include <vex/errno.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
 #include <vex/string.h>
 #include <vex/strings.h>
-#include <vex/vfs_dirent.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vnode.h>
 
 #include "echfs.h"
 
@@ -13,7 +13,7 @@ static_assert(sizeof(struct echfs_vnode_context) <= (PAGE_SIZE / 2));
 
 static void echfs_vnode_release(struct vnode* restrict node);
 static int echfs_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out);
-static int echfs_vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index);
+static int echfs_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
 static int echfs_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
 static int echfs_vnode_unlink(struct vnode* restrict node, const char* restrict name);
 static ssize_t echfs_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset);
@@ -52,7 +52,7 @@ static int echfs_vnode_lookup(struct vnode* restrict node, const char* restrict 
     return 0;
 }
 
-static int echfs_vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index)
+static int echfs_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
@@ -79,14 +79,14 @@ static int echfs_vnode_iterate(struct vnode* restrict node, struct dirent* restr
         }
 
         if(entry->object_type == 1) {
-            out->nodetype = VNODE_DIRECTORY;
+            out->d_nodetype = VNODE_DIRECTORY;
         }
         else {
-            out->nodetype = VNODE_FILE;
+            out->d_nodetype = VNODE_FILE;
         }
 
-        memset(out->name, 0, NAME_SIZE);
-        kstrncpy(out->name, entry->name, NAME_SIZE);
+        memset(out->d_name, 0, NAME_SIZE);
+        kstrncpy(out->d_name, entry->name, NAME_SIZE);
 
         return 0;
     }

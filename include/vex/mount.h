@@ -40,7 +40,7 @@ struct vfs_driver {
 int add_vfs_driver(struct vfs_driver* restrict driver);
 int remove_vfs_driver(struct vfs_driver* restrict driver);
 
-int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params);
+int mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params);
 int vfs_unmount(const char* restrict path);
 int vfs_sync(const char* restrict path);
 int vfs_get_root(struct vnode** restrict out);

@@ -1,15 +1,15 @@
 #include <vex/atomic.h>
 #include <vex/errno.h>
 #include <vex/event.h>
+#include <vex/file.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
+#include <vex/mount.h>
 #include <vex/process.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
-#include <vex/vfs_file.h>
-#include <vex/vfs_mount.h>
-#include <vex/vfs_vnode.h>
 #include <vex/vms.h>
+#include <vex/vnode.h>
 
 #define PROCTABLE_BUCKETS 1024
 

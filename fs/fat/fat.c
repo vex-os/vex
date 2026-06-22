@@ -4,11 +4,11 @@
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
+#include <vex/mount.h>
 #include <vex/slab.h>
 #include <vex/stdlib.h>
 #include <vex/string.h>
-#include <vex/vfs_mount.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vnode.h>
 
 #include "fat.h"
 

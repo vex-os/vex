@@ -3,13 +3,13 @@
 #include <vex/cmdline.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
+#include <vex/mount.h>
+#include <vex/path.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
-#include <vex/vfs_mount.h>
-#include <vex/vfs_path.h>
-#include <vex/vfs_vcache.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vcache.h>
+#include <vex/vnode.h>
 
 struct mount_entry {
     struct mount_entry* next;
@@ -96,7 +96,7 @@ int remove_vfs_driver(struct vfs_driver* restrict driver)
     return -ENOENT;
 }
 
-int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params)
+int mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params)
 {
     if(type == nullptr || *type == 0) {
         return -EINVAL; // TODO: try deducing filesystem type

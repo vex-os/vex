@@ -1,7 +1,7 @@
 #include <vex/binfmt.h>
 #include <vex/errno.h>
+#include <vex/file.h>
 #include <vex/kprintf.h>
-#include <vex/vfs_file.h>
 
 static struct binfmt* binfmt_head = nullptr;
 

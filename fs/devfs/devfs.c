@@ -4,13 +4,13 @@
 #include <vex/chr_event.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
+#include <vex/mount.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/strings.h>
-#include <vex/vfs_mount.h>
-#include <vex/vfs_vcache.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vcache.h>
+#include <vex/vnode.h>
 
 #include "devfs.h"
 

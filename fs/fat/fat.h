@@ -3,8 +3,8 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/path.h>
 #include <vex/types.h>
-#include <vex/vfs_path.h>
 
 #define FAT_TYPE_12 12
 #define FAT_TYPE_16 16

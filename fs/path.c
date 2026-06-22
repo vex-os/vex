@@ -1,10 +1,10 @@
 #include <vex/assert.h>
+#include <vex/mount.h>
+#include <vex/path.h>
 #include <vex/pslab.h>
 #include <vex/string.h>
 #include <vex/strings.h>
-#include <vex/vfs_mount.h>
-#include <vex/vfs_path.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vnode.h>
 
 #define MAX_SYMLINK_DEPTH 8
 

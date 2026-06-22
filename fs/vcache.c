@@ -1,9 +1,9 @@
 #include <vex/limits.h>
+#include <vex/mount.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
-#include <vex/vfs_mount.h>
-#include <vex/vfs_vcache.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vcache.h>
+#include <vex/vnode.h>
 
 #define NUM_BUCKETS 256
 

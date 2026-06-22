@@ -1,12 +1,12 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
 #include <vex/limits.h>
+#include <vex/mount.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
-#include <vex/vfs_mount.h>
-#include <vex/vfs_vcache.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vcache.h>
+#include <vex/vnode.h>
 
 static_assert(sizeof(struct vnode) <= (PAGE_SIZE / 2));
 
@@ -139,7 +139,7 @@ int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct 
     return 0;
 }
 
-int vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index)
+int vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
 {
     kassert(node);
 
