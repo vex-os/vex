@@ -1,15 +1,15 @@
 #include <vex/bitmap.h>
 #include <vex/blk_device.h>
 #include <vex/ctype.h>
+#include <vex/dirent.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
+#include <vex/mount.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
 #include <vex/string.h>
 #include <vex/strings.h>
-#include <vex/vfs_dirent.h>
-#include <vex/vfs_mount.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vnode.h>
 
 #include "fat.h"
 
@@ -158,7 +158,7 @@ static void shortname_build(const char* restrict name, unsigned tail_n, uint8_t 
 
 static void fat_vnode_release(struct vnode* restrict node);
 static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out_ino);
-static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index);
+static int fat_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
 static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
 static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset);
 static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset);
@@ -204,7 +204,7 @@ static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict na
     unreachable();
 }
 
-static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index)
+static int fat_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_dirent entry;
@@ -227,15 +227,17 @@ static int fat_vnode_iterate(struct vnode* restrict node, struct dirent* restric
             continue;
         }
 
+        out->d_ino = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1); // fat_dirent_read increments the offset
+
         if(entry.base.attribute & FAT_ATTR_DIRECTORY) {
-            out->nodetype = VNODE_DIRECTORY;
+            out->d_nodetype = VNODE_DIRECTORY;
         }
         else {
-            out->nodetype = VNODE_FILE;
+            out->d_nodetype = VNODE_FILE;
         }
 
-        memset(out->name, 0, NAME_SIZE);
-        kstrncpy(out->name, entry.full_name, NAME_SIZE);
+        memset(out->d_name, 0, NAME_SIZE);
+        kstrncpy(out->d_name, entry.full_name, NAME_SIZE);
 
         return 0;
     }

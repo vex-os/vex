@@ -1,14 +1,14 @@
+#include <vex/dirent.h>
 #include <vex/errno.h>
+#include <vex/file.h>
+#include <vex/path.h>
 #include <vex/process.h>
 #include <vex/stat.h>
 #include <vex/string.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
 #include <vex/uaccess.h>
-#include <vex/vfs_dirent.h>
-#include <vex/vfs_file.h>
-#include <vex/vfs_path.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vnode.h>
 
 static int resolve_parent(const char* path, struct vnode** out_parent, const char** out_name)
 {
@@ -305,7 +305,7 @@ static intptr_t sys_readdir(const uintptr_t* restrict args)
         return -EBADF;
     }
 
-    struct dirent entry;
+    struct k_dirent entry;
     int retval = vnode_iterate(fp->node, &entry, fp->offset);
 
     if(retval == -ENOENT) {

@@ -42,11 +42,11 @@ fs/fat/fat_cluster.c                    optional fat
 fs/fat/fat_dirent.c                     optional fat
 fs/fat/fat_vnode.c                      optional fat
 
-fs/vfs_file.c
-fs/vfs_mount.c
-fs/vfs_path.c
-fs/vfs_vcache.c
-fs/vfs_vnode.c
+fs/file.c
+fs/mount.c
+fs/path.c
+fs/vcache.c
+fs/vnode.c
 
 init/initcall.c
 init/kmain.c

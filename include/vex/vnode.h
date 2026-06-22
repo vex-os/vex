@@ -3,6 +3,7 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/dirent.h>
 #include <vex/errno.h>
 #include <vex/spinlock.h>
 #include <vex/stat.h>
@@ -16,13 +17,11 @@ enum {
     VNODE_SYM_LINK,
 };
 
-struct dirent;
-
 struct vnode;
 struct vnode_ops {
     void (*release)(struct vnode* restrict node);
     int (*lookup)(struct vnode* restrict node, const char* restrict name, ino_t* restrict out);
-    int (*iterate)(struct vnode* restrict node, struct dirent* restrict out, size_t index);
+    int (*iterate)(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
     int (*create)(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
     int (*unlink)(struct vnode* restrict node, const char* restrict name);
     int (*open)(struct vnode* restrict node, unsigned mode);
@@ -52,7 +51,7 @@ void vnode_incref(struct vnode* restrict node);
 bool vnode_decref(struct vnode* restrict node);
 
 int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out);
-int vnode_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index);
+int vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
 int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
 int vnode_unlink(struct vnode* restrict node, const char* restrict name);
 int vnode_open(struct vnode* restrict node, unsigned mode);

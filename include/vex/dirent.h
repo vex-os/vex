@@ -2,11 +2,9 @@
 #define F7DF1819_15C7_467E_82C1_9D4D6A16B99D
 #pragma once
 
-#include <vex/vfs_path.h>
+#include <usr/vex/dirent.h>
+#include <vex/path.h>
 
-struct dirent {
-    char name[NAME_SIZE];
-    unsigned nodetype;
-};
+#define k_dirent __k_dirent
 
 #endif /* F7DF1819_15C7_467E_82C1_9D4D6A16B99D */

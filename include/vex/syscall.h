@@ -20,19 +20,23 @@
 #define SYS_SEEK     __k_SYS_SEEK
 #define SYS_STAT     __k_SYS_STAT
 #define SYS_UNLINK   __k_SYS_UNLINK
+#define SYS_DUP      __k_SYS_DUP
+#define SYS_DUP2     __k_SYS_DUP2
+#define SYS_IOCTL    __k_SYS_IOCTL
 #define SYS_MKDIR    __k_SYS_MKDIR
 #define SYS_READDIR  __k_SYS_READDIR
 #define SYS_GETCWD   __k_SYS_GETCWD
 #define SYS_CHDIR    __k_SYS_CHDIR
-#define SYS_DUP      __k_SYS_DUP
-#define SYS_DUP2     __k_SYS_DUP2
-#define SYS_IOCTL    __k_SYS_IOCTL
+#define SYS_MOUNT    __k_SYS_MOUNT
+#define SYS_UMOUNT   __k_SYS_UMOUNT
+#define SYS_SYNC     __k_SYS_SYNC
+#define SYS_STATVFS  __k_SYS_STATVFS
 #define SYS_MMAP     __k_SYS_MMAP
 #define SYS_MUNMAP   __k_SYS_MUNMAP
 #define SYS_MPROTECT __k_SYS_MPROTECT
 #define SYS_UNAME    __k_SYS_UNAME
 #define SYS_GETTIME  __k_SYS_GETTIME
-#define SYS_TEST     __k_SYS_TEST /* for testing purposes */
+#define SYS_TEST     __k_SYS_TEST
 
 struct hart_context;
 

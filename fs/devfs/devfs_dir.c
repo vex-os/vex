@@ -1,10 +1,10 @@
+#include <vex/dirent.h>
 #include <vex/errno.h>
 #include <vex/spinlock.h>
 #include <vex/stat.h>
 #include <vex/string.h>
 #include <vex/strings.h>
-#include <vex/vfs_dirent.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vnode.h>
 
 #include "devfs.h"
 
@@ -27,7 +27,7 @@ static int devfs_dir_lookup(struct vnode* restrict node, const char* restrict na
     return -ENOENT;
 }
 
-static int devfs_dir_iterate(struct vnode* restrict node, struct dirent* restrict out, size_t index)
+static int devfs_dir_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
 {
     struct devfs_state* state = node->ctxdata;
     size_t i = 0;
@@ -36,9 +36,12 @@ static int devfs_dir_iterate(struct vnode* restrict node, struct dirent* restric
 
     for(struct devfs_node* it = state->head; it; it = it->next, i++) {
         if(i == index) {
-            kstrncpy(out->name, it->name, sizeof(out->name));
-            out->nodetype = it->node->nodetype;
+            kstrncpy(out->d_name, it->name, sizeof(out->d_name));
+            out->d_ino = (ino_t)((uintptr_t)(it->node));
+            out->d_nodetype = it->node->nodetype;
+
             spinlock_release(&state->lock);
+
             return 0;
         }
     }

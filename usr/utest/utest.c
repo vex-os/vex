@@ -31,12 +31,62 @@ static unsigned long ustrlen(const char* s)
     return n;
 }
 
+static void printnumber(long number)
+{
+    int i, sign;
+    char buffer[128];
+
+    for(i = 0; i < sizeof(buffer); buffer[i++] = 0) {
+        /* empty */
+    }
+
+    if(number == 0) {
+        syscall2(__k_SYS_TEST, (long)"0", 1);
+        return;
+    }
+
+    if(number < 0) {
+        number = -number;
+        sign = 1;
+    }
+    else {
+        sign = 0;
+    }
+
+    i = 0;
+
+    while(number > 0) {
+        buffer[i++] = '0' + (number % 10);
+        number /= 10;
+    }
+
+    if(sign) {
+        buffer[i++] = '-';
+    }
+
+    // reverse the string
+    for(int j = 0; j < i / 2; j++) {
+        char tmp = buffer[j];
+        buffer[j] = buffer[i - j - 1];
+        buffer[i - j - 1] = tmp;
+    }
+
+    syscall2(__k_SYS_TEST, (long)buffer, i);
+}
+
 int main(void)
 {
     struct __k_utsname name;
     syscall1(__k_SYS_UNAME, (long)&name);
 
     syscall2(__k_SYS_TEST, (long)"Hello, world!", 13);
+
+    long number = 1234567890;
+    printnumber(number);
+
+    number = syscall1(__k_SYS_MKDIR, (long)"/test/subdir"); // should fail because /test doesn't exist yet
+
+    printnumber(number); // should print a negative error code (likely -ENOENT which is -243)
 
     // create /test directory
     syscall1(__k_SYS_MKDIR, (long)"/test");

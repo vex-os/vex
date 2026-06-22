@@ -1,13 +1,13 @@
 #include <vex/binfmt.h>
 #include <vex/elf.h>
 #include <vex/errno.h>
+#include <vex/file.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/page.h>
 #include <vex/pmap.h>
 #include <vex/process.h>
 #include <vex/string.h>
-#include <vex/vfs_file.h>
 #include <vex/vms.h>
 #include <vex/vprot.h>
 

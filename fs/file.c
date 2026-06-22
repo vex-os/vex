@@ -1,11 +1,11 @@
 #include <vex/atomic.h>
 #include <vex/fcntl.h>
+#include <vex/file.h>
+#include <vex/path.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
 #include <vex/string.h>
-#include <vex/vfs_file.h>
-#include <vex/vfs_path.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vnode.h>
 
 struct file* file_open(const char* restrict path, unsigned flags)
 {

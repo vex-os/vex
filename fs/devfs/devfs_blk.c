@@ -6,7 +6,7 @@
 #include <vex/spinlock.h>
 #include <vex/stat.h>
 #include <vex/string.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vnode.h>
 
 #include "devfs.h"
 

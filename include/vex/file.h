@@ -4,7 +4,7 @@
 
 #include <vex/compiler.h>
 #include <vex/types.h>
-#include <vex/vfs_vnode.h>
+#include <vex/vnode.h>
 
 #define SEEK_SET 0
 #define SEEK_CUR 1
