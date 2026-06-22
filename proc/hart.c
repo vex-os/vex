@@ -27,10 +27,6 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 
-    // if(this_hart()->index == 1) {
-    //     panic("test panic from hart %u", this_hart()->index);
-    // }
-
     atomic_fetch_add(&ready_harts, 1, ATOMIC_RELEASE);
 
     enable_interrupts();
@@ -89,7 +85,7 @@ static void init_hart_boot(void)
     }
 #endif
 
-    pr_inform("hart: %lu harts online", num_harts);
+    pr_verbose("%lu harts online", num_harts);
 }
 
 initcall_bsp_multicore(init_hart_structs, INIT_EARLY);

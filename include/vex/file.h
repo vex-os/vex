@@ -3,6 +3,7 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/fcntl.h>
 #include <vex/types.h>
 #include <vex/vnode.h>
 

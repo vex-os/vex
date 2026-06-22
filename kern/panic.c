@@ -7,6 +7,8 @@
 #include <vex/limits.h>
 #include <vex/panic.h>
 
+volatile bool panic_in_progress = false;
+
 static unsigned panic_ipi_number = UINT_MAX;
 
 static void panic_ipi_ireq(unsigned number, const struct hart_context* restrict regs, void* restrict ctxdata)
@@ -31,15 +33,17 @@ void __noreturn fpanic(const char* restrict file, unsigned long line, const char
 
 void __noreturn fvpanic(const char* restrict file, unsigned long line, const char* restrict fmt, va_list ap)
 {
+    console_unblank();
+
+    pr_emerg("kernel panic at %s:%lu", file, line);
+
     if(panic_ipi_number < UINT_MAX) {
         hart_ipi(HART_IPI_EXCEPT_ME, panic_ipi_number);
     }
 
     disable_interrupts();
 
-    console_unblank();
-
-    pr_emerg("kernel panic at %s:%lu", file, line);
+    atomic_store_n(&panic_in_progress, true, ATOMIC_RELEASE);
 
     kvprintf(KP_EMERG, fmt, ap);
 
