@@ -3,7 +3,6 @@
 #include <vex/blk_device.h>
 #include <vex/cmdline.h>
 #include <vex/event.h>
-#include <vex/fcntl.h>
 #include <vex/file.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
@@ -55,7 +54,7 @@ static void __noreturn init_watchdog(void* restrict arg)
 
     event_await_blocking(&evnt, 1);
 
-    panic("kmain: init pro1cess died");
+    panic("kmain: init process died");
     unreachable();
 }
 

@@ -23,6 +23,7 @@ uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out)
 
 void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* msg)
 {
+#ifndef UACPI_QUIET
     unsigned sv;
 
     switch(lvl) {
@@ -52,6 +53,7 @@ void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* msg)
     }
 
     kprintf(sv, "uacpi: %s", msg);
+#endif
 }
 
 void* uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
