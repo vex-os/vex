@@ -33,6 +33,7 @@ struct vnode_ops {
     int (*stat)(struct vnode* restrict node, struct k_stat* restrict out);
 };
 
+struct blk_device;
 struct vfs;
 struct vnode {
     struct vfs* fs;
@@ -43,6 +44,7 @@ struct vnode {
     unsigned refcount;
     unsigned nodetype;
     ino_t nodenumber;
+    const struct blk_device* blkdev;
     void* ctxdata;
 };
 

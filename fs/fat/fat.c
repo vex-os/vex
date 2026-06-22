@@ -39,6 +39,33 @@ static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
     }
 }
 
+static int fat_probe(struct vfs* restrict fs, const struct blk_device* restrict device)
+{
+    union fat_extparams boot;
+
+    int retval = blk_read(device, 0, 1, &boot);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct fat_bootparams* base = &boot.fat1X.base;
+
+    if(base->sector_size == 0 || base->cluster_size == 0) {
+        return -ENODEV;
+    }
+
+    if(le16toh(base->table_size_16) == 0 && le32toh(boot.fat32.table_size_32) == 0) {
+        return -ENODEV;
+    }
+
+    if(le16toh(base->total_sectors_16) == 0 && le32toh(base->total_sectors_32) == 0) {
+        return -ENODEV;
+    }
+
+    return 0;
+}
+
 static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
 {
     if(device == nullptr) {
@@ -411,6 +438,7 @@ static int fat_sync(struct vfs* restrict fs)
 }
 
 static const struct vfs_ops fat_vfs_ops = {
+    .probe = &fat_probe,
     .mount = &fat_mount,
     .statvfs = &fat_statvfs,
     .fillnode = &fat_fillnode,

@@ -252,6 +252,8 @@ void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict d
             return;
         }
 
+        vnode->blkdev = device;
+
         int retval = devfs_insert(ctxdata, device->identifier, vnode);
 
         if(retval < 0) {

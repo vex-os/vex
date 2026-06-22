@@ -11,7 +11,7 @@
 
 static int resolve_parent(const char* path, struct vnode** out_parent, const char** out_name)
 {
-    const char* slash = strchr(path, PATH_SEPARATOR);
+    const char* slash = strrchr(path, PATH_SEPARATOR);
 
     out_name[0] = slash ? &slash[1] : path;
 

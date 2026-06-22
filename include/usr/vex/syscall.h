@@ -25,12 +25,13 @@
 #define __k_SYS_MOUNT    22
 #define __k_SYS_UMOUNT   23
 #define __k_SYS_SYNC     24
-#define __k_SYS_STATVFS  25
-#define __k_SYS_MMAP     26
-#define __k_SYS_MUNMAP   27
-#define __k_SYS_MPROTECT 28
-#define __k_SYS_UNAME    29
-#define __k_SYS_GETTIME  30
-#define __k_SYS_TEST     31 /* for testing purposes */
+#define __k_SYS_SYNCFS   25
+#define __k_SYS_STATVFS  26
+#define __k_SYS_MMAP     27
+#define __k_SYS_MUNMAP   28
+#define __k_SYS_MPROTECT 29
+#define __k_SYS_UNAME    30
+#define __k_SYS_GETTIME  31
+#define __k_SYS_TEST     32 /* for testing purposes */
 
 #endif /* EA2F614B_CC26_4194_9F67_1556412D7D11 */

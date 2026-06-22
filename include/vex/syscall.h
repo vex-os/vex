@@ -30,6 +30,7 @@
 #define SYS_MOUNT    __k_SYS_MOUNT
 #define SYS_UMOUNT   __k_SYS_UMOUNT
 #define SYS_SYNC     __k_SYS_SYNC
+#define SYS_SYNCFS   __k_SYS_SYNCFS
 #define SYS_STATVFS  __k_SYS_STATVFS
 #define SYS_MMAP     __k_SYS_MMAP
 #define SYS_MUNMAP   __k_SYS_MUNMAP

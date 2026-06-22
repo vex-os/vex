@@ -3,6 +3,7 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/errno.h>
 #include <vex/statvfs.h>
 #include <vex/types.h>
 
@@ -12,6 +13,7 @@ struct vnode;
 
 struct vfs;
 struct vfs_ops {
+    int (*probe)(struct vfs* restrict fs, const struct blk_device* restrict device);
     int (*mount)(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params);
     int (*statvfs)(struct vfs* restrict fs, struct k_statvfs* restrict out);
     int (*fillnode)(struct vfs* restrict fs, struct vnode* restrict node);
@@ -40,11 +42,23 @@ struct vfs_driver {
 int add_vfs_driver(struct vfs_driver* restrict driver);
 int remove_vfs_driver(struct vfs_driver* restrict driver);
 
-int mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params);
+int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params);
 int vfs_unmount(const char* restrict path);
-int vfs_sync(const char* restrict path);
-int vfs_get_root(struct vnode** restrict out);
 
-struct vfs* vfs_find_mount_for(struct vnode* restrict node);
+int vfs_sync_all(void);
+int vfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out);
+
+struct vnode* vfs_get_root(void);
+struct vnode* vfs_get_mountpoint(struct vfs* restrict fs);
+struct vfs* vfs_get_fs(struct vnode* restrict node);
+
+static __always_inline int vfs_sync_fs(struct vfs* restrict fs)
+{
+    if(fs->ops->sync == nullptr) {
+        return -ENOSYS;
+    }
+
+    return fs->ops->sync(fs);
+}
 
 #endif /* E7F3A178_693A_4817_A6DA_3793C8B5CE3F */

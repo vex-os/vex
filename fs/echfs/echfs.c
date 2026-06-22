@@ -12,6 +12,23 @@
 
 #define ECHFS_RESERVED_BLOCKS UINT64_C(16)
 
+static int echfs_probe(struct vfs* restrict fs, const struct blk_device* restrict device)
+{
+    struct echfs_identity identity;
+
+    int retval = blk_read(device, 0, 1, &identity);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(memcmp(identity.signature, "_ECH_FS_", 8)) {
+        return -ENODEV;
+    }
+
+    return 0;
+}
+
 static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
 {
     if(device == nullptr) {
@@ -272,6 +289,7 @@ static int echfs_sync(struct vfs* restrict fs)
 }
 
 static const struct vfs_ops echfs_vfs_ops = {
+    .probe = &echfs_probe,
     .mount = &echfs_mount,
     .statvfs = &echfs_statvfs,
     .fillnode = &echfs_fillnode,
