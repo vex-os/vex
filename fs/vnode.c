@@ -127,7 +127,7 @@ int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct 
     }
 
     if(result->nodetype == VNODE_DIRECTORY) {
-        result->fs_mounted = vfs_find_mount_for(result);
+        result->fs_mounted = vfs_get_fs(result);
         result->parent = node;
         vnode_incref(node);
     }

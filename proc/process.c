@@ -54,7 +54,13 @@ struct process* process_create(struct process* restrict parent)
         proc->cwd = parent->cwd;
     }
     else {
-        vfs_get_root(&proc->cwd);
+        proc->cwd = vfs_get_root();
+    }
+
+    if(proc->cwd == nullptr) {
+        vms_release(proc->vms);
+        kfree(proc);
+        return nullptr;
     }
 
     if(parent) {
@@ -107,7 +113,7 @@ void process_exit(struct process* proc, int exit_code)
 
     proc->exit_code = exit_code;
 
-    vfs_sync("/"); // a nasty crutch
+    vfs_sync_all(); // a nasty crutch
 
     event_trigger(&proc->evnt, true);
 }

@@ -41,11 +41,11 @@ static int follow_symlink(struct vnode* restrict node, struct vnode* restrict li
     int retval;
 
     if(target[0] == PATH_SEPARATOR) {
-        retval = vfs_get_root(&base);
+        base = vfs_get_root();
 
-        if(retval < 0) {
+        if(base == nullptr) {
             pslab_free_virt(target);
-            return retval;
+            return -ENOENT;
         }
     }
     else {
@@ -186,15 +186,14 @@ int path_resolve(const char* restrict path, struct vnode** restrict out)
     kassert(path);
     kassert(out);
 
-    struct vnode* root = nullptr;
-    int retval = vfs_get_root(&root);
+    struct vnode* root = vfs_get_root();
 
-    if(retval < 0) {
-        return retval;
+    if(root == nullptr) {
+        return -ENOENT;
     }
 
     if(path[0] == PATH_SEPARATOR) {
-        retval = resolve_internal(root, &path[1], out, 0);
+        int retval = resolve_internal(root, &path[1], out, 0);
         vnode_decref(root);
         return retval;
     }

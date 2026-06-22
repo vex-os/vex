@@ -1,27 +1,148 @@
 #include <vex/errno.h>
+#include <vex/file.h>
+#include <vex/mount.h>
+#include <vex/path.h>
+#include <vex/process.h>
+#include <vex/statvfs.h>
 #include <vex/syscall.h>
+#include <vex/thread.h>
+#include <vex/uaccess.h>
+#include <vex/vnode.h>
 
 static intptr_t sys_mount(const uintptr_t* restrict args)
 {
-    return -ENOSYS;
+    char target[PATH_SIZE];
+    ssize_t copied = user_copyin_str(target, args[1], sizeof(target));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    char fstype[64];
+    copied = user_copyin_str(fstype, args[2], sizeof(fstype));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    const struct blk_device* device = nullptr;
+
+    if(args[0]) {
+        char source[PATH_SIZE];
+        copied = user_copyin_str(source, args[0], sizeof(source));
+
+        if(copied < 0) {
+            return copied;
+        }
+
+        if(source[0] != 0) {
+            struct vnode* source_node;
+            int retval = path_resolve(source, &source_node);
+
+            if(retval < 0) {
+                return retval;
+            }
+
+            if(source_node->nodetype != VNODE_BLOCK_DEV || source_node->blkdev == nullptr) {
+                vnode_decref(source_node);
+                return -EINVAL;
+            }
+
+            device = source_node->blkdev;
+            vnode_decref(source_node);
+        }
+    }
+
+    char params[256];
+    const char* params_ptr = nullptr;
+
+    if(args[4]) {
+        copied = user_copyin_str(params, args[4], sizeof(params));
+
+        if(copied < 0) {
+            return copied;
+        }
+
+        params_ptr = params;
+    }
+
+    return vfs_mount(fstype, target, device, params_ptr);
 }
 
 static intptr_t sys_umount(const uintptr_t* restrict args)
 {
-    return -ENOSYS;
+    char path[PATH_SIZE];
+    ssize_t copied = user_copyin_str(path, args[0], sizeof(path));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    return vfs_unmount(path);
 }
 
 static intptr_t sys_sync(const uintptr_t* restrict args)
 {
-    return -ENOSYS;
+    return vfs_sync_all();
+}
+
+static intptr_t sys_syncfs(const uintptr_t* restrict args)
+{
+    struct thread* thread = this_thread();
+    struct process* proc = thread->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    struct file* fp = dereference_fd(proc, args[0]);
+
+    if(fp == nullptr) {
+        return -EBADF;
+    }
+
+    struct vfs* fs = vfs_get_fs(fp->node);
+
+    if(fs == nullptr) {
+        return -EINVAL;
+    }
+
+    return vfs_sync_fs(fs);
 }
 
 static intptr_t sys_statvfs(const uintptr_t* restrict args)
 {
-    return -ENOSYS;
+    struct thread* thread = this_thread();
+    struct process* proc = thread->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    struct file* fp = dereference_fd(proc, args[0]);
+
+    if(fp == nullptr) {
+        return -EBADF;
+    }
+
+    struct vfs* fs = vfs_get_fs(fp->node);
+
+    if(fs == nullptr) {
+        return -EINVAL;
+    }
+
+    struct k_statvfs st;
+    int retval = vfs_statvfs(fs, &st);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    return user_copyout(args[1], &st, sizeof(st));
 }
 
 define_syscall(sys_mount, SYS_MOUNT);
 define_syscall(sys_umount, SYS_UMOUNT);
 define_syscall(sys_sync, SYS_SYNC);
+define_syscall(sys_syncfs, SYS_SYNCFS);
 define_syscall(sys_statvfs, SYS_STATVFS);
