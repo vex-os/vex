@@ -6,6 +6,10 @@
 
 ## Ignore build and output directories with
 ## everything build process generates
+/kernel/build/
+/kernel/build/*
+/kernel/output/
+/kernel/output/*
 /build/
 /build/*
 /output/
@@ -19,7 +23,7 @@ __pycache__/*
 *.pyc
 
 ## Ignore configuration artifacts
-.configuration.mk
+.config.*.mk
 
 ## Ignore stuff that QEMU and other scripts
 ## might emit during debugging sessions
