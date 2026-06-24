@@ -2,15 +2,13 @@ export LC_ALL=C.UTF-8
 export LANGUAGE=C.UTF-8
 export LANG=C.UTF-8
 
-ALLDEPS :=
-PHONIES :=
-CLEAN_S :=
-CLEAN_D :=
-
 PYTHON := $(shell command -v python3 2> /dev/null || command -v python 2> /dev/null || command -v py 2> /dev/null)
 
 ARCH ?= amd64
 ENVT ?= clang
+
+INTERM_DIR ?= build
+OUTPUT_DIR ?= output
 
 CONF ?= default
 CONF_MK := .config.${ARCH}.${ENVT}.mk
@@ -57,62 +55,68 @@ override CPPFLAGS += -D ELF64_ARCH=${ELF64_ARCH}
 
 override LDFLAGS += -nostdlib
 
-BUILD_DIR ?= build
-
-${BUILD_DIR}/%.c.o: %.c ${CONF_MK} | ${BUILD_DIR}
+${INTERM_DIR}/%.c.o: %.c ${CONF_MK} | ${INTERM_DIR}
 	@printf "  CC\t%s\n" "$<"
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-${BUILD_DIR}/%.S.o: %.S ${CONF_MK} | ${BUILD_DIR}
+${INTERM_DIR}/%.S.o: %.S ${CONF_MK} | ${INTERM_DIR}
 	@printf "  AS\t%s\n" "$<"
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-${BUILD_DIR}/%.s.o: %.s ${CONF_MK} | ${BUILD_DIR}
+${INTERM_DIR}/%.s.o: %.s ${CONF_MK} | ${INTERM_DIR}
 	@printf "  AS\t%s\n" "$<"
 	@test -d $(dir $@) || mkdir -p $(dir $@)
 	@${CC} ${CFLAGS} ${CPPFLAGS} -c -o $@ $<
 
-KERNEL_ELF ?= ${BUILD_DIR}/vexsys.elf
+KERNEL ?= ${OUTPUT_DIR}/vexsys.elf
+
+HEADERS_SRC :=
+HEADERS_SRC += $(shell find include/usr -type f -name '*.h')
+HEADERS_SRC += $(shell find arch/${ARCH}/include/usr -type f -name '*.h')
+
+HEADERS_DIR := ${OUTPUT_DIR}/include
+
+HEADERS_DST := $(HEADERS_SRC:include/usr/%=${HEADERS_DIR}/%)
+HEADERS_DST := $(HEADERS_DST:arch/${ARCH}/include/usr/%=${HEADERS_DIR}/%)
+
+vpath %.h include/usr arch/${ARCH}/include/usr
 
 OBJECTS := ${SOURCES}
-OBJECTS := $(patsubst %,${BUILD_DIR}/%.o,${OBJECTS})
+OBJECTS := $(patsubst %,${INTERM_DIR}/%.o,${OBJECTS})
 
 CLEAN_S += ${OBJECTS}
-CLEAN_S += ${KERNEL_ELF}
+CLEAN_S += ${KERNEL}
 
-CLEAN_D += ${BUILD_DIR}
+CLEAN_D += ${INTERM_DIR}
 CLEAN_D += ${CONF_MK}
 
+PHONIES :=
 PHONIES += all
-PHONIES += force
-PHONIES += clean distclean
-PHONIES += kernel
+PHONIES += clean
+PHONIES += binary
+PHONIES += headers
 
-ALLDEPS += kernel
-
-all: ${ALLDEPS}
+all: binary headers
 	@true
-
-force:
 
 clean:
-	@rm -vrf ${CLEAN_S}
+	@rm -vrf ${INTERM_DIR}
+	@rm -vf ${KERNEL}
+	@rm -vf ${CONF_MK}
 
-distclean:
-	@rm -vrf ${CLEAN_S}
-	@rm -vrf ${CLEAN_D}
-
-kernel: ${KERNEL_ELF}
+binary: ${KERNEL}
 	@true
 
-${KERNEL_ELF}: ${CURDIR}/config/ldscript.${ARCH}.ld ${OBJECTS} | ${BUILD_DIR}
+headers: ${HEADERS_DST}
+	@true
+
+${KERNEL}: config/ldscript.${ARCH}.ld ${OBJECTS}
 	@printf "  LD\t%s\n" "$@"
-	@${LD} ${LDFLAGS} -T ${CURDIR}/config/ldscript.${ARCH}.ld -o $@ ${OBJECTS}
+	@${LD} ${LDFLAGS} -T config/ldscript.${ARCH}.ld -o $@ ${OBJECTS}
 
-${BUILD_DIR}:
-	@mkdir -p $@
-
-.DEFAULT_GOAL := all
-.PHONY: ${PHONIES}
+${HEADERS_DIR}/%: %
+	@printf "  HDR\t%s\n" "$@"
+	@mkdir -p $(dir $@)
+	@cp -f $< $@

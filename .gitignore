@@ -6,16 +6,10 @@
 
 ## Ignore build and output directories with
 ## everything build process generates
-/kernel/build/
-/kernel/build/*
-/kernel/output/
-/kernel/output/*
 /build/
 /build/*
 /output/
 /output/*
-/ext/
-/ext/*
 
 ## Ignore stuff python runtime generates
 __pycache__/
