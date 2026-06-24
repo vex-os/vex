@@ -1,0 +1,101 @@
+src/acpi/acpi.c
+src/acpi/rsdp.c
+src/acpi/uacpi.c
+
+src/bus/isa.c
+src/bus/isa_acpi.c
+src/bus/pci.c
+
+src/core/assert.c                           optional ENABLE_KASSERT
+src/core/cmdline.c
+src/core/console.c
+src/core/fbcons.c                           optional ENABLE_FBCONS
+src/core/kprintf.c
+src/core/panic.c
+src/core/version.c
+
+src/crypto/crc32.c
+src/crypto/crc32_iso3309.c
+
+src/dev/blk_ata.c
+src/dev/blk_atapi.c
+src/dev/blk_device.c
+src/dev/blk_event.c
+src/dev/blk_name.c
+src/dev/blk_ptable.c
+src/dev/chr_device.c
+src/dev/chr_event.c
+src/dev/chr_name.c
+src/dev/ptable_gpt.c                        optional ptable-gpt
+src/dev/ptable_mbr.c                        optional ptable-mbr
+
+src/drivers/ahci.c                          optional ahci
+src/drivers/ps2kbd.c                        optional ps2kbd
+
+src/exec/binfmt.c
+src/exec/elf64.c
+
+src/fs/devfs/devfs.c                        optional devfs
+src/fs/devfs/devfs_blk.c                    optional devfs
+src/fs/devfs/devfs_chr.c                    optional devfs
+src/fs/devfs/devfs_dir.c                    optional devfs
+
+src/fs/echfs/echfs.c                        optional echfs
+src/fs/echfs/echfs_block.c                  optional echfs
+src/fs/echfs/echfs_dirent.c                 optional echfs
+src/fs/echfs/echfs_vnode.c                  optional echfs
+
+src/fs/fat/fat.c                            optional fat
+src/fs/fat/fat_cluster.c                    optional fat
+src/fs/fat/fat_dirent.c                     optional fat
+src/fs/fat/fat_vnode.c                      optional fat
+
+src/fs/file.c
+src/fs/mount.c
+src/fs/path.c
+src/fs/vcache.c
+src/fs/vnode.c
+
+src/init/initcall.c
+src/init/kmain.c
+
+src/ireq/intctl.c
+src/ireq/ireq.c
+
+src/libk/bitmap.c
+src/libk/ctype.c
+src/libk/format.c
+src/libk/hrsize.c
+src/libk/sprintf.c
+src/libk/stdlib.c
+src/libk/string.c
+src/libk/strings.c
+
+src/mm/hhdm.c
+src/mm/kbase.c
+src/mm/kmalloc.c
+src/mm/memmap.c
+src/mm/pdma.c
+src/mm/pmap.c
+src/mm/pslab.c
+src/mm/slab.c
+src/mm/uaccess.c
+src/mm/vms.c
+
+src/proc/event.c
+src/proc/hart.c
+src/proc/process.c
+src/proc/sched.c
+src/proc/sys_dir.c
+src/proc/sys_file.c
+src/proc/sys_mman.c
+src/proc/sys_process.c
+src/proc/sys_testing.c
+src/proc/sys_time.c
+src/proc/sys_uname.c
+src/proc/sys_vfs.c
+src/proc/syscall.c
+
+src/time/acpi_pmt.c
+src/time/clocksrc.c
+src/time/delay.c

@@ -11,12 +11,11 @@
         "__kernel__",
         "__x86_64__",
         "__X86_64__",
-        "asm=__asm__",
-        "TRACE_MALLOC"
+        "asm=__asm__"
       ],
       "includePath": [
-        "${workspaceFolder}/arch/amd64/include",
-        "${workspaceFolder}/include"
+        "${workspaceFolder}/kernel/arch/amd64/include",
+        "${workspaceFolder}/kernel/include"
       ],
       "compilerArgs": [
         "-ffreestanding",

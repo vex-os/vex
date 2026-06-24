@@ -1,3 +1,3 @@
-include/uacpi/**/*.h
-include/limine.h
-uacpi/**/.c
+kernel/include/uacpi/**/*.h
+kernel/include/limine.h
+kernel/lib/uacpi/**/.c

@@ -10,8 +10,6 @@
 /build/*
 /output/
 /output/*
-/ext/
-/ext/*
 
 ## Ignore stuff python runtime generates
 __pycache__/
@@ -19,7 +17,7 @@ __pycache__/*
 *.pyc
 
 ## Ignore configuration artifacts
-.configuration.mk
+.config.*.mk
 
 ## Ignore stuff that QEMU and other scripts
 ## might emit during debugging sessions
