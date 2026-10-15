@@ -32,11 +32,9 @@ int devfs_insert(struct vfs* restrict fs, const char* restrict name, struct vnod
     node->fs = fs;
     node->nodenumber = (ino_t)(uintptr_t)node;
 
-    int retval = vcache_insert(node);
-
-    if(retval < 0) {
+    if(!vcache_get_or_insert(node)) {
         slab_free(entry);
-        return retval;
+        return -ENOMEM;
     }
 
     entry->node = node;

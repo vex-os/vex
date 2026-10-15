@@ -1,12 +1,15 @@
 #include <arch/amd64.pmio.h>
 #include <vex/initcall.h>
 #include <vex/pci.h>
+#include <vex/spinlock.h>
 
 // PCI configuration space access via cf8 CF8/CFC I/O ports.
 // Covers segment 0 only; other segments require ECAM (MCFG).
 
 #define PCI_CF8 UINT16_C(0x0CF8)
 #define PCI_CFC UINT16_C(0x0CFC)
+
+static spinlock_type cf8_lock = SPINLOCK_INIT;
 
 static uint32_t cf8_addr(struct pci_bus* bus, unsigned device_index, unsigned function, uintptr_t offset)
 {
@@ -21,38 +24,53 @@ static uint32_t cf8_addr(struct pci_bus* bus, unsigned device_index, unsigned fu
 
 static uint8_t cf8_read8(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset)
 {
+    bool intr_state = spinlock_acquire_intr(&cf8_lock);
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
-    return pmread8(PCI_CFC + (offset & 3));
+    uint8_t value = pmread8(PCI_CFC + (offset & 3));
+    spinlock_release_intr(&cf8_lock, intr_state);
+    return value;
 }
 
 static uint16_t cf8_read16(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset)
 {
+    bool intr_state = spinlock_acquire_intr(&cf8_lock);
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
-    return pmread16(PCI_CFC + (offset & 2));
+    uint16_t value = pmread16(PCI_CFC + (offset & 2));
+    spinlock_release_intr(&cf8_lock, intr_state);
+    return value;
 }
 
 static uint32_t cf8_read32(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset)
 {
+    bool intr_state = spinlock_acquire_intr(&cf8_lock);
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
-    return pmread32(PCI_CFC);
+    uint32_t value = pmread32(PCI_CFC);
+    spinlock_release_intr(&cf8_lock, intr_state);
+    return value;
 }
 
 static void cf8_write8(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint8_t value)
 {
+    bool intr_state = spinlock_acquire_intr(&cf8_lock);
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
     pmwrite8(PCI_CFC + (offset & 3), value);
+    spinlock_release_intr(&cf8_lock, intr_state);
 }
 
 static void cf8_write16(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint16_t value)
 {
+    bool intr_state = spinlock_acquire_intr(&cf8_lock);
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
     pmwrite16(PCI_CFC + (offset & 2), value);
+    spinlock_release_intr(&cf8_lock, intr_state);
 }
 
 static void cf8_write32(struct pci_bus* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint32_t value)
 {
+    bool intr_state = spinlock_acquire_intr(&cf8_lock);
     pmwrite32(PCI_CF8, cf8_addr(bus, device_index, function, offset));
     pmwrite32(PCI_CFC, value);
+    spinlock_release_intr(&cf8_lock, intr_state);
 }
 
 static const struct pci_bus_ops cf8_ops = {

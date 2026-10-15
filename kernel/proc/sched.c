@@ -2,6 +2,7 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
 #include <vex/clockevt.h>
+#include <vex/clocksrc.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/ireq.h>
@@ -105,6 +106,12 @@ static void reap_thread(struct thread* restrict thrd)
 static void sched_ireq_handler(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
 {
     clockevt_stop();
+
+    // Counters as narrow as the 24-bit ACPI PM timer
+    // wrap within seconds; this kind of shakes the
+    // timer a little without resetting the actual time
+    // so that if there is any wrapping, it's accounted for
+    clocksrc_update();
 
     struct hart_local* hart = this_hart();
 
