@@ -156,30 +156,12 @@ static void shortname_build(const char* restrict name, unsigned tail_n, uint8_t 
     }
 }
 
-static void fat_vnode_release(struct vnode* restrict node);
-static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out_ino);
-static int fat_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
-static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
-static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset);
-static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset);
-static int fat_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out);
-
-const struct vnode_ops fat_vnode_ops = {
-    .release = &fat_vnode_release,
-    .lookup = &fat_vnode_lookup,
-    .iterate = &fat_vnode_iterate,
-    .create = &fat_vnode_create,
-    .read = &fat_vnode_read,
-    .write = &fat_vnode_write,
-    .stat = &fat_vnode_stat,
-};
-
 static void fat_vnode_release(struct vnode* restrict node)
 {
     slab_free(node->ctxdata);
 }
 
-static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
+static int lookup_locked(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_dirent dirent;
@@ -204,7 +186,7 @@ static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict na
     unreachable();
 }
 
-static int fat_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
+static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_dirent entry;
@@ -245,7 +227,7 @@ static int fat_vnode_iterate(struct vnode* restrict node, struct k_dirent* restr
     unreachable();
 }
 
-static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
+static int create_locked(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
@@ -256,7 +238,7 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
 
     ino_t existing_nodenumber;
 
-    if(0 == fat_vnode_lookup(node, name, &existing_nodenumber)) {
+    if(0 == lookup_locked(node, name, &existing_nodenumber)) {
         return vnode_lookup(node, name, out);
     }
 
@@ -277,7 +259,7 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     uintptr_t first_cluster = 0;
 
     if(type == VNODE_DIRECTORY) {
-        first_cluster = fat_cluster_alloc(fs);
+        first_cluster = fat_cluster_alloc_zeroed(fs);
 
         if(first_cluster == UINTPTR_MAX) {
             return -ENOSPC;
@@ -364,19 +346,6 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
 
     // Write . and .. entries into newly created directories
     if(type == VNODE_DIRECTORY) {
-        uintptr_t dir_lba = fat_cluster_lba(fs, first_cluster);
-
-        memset(fs->bounce, 0, fs->sector_size);
-
-        for(size_t s = 0; s < fs->cluster_size_s; ++s) {
-            retval = blk_write(fs->device, dir_lba + s, 1, fs->bounce);
-
-            if(retval < 0) {
-                fat_cluster_free(fs, first_cluster);
-                return retval;
-            }
-        }
-
         union fat_entry dot_entry;
         memset(&dot_entry, 0, sizeof(union fat_entry));
 
@@ -442,7 +411,7 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     return 0;
 }
 
-static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
+static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
@@ -555,7 +524,7 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
     return done;
 }
 
-static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t write_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
@@ -569,7 +538,7 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
     }
 
     if(context->first_cluster == 0) {
-        uintptr_t new_cluster = fat_cluster_alloc(fs);
+        uintptr_t new_cluster = fat_cluster_alloc_zeroed(fs);
 
         if(new_cluster == UINTPTR_MAX) {
             return -ENOSPC;
@@ -604,7 +573,7 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
             uintptr_t next = fat_cluster_next(fs, cluster);
 
             if(next == UINTPTR_MAX) {
-                next = fat_cluster_alloc(fs);
+                next = fat_cluster_alloc_zeroed(fs);
 
                 if(next == UINTPTR_MAX) {
                     return -ENOSPC;
@@ -623,7 +592,7 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
             uintptr_t next = fat_cluster_next(fs, cluster);
 
             if(next == UINTPTR_MAX) {
-                next = fat_cluster_alloc(fs);
+                next = fat_cluster_alloc_zeroed(fs);
 
                 if(next == UINTPTR_MAX) {
                     return -ENOSPC;
@@ -711,7 +680,7 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
             uintptr_t next = fat_cluster_next(fs, cluster);
 
             if(next == UINTPTR_MAX) {
-                next = fat_cluster_alloc(fs);
+                next = fat_cluster_alloc_zeroed(fs);
 
                 if(next == UINTPTR_MAX) {
                     if(done > 0)
@@ -746,7 +715,7 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
     return done;
 }
 
-static int fat_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
+static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
@@ -777,3 +746,67 @@ static int fat_vnode_stat(struct vnode* restrict node, struct k_stat* restrict o
 
     return 0;
 }
+
+static struct mutex* fs_lock(struct vnode* restrict node)
+{
+    struct fat_vnode_context* context = node->ctxdata;
+    return &context->fs_ctx->lock;
+}
+
+static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = lookup_locked(node, name, out);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static int fat_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = iterate_locked(node, out, index);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = create_locked(node, name, type, out);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
+{
+    mutex_acquire(fs_lock(node));
+    ssize_t retval = read_locked(node, buffer, sz, offset);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+{
+    mutex_acquire(fs_lock(node));
+    ssize_t retval = write_locked(node, buffer, sz, offset);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static int fat_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = stat_locked(node, out);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+const struct vnode_ops fat_vnode_ops = {
+    .release = &fat_vnode_release,
+    .lookup = &fat_vnode_lookup,
+    .iterate = &fat_vnode_iterate,
+    .create = &fat_vnode_create,
+    .read = &fat_vnode_read,
+    .write = &fat_vnode_write,
+    .stat = &fat_vnode_stat,
+};

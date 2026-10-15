@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vex/mutex.h>
+
 #include <vex/compiler.h>
 #include <vex/path.h>
 #include <vex/types.h>
@@ -138,6 +140,7 @@ struct fat_dirent {
 };
 
 struct fat_vfs_context {
+    struct mutex lock; // Serializes every use of bounce and the table cache
     const struct blk_device* device;
     union fat_extparams extparams;
     unsigned filesystem_type;
@@ -185,6 +188,7 @@ void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluste
 
 uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintptr_t cluster) __nodiscard;
 uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context) __nodiscard;
+uintptr_t fat_cluster_alloc_zeroed(struct fat_vfs_context* restrict context) __nodiscard;
 
 int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t* restrict offset,
     struct fat_dirent* restrict entry);

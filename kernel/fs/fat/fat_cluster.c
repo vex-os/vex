@@ -291,3 +291,25 @@ void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluste
 
     context->cache_dirty = true;
 }
+
+uintptr_t fat_cluster_alloc_zeroed(struct fat_vfs_context* restrict context)
+{
+    uintptr_t cluster = fat_cluster_alloc(context);
+
+    if(cluster == UINTPTR_MAX) {
+        return UINTPTR_MAX;
+    }
+
+    uintptr_t lba = fat_cluster_lba(context, cluster);
+
+    memset(context->bounce, 0, context->sector_size);
+
+    for(size_t s = 0; s < context->cluster_size_s; ++s) {
+        if(blk_write(context->device, lba + s, 1, context->bounce) < 0) {
+            fat_cluster_free(context, cluster);
+            return UINTPTR_MAX;
+        }
+    }
+
+    return cluster;
+}

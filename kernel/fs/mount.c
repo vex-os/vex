@@ -4,6 +4,7 @@
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/mount.h>
+#include <vex/mutex.h>
 #include <vex/path.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
@@ -23,6 +24,8 @@ static_assert(sizeof(struct vfs_driver) <= (PAGE_SIZE / 2));
 static spinlock_type drivers_lock = SPINLOCK_INIT;
 static struct vfs_driver* drivers_head = nullptr;
 
+// The list only changes with both held, so either one is enough to walk it
+static struct mutex mounts_mutex = MUTEX_INIT;
 static spinlock_type mounts_lock = SPINLOCK_INIT;
 static struct mount_entry* mounts_head = nullptr;
 static struct vnode* vfs_root = nullptr;
@@ -53,63 +56,8 @@ static struct vfs_driver* deduce_driver(const struct blk_device* restrict device
     return nullptr;
 }
 
-int add_vfs_driver(struct vfs_driver* restrict driver)
-{
-    if(driver == nullptr || driver->ops == nullptr) {
-        return -EINVAL;
-    }
-
-    if(driver->ops->mount == nullptr || driver->ops->unmount == nullptr) {
-        return -EINVAL;
-    }
-
-    if(driver->identifier == nullptr || driver->identifier[0] == 0) {
-        return -EINVAL;
-    }
-
-    spinlock_acquire(&drivers_lock);
-
-    if(find_driver(driver->identifier)) {
-        spinlock_release(&drivers_lock);
-        return -EEXIST;
-    }
-
-    driver->priv.next = drivers_head;
-    drivers_head = driver;
-
-    spinlock_release(&drivers_lock);
-
-    return 0;
-}
-
-int remove_vfs_driver(struct vfs_driver* restrict driver)
-{
-    struct vfs_driver** prev;
-
-    if(driver == nullptr) {
-        return -EINVAL;
-    }
-
-    spinlock_acquire(&drivers_lock);
-
-    for(prev = &drivers_head; *prev; prev = &((**prev).priv.next)) {
-        if(*prev == driver) {
-            *prev = driver->priv.next;
-
-            driver->priv.next = nullptr;
-
-            spinlock_release(&drivers_lock);
-
-            return 0;
-        }
-    }
-
-    spinlock_release(&drivers_lock);
-
-    return -ENOENT;
-}
-
-int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params)
+static int mount_locked(const char* restrict type, const char* restrict path, const struct blk_device* restrict device,
+    const char* restrict params)
 {
     if(path == nullptr) {
         return -EINVAL;
@@ -246,89 +194,158 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
     return 0;
 }
 
+int add_vfs_driver(struct vfs_driver* restrict driver)
+{
+    if(driver == nullptr || driver->ops == nullptr) {
+        return -EINVAL;
+    }
+
+    if(driver->ops->mount == nullptr || driver->ops->unmount == nullptr) {
+        return -EINVAL;
+    }
+
+    if(driver->identifier == nullptr || driver->identifier[0] == 0) {
+        return -EINVAL;
+    }
+
+    spinlock_acquire(&drivers_lock);
+
+    if(find_driver(driver->identifier)) {
+        spinlock_release(&drivers_lock);
+        return -EEXIST;
+    }
+
+    driver->priv.next = drivers_head;
+    drivers_head = driver;
+
+    spinlock_release(&drivers_lock);
+
+    return 0;
+}
+
+int remove_vfs_driver(struct vfs_driver* restrict driver)
+{
+    struct vfs_driver** prev;
+
+    if(driver == nullptr) {
+        return -EINVAL;
+    }
+
+    spinlock_acquire(&drivers_lock);
+
+    for(prev = &drivers_head; *prev; prev = &((**prev).priv.next)) {
+        if(*prev == driver) {
+            *prev = driver->priv.next;
+
+            driver->priv.next = nullptr;
+
+            spinlock_release(&drivers_lock);
+
+            return 0;
+        }
+    }
+
+    spinlock_release(&drivers_lock);
+
+    return -ENOENT;
+}
+
+int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params)
+{
+    mutex_acquire(&mounts_mutex);
+    int retval = mount_locked(type, path, device, params);
+    mutex_release(&mounts_mutex);
+    return retval;
+}
+
 int vfs_unmount(const char* restrict path)
 {
     kassert(path);
 
-    spinlock_acquire(&mounts_lock);
+    mutex_acquire(&mounts_mutex);
 
     struct mount_entry** prev = &mounts_head;
 
-    while(*prev) {
-        struct mount_entry* entry = *prev;
+    while(*prev && (*prev)->path && 0 != strcmp((*prev)->path, path)) {
+        prev = &(*prev)->next;
+    }
 
-        if(entry->path && 0 == strcmp(entry->path, path)) {
-            struct vfs* fs = entry->fs;
-            int retval;
+    struct mount_entry* entry = *prev;
 
-            if(fs->mountpoint) {
-                fs->mountpoint->fs_mounted = nullptr;
+    if(entry == nullptr) {
+        mutex_release(&mounts_mutex);
+        return -ENOENT;
+    }
 
-                vnode_decref(fs->mountpoint);
+    struct vfs* fs = entry->fs;
+    bool is_root = vfs_root == fs->root;
 
-                fs->mountpoint = nullptr;
-            }
+    if(vcache_in_use(fs, is_root ? 2 : 1)) {
+        mutex_release(&mounts_mutex);
+        return -EBUSY;
+    }
 
-            vcache_evict(fs);
+    int retval = vfs_sync_fs(fs);
 
-            pr_verbose("vfs: unmounting %s", path);
+    if(retval < 0 && retval != -ENOSYS) {
+        mutex_release(&mounts_mutex);
+        return retval;
+    }
 
-            retval = fs->ops->unmount(fs);
+    spinlock_acquire(&mounts_lock);
 
-            if(retval < 0) {
-                spinlock_release(&mounts_lock);
-                return retval;
-            }
+    *prev = entry->next;
 
-            *prev = entry->next;
+    struct vnode* mountpoint = fs->mountpoint;
 
-            if(vfs_root == fs->root) {
-                vnode_decref(vfs_root);
-                vfs_root = nullptr;
-            }
+    if(mountpoint) {
+        mountpoint->fs_mounted = nullptr;
+        fs->mountpoint = nullptr;
+    }
 
-            slab_free(fs);
-            kfree(entry->path);
-            slab_free(entry);
-
-            spinlock_release(&mounts_lock);
-
-            return 0;
-        }
-
-        prev = &entry->next;
+    if(is_root) {
+        vfs_root = nullptr;
     }
 
     spinlock_release(&mounts_lock);
 
-    return -ENOENT;
+    pr_verbose("vfs: unmounting %s", path);
+
+    if(mountpoint) {
+        vnode_decref(mountpoint);
+    }
+
+    if(is_root) {
+        vnode_decref(fs->root);
+    }
+
+    vcache_evict(fs);
+    fs->ops->unmount(fs);
+
+    slab_free(fs);
+    kfree(entry->path);
+    slab_free(entry);
+
+    mutex_release(&mounts_mutex);
+
+    return 0;
 }
 
 int vfs_sync_all(void)
 {
     int retval = 0;
 
-    spinlock_acquire(&mounts_lock);
+    mutex_acquire(&mounts_mutex);
 
     for(struct mount_entry* entry = mounts_head; entry; entry = entry->next) {
-        struct vfs* fs = entry->fs;
+        int fs_retval = vfs_sync_fs(entry->fs);
 
-        if(fs->ops->sync == nullptr) {
-            continue;
-        }
-
-        spinlock_release(&mounts_lock);
-
-        int r = fs->ops->sync(fs);
-
-        spinlock_acquire(&mounts_lock);
-
-        if(r < 0 && retval == 0) {
-            retval = r;
+        if(fs_retval < 0 && fs_retval != -ENOSYS && retval == 0) {
+            retval = fs_retval;
         }
     }
 
-    spinlock_release(&mounts_lock);
+    mutex_release(&mounts_mutex);
 
     return retval;
 }

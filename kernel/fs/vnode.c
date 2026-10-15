@@ -162,9 +162,44 @@ int vnode_create(struct vnode* restrict node, const char* restrict name, unsigne
 
     node = resolve_mount(node);
 
-    if(node->ops->create == nullptr)
+    if(node->ops->create == nullptr) {
         return -ENOSYS;
-    return node->ops->create(node, name, type, out);
+    }
+
+    struct vnode* created;
+    int retval = node->ops->create(node, name, type, &created);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    // Cached like a looked-up node, so a later
+    // lookup of the same name finds this vnode
+    vnode_incref(created);
+
+    struct vnode* cached_now = vcache_get_or_insert(created);
+
+    if(cached_now != created) {
+        if(created->ops->release)
+            created->ops->release(created);
+        slab_free(created);
+
+        if(cached_now == nullptr) {
+            return -ENOMEM;
+        }
+
+        *out = cached_now;
+        return 0;
+    }
+
+    if(created->nodetype == VNODE_DIRECTORY) {
+        created->parent = node;
+        vnode_incref(node);
+    }
+
+    *out = created;
+
+    return 0;
 }
 
 int vnode_unlink(struct vnode* restrict node, const char* restrict name)
