@@ -279,6 +279,13 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
         return -ENOEXEC;
     }
 
+    uintptr_t user_end = pmap_user_end(proc->vms->pmap);
+
+    // A kernel or non-canonical entry point faults in kernel mode on the way to user mode
+    if(ehdr.e_entry >= user_end) {
+        return -ENOEXEC;
+    }
+
     vms_unmap_all(proc->vms); // clear all existing mappings in case we're SYS_EXEC'ing
 
     int retval;
@@ -310,7 +317,8 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
             goto error;
         }
 
-        if(phdr.p_vaddr > UINTPTR_MAX - phdr.p_memsz) {
+        // The kernel half's page tables are shared by every address space
+        if(phdr.p_vaddr > user_end || phdr.p_memsz > user_end - phdr.p_vaddr) {
             retval = -ENOEXEC;
             goto error;
         }

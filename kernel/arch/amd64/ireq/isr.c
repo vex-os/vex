@@ -3,6 +3,7 @@
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
+#include <vex/kstack.h>
 #include <vex/panic.h>
 #include <vex/pmap.h>
 #include <vex/process.h>
@@ -118,6 +119,17 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
         return;
     }
 
+    if(intvec == 0x08) {
+        uintptr_t fault;
+        asm volatile("movq %%cr2, %0" : "=r"(fault));
+
+        if(kstack_is_guard(fault)) {
+            panic("kernel stack overflow: hart=%hu fault=%p rip=%p", hart->index, (void*)(fault), (void*)(ctx->amd64_rip));
+        }
+
+        panic("double fault: hart=%hu rip=%p", hart->index, (void*)(ctx->amd64_rip));
+    }
+
     if(3 == (ctx->amd64_cs & 3)) {
         struct thread* thrd = hart->curr_thread;
         struct process* proc = thrd->proc;
@@ -135,38 +147,38 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
 
 static void arch_init_isr(void)
 {
-    set_idt_entry_kern(0x00, true, &amd64_isr_00);
-    set_idt_entry_kern(0x01, true, &amd64_isr_01);
-    set_idt_entry_kern(0x02, true, &amd64_isr_02);
-    set_idt_entry_kern(0x03, true, &amd64_isr_03);
-    set_idt_entry_kern(0x04, true, &amd64_isr_04);
-    set_idt_entry_kern(0x05, true, &amd64_isr_05);
-    set_idt_entry_kern(0x06, true, &amd64_isr_06);
-    set_idt_entry_kern(0x07, true, &amd64_isr_07);
-    set_idt_entry_kern(0x08, true, &amd64_isr_08);
-    set_idt_entry_kern(0x09, true, &amd64_isr_09);
-    set_idt_entry_kern(0x0A, true, &amd64_isr_0A);
-    set_idt_entry_kern(0x0B, true, &amd64_isr_0B);
-    set_idt_entry_kern(0x0C, true, &amd64_isr_0C);
-    set_idt_entry_kern(0x0D, true, &amd64_isr_0D);
-    set_idt_entry_kern(0x0E, true, &amd64_isr_0E);
-    set_idt_entry_kern(0x0F, true, &amd64_isr_0F);
-    set_idt_entry_kern(0x10, true, &amd64_isr_10);
-    set_idt_entry_kern(0x11, true, &amd64_isr_11);
-    set_idt_entry_kern(0x12, true, &amd64_isr_12);
-    set_idt_entry_kern(0x13, true, &amd64_isr_13);
-    set_idt_entry_kern(0x14, true, &amd64_isr_14);
-    set_idt_entry_kern(0x15, true, &amd64_isr_15);
-    set_idt_entry_kern(0x16, true, &amd64_isr_16);
-    set_idt_entry_kern(0x17, true, &amd64_isr_17);
-    set_idt_entry_kern(0x18, true, &amd64_isr_18);
-    set_idt_entry_kern(0x19, true, &amd64_isr_19);
-    set_idt_entry_kern(0x1A, true, &amd64_isr_1A);
-    set_idt_entry_kern(0x1B, true, &amd64_isr_1B);
-    set_idt_entry_kern(0x1C, true, &amd64_isr_1C);
-    set_idt_entry_kern(0x1D, true, &amd64_isr_1D);
-    set_idt_entry_kern(0x1E, true, &amd64_isr_1E);
-    set_idt_entry_kern(0x1F, true, &amd64_isr_1F);
+    set_idt_entry_kern(0x00, false, &amd64_isr_00);
+    set_idt_entry_kern(0x01, false, &amd64_isr_01);
+    set_idt_entry_ist(0x02, IDT_IST_NMI, &amd64_isr_02);
+    set_idt_entry_kern(0x03, false, &amd64_isr_03);
+    set_idt_entry_kern(0x04, false, &amd64_isr_04);
+    set_idt_entry_kern(0x05, false, &amd64_isr_05);
+    set_idt_entry_kern(0x06, false, &amd64_isr_06);
+    set_idt_entry_kern(0x07, false, &amd64_isr_07);
+    set_idt_entry_ist(0x08, IDT_IST_DOUBLE_FAULT, &amd64_isr_08);
+    set_idt_entry_kern(0x09, false, &amd64_isr_09);
+    set_idt_entry_kern(0x0A, false, &amd64_isr_0A);
+    set_idt_entry_kern(0x0B, false, &amd64_isr_0B);
+    set_idt_entry_kern(0x0C, false, &amd64_isr_0C);
+    set_idt_entry_kern(0x0D, false, &amd64_isr_0D);
+    set_idt_entry_kern(0x0E, false, &amd64_isr_0E);
+    set_idt_entry_kern(0x0F, false, &amd64_isr_0F);
+    set_idt_entry_kern(0x10, false, &amd64_isr_10);
+    set_idt_entry_kern(0x11, false, &amd64_isr_11);
+    set_idt_entry_ist(0x12, IDT_IST_MACHINE_CHECK, &amd64_isr_12);
+    set_idt_entry_kern(0x13, false, &amd64_isr_13);
+    set_idt_entry_kern(0x14, false, &amd64_isr_14);
+    set_idt_entry_kern(0x15, false, &amd64_isr_15);
+    set_idt_entry_kern(0x16, false, &amd64_isr_16);
+    set_idt_entry_kern(0x17, false, &amd64_isr_17);
+    set_idt_entry_kern(0x18, false, &amd64_isr_18);
+    set_idt_entry_kern(0x19, false, &amd64_isr_19);
+    set_idt_entry_kern(0x1A, false, &amd64_isr_1A);
+    set_idt_entry_kern(0x1B, false, &amd64_isr_1B);
+    set_idt_entry_kern(0x1C, false, &amd64_isr_1C);
+    set_idt_entry_kern(0x1D, false, &amd64_isr_1D);
+    set_idt_entry_kern(0x1E, false, &amd64_isr_1E);
+    set_idt_entry_kern(0x1F, false, &amd64_isr_1F);
 }
 
 initcall_smp_arch(arch_init_isr, INIT_MIDDLE);

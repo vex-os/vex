@@ -44,6 +44,8 @@ int remove_blk_device(struct blk_device* restrict device);
 
 const struct blk_device* find_blk_device(const char* restrict name) __nodiscard;
 
+int blk_read_sector_prefix(const struct blk_device* restrict device, uintptr_t lba, void* restrict buffer, size_t size);
+
 static __always_inline int blk_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT))

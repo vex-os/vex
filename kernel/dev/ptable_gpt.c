@@ -70,9 +70,14 @@ struct gpt_ptdata {
     uint8_t cached_entries[0];
 };
 
+// Upper bound on the partition entry array;
+// the specification asks for at least 16 KiB
+// and anything far beyond that is corrupted or hostile
+#define GPT_ENTRIES_MAX_SIZE (1024 * 1024)
+
 static int gpt_check_header(const struct blk_device* restrict device, uintptr_t header_lba, struct gpt_ptdata** restrict ptdata)
 {
-    struct gpt_header* sector = kmalloc(device->sector_size);
+    uint8_t* sector = kmalloc(device->sector_size);
 
     if(sector == nullptr) {
         return -ENOMEM;
@@ -87,50 +92,75 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
 
     struct gpt_header header;
     memcpy(&header, sector, sizeof(struct gpt_header));
-    kfree(sector);
 
-    uint32_t checksum = le32toh(header.header_crc32);
-    header.header_crc32 = UINT32_C(0);
+    uint32_t header_size = le32toh(header.header_size);
 
-    if(memcmp(header.signature, "EFI PART", 8)) {
+    if(memcmp(header.signature, "EFI PART", 8) || header_size < sizeof(struct gpt_header) || header_size > device->sector_size) {
+        kfree(sector);
         return -EINVAL;
     }
 
-    if(checksum == crc32_iso3309_get(&header, le32toh(header.header_size))) {
-        size_t entries_size = (size_t)le32toh(header.entry_count) * le32toh(header.entry_size);
-        struct gpt_ptdata* gpt = kmalloc(entries_size + sizeof(struct gpt_ptdata));
+    // The checksum covers header_size bytes with its own field zeroed,
+    // which may extend past the fields this structure knows about
+    uint32_t checksum = le32toh(header.header_crc32);
+    memset(sector + offsetof(struct gpt_header, header_crc32), 0, sizeof(uint32_t));
+    uint32_t computed = crc32_iso3309_get(sector, header_size);
 
-        if(gpt == nullptr) {
-            return -ENOMEM;
-        }
+    kfree(sector);
 
-        size_t entries_lbas = (entries_size + device->sector_size - 1) / device->sector_size;
-        retval = blk_read(device, le64toh(header.entry_start_lba), entries_lbas, gpt->cached_entries);
-
-        if(retval < 0) {
-            kfree(gpt);
-            return retval;
-        }
-
-        if(le32toh(header.entry_crc32) != crc32_iso3309_get(gpt->cached_entries, entries_size)) {
-            kfree(gpt);
-            return -EINVAL;
-        }
-
-        memcpy(&gpt->header, &header, sizeof(struct gpt_header));
-
-        *ptdata = gpt;
-
-        return 0;
+    if(checksum != computed) {
+        return -EINVAL;
     }
 
-    return -EINVAL;
+    uint32_t entry_count = le32toh(header.entry_count);
+    uint32_t entry_size = le32toh(header.entry_size);
+    uint64_t entry_start_lba = le64toh(header.entry_start_lba);
+
+    if(entry_size < sizeof(struct gpt_entry) || entry_size % 8 != 0) {
+        return -EINVAL;
+    }
+
+    if(entry_count == 0 || entry_count > GPT_ENTRIES_MAX_SIZE / entry_size) {
+        return -EINVAL;
+    }
+
+    size_t entries_size = (size_t)entry_count * entry_size;
+    size_t entries_lbas = (entries_size + device->sector_size - 1) / device->sector_size;
+
+    if(entry_start_lba >= device->sector_count || entries_lbas > device->sector_count - entry_start_lba) {
+        return -EINVAL;
+    }
+
+    // Whole sectors are read, so the buffer is rounded up to them
+    struct gpt_ptdata* gpt = kmalloc(entries_lbas * device->sector_size + sizeof(struct gpt_ptdata));
+
+    if(gpt == nullptr) {
+        return -ENOMEM;
+    }
+
+    retval = blk_read(device, entry_start_lba, entries_lbas, gpt->cached_entries);
+
+    if(retval < 0) {
+        kfree(gpt);
+        return retval;
+    }
+
+    if(le32toh(header.entry_crc32) != crc32_iso3309_get(gpt->cached_entries, entries_size)) {
+        kfree(gpt);
+        return -EINVAL;
+    }
+
+    memcpy(&gpt->header, &header, sizeof(struct gpt_header));
+
+    *ptdata = gpt;
+
+    return 0;
 }
 
 static int gpt_detect(const struct blk_device* restrict device, void** restrict ptdata)
 {
     struct pmbr_sector sector;
-    int retval = blk_read(device, 0, 1, &sector);
+    int retval = blk_read_sector_prefix(device, 0, &sector, sizeof(sector));
 
     if(retval < 0) {
         return retval;
@@ -181,6 +211,13 @@ static int gpt_readpt(const struct blk_device* restrict device, void* restrict p
             continue;
         }
 
+        uint64_t lba_start = le64toh(entry->lba_start);
+        uint64_t lba_end = le64toh(entry->lba_end);
+
+        if(lba_end < lba_start || lba_end >= device->sector_count) {
+            continue;
+        }
+
         if(found == index) {
             const uint16_t* name = (const uint16_t*)((const uint8_t*)entry + sizeof(struct gpt_entry));
             size_t name_len = (entry_size - sizeof(struct gpt_entry)) / sizeof(uint16_t);
@@ -193,8 +230,8 @@ static int gpt_readpt(const struct blk_device* restrict device, void* restrict p
 
             out->part_label[i] = 0x00;
             out->part_index = slot;
-            out->lba_start = le64toh(entry->lba_start);
-            out->lba_count = le64toh(entry->lba_end) - le64toh(entry->lba_start) + 1;
+            out->lba_start = lba_start;
+            out->lba_count = lba_end - lba_start + 1;
             out->type = 0; // FIXME: figure out a way to shove a GUID into an uint64_t
 
             return 0;

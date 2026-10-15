@@ -60,6 +60,17 @@ void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn)
     }
 }
 
+void set_idt_entry_ist(unsigned vector, unsigned ist, const void* restrict pfn)
+{
+    if(vector < IDT_SIZE) {
+        spinlock_acquire(&idt_lock);
+        set_entry(&idt[vector], false, gdt_selector(GDT_KERN_CODE_64, 0, 0), pfn);
+        idt[vector].flags |= IDT_RING_0;
+        idt[vector].ist_off = ist & 0x07;
+        spinlock_release(&idt_lock);
+    }
+}
+
 void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn)
 {
     if(vector < IDT_SIZE) {

@@ -1,9 +1,11 @@
 #include <arch/amd64.gdt.h>
+#include <arch/amd64.idt.h>
 #include <vex/errno.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
+#include <vex/kstack.h>
 #include <vex/panic.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -128,9 +130,24 @@ static void arch_init_gdt_bsp(void)
 
 initcall_bsp_arch(arch_init_gdt_bsp, INIT_EARLY);
 
+static uint64_t alloc_ist_stack(void)
+{
+    void* top = kstack_alloc();
+
+    if(top == nullptr) {
+        panic("gdt: out of memory");
+    }
+
+    return (uintptr_t)(top);
+}
+
 static void arch_init_gdt_smp(void)
 {
     struct hart_local* hart = this_hart();
+
+    hart->arch.tss.ist_1 = alloc_ist_stack(); // IDT_IST_DOUBLE_FAULT
+    hart->arch.tss.ist_2 = alloc_ist_stack(); // IDT_IST_NMI
+    hart->arch.tss.ist_3 = alloc_ist_stack(); // IDT_IST_MACHINE_CHECK
 
     spinlock_acquire(&gdt_lock);
 

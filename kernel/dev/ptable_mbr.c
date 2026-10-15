@@ -36,7 +36,7 @@ static_assert(512 == sizeof(struct mbr_sector)); // shutcho damn mouth it's not 
 static int mbr_detect(const struct blk_device* restrict device, void** restrict ptdata)
 {
     struct mbr_sector sector;
-    int retval = blk_read(device, 0, 1, &sector);
+    int retval = blk_read_sector_prefix(device, 0, &sector, sizeof(sector));
 
     if(retval < 0) {
         return retval;
@@ -86,11 +86,18 @@ static int mbr_readpt(const struct blk_device* restrict device, void* restrict p
             continue;
         }
 
+        uint64_t lba_start = le32toh(entry->lba_start);
+        uint64_t lba_count = le32toh(entry->lba_count);
+
+        if(lba_start >= device->sector_count || lba_count > device->sector_count - lba_start) {
+            continue;
+        }
+
         if(found == index) {
             out->part_label[0] = 0x00;
             out->part_index = slot;
-            out->lba_start = le32toh(entry->lba_start);
-            out->lba_count = le32toh(entry->lba_count);
+            out->lba_start = lba_start;
+            out->lba_count = lba_count;
             out->type = entry->type;
             return 0;
         }

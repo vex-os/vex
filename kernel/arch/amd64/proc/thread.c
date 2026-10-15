@@ -24,9 +24,9 @@ void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, 
     thrd->arch.kernel_stack = kernel_stack_top;
     thrd->kernel_rsp = kernel_stack_top;
 
-    uint64_t cr3;
-    asm volatile("movq %%cr3, %0" : "=r"(cr3));
-    thrd->arch.cr3 = cr3;
+    // A kernel thread made from within a system call
+    // must not keep that process's address space alive
+    thrd->arch.cr3 = sys_pmap.phys;
 }
 
 void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, void* restrict user_stack_top,
@@ -68,7 +68,7 @@ void arch_thread_ctx_load(struct thread* restrict thrd)
     struct hart_local* hart = this_hart();
 
     hart->arch.tss.rsp_0 = (uintptr_t)(thrd->arch.kernel_stack);
-    hart->arch.tss.ist_2 = (uintptr_t)(thrd->arch.pfault_stack);
+    hart->arch.tss.ist_4 = (uintptr_t)(thrd->arch.pfault_stack); // IDT_IST_PAGE_FAULT
 
     wrmsr(MSR_GS_BASE, (uintptr_t)(thrd));
     wrmsr(MSR_FS_BASE, (uintptr_t)(thrd->arch.fs_base));

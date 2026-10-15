@@ -26,7 +26,7 @@ static int part_read(const struct blk_device* restrict device, uintptr_t lba, si
 {
     const struct blk_part_device* part = (const struct blk_part_device*)(device);
 
-    if(lba + count > part->lba_count)
+    if(lba > part->lba_count || count > part->lba_count - lba)
         return -EINVAL;
     return blk_read(part->root, part->lba_start + lba, count, buffer);
 }
@@ -35,7 +35,7 @@ static int part_write(const struct blk_device* restrict device, uintptr_t lba, s
 {
     const struct blk_part_device* part = (const struct blk_part_device*)(device);
 
-    if(lba + count > part->lba_count)
+    if(lba > part->lba_count || count > part->lba_count - lba)
         return -EINVAL;
     return blk_write(part->root, part->lba_start + lba, count, buffer);
 }

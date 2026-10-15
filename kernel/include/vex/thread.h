@@ -50,6 +50,9 @@ struct thread {
     struct thread* tnext;
     struct thread* tprev;
 
+    void* kstack_top;
+    void* pfstack;
+
     struct hart_context ctx;
     struct arch_thread arch;
 };

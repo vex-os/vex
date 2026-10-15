@@ -1,3 +1,4 @@
+#include <vex/atomic.h>
 #include <vex/errno.h>
 #include <vex/event.h>
 #include <vex/process.h>
@@ -43,29 +44,42 @@ static intptr_t sys_waitpid(const uintptr_t* restrict args)
     struct process* caller = thrd->proc;
 
     if(caller == nullptr || target->ppid != caller->pid) {
+        process_decref(target);
         return -ECHILD;
     }
 
-    struct event* evnt = &target->evnt;
-    ssize_t result = event_await_blocking(&evnt, 1);
+    // The event fires once, when the last thread is reaped,
+    // so a process that is already a zombie has nothing to wait for
+    if(!atomic_load_n(&target->zombie, ATOMIC_ACQUIRE)) {
+        struct event* evnt = &target->evnt;
+        ssize_t result = event_await_blocking(&evnt, 1);
 
-    if(result < 0) {
-        return result;
+        if(result < 0) {
+            process_decref(target);
+            return result;
+        }
+    }
+
+    if(!process_claim(target)) {
+        process_decref(target);
+        return -ECHILD;
     }
 
     int exit_code = target->exit_code;
+    intptr_t retval = pid;
 
     if(wstatus) {
         ssize_t copied = user_copyout(wstatus, &exit_code, sizeof(exit_code));
 
         if(copied < 0) {
-            return copied;
+            retval = copied;
         }
     }
 
     process_destroy(target);
+    process_decref(target);
 
-    return pid;
+    return retval;
 }
 
 static intptr_t sys_getpid(const uintptr_t* restrict args)

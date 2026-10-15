@@ -43,7 +43,7 @@ static int fat_probe(struct vfs* restrict fs, const struct blk_device* restrict 
 {
     union fat_extparams boot;
 
-    int retval = blk_read(device, 0, 1, &boot);
+    int retval = blk_read_sector_prefix(device, 0, &boot, sizeof(boot));
 
     if(retval < 0) {
         return retval;
@@ -78,7 +78,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         return -ENOMEM;
     }
 
-    int retval = blk_read(device, 0, 1, boot);
+    int retval = blk_read_sector_prefix(device, 0, boot, sizeof(*boot));
 
     if(retval < 0) {
         kfree(boot);
@@ -122,6 +122,11 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     data_start += base->tables_count * fat_size;
     data_start += rootdir_sectors;
 
+    if(base->tables_count == 0 || fat_size == 0 || total_sectors <= data_start || total_sectors > device->sector_count) {
+        kfree(boot);
+        return -EINVAL;
+    }
+
     size_t cluster_count = total_sectors - data_start;
     cluster_count /= base->cluster_size;
 
@@ -135,6 +140,35 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     }
     else {
         filesystem_type = FAT_TYPE_32;
+    }
+
+    // Every data cluster needs a table entry: the cluster table code
+    // relies on this to keep its accesses inside the cached table
+    size_t table_bytes = fat_size * sector_size;
+    size_t table_entries;
+
+    if(filesystem_type == FAT_TYPE_12) {
+        table_entries = table_bytes * 2 / 3;
+    }
+    else if(filesystem_type == FAT_TYPE_16) {
+        table_entries = table_bytes / sizeof(uint16_t);
+    }
+    else {
+        table_entries = table_bytes / sizeof(uint32_t);
+    }
+
+    if(cluster_count == 0 || table_entries < cluster_count + 2) {
+        kfree(boot);
+        return -EINVAL;
+    }
+
+    if(filesystem_type == FAT_TYPE_32) {
+        uintptr_t root_cluster = le32toh(boot->fat32.root_cluster);
+
+        if(root_cluster < 2 || root_cluster >= cluster_count + 2) {
+            kfree(boot);
+            return -EINVAL;
+        }
     }
 
     struct fat_vfs_context* context = kmalloc(sizeof(struct fat_vfs_context));
