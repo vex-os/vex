@@ -1,10 +1,12 @@
 #include <vex/assert.h>
 #include <vex/errno.h>
+#include <vex/file.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/panic.h>
+#include <vex/process.h>
 #include <vex/string.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
@@ -33,6 +35,27 @@ void dispatch_syscall(struct hart_context* restrict regs)
     args[5] = regs->syscall_arg_6;
 
     regs->syscall_retval = syscall_table[regs->syscall_number].function(args);
+}
+
+intptr_t syscall_with_fd(const uintptr_t* restrict args, intptr_t (*op)(struct file* restrict fp, const uintptr_t* restrict args))
+{
+    struct process* proc = this_thread()->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    struct file* fp = dereference_fd(proc, args[0]);
+
+    if(fp == nullptr) {
+        return -EBADF;
+    }
+
+    intptr_t retval = op(fp, args);
+
+    file_close(fp);
+
+    return retval;
 }
 
 static void init_syscall(void)

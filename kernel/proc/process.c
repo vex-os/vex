@@ -12,15 +12,113 @@
 #include <vex/vms.h>
 #include <vex/vnode.h>
 
+#define INIT_PID 1
+
 #define PROCTABLE_BUCKETS 1024
 
 static struct process* proctable[PROCTABLE_BUCKETS];
-static spinlock_type proctable_lock;
-static pid_t next_pid = 1;
+static spinlock_type proctable_lock = SPINLOCK_INIT; // Taken with interrupts disabled: the scheduler looks up parents
+static pid_t next_pid = INIT_PID;
 
 static __always_inline __nodiscard size_t pid_bucket(pid_t pid)
 {
     return pid % PROCTABLE_BUCKETS;
+}
+
+static bool grow_fds_locked(struct process* proc, size_t fd)
+{
+    if(fd < proc->max_fds) {
+        return true;
+    }
+
+    size_t new_max = proc->max_fds ? proc->max_fds * 2 : 4;
+
+    while(new_max <= fd) {
+        new_max *= 2;
+    }
+
+    struct file** grown = krealloc(proc->fds, new_max * sizeof(struct file*));
+
+    if(grown == nullptr) {
+        return false;
+    }
+
+    for(size_t i = proc->max_fds; i < new_max; ++i) {
+        grown[i] = nullptr;
+    }
+
+    proc->fds = grown;
+    proc->max_fds = new_max;
+
+    return true;
+}
+
+static void notify_parent(struct process* restrict proc)
+{
+    struct process* parent = process_locate(atomic_load_n(&proc->ppid, ATOMIC_SEQ_CST));
+
+    if(parent) {
+        event_trigger(&parent->child_exited, true);
+        process_decref(parent);
+    }
+}
+
+// Children are moved before their zombie flags are
+// checked while a dying child sets its flag before
+// reading its parent: one side or the other always gets to init
+static void reparent_children(struct process* restrict proc)
+{
+    struct process* init = process_locate(INIT_PID);
+
+    if(init == proc) {
+        process_decref(init);
+        init = nullptr;
+    }
+
+    bool intr_state = spinlock_acquire_intr(&proc->lock);
+
+    if(init) {
+        spinlock_acquire(&init->lock);
+    }
+
+    bool zombie_adopted = false;
+    struct process* last = nullptr;
+
+    for(struct process* it = proc->children; it; it = it->cnext) {
+        atomic_store_n(&it->ppid, init ? INIT_PID : 0, ATOMIC_SEQ_CST);
+
+        if(atomic_load_n(&it->zombie, ATOMIC_SEQ_CST)) {
+            zombie_adopted = true;
+        }
+
+        last = it;
+    }
+
+    if(init && last) {
+        last->cnext = init->children;
+
+        if(init->children) {
+            init->children->cprev = last;
+        }
+
+        init->children = proc->children;
+    }
+
+    proc->children = nullptr;
+
+    if(init) {
+        spinlock_release(&init->lock);
+    }
+
+    spinlock_release_intr(&proc->lock, intr_state);
+
+    if(init) {
+        if(zombie_adopted) {
+            event_trigger(&init->child_exited, true);
+        }
+
+        process_decref(init);
+    }
 }
 
 struct process* process_create(struct process* restrict parent)
@@ -49,7 +147,9 @@ struct process* process_create(struct process* restrict parent)
     proc->pid = atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);
     proc->refcount = 1;
     proc->lock = SPINLOCK_INIT;
+    proc->fd_lock = SPINLOCK_INIT;
     event_init(&proc->evnt);
+    event_init(&proc->child_exited);
 
     if(parent && parent->cwd) {
         vnode_incref(parent->cwd);
@@ -81,12 +181,12 @@ struct process* process_create(struct process* restrict parent)
 
     size_t bucket = pid_bucket(proc->pid);
 
-    spinlock_acquire(&proctable_lock);
+    bool intr_state = spinlock_acquire_intr(&proctable_lock);
 
     proc->pnext = proctable[bucket];
     proctable[bucket] = proc;
 
-    spinlock_release(&proctable_lock);
+    spinlock_release_intr(&proctable_lock, intr_state);
 
     return proc;
 }
@@ -95,17 +195,17 @@ struct process* process_locate(pid_t pid)
 {
     size_t bucket = pid_bucket(pid);
 
-    spinlock_acquire(&proctable_lock);
+    bool intr_state = spinlock_acquire_intr(&proctable_lock);
 
     for(struct process* it = proctable[bucket]; it; it = it->pnext) {
         if(it->pid == pid) {
             process_incref(it);
-            spinlock_release(&proctable_lock);
+            spinlock_release_intr(&proctable_lock, intr_state);
             return it;
         }
     }
 
-    spinlock_release(&proctable_lock);
+    spinlock_release_intr(&proctable_lock, intr_state);
 
     return nullptr;
 }
@@ -126,6 +226,7 @@ void process_decref(struct process* proc)
         }
 
         event_deinit(&proc->evnt);
+        event_deinit(&proc->child_exited);
         kfree(proc);
     }
 }
@@ -164,8 +265,11 @@ void process_thread_reaped(struct process* proc, struct thread* thrd)
         vms_release(proc->vms);
         proc->vms = nullptr;
 
-        atomic_store_n(&proc->zombie, true, ATOMIC_RELEASE);
+        atomic_store_n(&proc->zombie, true, ATOMIC_SEQ_CST);
         event_trigger(&proc->evnt, true);
+
+        notify_parent(proc);
+        reparent_children(proc);
     }
 
     process_decref(proc);
@@ -186,7 +290,7 @@ void process_destroy(struct process* proc)
 {
     size_t bucket = pid_bucket(proc->pid);
 
-    spinlock_acquire(&proctable_lock);
+    bool intr_state = spinlock_acquire_intr(&proctable_lock);
 
     struct process* prev = nullptr;
 
@@ -205,12 +309,12 @@ void process_destroy(struct process* proc)
         prev = it;
     }
 
-    spinlock_release(&proctable_lock);
+    spinlock_release_intr(&proctable_lock, intr_state);
 
-    struct process* parent = process_locate(proc->ppid);
+    struct process* parent = process_locate(atomic_load_n(&proc->ppid, ATOMIC_SEQ_CST));
 
     if(parent) {
-        bool intr_state = spinlock_acquire_intr(&parent->lock);
+        intr_state = spinlock_acquire_intr(&parent->lock);
 
         if(proc->cprev) {
             proc->cprev->cnext = proc->cnext;
@@ -233,81 +337,80 @@ void process_destroy(struct process* proc)
         proc->cwd = nullptr;
     }
 
-    for(size_t i = 0; i < proc->max_fds; ++i) {
-        if(proc->fds[i]) {
-            file_close(proc->fds[i]);
-        }
-    }
+    spinlock_acquire(&proc->fd_lock);
 
-    kfree(proc->fds);
+    struct file** fds = proc->fds;
+    size_t max_fds = proc->max_fds;
+
     proc->fds = nullptr;
     proc->max_fds = 0;
     proc->num_fds = 0;
+
+    spinlock_release(&proc->fd_lock);
+
+    for(size_t i = 0; i < max_fds; ++i) {
+        file_close(fds[i]);
+    }
+
+    kfree(fds);
 
     process_decref(proc);
 }
 
 struct file* dereference_fd(struct process* proc, int fd)
 {
-    if(fd < 0 || fd >= proc->max_fds) {
-        return nullptr;
+    spinlock_acquire(&proc->fd_lock);
+
+    struct file* fp = nullptr;
+
+    if(fd >= 0 && (size_t)(fd) < proc->max_fds) {
+        fp = file_dupe(proc->fds[fd]);
     }
 
-    return proc->fds[fd];
+    spinlock_release(&proc->fd_lock);
+
+    return fp;
 }
 
 int allocate_fd(struct process* proc, struct file* file)
 {
-    for(int fd = 0; fd < proc->max_fds; fd += 1) {
+    spinlock_acquire(&proc->fd_lock);
+
+    for(size_t fd = 0; fd < proc->max_fds; ++fd) {
         if(proc->fds[fd] == nullptr) {
             proc->fds[fd] = file;
             proc->num_fds += 1;
+            spinlock_release(&proc->fd_lock);
             return fd;
         }
     }
 
-    size_t new_max_fds = 4;
+    int fd = proc->max_fds;
 
-    if(proc->max_fds > 0) {
-        new_max_fds = proc->max_fds * 2;
-    }
-
-    struct file** new_fds = krealloc(proc->fds, new_max_fds * sizeof(struct file*));
-
-    if(new_fds == nullptr) {
+    if(!grow_fds_locked(proc, fd)) {
+        spinlock_release(&proc->fd_lock);
         return -ENOMEM;
     }
 
-    for(size_t i = proc->max_fds; i < new_max_fds; ++i) {
-        new_fds[i] = nullptr;
-    }
-
-    proc->fds = new_fds;
-    proc->fds[proc->max_fds] = file;
-
-    int new_fd = proc->max_fds;
-    proc->max_fds = new_max_fds;
+    proc->fds[fd] = file;
     proc->num_fds += 1;
 
-    return new_fd;
+    spinlock_release(&proc->fd_lock);
+
+    return fd;
 }
 
 int duplicate_fd(struct process* proc, int old_fd, int new_fd)
 {
-    struct file* fp = dereference_fd(proc, old_fd);
+    struct file* copy = dereference_fd(proc, old_fd);
 
-    if(fp == nullptr) {
+    if(copy == nullptr) {
         return -EBADF;
     }
 
     if(old_fd == new_fd) {
+        file_close(copy);
         return new_fd;
-    }
-
-    struct file* copy = file_dupe(fp);
-
-    if(copy == nullptr) {
-        return -ENOMEM;
     }
 
     if(new_fd < 0) {
@@ -320,44 +423,46 @@ int duplicate_fd(struct process* proc, int old_fd, int new_fd)
         return fd;
     }
 
-    release_fd(proc, new_fd);
+    spinlock_acquire(&proc->fd_lock);
 
-    if((size_t)new_fd >= proc->max_fds) {
-        size_t new_max = proc->max_fds ? proc->max_fds * 2 : 4;
-
-        while(new_max <= (size_t)new_fd) {
-            new_max *= 2;
-        }
-
-        struct file** grown = krealloc(proc->fds, new_max * sizeof(struct file*));
-
-        if(grown == nullptr) {
-            file_close(copy);
-            return -ENOMEM;
-        }
-
-        for(size_t i = proc->max_fds; i < new_max; ++i) {
-            grown[i] = nullptr;
-        }
-
-        proc->fds = grown;
-        proc->max_fds = new_max;
+    if(!grow_fds_locked(proc, new_fd)) {
+        spinlock_release(&proc->fd_lock);
+        file_close(copy);
+        return -ENOMEM;
     }
 
+    struct file* replaced = proc->fds[new_fd];
     proc->fds[new_fd] = copy;
-    proc->num_fds += 1;
+
+    if(replaced == nullptr) {
+        proc->num_fds += 1;
+    }
+
+    spinlock_release(&proc->fd_lock);
+
+    // Closing may sleep in the filesystem
+    // so it happens outside the lock
+    file_close(replaced);
 
     return new_fd;
 }
 
-void release_fd(struct process* proc, int fd)
+int release_fd(struct process* proc, int fd)
 {
-    if(fd < 0 || fd >= proc->max_fds || proc->fds[fd] == nullptr) {
-        return;
+    spinlock_acquire(&proc->fd_lock);
+
+    if(fd < 0 || (size_t)(fd) >= proc->max_fds || proc->fds[fd] == nullptr) {
+        spinlock_release(&proc->fd_lock);
+        return -EBADF;
     }
 
-    file_close(proc->fds[fd]);
-
+    struct file* fp = proc->fds[fd];
     proc->fds[fd] = nullptr;
     proc->num_fds -= 1;
+
+    spinlock_release(&proc->fd_lock);
+
+    file_close(fp);
+
+    return 0;
 }
