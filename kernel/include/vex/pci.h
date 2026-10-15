@@ -48,6 +48,9 @@
 #define PCI_CMD_SERR        0x0100
 #define PCI_CMD_INT_DISABLE 0x0400
 
+#define PCI_COMMAND_IO  0x0001
+#define PCI_COMMAND_MEM 0x0002
+
 #define PCI_BAR_IO            0x0001
 #define PCI_BAR_MEM_TYPE_MASK 0x0006
 #define PCI_BAR_MEM_32BIT     0x0000

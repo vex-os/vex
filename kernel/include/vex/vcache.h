@@ -14,5 +14,5 @@ struct vcache {
 };
 
 struct vnode* vcache_get(struct vfs* restrict fs, ino_t nodenumber);
-int vcache_insert(struct vnode* restrict node);
+struct vnode* vcache_get_or_insert(struct vnode* restrict node) __nodiscard;
 void vcache_evict(struct vfs* restrict fs);

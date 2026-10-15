@@ -73,14 +73,7 @@ void* uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
 
 void uacpi_kernel_unmap(void* addr, uacpi_size len)
 {
-    uintptr_t virt = page_align((uintptr_t)addr);
-    uintptr_t end = page_align_up((uintptr_t)addr + len);
-
-    while(virt < end) {
-        pmap_unmap(&sys_pmap, virt);
-
-        virt += PAGE_SIZE;
-    }
+    // empty: hhdm pages may back other tables and RAM
 }
 
 void* uacpi_kernel_alloc(uacpi_size size)

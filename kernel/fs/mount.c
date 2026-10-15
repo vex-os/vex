@@ -152,6 +152,8 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         return -ENOMEM;
     }
 
+    fs->ops = driver->ops;
+
     int retval = driver->ops->mount(fs, device, &cmdl);
 
     const char* device_name;
@@ -178,8 +180,6 @@ int vfs_mount(const char* restrict type, const char* restrict path, const struct
         slab_free(fs);
         return retval;
     }
-
-    fs->ops = driver->ops;
 
     struct vnode* mountpoint = nullptr;
 

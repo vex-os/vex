@@ -42,6 +42,7 @@ int remove_clocksrc(struct clocksrc* restrict src);
 struct clocksrc* active_clocksrc(void) __nodiscard;
 
 uint64_t clocksrc_nsec(void) __nodiscard;
+void clocksrc_update(void);
 
 static __always_inline int add_clocksrc_hz(struct clocksrc* restrict src, uint64_t hz)
 {

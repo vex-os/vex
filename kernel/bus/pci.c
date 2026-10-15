@@ -119,44 +119,67 @@ static uintptr_t bar_address(struct pci_device* restrict device, unsigned bar_in
     return raw & PCI_BAR_ADDR_MASK_MEM;
 }
 
-static size_t bar_length(struct pci_device* restrict device, unsigned bar_index)
+static uint32_t probe_bar_mask(struct pci_device* restrict device, uintptr_t offset)
+{
+    uint32_t raw = pci_cfg_read32(device, offset);
+    pci_cfg_write32(device, offset, UINT32_C(0xFFFFFFFF));
+    uint32_t mask = pci_cfg_read32(device, offset);
+    pci_cfg_write32(device, offset, raw);
+    return mask;
+}
+
+static uint64_t bar_length(struct pci_device* restrict device, unsigned bar_index)
 {
     uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
     uint32_t raw = pci_cfg_read32(device, offset);
-    pci_cfg_write32(device, offset, UINT32_C(0xFFFFFFFF));
 
-    uint32_t mask = pci_cfg_read32(device, offset);
-    pci_cfg_write32(device, offset, raw);
+    // A half-written BAR would decode at a bogus address while it is being probed
+    uint16_t command = pci_cfg_read16(device, PCI_CFG_COMMAND);
+    pci_cfg_write16(device, PCI_CFG_COMMAND, command & ~(PCI_COMMAND_IO | PCI_COMMAND_MEM));
+
+    uint64_t mask = probe_bar_mask(device, offset);
+
+    if(0 == (raw & PCI_BAR_IO) && (raw & PCI_BAR_MEM_TYPE_MASK) == PCI_BAR_MEM_64BIT && bar_index < 5) {
+        mask |= (uint64_t)(probe_bar_mask(device, offset + 4)) << 32;
+    }
+    else {
+        mask |= UINT64_C(0xFFFFFFFF00000000);
+    }
+
+    pci_cfg_write16(device, PCI_CFG_COMMAND, command);
 
     if(raw & PCI_BAR_IO) {
-        mask &= PCI_BAR_ADDR_MASK_IO;
+        // I/O BARs may hardwire the upper 16 bits to zero
+        mask = (mask & PCI_BAR_ADDR_MASK_IO) | UINT64_C(0xFFFFFFFFFFFF0000);
     }
     else {
         mask &= PCI_BAR_ADDR_MASK_MEM;
     }
 
-    return (size_t)(~mask) + 1;
+    if(mask == UINT64_C(0xFFFFFFFF00000000) || mask == UINT64_C(0xFFFFFFFFFFFF0000)) {
+        return 0;
+    }
+
+    return ~mask + 1;
 }
 
-static void* bar_map_mmio(struct pci_device* restrict device, unsigned bar_index)
+static void* bar_map_mmio(uintptr_t phys, size_t size)
 {
-    uintptr_t phys = bar_address(device, bar_index);
-    size_t size = bar_length(device, bar_index);
+    for(uintptr_t page = page_align(phys); page < page_align_up(phys + size); page += PAGE_SIZE) {
+        int retval = pmap_map(&sys_pmap, (uintptr_t)(phys_to_virt(page)), page, VPROT_MMIO);
 
-    for(size_t i = 0; i < size; i += PAGE_SIZE) {
-        pmap_map(&sys_pmap, (uintptr_t)phys_to_virt(phys + i), phys + i, VPROT_MMIO);
+        if(retval < 0 && retval != -EEXIST) {
+            return nullptr;
+        }
     }
 
     return phys_to_virt(phys);
 }
 
-static void bar_unmap_mmio(struct pci_device* restrict device, unsigned bar_index)
+static void bar_unmap_mmio(uintptr_t phys, size_t size)
 {
-    uintptr_t phys = bar_address(device, bar_index);
-    size_t size = bar_length(device, bar_index);
-
-    for(size_t i = 0; i < size; i += PAGE_SIZE) {
-        pmap_unmap(&sys_pmap, (uintptr_t)phys_to_virt(phys + i));
+    for(uintptr_t page = page_align(phys); page < page_align_up(phys + size); page += PAGE_SIZE) {
+        pmap_unmap(&sys_pmap, (uintptr_t)(phys_to_virt(page)));
     }
 }
 
@@ -327,23 +350,31 @@ struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_ind
 
     struct pci_bar* bar = &device->priv.bars[bar_index];
     uint32_t raw = pci_cfg_read32(device, PCI_CFG_BAR0 + bar_index * 4);
+    uint64_t length = bar_length(device, bar_index);
+
+    if(length == 0) {
+        return nullptr;
+    }
 
     if(raw & PCI_BAR_IO) {
         bar->type = PCI_BAR_TYPE_PMIO;
         bar->pmio.base = raw & PCI_BAR_ADDR_MASK_IO;
-        bar->pmio.length = bar_length(device, bar_index);
+        bar->pmio.length = length;
         pmio_region_setup(&bar->pmio);
     }
     else {
-        size_t size = bar_length(device, bar_index);
-        void* virt = bar_map_mmio(device, bar_index);
+        void* virt = bar_map_mmio(bar_address(device, bar_index), length);
+
+        if(virt == nullptr) {
+            return nullptr;
+        }
 
         bar->type = PCI_BAR_TYPE_MMIO;
         bar->mmio.virt8 = (volatile uint8_t*)(virt);
         bar->mmio.virt16 = (volatile uint16_t*)(virt);
         bar->mmio.virt32 = (volatile uint32_t*)(virt);
         bar->mmio.virt64 = (volatile uint64_t*)(virt);
-        bar->mmio.length = size;
+        bar->mmio.length = length;
     }
 
     device->priv.bars_mapped |= (1U << bar_index);
@@ -359,7 +390,7 @@ void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index)
         struct pci_bar* bar = &device->priv.bars[bar_index];
 
         if(bar->type == PCI_BAR_TYPE_MMIO) {
-            bar_unmap_mmio(device, bar_index);
+            bar_unmap_mmio(virt_to_phys((void*)(bar->mmio.virt8)), bar->mmio.length);
         }
 
         device->priv.bars_mapped &= ~(1U << bar_index);

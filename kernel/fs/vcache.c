@@ -40,12 +40,12 @@ struct vnode* vcache_get(struct vfs* restrict fs, ino_t nodenumber)
     return nullptr;
 }
 
-int vcache_insert(struct vnode* restrict node)
+struct vnode* vcache_get_or_insert(struct vnode* restrict node)
 {
     struct vcache* entry = slab_alloc(sizeof(struct vcache));
 
     if(entry == nullptr) {
-        return -ENOMEM;
+        return nullptr;
     }
 
     entry->node = node;
@@ -56,12 +56,22 @@ int vcache_insert(struct vnode* restrict node)
 
     unsigned bucket = hash_bucket(node->fs, node->nodenumber);
 
+    for(struct vcache* it = cache[bucket]; it; it = it->next) {
+        if(it->fs == node->fs && it->nodenumber == node->nodenumber) {
+            struct vnode* cached = it->node;
+            vnode_incref(cached);
+            spinlock_release(&cache_lock);
+            slab_free(entry);
+            return cached;
+        }
+    }
+
     entry->next = cache[bucket];
     cache[bucket] = entry;
 
     spinlock_release(&cache_lock);
 
-    return 0;
+    return node;
 }
 
 void vcache_evict(struct vfs* restrict fs)

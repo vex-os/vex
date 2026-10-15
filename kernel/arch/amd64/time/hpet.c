@@ -15,6 +15,7 @@
 #define HPET_REG_MAIN   0x0F0
 
 #define HPET_CAPS_PERIOD_SHIFT UINT64_C(32)
+#define HPET_CAPS_COUNT_64BIT  UINT64_C(0x2000)
 #define HPET_CONFIG_ENABLE     UINT64_C(1)
 #define HPET_PERIOD_MAX        UINT64_C(100000000)
 
@@ -66,8 +67,8 @@ static void arch_init_hpet(void)
 
             uacpi_table_unref(&table);
 
-            uint64_t hpet_period_fsec = hpet_read_reg(mmio, HPET_REG_CAPS);
-            hpet_period_fsec >>= HPET_CAPS_PERIOD_SHIFT;
+            uint64_t hpet_caps = hpet_read_reg(mmio, HPET_REG_CAPS);
+            uint64_t hpet_period_fsec = hpet_caps >> HPET_CAPS_PERIOD_SHIFT;
 
             if(hpet_period_fsec == 0 || hpet_period_fsec > HPET_PERIOD_MAX) {
                 pr_verbose("hpet: invalid counter period %llu fs", (unsigned long long)(hpet_period_fsec));
@@ -79,7 +80,7 @@ static void arch_init_hpet(void)
 
             hpet_write_reg(mmio, HPET_REG_CONFIG, hpet_config_reg);
 
-            hpet_clocksrc.mask = CLOCKSRC_MASK_64;
+            hpet_clocksrc.mask = (hpet_caps & HPET_CAPS_COUNT_64BIT) ? CLOCKSRC_MASK_64 : CLOCKSRC_MASK_32;
 
             add_clocksrc_raw(&hpet_clocksrc, UINT64_C(1), UINT64_C(1000000000000000) / hpet_period_fsec);
         }

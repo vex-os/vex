@@ -117,13 +117,19 @@ int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct 
         }
     }
 
-    retval = vcache_insert(result);
+    struct vnode* cached_now = vcache_get_or_insert(result);
 
-    if(retval < 0) {
+    if(cached_now != result) {
         if(result->ops->release)
             result->ops->release(result);
         slab_free(result);
-        return retval;
+
+        if(cached_now == nullptr) {
+            return -ENOMEM;
+        }
+
+        *out = cached_now;
+        return 0;
     }
 
     if(result->nodetype == VNODE_DIRECTORY) {
