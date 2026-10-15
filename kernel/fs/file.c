@@ -17,41 +17,10 @@ struct file* file_open(const char* restrict path, unsigned flags)
     int retval = path_resolve(path, &node);
 
     if(retval == -ENOENT && (flags & O_CREAT)) {
-        const char* slash = nullptr;
-
-        for(const char* it = path; *it; ++it) {
-            if(*it == PATH_SEPARATOR) {
-                slash = it;
-            }
-        }
-
         const char* filename;
         struct vnode* parent;
 
-        if(slash == nullptr) {
-            filename = path;
-        }
-        else {
-            filename = &slash[1];
-        }
-
-        if(slash == nullptr || slash == path) {
-            retval = path_resolve("/", &parent);
-        }
-        else {
-            char dirpath[NAME_SIZE];
-            size_t dir_length = slash - path;
-
-            if(dir_length >= NAME_SIZE) {
-                return nullptr;
-            }
-
-            memcpy(dirpath, path, dir_length);
-
-            dirpath[dir_length] = 0x00;
-
-            retval = path_resolve(dirpath, &parent);
-        }
+        retval = path_resolve_parent(path, &parent, &filename);
 
         if(retval < 0) {
             return nullptr;

@@ -214,3 +214,40 @@ int path_resolve_at(struct vnode* restrict stem, const char* restrict path, stru
 
     return resolve_internal(stem, path, out, 0);
 }
+
+int path_resolve_parent(const char* restrict path, struct vnode** restrict out_parent, const char** restrict out_name)
+{
+    kassert(path);
+    kassert(out_parent);
+    kassert(out_name);
+
+    const char* slash = strrchr(path, PATH_SEPARATOR);
+
+    out_name[0] = slash ? &slash[1] : path;
+
+    if(slash == nullptr || slash == path) {
+        return path_resolve("/", out_parent);
+    }
+
+    size_t dir_length = slash - path;
+
+    if(dir_length > PATH_MAX) {
+        return -ENAMETOOLONG;
+    }
+
+    char* dir_path = pslab_alloc_virt();
+
+    if(dir_path == nullptr) {
+        return -ENOMEM;
+    }
+
+    memcpy(dir_path, path, dir_length);
+
+    dir_path[dir_length] = 0x00;
+
+    int retval = path_resolve(dir_path, out_parent);
+
+    pslab_free_virt(dir_path);
+
+    return retval;
+}

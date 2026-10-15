@@ -102,27 +102,21 @@ void* slab_alloc(size_t sz)
 
 void* slab_realloc(void* restrict ptr, size_t sz)
 {
-    struct slab* sl;
-    void** head_ptr;
-    void* new_ptr = slab_alloc(sz);
-
     if(ptr == nullptr) {
-        // Just return the new thing
-        // without any memory copying
-        return new_ptr;
+        return slab_alloc(sz);
     }
 
-    sl = ((struct slab**)(page_align_ptr(ptr)))[0];
+    void* new_ptr = slab_alloc(sz);
 
-    memcpy(new_ptr, ptr, sl->blocksize);
+    if(new_ptr == nullptr) {
+        return nullptr;
+    }
 
-    bool intr_state = spinlock_acquire_intr(&slab_lock);
+    const struct slab* sl = ((struct slab**)(page_align_ptr(ptr)))[0];
 
-    head_ptr = ptr;
-    head_ptr[0] = sl->head;
-    sl->head = head_ptr;
+    memcpy(new_ptr, ptr, sl->blocksize < sz ? sl->blocksize : sz);
 
-    spinlock_release_intr(&slab_lock, intr_state);
+    slab_free(ptr);
 
     return new_ptr;
 }

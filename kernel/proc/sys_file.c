@@ -155,6 +155,10 @@ static intptr_t sys_write(const uintptr_t* restrict args)
             return num_written;
         }
 
+        if(num_written == 0) {
+            break;
+        }
+
         user_buf += num_written;
         total += num_written;
         remaining -= num_written;

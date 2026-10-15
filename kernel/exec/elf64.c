@@ -58,6 +58,21 @@ static unsigned phdr_vprot(uint32_t p_flags)
     return vprot;
 }
 
+static bool segment_loads_range(const struct elf64_phdr* restrict phdr, uint64_t offset, uint64_t size)
+{
+    if(offset < phdr->p_offset) {
+        return false;
+    }
+
+    uint64_t skip = offset - phdr->p_offset;
+
+    if(skip > phdr->p_filesz) {
+        return false;
+    }
+
+    return size <= phdr->p_filesz - skip;
+}
+
 static int load_segment(struct process* restrict proc, struct file* restrict fp, const struct elf64_phdr* restrict phdr)
 {
     unsigned vprot = phdr_vprot(phdr->p_flags);
@@ -137,7 +152,7 @@ static __always_inline bool ustack_reserve(uint8_t** restrict kva, uintptr_t* re
 }
 
 static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t avail, const char** restrict argv,
-    const char** restrict envp, const struct elf64_ehdr* restrict ehdr)
+    const char** restrict envp, const struct elf64_ehdr* restrict ehdr, uintptr_t phdr_uva)
 {
     int argc = 0;
 
@@ -189,7 +204,7 @@ static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t 
     }
 
     struct elf64_auxv auxv[] = {
-        { AT_PHDR, ehdr->e_phoff },
+        { AT_PHDR, phdr_uva },
         { AT_PHENT, ehdr->e_phentsize },
         { AT_PHNUM, ehdr->e_phnum },
         { AT_ENTRY, ehdr->e_entry },
@@ -290,6 +305,9 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
 
     int retval;
 
+    uintptr_t phdr_uva = 0;
+    uint64_t phdrs_size = (uint64_t)(ehdr.e_phnum) * ehdr.e_phentsize;
+
     for(uint16_t i = 0; i < ehdr.e_phnum; ++i) {
         struct elf64_phdr phdr;
 
@@ -308,8 +326,17 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
             goto error;
         }
 
+        if(phdr.p_type == PT_PHDR) {
+            phdr_uva = phdr.p_vaddr;
+        }
+
         if(phdr.p_type != PT_LOAD) {
             continue;
+        }
+
+        // Without PT_PHDR the headers are found through the segment that loads them
+        if(phdr_uva == 0 && segment_loads_range(&phdr, ehdr.e_phoff, phdrs_size)) {
+            phdr_uva = phdr.p_vaddr + (ehdr.e_phoff - phdr.p_offset);
         }
 
         if(phdr.p_filesz > phdr.p_memsz) {
@@ -339,7 +366,7 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
     uintptr_t stack_top_kva_phys = ELF64_STACK_SIZE + pmap_resolve_address(proc->vms->pmap, ELF64_STACK_UVA);
     void* stack_top_kva = phys_to_virt(stack_top_kva_phys);
 
-    uintptr_t entry_rsp = build_ustack(stack_top_kva, stack_top_uva, ELF64_STACK_SIZE, argv, envp, &ehdr);
+    uintptr_t entry_rsp = build_ustack(stack_top_kva, stack_top_uva, ELF64_STACK_SIZE, argv, envp, &ehdr, phdr_uva);
 
     if(entry_rsp == 0) {
         retval = -E2BIG;

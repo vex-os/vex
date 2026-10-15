@@ -10,27 +10,47 @@
 #include <vex/panic.h>
 
 #define CALIBRATE_NS UINT64_C(10000000)
+#define NS_PER_SEC   UINT64_C(1000000000)
+
+static uint32_t timer_count(uint64_t nsec)
+{
+    uint64_t hz = this_hart()->arch.lapic_timer_hz;
+
+    if(nsec > UINT64_MAX / hz) {
+        return UINT32_MAX;
+    }
+
+    uint64_t count = nsec * hz / NS_PER_SEC;
+
+    // Zero initial count disarms the
+    // timer instead of firing it right away
+    if(count == 0) {
+        return 1;
+    }
+
+    if(count > UINT32_MAX) {
+        return UINT32_MAX;
+    }
+
+    return count;
+}
 
 void clockevt_oneshot(unsigned ireq, uint64_t nsec)
 {
     kassert(nsec >= 1);
 
-    struct hart_local* hart = this_hart();
-
     lapic_write(LAPIC_REG_TMRDIV, LAPIC_TIMER_DIV1);
     lapic_write(LAPIC_REG_LVT_TIMER, LAPIC_TIMER_ONESHOT | ((ireq + ARCH_IREQ_BASE) & UINT32_C(0xFF)));
-    lapic_write(LAPIC_REG_TMRINITCNT, nsec * hart->arch.lapic_resolution);
+    lapic_write(LAPIC_REG_TMRINITCNT, timer_count(nsec));
 }
 
 void clockevt_periodic(unsigned ireq, uint64_t nsec)
 {
     kassert(nsec >= 1);
 
-    struct hart_local* hart = this_hart();
-
     lapic_write(LAPIC_REG_TMRDIV, LAPIC_TIMER_DIV1);
     lapic_write(LAPIC_REG_LVT_TIMER, LAPIC_TIMER_PERIODIC | ((ireq + ARCH_IREQ_BASE) & UINT32_C(0xFF)));
-    lapic_write(LAPIC_REG_TMRINITCNT, nsec * hart->arch.lapic_resolution);
+    lapic_write(LAPIC_REG_TMRINITCNT, timer_count(nsec));
 }
 
 void clockevt_stop(void)
@@ -52,12 +72,12 @@ static void arch_init_clockevt(void)
         now_nsec = clocksrc_nsec();
     }
 
-    struct hart_local* hart = this_hart();
-    hart->arch.lapic_resolution = UINT32_C(0xFFFFFFFF);
-    hart->arch.lapic_resolution -= lapic_read(LAPIC_REG_TMRCURRCNT);
-    hart->arch.lapic_resolution /= CALIBRATE_NS;
+    uint64_t ticks = UINT32_C(0xFFFFFFFF) - lapic_read(LAPIC_REG_TMRCURRCNT);
 
-    if(hart->arch.lapic_resolution == 0) {
+    struct hart_local* hart = this_hart();
+    hart->arch.lapic_timer_hz = ticks * NS_PER_SEC / (now_nsec - start_nsec);
+
+    if(hart->arch.lapic_timer_hz == 0) {
         panic("clockevt: LAPIC timer calibration failed");
     }
 

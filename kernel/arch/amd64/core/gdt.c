@@ -96,17 +96,22 @@ static void write_entry_64(struct gdt_descriptor* restrict entry, uint8_t id, ui
 
 static void reload_gdt(void)
 {
-    asm volatile("lgdtq %0" : : "m"(gdtr) : "memory");
+    uint16_t data = gdt_selector(GDT_KERN_DATA_64, 0, 0);
 
-    asm volatile("pushq %0" : : "i"(gdt_selector(GDT_KERN_CODE_64, 0, 0)) : "memory");
-    asm volatile("leaq 1f(%%rip), %%rax" : : : "rax");
-    asm volatile("pushq %%rax" : : : "memory");
-    asm volatile("lretq\n\t1:" : : : "memory");
+    asm volatile("lgdtq %0" ::"m"(gdtr) : "memory");
 
-    asm volatile("movl %0, %%eax" : : "i"(gdt_selector(GDT_KERN_DATA_64, 0, 0)) : "eax");
-    asm volatile("movw %%ax, %%ds" : : : "memory");
-    asm volatile("movw %%ax, %%es" : : : "memory");
-    asm volatile("movw %%ax, %%ss" : : : "memory");
+    asm volatile("pushq %[code]\n\t"
+                 "leaq 1f(%%rip), %%rax\n\t"
+                 "pushq %%rax\n\t"
+                 "lretq\n\t"
+                 "1:"
+        :
+        : [code] "i"(gdt_selector(GDT_KERN_CODE_64, 0, 0))
+        : "rax", "memory");
+
+    asm volatile("movw %0, %%ds" ::"r"(data) : "memory");
+    asm volatile("movw %0, %%es" ::"r"(data) : "memory");
+    asm volatile("movw %0, %%ss" ::"r"(data) : "memory");
 }
 
 static void arch_init_gdt_bsp(void)

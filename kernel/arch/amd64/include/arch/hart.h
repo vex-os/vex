@@ -63,7 +63,7 @@ struct hart_local;
 
 struct arch_hart {
     uint32_t lapic_id;
-    uint32_t lapic_resolution;
+    uint64_t lapic_timer_hz;
     struct amd64_hart_tss tss;
 };
 
@@ -77,39 +77,41 @@ static __always_inline void hart_stop(void)
     asm volatile("hlt");
 }
 
-static __always_inline __nodiscard bool interrupt_state(void)
+#define AMD64_RFLAGS_IF UINT64_C(0x0000000000000200)
+
+static __always_inline __nodiscard uint64_t read_rflags(void)
 {
     uint64_t rflags;
-    asm volatile("pushfq");
-    asm volatile("pop %0" : "=r"(rflags));
-    return rflags & UINT64_C(0x0000000000000200);
+    asm volatile("pushfq\n\tpopq %0" : "=r"(rflags));
+    return rflags;
+}
+
+static __always_inline __nodiscard bool interrupt_state(void)
+{
+    return read_rflags() & AMD64_RFLAGS_IF;
 }
 
 static __always_inline bool enable_interrupts(void)
 {
-    uint64_t rflags;
-    asm volatile("pushfq");
-    asm volatile("pop %0" : "=r"(rflags));
-    asm volatile("sti");
-    return rflags & UINT64_C(0x0000000000000200);
+    uint64_t rflags = read_rflags();
+    asm volatile("sti" ::: "memory");
+    return rflags & AMD64_RFLAGS_IF;
 }
 
 static __always_inline bool disable_interrupts(void)
 {
-    uint64_t rflags;
-    asm volatile("pushfq");
-    asm volatile("pop %0" : "=r"(rflags));
-    asm volatile("cli");
-    return rflags & UINT64_C(0x0000000000000200);
+    uint64_t rflags = read_rflags();
+    asm volatile("cli" ::: "memory");
+    return rflags & AMD64_RFLAGS_IF;
 }
 
 static __always_inline void restore_interrupts(bool enabled)
 {
     if(enabled) {
-        asm volatile("sti");
+        asm volatile("sti" ::: "memory");
     }
     else {
-        asm volatile("cli");
+        asm volatile("cli" ::: "memory");
     }
 }
 
