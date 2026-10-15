@@ -101,7 +101,7 @@ IndentWidth: 4
 IndentWrappedFunctionNames: false
 KeepEmptyLinesAtTheStartOfBlocks: false
 Language: Cpp
-LineEnding: CRLF
+LineEnding: LF
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
 PointerAlignment: Left
@@ -128,5 +128,5 @@ SpacesInConditionalStatement: false
 SpacesInParentheses: false
 SpacesInSquareBrackets: false
 Standard: c++20
-UseCRLF: true
+UseCRLF: false
 UseTab: Never
