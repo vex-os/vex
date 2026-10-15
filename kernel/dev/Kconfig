@@ -1,0 +1,7 @@
+config PTABLE_GPT
+    bool "GUID partition tables"
+    default y
+
+config PTABLE_MBR
+    bool "MBR partition tables"
+    default y

@@ -1,0 +1,15 @@
+kernel_sources += files(
+    'event.c',
+    'hart.c',
+    'process.c',
+    'sched.c',
+    'sys_dir.c',
+    'sys_file.c',
+    'sys_mman.c',
+    'sys_process.c',
+    'sys_testing.c',
+    'sys_time.c',
+    'sys_uname.c',
+    'sys_vfs.c',
+    'syscall.c',
+)

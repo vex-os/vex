@@ -4,11 +4,11 @@
 
 #include <vex/compiler.h>
 
-#if ENABLE_KASSERT
+#ifdef CONFIG_KASSERT
 void assert_fail(const char* restrict file, unsigned long line, const char* restrict func, const char* restrict expr) __noreturn;
 #endif
 
-#if ENABLE_KASSERT
+#ifdef CONFIG_KASSERT
 #define kassert(expr)                                         \
     do {                                                      \
         if(predict_false(!(expr))) {                          \

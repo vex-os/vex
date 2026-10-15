@@ -1,0 +1,6 @@
+EDK2 UEFI firmware for QEMU, prebuilt nightly binaries from
+
+    https://retrage.github.io/edk2-nightly
+
+Only used to run the boot image in QEMU, not a part of the build.
+Use update.sh to update them.

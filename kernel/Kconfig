@@ -1,0 +1,62 @@
+source "kernel/arch/$(ARCH)/Kconfig"
+
+# Capabilities, selected by architecture code
+
+config ARCH_HAS_SMP
+    bool
+
+menu "Kernel core"
+
+config SMP
+    bool "Symmetric multiprocessing"
+    depends on ARCH_HAS_SMP
+    default y
+    help
+      Bring up and schedule on all harts reported by firmware.
+      Without this only the bootstrap hart is used.
+
+config DEFAULT_INIT
+    string "Default init path"
+    default "/sbin/init"
+    help
+      Path to the first userspace process, used when the
+      kernel command line does not specify init=
+
+config FBCONS
+    bool "Framebuffer console"
+    default y
+    help
+      Print kernel messages to the framebuffer
+      provided by the bootloader
+
+config UACPI_QUIET
+    bool "Silence uACPI log messages"
+    default y
+
+endmenu
+
+menu "Device drivers"
+
+source "kernel/dev/Kconfig"
+source "kernel/drivers/Kconfig"
+
+endmenu
+
+source "kernel/fs/Kconfig"
+
+menu "Debugging"
+
+config KASSERT
+    bool "Kernel assertions"
+    default y
+
+config TRACE_BLK_EVENTS
+    bool "Trace block device events"
+
+config TRACE_CHR_EVENTS
+    bool "Trace character device events"
+
+config TRACE_INITCALLS
+    bool "Trace initcalls"
+
+endmenu

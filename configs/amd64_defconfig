@@ -1,0 +1,2 @@
+# Only options that differ from Kconfig defaults, regenerate
+# with ninja savedefconfig and copy build/defconfig over here

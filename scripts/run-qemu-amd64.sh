@@ -6,13 +6,17 @@ export LC_ALL=C.UTF-8
 
 cd $(dirname $(realpath $(dirname ${0})))
 
+# Set by the qemu target in boot/meson.build, defaults
+# to the image in a build directory named "build"
+VEX_IMAGE="${VEX_IMAGE:-build/boot/vexsys.boot.img}"
+
 if test -f "/proc/sys/fs/binfmt_misc/WSLInterop"; then
-    UEFI_PATH=$(wslpath -a -w boot/qemu/RELEASEX64_OVMF.fd)
-    IMAGE_PATH=$(wslpath -a -w output/vexsys.boot.img)
+    UEFI_PATH=$(wslpath -a -w contrib/edk2/RELEASEX64_OVMF.fd)
+    IMAGE_PATH=$(wslpath -a -w "${VEX_IMAGE}")
     QEMU_EXECUTABLE=qemu-system-x86_64.exe
 else
-    UEFI_PATH=boot/qemu/RELEASEX64_OVMF.fd
-    IMAGE_PATH=output/vexsys.boot.img
+    UEFI_PATH=contrib/edk2/RELEASEX64_OVMF.fd
+    IMAGE_PATH="${VEX_IMAGE}"
     QEMU_EXECUTABLE=qemu-system-x86_64
 fi
 

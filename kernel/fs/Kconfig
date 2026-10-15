@@ -1,0 +1,15 @@
+menu "Filesystems"
+
+config DEVFS
+    bool "Device filesystem"
+    default y
+
+config ECHFS
+    bool "echfs"
+    default y
+
+config FAT
+    bool "FAT"
+    default y
+
+endmenu
