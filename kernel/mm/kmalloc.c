@@ -99,7 +99,7 @@ error_cleanup:
     while(i--) {
         virt = block->address + i * PAGE_SIZE;
         pslab_free_phys(pmap_resolve_address(&sys_pmap, virt));
-        pmap_unmap(&sys_pmap, virt);
+        pmap_unmap_noflush(&sys_pmap, virt); // Mapped a moment ago and never touched, under heap_lock
     }
 
     slab_free(block);

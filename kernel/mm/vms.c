@@ -6,6 +6,7 @@
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
+#include <vex/tlb.h>
 #include <vex/vms.h>
 
 static_assert(sizeof(struct vms_page) <= (PAGE_SIZE / 2));
@@ -14,6 +15,43 @@ static_assert(sizeof(struct vmspace) <= (PAGE_SIZE / 2));
 static __always_inline size_t vms_bucket(uintptr_t virt)
 {
     return (virt >> PAGE_SHIFT) % VMS_BUCKETS;
+}
+
+static int unmap_all(struct vmspace* restrict vms, bool shootdown)
+{
+    struct vms_page* detached = nullptr;
+
+    bool intr_state = spinlock_acquire_intr(&vms->lock);
+
+    for(size_t i = 0; i < VMS_BUCKETS; ++i) {
+        while(vms->buckets[i]) {
+            struct vms_page* entry = vms->buckets[i];
+            vms->buckets[i] = entry->next;
+            entry->next = detached;
+            detached = entry;
+        }
+    }
+
+    spinlock_release_intr(&vms->lock, intr_state);
+
+    for(struct vms_page* entry = detached; entry; entry = entry->next) {
+        pmap_unmap_noflush(vms->pmap, entry->virt);
+    }
+
+    // The pages may only be reused once
+    // no hart can reach them through a stale TLB entry
+    if(shootdown && detached) {
+        tlb_shootdown();
+    }
+
+    while(detached) {
+        struct vms_page* next = detached->next;
+        pslab_free_phys(detached->phys);
+        slab_free(detached);
+        detached = next;
+    }
+
+    return 0;
 }
 
 struct vmspace* vms_create(void)
@@ -58,7 +96,9 @@ struct vmspace* vms_create_pmap(struct pagemap* restrict pmap)
 
 void vms_release(struct vmspace* restrict vms)
 {
-    vms_unmap_all(vms);
+    // Released only once no hart has these
+    // page tables loaded, so no TLB holds their entries
+    unmap_all(vms, false);
     pmap_release(vms->pmap);
     slab_free(vms);
 }
@@ -181,27 +221,7 @@ int vms_unmap(struct vmspace* restrict vms, uintptr_t virt)
 
 int vms_unmap_all(struct vmspace* restrict vms)
 {
-    bool intr_state = spinlock_acquire_intr(&vms->lock);
-
-    for(size_t i = 0; i < VMS_BUCKETS; ++i) {
-        struct vms_page* entry = vms->buckets[i];
-
-        while(entry) {
-            struct vms_page* next = entry->next;
-
-            pmap_unmap(vms->pmap, entry->virt);
-            pslab_free_phys(entry->phys);
-            slab_free(entry);
-
-            entry = next;
-        }
-
-        vms->buckets[i] = nullptr;
-    }
-
-    spinlock_release_intr(&vms->lock, intr_state);
-
-    return 0;
+    return unmap_all(vms, true);
 }
 
 int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem)
