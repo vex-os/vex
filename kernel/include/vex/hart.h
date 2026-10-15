@@ -11,7 +11,6 @@ struct hart_local {
     struct thread* curr_thread;
     struct thread* idle_thread;
     struct thread* dead_thread;
-    unsigned long last_rq_index;
 
     struct arch_hart arch;
 };
