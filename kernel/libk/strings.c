@@ -8,7 +8,7 @@ char* kstrncat(char* restrict dst, const char* restrict src, size_t sz)
     char* save = dst;
 
     while(*dst && sz--) {
-        dst++;
+        dst += 1;
     }
 
     size_t nc = strnlen(src, --sz);
@@ -38,8 +38,8 @@ char* kstrncpy(char* restrict dst, const char* restrict src, size_t sz)
 int strcasecmp(const char* restrict sa, const char* restrict sb)
 {
     while(*sa && tolower(*sa) == tolower(*sb)) {
-        sa++;
-        sb++;
+        sa += 1;
+        sb += 1;
     }
 
     return tolower((unsigned char)*sa) - tolower((unsigned char)*sb);
@@ -48,8 +48,8 @@ int strcasecmp(const char* restrict sa, const char* restrict sb)
 int strncasecmp(const char* restrict sa, const char* restrict sb, size_t sz)
 {
     while(sz-- && *sa && tolower(*sa) == tolower(*sb)) {
-        sa++;
-        sb++;
+        sa += 1;
+        sb += 1;
     }
 
     if(sz == SIZE_MAX) {

@@ -49,7 +49,7 @@ static bool is_shortname_char(char c)
         return true;
     }
 
-    for(const char* it = ok; *it; ++it) {
+    for(const char* it = ok; *it; it += 1) {
         if(c == *it) {
             return true;
         }
@@ -65,7 +65,7 @@ static void shortname_parts(const char* restrict filename, char stem[6], unsigne
     *ext_len = 0;
 
     const char* last_dot = nullptr;
-    for(const char* it = filename; *it; ++it) {
+    for(const char* it = filename; *it; it += 1) {
         if(*it == '.') {
             last_dot = it;
         }
@@ -80,7 +80,7 @@ static void shortname_parts(const char* restrict filename, char stem[6], unsigne
         stem_end = last_dot;
     }
 
-    for(const char* it = filename; it != stem_end && *stem_len < 6; ++it) {
+    for(const char* it = filename; it != stem_end && *stem_len < 6; it += 1) {
         char chr = toupper(*it);
 
         if(chr == ' ' || chr == '.') {
@@ -94,7 +94,7 @@ static void shortname_parts(const char* restrict filename, char stem[6], unsigne
     }
 
     if(last_dot) {
-        for(const char* it = last_dot + 1; *it && *ext_len < 3; ++it) {
+        for(const char* it = last_dot + 1; *it && *ext_len < 3; it += 1) {
             char chr = toupper(*it);
 
             if(chr == ' ') {
@@ -368,7 +368,7 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
 
         memset(fs->bounce, 0, fs->sector_size);
 
-        for(size_t s = 0; s < fs->cluster_size_s; s++) {
+        for(size_t s = 0; s < fs->cluster_size_s; ++s) {
             retval = blk_write(fs->device, dir_lba + s, 1, fs->bounce);
 
             if(retval < 0) {
@@ -467,7 +467,7 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
     if(cluster_index >= context->cached_cluster_idx) {
         cluster = context->cached_cluster;
 
-        for(size_t i = context->cached_cluster_idx; i < cluster_index; i++) {
+        for(size_t i = context->cached_cluster_idx; i < cluster_index; ++i) {
             cluster = fat_cluster_next(fs, cluster);
 
             if(cluster == UINTPTR_MAX) {
@@ -478,7 +478,7 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
     else {
         cluster = context->first_cluster;
 
-        for(size_t i = 0; i < cluster_index; i++) {
+        for(size_t i = 0; i < cluster_index; ++i) {
             cluster = fat_cluster_next(fs, cluster);
 
             if(cluster == UINTPTR_MAX) {
@@ -600,7 +600,7 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
     if(cluster_index >= context->cached_cluster_idx) {
         cluster = context->cached_cluster;
 
-        for(size_t i = context->cached_cluster_idx; i < cluster_index; i++) {
+        for(size_t i = context->cached_cluster_idx; i < cluster_index; ++i) {
             uintptr_t next = fat_cluster_next(fs, cluster);
 
             if(next == UINTPTR_MAX) {
@@ -619,7 +619,7 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
     else {
         cluster = context->first_cluster;
 
-        for(size_t i = 0; i < cluster_index; i++) {
+        for(size_t i = 0; i < cluster_index; ++i) {
             uintptr_t next = fat_cluster_next(fs, cluster);
 
             if(next == UINTPTR_MAX) {

@@ -44,7 +44,7 @@ static void init_syscall(void)
 
     unsigned long max_number = 0;
 
-    for(const struct syscall* it = unsorted_syscalls_start; it < unsorted_syscalls_end; ++it) {
+    for(const struct syscall* it = unsorted_syscalls_start; it < unsorted_syscalls_end; it += 1) {
         if(it->number > max_number) {
             max_number = it->number;
         }
@@ -57,7 +57,7 @@ static void init_syscall(void)
         panic("syscall: out of memory");
     }
 
-    for(const struct syscall* it = unsorted_syscalls_start; it < unsorted_syscalls_end; ++it) {
+    for(const struct syscall* it = unsorted_syscalls_start; it < unsorted_syscalls_end; it += 1) {
         kassert(syscall_table[it->number].function == nullptr);
         kassert(syscall_table[it->number].identifier == nullptr);
 
