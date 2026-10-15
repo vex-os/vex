@@ -8,6 +8,7 @@
 #include <vex/process.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
+#include <vex/thread.h>
 #include <vex/vms.h>
 #include <vex/vnode.h>
 
@@ -46,6 +47,7 @@ struct process* process_create(struct process* restrict parent)
     }
 
     proc->pid = atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);
+    proc->refcount = 1;
     proc->lock = SPINLOCK_INIT;
     event_init(&proc->evnt);
 
@@ -64,7 +66,7 @@ struct process* process_create(struct process* restrict parent)
     }
 
     if(parent) {
-        spinlock_acquire(&parent->lock);
+        bool intr_state = spinlock_acquire_intr(&parent->lock);
 
         proc->cnext = parent->children;
 
@@ -74,7 +76,7 @@ struct process* process_create(struct process* restrict parent)
 
         parent->children = proc;
 
-        spinlock_release(&parent->lock);
+        spinlock_release_intr(&parent->lock, intr_state);
     }
 
     size_t bucket = pid_bucket(proc->pid);
@@ -97,6 +99,7 @@ struct process* process_locate(pid_t pid)
 
     for(struct process* it = proctable[bucket]; it; it = it->pnext) {
         if(it->pid == pid) {
+            process_incref(it);
             spinlock_release(&proctable_lock);
             return it;
         }
@@ -107,6 +110,26 @@ struct process* process_locate(pid_t pid)
     return nullptr;
 }
 
+void process_incref(struct process* proc)
+{
+    atomic_fetch_add(&proc->refcount, 1, ATOMIC_RELAXED);
+}
+
+void process_decref(struct process* proc)
+{
+    if(1 == atomic_fetch_sub(&proc->refcount, 1, ATOMIC_ACQ_REL)) {
+        // May run from the scheduler: only interrupt-safe teardown here,
+        // everything else was released by process_destroy already
+
+        if(proc->vms) {
+            vms_release(proc->vms); // Never got as far as running a thread
+        }
+
+        event_deinit(&proc->evnt);
+        kfree(proc);
+    }
+}
+
 void process_exit(struct process* proc, int exit_code)
 {
     pr_verbose("process[%lu]: exiting with exit_code=%d", (unsigned long)(proc->pid), exit_code);
@@ -114,8 +137,49 @@ void process_exit(struct process* proc, int exit_code)
     proc->exit_code = exit_code;
 
     vfs_sync_all(); // a nasty crutch
+}
 
-    event_trigger(&proc->evnt, true);
+void process_thread_reaped(struct process* proc, struct thread* thrd)
+{
+    bool intr_state = spinlock_acquire_intr(&proc->lock);
+
+    if(thrd->tprev) {
+        thrd->tprev->tnext = thrd->tnext;
+    }
+    else {
+        proc->threads = thrd->tnext;
+    }
+
+    if(thrd->tnext) {
+        thrd->tnext->tprev = thrd->tprev;
+    }
+
+    bool last = (0 == --proc->num_threads);
+
+    spinlock_release_intr(&proc->lock, intr_state);
+
+    if(last) {
+        // No thread of the process is on any hart anymore, so
+        // nothing has its page tables loaded and they can go
+        vms_release(proc->vms);
+        proc->vms = nullptr;
+
+        atomic_store_n(&proc->zombie, true, ATOMIC_RELEASE);
+        event_trigger(&proc->evnt, true);
+    }
+
+    process_decref(proc);
+}
+
+bool process_claim(struct process* proc)
+{
+    bool expected = false;
+
+    if(!atomic_load_n(&proc->zombie, ATOMIC_ACQUIRE)) {
+        return false;
+    }
+
+    return atomic_cmpxchg(&proc->collected, &expected, true, ATOMIC_ACQ_REL, ATOMIC_RELAXED);
 }
 
 void process_destroy(struct process* proc)
@@ -146,7 +210,7 @@ void process_destroy(struct process* proc)
     struct process* parent = process_locate(proc->ppid);
 
     if(parent) {
-        spinlock_acquire(&parent->lock);
+        bool intr_state = spinlock_acquire_intr(&parent->lock);
 
         if(proc->cprev) {
             proc->cprev->cnext = proc->cnext;
@@ -159,13 +223,14 @@ void process_destroy(struct process* proc)
             proc->cnext->cprev = proc->cprev;
         }
 
-        spinlock_release(&parent->lock);
-    }
+        spinlock_release_intr(&parent->lock, intr_state);
 
-    event_deinit(&proc->evnt);
+        process_decref(parent);
+    }
 
     if(proc->cwd) {
         vnode_decref(proc->cwd);
+        proc->cwd = nullptr;
     }
 
     for(size_t i = 0; i < proc->max_fds; i += 1) {
@@ -175,7 +240,11 @@ void process_destroy(struct process* proc)
     }
 
     kfree(proc->fds);
-    kfree(proc);
+    proc->fds = nullptr;
+    proc->max_fds = 0;
+    proc->num_fds = 0;
+
+    process_decref(proc);
 }
 
 struct file* dereference_fd(struct process* proc, int fd)

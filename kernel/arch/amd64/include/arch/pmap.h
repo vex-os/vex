@@ -24,6 +24,8 @@
 
 #define PMENTRY_NULL UINT64_C(0x0000000000000000)
 
+#define KSTACK_REGION_BASE UINT64_C(0xFFFFFF0000000000)
+
 #define PAGEMAP_SIZE     512U
 #define PAGEMAP_USER_END AMD64_PAGEMAP_START_KERN
 
@@ -46,6 +48,11 @@ void arch_pmap_kcopy(struct pagemap* restrict dest, const struct pagemap* restri
 static __always_inline __nodiscard pmentry_type* pmap_root(const struct pagemap* restrict pmap, uintptr_t virt)
 {
     return pmap->virt;
+}
+
+static __always_inline __nodiscard uintptr_t pmap_user_end(const struct pagemap* restrict pmap)
+{
+    return UINT64_C(1) << (PMENTRY_LVL1_SHIFT + 9 * pmap->num_levels - 1);
 }
 
 static __always_inline __nodiscard bool pmentry_valid(pmentry_type entry)

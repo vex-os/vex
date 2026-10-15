@@ -88,6 +88,40 @@
         iretq
 .endm
 
+# NMI, #DF and #MC can arrive anywhere, including the window
+# between SYSCALL and its SWAPGS, where CS is already the kernel's
+# but GS is still the user's; GS_BASE itself tells which one is live:
+# kernel thread pointers are higher-half, so the MSR's sign bit is set
+.macro isr_stub_paranoid stubname vector has_errcode
+    .global \stubname
+    .type \stubname, @function
+    \stubname:
+        .if \has_errcode == 0
+        pushq $0x0000000000000000 # hart_context::x86_err
+        .endif
+        push_interrupt_frame
+
+        xorl %ebx, %ebx
+        movl $0xC0000101, %ecx  # MSR_GS_BASE
+        rdmsr
+        testl %edx, %edx
+        js 1f
+        swapgs
+        movl $1, %ebx
+    1:
+        movq %rsp, %rdi
+        movq $\vector, %rsi
+        call amd64_isr_handler
+
+        testl %ebx, %ebx
+        jz 2f
+        swapgs
+    2:
+        pop_interrupt_frame
+        addq $0x08, %rsp
+        iretq
+.endm
+
 .macro spur_stub stubname vector
     .global \stubname
     .type \stubname, @function
@@ -126,38 +160,38 @@
         iretq
 .endm
 
-isr_stub_pz amd64_isr_00, 0x00
-isr_stub_pz amd64_isr_01, 0x01
-isr_stub_pz amd64_isr_02, 0x02
-isr_stub_pz amd64_isr_03, 0x03
-isr_stub_pz amd64_isr_04, 0x04
-isr_stub_pz amd64_isr_05, 0x05
-isr_stub_pz amd64_isr_06, 0x06
-isr_stub_pz amd64_isr_07, 0x07
-isr_stub    amd64_isr_08, 0x08
-isr_stub_pz amd64_isr_09, 0x09
-isr_stub    amd64_isr_0A, 0x0A
-isr_stub    amd64_isr_0B, 0x0B
-isr_stub    amd64_isr_0C, 0x0C
-isr_stub    amd64_isr_0D, 0x0D
-isr_stub    amd64_isr_0E, 0x0E
-isr_stub_pz amd64_isr_0F, 0x0F
-isr_stub_pz amd64_isr_10, 0x10
-isr_stub    amd64_isr_11, 0x11
-isr_stub_pz amd64_isr_12, 0x12
-isr_stub_pz amd64_isr_13, 0x13
-isr_stub_pz amd64_isr_14, 0x14
-isr_stub    amd64_isr_15, 0x15
-isr_stub_pz amd64_isr_16, 0x16
-isr_stub_pz amd64_isr_17, 0x17
-isr_stub_pz amd64_isr_18, 0x18
-isr_stub_pz amd64_isr_19, 0x19
-isr_stub_pz amd64_isr_1A, 0x1A
-isr_stub_pz amd64_isr_1B, 0x1B
-isr_stub_pz amd64_isr_1C, 0x1C
-isr_stub_pz amd64_isr_1D, 0x1D
-isr_stub_pz amd64_isr_1E, 0x1E
-isr_stub_pz amd64_isr_1F, 0x1F
+isr_stub_pz         amd64_isr_00, 0x00
+isr_stub_pz         amd64_isr_01, 0x01
+isr_stub_paranoid   amd64_isr_02, 0x02, 0
+isr_stub_pz         amd64_isr_03, 0x03
+isr_stub_pz         amd64_isr_04, 0x04
+isr_stub_pz         amd64_isr_05, 0x05
+isr_stub_pz         amd64_isr_06, 0x06
+isr_stub_pz         amd64_isr_07, 0x07
+isr_stub_paranoid   amd64_isr_08, 0x08, 1
+isr_stub_pz         amd64_isr_09, 0x09
+isr_stub            amd64_isr_0A, 0x0A
+isr_stub            amd64_isr_0B, 0x0B
+isr_stub            amd64_isr_0C, 0x0C
+isr_stub            amd64_isr_0D, 0x0D
+isr_stub            amd64_isr_0E, 0x0E
+isr_stub_pz         amd64_isr_0F, 0x0F
+isr_stub_pz         amd64_isr_10, 0x10
+isr_stub            amd64_isr_11, 0x11
+isr_stub_paranoid   amd64_isr_12, 0x12, 0
+isr_stub_pz         amd64_isr_13, 0x13
+isr_stub_pz         amd64_isr_14, 0x14
+isr_stub            amd64_isr_15, 0x15
+isr_stub_pz         amd64_isr_16, 0x16
+isr_stub_pz         amd64_isr_17, 0x17
+isr_stub_pz         amd64_isr_18, 0x18
+isr_stub_pz         amd64_isr_19, 0x19
+isr_stub_pz         amd64_isr_1A, 0x1A
+isr_stub_pz         amd64_isr_1B, 0x1B
+isr_stub_pz         amd64_isr_1C, 0x1C
+isr_stub_pz         amd64_isr_1D, 0x1D
+isr_stub_pz         amd64_isr_1E, 0x1E
+isr_stub_pz         amd64_isr_1F, 0x1F
 
 spur_stub amd64_spur_20, 0x20
 spur_stub amd64_spur_21, 0x21

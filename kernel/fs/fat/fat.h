@@ -194,6 +194,12 @@ int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t 
     const struct fat_dir_entry* restrict entry);
 int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset);
 
+// Clusters 0 and 1 are reserved, data clusters are numbered from 2
+static __always_inline bool fat_cluster_valid(const struct fat_vfs_context* restrict context, uintptr_t cluster)
+{
+    return cluster >= 2 && cluster < context->cluster_count + 2;
+}
+
 static __always_inline uintptr_t fat_cluster_lba(const struct fat_vfs_context* restrict context, uintptr_t cluster)
 {
     return context->data_start + (cluster - 2) * context->cluster_size_s;

@@ -14,7 +14,14 @@ struct process {
     pid_t ppid;
     int exit_code;
 
-    spinlock_type lock;
+    // Held by the process table until process_destroy, by each thread
+    // until it is reaped and by each process_locate caller until process_decref
+    unsigned refcount;
+
+    bool zombie;
+    bool collected;
+
+    spinlock_type lock; // Taken with interrupts disabled: the scheduler unlinks reaped threads
 
     struct vmspace* vms;
 
@@ -41,7 +48,12 @@ struct process {
 
 struct process* process_create(struct process* restrict parent) __nodiscard;
 struct process* process_locate(pid_t pid) __nodiscard;
+void process_incref(struct process* proc);
+void process_decref(struct process* proc);
+
 void process_exit(struct process* proc, int exit_code);
+void process_thread_reaped(struct process* proc, struct thread* thrd);
+bool process_claim(struct process* proc) __nodiscard;
 void process_destroy(struct process* proc);
 
 struct file* dereference_fd(struct process* proc, int fd) __nodiscard;

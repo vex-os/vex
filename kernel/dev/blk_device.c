@@ -1,6 +1,7 @@
 #include <vex/blk_device.h>
 #include <vex/blk_event.h>
 #include <vex/blk_name.h>
+#include <vex/kmalloc.h>
 #include <vex/limits.h>
 #include <vex/sprintf.h>
 #include <vex/string.h>
@@ -102,4 +103,27 @@ const struct blk_device* find_blk_device(const char* restrict name)
     }
 
     return nullptr;
+}
+
+int blk_read_sector_prefix(const struct blk_device* restrict device, uintptr_t lba, void* restrict buffer, size_t size)
+{
+    if(device->sector_size < size) {
+        return -EINVAL;
+    }
+
+    void* sector = kmalloc(device->sector_size);
+
+    if(sector == nullptr) {
+        return -ENOMEM;
+    }
+
+    int retval = blk_read(device, lba, 1, sector);
+
+    if(retval == 0) {
+        memcpy(buffer, sector, size);
+    }
+
+    kfree(sector);
+
+    return retval;
 }

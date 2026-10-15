@@ -24,11 +24,10 @@ static void panic_halt_handler(unsigned number, const struct hart_context* restr
     }
 }
 
-void hart_setup_1(const struct limine_mp_info* restrict info, const struct limine_mp_response* restrict response)
+void hart_setup_1(struct hart_local* restrict hart, unsigned short index, const struct limine_mp_info* restrict info,
+    const struct limine_mp_response* restrict response)
 {
-    struct hart_local* hart = &harts[info->processor_id];
-
-    hart->index = info->processor_id;
+    hart->index = index;
     hart->flags = HART_FLAG_ACTIVE;
     hart->arch.lapic_id = info->lapic_id;
 
@@ -37,10 +36,8 @@ void hart_setup_1(const struct limine_mp_info* restrict info, const struct limin
     }
 }
 
-void hart_setup_2(const struct limine_mp_info* restrict info)
+void hart_setup_2(struct hart_local* restrict hart)
 {
-    struct hart_local* hart = &harts[info->processor_id];
-
     wrmsr(0xC0000101, (uintptr_t)(hart->idle_thread));
     wrmsr(0xC0000102, (uintptr_t)(hart->idle_thread->arch.gs_base));
 }

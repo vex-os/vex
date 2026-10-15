@@ -447,6 +447,10 @@ static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
 
+    if(context->first_cluster != 0 && !fat_cluster_valid(fs, context->first_cluster)) {
+        return -EIO;
+    }
+
     if(offset >= context->size_bytes) {
         return 0;
     }
@@ -558,6 +562,10 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
 
     if(fs->param_readonly) {
         return -EROFS;
+    }
+
+    if(context->first_cluster != 0 && !fat_cluster_valid(fs, context->first_cluster)) {
+        return -EIO;
     }
 
     if(context->first_cluster == 0) {

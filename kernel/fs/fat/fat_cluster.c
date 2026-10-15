@@ -48,7 +48,7 @@ static void fat12_set(struct fat_vfs_context* restrict context, uintptr_t cluste
     memcpy(context->cache + offset, &data, sizeof(uint16_t));
 }
 
-uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintptr_t cluster)
+static uintptr_t cluster_next_raw(const struct fat_vfs_context* restrict context, uintptr_t cluster)
 {
     if(context->filesystem_type == FAT_TYPE_12) {
         size_t offset = cluster + (cluster >> 1);
@@ -117,10 +117,35 @@ uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintp
     return UINTPTR_MAX;
 }
 
+uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintptr_t cluster)
+{
+    if(!fat_cluster_valid(context, cluster)) {
+        return UINTPTR_MAX;
+    }
+
+    uintptr_t next = cluster_next_raw(context, cluster);
+
+    // A link to a reserved or nonexistent cluster is a broken chain; it
+    // ends here rather than letting the caller walk off the volume
+    if(!fat_cluster_valid(context, next)) {
+        return UINTPTR_MAX;
+    }
+
+    return next;
+}
+
 uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
 {
+    // The tables are often larger than the volume needs; entries past
+    // the last data cluster don't describe anything that can be allocated
+    size_t limit = context->cluster_count + 2;
+
     if(context->filesystem_type == FAT_TYPE_12) {
         size_t count = (context->cache_size * 2) / 3;
+
+        if(count > limit) {
+            count = limit;
+        }
         uintptr_t hint = context->next_free_hint;
 
         for(size_t pass = 0; pass < 2; pass += 1) {
@@ -147,6 +172,10 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
     }
     else if(context->filesystem_type == FAT_TYPE_16) {
         size_t count = context->cache_size / sizeof(uint16_t);
+
+        if(count > limit) {
+            count = limit;
+        }
         uintptr_t hint = context->next_free_hint;
 
         for(size_t pass = 0; pass < 2; pass += 1) {
@@ -177,6 +206,10 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
     }
     else if(context->filesystem_type == FAT_TYPE_32) {
         size_t count = context->cache_size / sizeof(uint32_t);
+
+        if(count > limit) {
+            count = limit;
+        }
         uintptr_t hint = context->next_free_hint;
 
         for(size_t pass = 0; pass < 2; pass += 1) {
@@ -211,6 +244,10 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
 
 void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluster, uintptr_t next)
 {
+    if(!fat_cluster_valid(context, cluster)) {
+        return;
+    }
+
     if(context->filesystem_type == FAT_TYPE_12) {
         fat12_set(context, cluster, next);
     }
@@ -230,6 +267,10 @@ void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluste
 
 void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluster)
 {
+    if(!fat_cluster_valid(context, cluster)) {
+        return;
+    }
+
     if(context->filesystem_type == FAT_TYPE_12) {
         fat12_set(context, cluster, 0);
     }

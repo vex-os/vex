@@ -16,7 +16,7 @@ static int echfs_probe(struct vfs* restrict fs, const struct blk_device* restric
 {
     struct echfs_identity identity;
 
-    int retval = blk_read(device, 0, 1, &identity);
+    int retval = blk_read_sector_prefix(device, 0, &identity, sizeof(identity));
 
     if(retval < 0) {
         return retval;
@@ -43,7 +43,7 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
         return -ENOMEM;
     }
 
-    int retval = blk_read(device, 0, 1, identity);
+    int retval = blk_read_sector_prefix(device, 0, identity, sizeof(*identity));
 
     if(retval < 0) {
         kfree(identity);

@@ -5,6 +5,7 @@
 #include <vex/initcall.h>
 #include <vex/ireq.h>
 #include <vex/kmalloc.h>
+#include <vex/kstack.h>
 #include <vex/limits.h>
 #include <vex/page.h>
 #include <vex/panic.h>
@@ -61,27 +62,52 @@ static struct thread* get_next_thread(void)
     return nullptr;
 }
 
+static void reap_thread(struct thread* restrict thrd)
+{
+    if(thrd->proc) {
+        process_thread_reaped(thrd->proc, thrd);
+    }
+
+    kstack_free(thrd->kstack_top);
+    pslab_free_virt(thrd->pfstack);
+    kfree(thrd->events);
+    kfree(thrd);
+}
+
 static void sched_ireq_handler(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
 {
     clockevt_stop();
 
     struct hart_local* hart = this_hart();
+
+    // The thread that died here last time is off its stack and address space
+    // by now; its process's address space only goes with its last thread
+    if(hart->dead_thread) {
+        reap_thread(hart->dead_thread);
+        hart->dead_thread = nullptr;
+    }
+
     struct thread* curr = hart->curr_thread;
     struct thread* next = get_next_thread();
 
     if(curr != hart->idle_thread) {
         spinlock_release(&curr->yield_await);
 
-        if(next == nullptr && curr->enqueued) {
-            clockevt_oneshot(sched_ireq_number, curr->timeslice);
-            return;
+        if(curr->state == THREAD_DEAD) {
+            hart->dead_thread = curr;
         }
+        else {
+            if(next == nullptr && curr->enqueued) {
+                clockevt_oneshot(sched_ireq_number, curr->timeslice);
+                return;
+            }
 
-        memcpy(&curr->ctx, ctx, sizeof(struct hart_context));
-        arch_thread_ctx_save(curr);
+            memcpy(&curr->ctx, ctx, sizeof(struct hart_context));
+            arch_thread_ctx_save(curr);
 
-        curr->state = THREAD_RUNNABLE;
-        spinlock_release(&curr->hart_lock);
+            curr->state = THREAD_RUNNABLE;
+            spinlock_release(&curr->hart_lock);
+        }
     }
 
     if(next == nullptr) {
@@ -118,9 +144,9 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
         return nullptr;
     }
 
-    uint8_t* kstack = pslab_alloc_virt();
+    void* kstack_top = kstack_alloc();
 
-    if(kstack == nullptr) {
+    if(kstack_top == nullptr) {
         kfree(thrd);
         return nullptr;
     }
@@ -132,8 +158,9 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
     thrd->enqueued = false;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
+    thrd->kstack_top = kstack_top;
 
-    arch_thread_setup_kern(thrd, entry, arg, kstack + PAGE_SIZE);
+    arch_thread_setup_kern(thrd, entry, arg, kstack_top);
 
     return thrd;
 }
@@ -159,9 +186,9 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
         return nullptr;
     }
 
-    uint8_t* kstack = pslab_alloc_virt();
+    void* kstack_top = kstack_alloc();
 
-    if(kstack == nullptr) {
+    if(kstack_top == nullptr) {
         kfree(thrd);
         return nullptr;
     }
@@ -169,7 +196,7 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
     uint8_t* pfstack = pslab_alloc_virt();
 
     if(pfstack == nullptr) {
-        pslab_free_virt(kstack);
+        kstack_free(kstack_top);
         kfree(thrd);
         return nullptr;
     }
@@ -181,10 +208,14 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
     thrd->enqueued = false;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
+    thrd->kstack_top = kstack_top;
+    thrd->pfstack = pfstack;
 
-    arch_thread_setup_user(thrd, (void*)(entry), (void*)(stack_top), kstack + PAGE_SIZE, pfstack + PAGE_SIZE, proc->vms);
+    arch_thread_setup_user(thrd, (void*)(entry), (void*)(stack_top), kstack_top, pfstack + PAGE_SIZE, proc->vms);
 
-    spinlock_acquire(&proc->lock);
+    process_incref(proc); // The thread keeps its process alive until it is reaped
+
+    bool intr_state = spinlock_acquire_intr(&proc->lock);
 
     thrd->tnext = proc->threads;
 
@@ -193,10 +224,9 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
     }
 
     proc->threads = thrd;
+    proc->num_threads += 1;
 
-    atomic_fetch_add(&proc->num_threads, 1, ATOMIC_RELAXED);
-
-    spinlock_release(&proc->lock);
+    spinlock_release_intr(&proc->lock, intr_state);
 
     return thrd;
 }
@@ -259,15 +289,9 @@ void __noreturn sched_terminate(void)
     disable_interrupts();
 
     struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
 
     thrd->state = THREAD_DEAD;
     sched_dequeue(thrd);
-
-    if(proc && 1 == atomic_fetch_sub(&proc->num_threads, 1, ATOMIC_ACQ_REL)) {
-        vms_release(proc->vms);
-        proc->vms = nullptr;
-    }
 
     struct hart_local* hart = this_hart();
     hart_ipi(hart, sched_ireq_number);

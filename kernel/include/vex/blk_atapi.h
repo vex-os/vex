@@ -15,6 +15,7 @@ struct atapi_device {
     struct blk_device base;
     const struct atapi_device_ops* ops;
     unsigned flags;
+    size_t max_transfer; // Bytes per packet, zero if unlimited
     void* ctxdata;
 };
 

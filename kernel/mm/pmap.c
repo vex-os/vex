@@ -117,6 +117,25 @@ static uintptr_t pmap_resolve_address_nolock(struct pagemap* restrict pmap, uint
     return 0;
 }
 
+static uintptr_t resolve_user_nolock(struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot)
+{
+    if(virt >= pmap_user_end(pmap)) {
+        return 0;
+    }
+
+    pmentry_type* entry = pmentry_walk(pmap, virt, false);
+
+    if(entry == nullptr || !pmentry_valid(*entry)) {
+        return 0;
+    }
+
+    if((pmentry_vprot(*entry) & vprot) != vprot) {
+        return 0;
+    }
+
+    return pmentry_address(*entry) + page_offset(virt);
+}
+
 struct pagemap* pmap_create(void)
 {
     struct pagemap* pmap = slab_alloc(sizeof(struct pagemap));
@@ -250,7 +269,7 @@ ssize_t pmap_copyin(void* restrict dst, struct pagemap* restrict pmap, uintptr_t
     bool intr_state = spinlock_acquire_intr(&pmap->lock);
 
     while(sz) {
-        uintptr_t src_phys = pmap_resolve_address_nolock(pmap, src);
+        uintptr_t src_phys = resolve_user_nolock(pmap, src, VPROT_USER | VPROT_READ);
 
         if(src_phys == 0) {
             spinlock_release_intr(&pmap->lock, intr_state);
@@ -287,14 +306,14 @@ ssize_t pmap_copyin_str(char* restrict dst, struct pagemap* restrict pmap, uintp
     bool intr_state = spinlock_acquire_intr(&pmap->lock);
 
     while(remaining) {
-        uintptr_t src_phys = pmap_resolve_address_nolock(pmap, src);
+        uintptr_t src_phys = resolve_user_nolock(pmap, src, VPROT_USER | VPROT_READ);
 
         if(src_phys == 0) {
             spinlock_release_intr(&pmap->lock, intr_state);
             return -EFAULT;
         }
 
-        size_t chunk = PAGE_SIZE - (src & (PAGE_SIZE - 1));
+        size_t chunk = PAGE_SIZE - page_offset(src);
 
         if(chunk > remaining) {
             chunk = remaining;
@@ -334,7 +353,7 @@ ssize_t pmap_copyout(struct pagemap* restrict pmap, uintptr_t dst, const void* r
     bool intr_state = spinlock_acquire_intr(&pmap->lock);
 
     while(sz) {
-        uintptr_t dst_phys = pmap_resolve_address_nolock(pmap, dst);
+        uintptr_t dst_phys = resolve_user_nolock(pmap, dst, VPROT_USER | VPROT_WRITE);
 
         if(dst_phys == 0) {
             spinlock_release_intr(&pmap->lock, intr_state);
