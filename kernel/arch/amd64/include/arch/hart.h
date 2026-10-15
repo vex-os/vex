@@ -1,5 +1,3 @@
-#ifndef B15F19F4_C7E1_479A_A8B7_3E8843A71BA6
-#define B15F19F4_C7E1_479A_A8B7_3E8843A71BA6
 #pragma once
 
 #include <vex/compiler.h>
@@ -124,5 +122,3 @@ struct limine_mp_info;
 void hart_setup_1(const struct limine_mp_info* restrict info, const struct limine_mp_response* restrict response);
 void hart_setup_2(const struct limine_mp_info* restrict info);
 void hart_ipi(struct hart_local* restrict target, unsigned ireq_number);
-
-#endif /* B15F19F4_C7E1_479A_A8B7_3E8843A71BA6 */

@@ -1,5 +1,3 @@
-#ifndef B4D08648_671B_4E1D_9F33_80B21DA77044
-#define B4D08648_671B_4E1D_9F33_80B21DA77044
 #pragma once
 
 #include <vex/compiler.h>
@@ -29,5 +27,3 @@ extern void devfs_remove(struct vfs* restrict fs, const char* restrict name);
 
 extern void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict device, void* restrict ctxdata);
 extern void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict device, void* restrict ctxdata);
-
-#endif /* B4D08648_671B_4E1D_9F33_80B21DA77044 */

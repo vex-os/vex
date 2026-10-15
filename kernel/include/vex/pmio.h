@@ -1,5 +1,3 @@
-#ifndef A4384EF0_FCFC_42A0_904E_600EC97A9A7C
-#define A4384EF0_FCFC_42A0_904E_600EC97A9A7C
 #pragma once
 
 #include <vex/compiler.h>
@@ -32,5 +30,3 @@ void pmio_read32s(const struct pmio_region* restrict pmio, uintptr_t offset, uin
 void pmio_write8s(const struct pmio_region* restrict pmio, uintptr_t offset, const uint8_t* restrict data, size_t count);
 void pmio_write16s(const struct pmio_region* restrict pmio, uintptr_t offset, const uint16_t* restrict data, size_t count);
 void pmio_write32s(const struct pmio_region* restrict pmio, uintptr_t offset, const uint32_t* restrict data, size_t count);
-
-#endif /* A4384EF0_FCFC_42A0_904E_600EC97A9A7C */

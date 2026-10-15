@@ -1,5 +1,3 @@
-#ifndef B793DFAA_5257_48C9_A9BD_66862A0F1555
-#define B793DFAA_5257_48C9_A9BD_66862A0F1555
 #pragma once
 
 #include <vex/compiler.h>
@@ -74,5 +72,3 @@ static __always_inline int calibrate_clocksrc_mhz(struct clocksrc* restrict src,
 {
     return calibrate_clocksrc_raw(src, UINT64_C(1000000), mhz);
 }
-
-#endif /* B793DFAA_5257_48C9_A9BD_66862A0F1555 */

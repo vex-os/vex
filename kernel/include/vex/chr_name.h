@@ -1,5 +1,3 @@
-#ifndef BC09F6C2_A0F0_4B50_A47E_D87316FAC355
-#define BC09F6C2_A0F0_4B50_A47E_D87316FAC355
 #pragma once
 
 #include <vex/compiler.h>
@@ -26,5 +24,3 @@ extern struct chr_name* chr_name_fbd;
 struct chr_name* chr_name_query(const char* restrict prefix) __nodiscard;
 unsigned chr_name_increment(struct chr_name* restrict name) __nodiscard;
 unsigned chr_name_count(const struct chr_name* restrict name) __nodiscard;
-
-#endif /* BC09F6C2_A0F0_4B50_A47E_D87316FAC355 */

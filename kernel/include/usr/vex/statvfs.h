@@ -1,5 +1,5 @@
-#ifndef CA6EBDC1_F146_406B_9800_F6E51106AD40
-#define CA6EBDC1_F146_406B_9800_F6E51106AD40
+#ifndef USR_VEX_STATVFS_H
+#define USR_VEX_STATVFS_H
 
 #include <vex/types.h>
 
@@ -20,4 +20,4 @@ struct __k_statvfs {
     __k_uint32_t f_namemax;
 };
 
-#endif /* CA6EBDC1_F146_406B_9800_F6E51106AD40 */
+#endif /* USR_VEX_STATVFS_H */

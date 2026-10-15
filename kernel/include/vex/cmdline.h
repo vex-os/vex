@@ -1,5 +1,3 @@
-#ifndef B5BF702E_C52D_4754_891B_76D140A38305
-#define B5BF702E_C52D_4754_891B_76D140A38305
 #pragma once
 
 #include <vex/compiler.h>
@@ -19,5 +17,3 @@ int parse_cmdline(struct cmdline* restrict cmdl, char* restrict buffer, size_t l
 
 bool cmdline_contains(const struct cmdline* restrict cmdl, const char* restrict option) __nodiscard;
 const char* cmdline_argument(const struct cmdline* restrict cmdl, const char* restrict option) __nodiscard;
-
-#endif /* B5BF702E_C52D_4754_891B_76D140A38305 */

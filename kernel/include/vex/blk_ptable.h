@@ -1,5 +1,3 @@
-#ifndef B33CA66F_97D1_4EA5_BFD0_1B04FED25014
-#define B33CA66F_97D1_4EA5_BFD0_1B04FED25014
 #pragma once
 
 #include <vex/compiler.h>
@@ -34,5 +32,3 @@ struct blk_ptable {
 int add_blk_ptable(struct blk_ptable* restrict ptable);
 int remove_blk_ptable(struct blk_ptable* restrict ptable);
 int rescan_partitions(const struct blk_device* restrict device);
-
-#endif /* B33CA66F_97D1_4EA5_BFD0_1B04FED25014 */

@@ -1,5 +1,3 @@
-#ifndef DCC199D9_02EB_45AE_AB94_7E18F82E3014
-#define DCC199D9_02EB_45AE_AB94_7E18F82E3014
 #pragma once
 
 #include <vex/compiler.h>
@@ -68,5 +66,3 @@ static __always_inline int blk_flush(const struct blk_device* restrict device)
         return device->ops->flush(device);
     return 0;
 }
-
-#endif /* DCC199D9_02EB_45AE_AB94_7E18F82E3014 */

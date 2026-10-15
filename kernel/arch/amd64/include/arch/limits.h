@@ -1,5 +1,3 @@
-#ifndef E8AC91D1_B9DB_42B0_86C3_06F1DD48E525
-#define E8AC91D1_B9DB_42B0_86C3_06F1DD48E525
 #pragma once
 
 #include <usr/arch/limits.h>
@@ -7,5 +5,3 @@
 #define PAGE_SIZE  __k_PAGE_SIZE
 #define PAGE_MAX   __k_PAGE_MAX
 #define PAGE_SHIFT __k_PAGE_SHIFT
-
-#endif /* E8AC91D1_B9DB_42B0_86C3_06F1DD48E525 */

@@ -1,5 +1,3 @@
-#ifndef CBE16F75_0279_489A_A726_4EE92C6FEFF2
-#define CBE16F75_0279_489A_A726_4EE92C6FEFF2
 #pragma once
 
 #include <arch/pmap.h>
@@ -33,5 +31,3 @@ ssize_t pmap_copyin(void* restrict dst, struct pagemap* restrict pmap, uintptr_t
 ssize_t pmap_copyin_str(char* restrict dst, struct pagemap* restrict pmap, uintptr_t src, size_t max_sz);
 ssize_t pmap_copyout(struct pagemap* restrict pmap, uintptr_t dst, const void* restrict src, size_t sz);
 ssize_t pmap_copyout_str(struct pagemap* restrict pmap, uintptr_t dst, const char* restrict src, size_t max_sz);
-
-#endif /* CBE16F75_0279_489A_A726_4EE92C6FEFF2 */

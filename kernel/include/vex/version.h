@@ -1,5 +1,3 @@
-#ifndef CEA2ABEF_CBCA_4217_812E_FC0FAC3967E9
-#define CEA2ABEF_CBCA_4217_812E_FC0FAC3967E9
 #pragma once
 
 // These values can also be accessed as preprocessor
@@ -11,5 +9,3 @@ extern const char k_sysname[]; // system name
 extern const char k_release[]; // version number
 extern const char k_version[]; // build information
 extern const char k_machine[]; // hardware identifier
-
-#endif /* CEA2ABEF_CBCA_4217_812E_FC0FAC3967E9 */

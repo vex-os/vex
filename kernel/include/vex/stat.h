@@ -1,5 +1,3 @@
-#ifndef B6C96A31_F759_498A_8FA1_1CAAB6D9A064
-#define B6C96A31_F759_498A_8FA1_1CAAB6D9A064
 #pragma once
 
 #include <usr/vex/stat.h>
@@ -34,5 +32,3 @@
 #define S_ISUID __k_S_ISUID
 
 #define k_stat __k_stat
-
-#endif /* B6C96A31_F759_498A_8FA1_1CAAB6D9A064 */

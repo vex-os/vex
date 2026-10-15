@@ -1,5 +1,3 @@
-#ifndef D64336B8_2B5C_45FB_80BF_BE55A7E153AA
-#define D64336B8_2B5C_45FB_80BF_BE55A7E153AA
 #pragma once
 
 #include <vex/compiler.h>
@@ -200,5 +198,3 @@ static __always_inline uintptr_t fat_cluster_lba(const struct fat_vfs_context* r
 {
     return context->data_start + (cluster - 2) * context->cluster_size_s;
 }
-
-#endif /* D64336B8_2B5C_45FB_80BF_BE55A7E153AA */

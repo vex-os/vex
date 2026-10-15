@@ -1,5 +1,3 @@
-#ifndef C79FAE96_D7EE_42CD_836F_A55F8731CA80
-#define C79FAE96_D7EE_42CD_836F_A55F8731CA80
 #pragma once
 
 #include <vex/compiler.h>
@@ -27,5 +25,3 @@ ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t
 
 int file_seek(struct file* restrict fp, off_t offset, int origin);
 int file_ioctl(struct file* restrict fp, uint32_t request, uintptr_t argument);
-
-#endif /* C79FAE96_D7EE_42CD_836F_A55F8731CA80 */

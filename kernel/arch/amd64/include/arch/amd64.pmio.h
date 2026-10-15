@@ -1,5 +1,3 @@
-#ifndef B2DB992B_AE8D_4321_9537_2CA2CF4F59F5
-#define B2DB992B_AE8D_4321_9537_2CA2CF4F59F5
 #pragma once
 
 #include <vex/pmio.h>
@@ -69,5 +67,3 @@ static __always_inline void pmwrite32s(uintptr_t offset, const uint32_t* restric
 {
     asm volatile("rep outsl" : "+S"(data), "+c"(count) : "d"((uint16_t)(offset & 0xFFFF)) : "memory");
 }
-
-#endif /* B2DB992B_AE8D_4321_9537_2CA2CF4F59F5 */

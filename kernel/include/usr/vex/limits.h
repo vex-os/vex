@@ -1,5 +1,5 @@
-#ifndef F04E1214_6CDF_4786_A3BE_B6848ECFBDC2
-#define F04E1214_6CDF_4786_A3BE_B6848ECFBDC2
+#ifndef USR_VEX_LIMITS_H
+#define USR_VEX_LIMITS_H
 
 #include <arch/limits.h>
 
@@ -9,4 +9,4 @@
 #define __k_NAME_MAX  255
 #define __k_NAME_SIZE 256
 
-#endif /* F04E1214_6CDF_4786_A3BE_B6848ECFBDC2 */
+#endif /* USR_VEX_LIMITS_H */

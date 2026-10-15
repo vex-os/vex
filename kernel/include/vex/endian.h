@@ -1,5 +1,3 @@
-#ifndef E6C477C8_D1FE_4C3A_8999_C7AA122B661E
-#define E6C477C8_D1FE_4C3A_8999_C7AA122B661E
 #pragma once
 
 #include <vex/compiler.h>
@@ -33,5 +31,3 @@
 #else
 #error Unknown endianness
 #endif
-
-#endif /* E6C477C8_D1FE_4C3A_8999_C7AA122B661E */

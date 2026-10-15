@@ -1,5 +1,3 @@
-#ifndef A3252828_5A4D_4592_BD44_063284F9226D
-#define A3252828_5A4D_4592_BD44_063284F9226D
 #pragma once
 
 #include <vex/compiler.h>
@@ -32,5 +30,3 @@ int add_console(struct console* restrict cons);
 int remove_console(struct console* restrict cons);
 void console_write(const void* restrict data, size_t size);
 void console_unblank(void);
-
-#endif /* A3252828_5A4D_4592_BD44_063284F9226D */

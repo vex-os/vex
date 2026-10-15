@@ -1,5 +1,3 @@
-#ifndef CD90B826_6CE7_46EC_A74F_D4FEC331F71E
-#define CD90B826_6CE7_46EC_A74F_D4FEC331F71E
 #pragma once
 
 #include <vex/crc32.h>
@@ -15,5 +13,3 @@ static __always_inline __nodiscard uint32_t crc32_iso3309_get_ext(const void* re
 {
     return crc32_get_ext_nro(&crc32_iso3309_table, data, length, combine);
 }
-
-#endif /* CD90B826_6CE7_46EC_A74F_D4FEC331F71E */

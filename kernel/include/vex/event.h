@@ -1,5 +1,3 @@
-#ifndef BD9665B7_59DD_4197_BB60_936735C86008
-#define BD9665B7_59DD_4197_BB60_936735C86008
 #pragma once
 
 #include <vex/spinlock.h>
@@ -24,5 +22,3 @@ void event_deinit(struct event* restrict evnt);
 ssize_t event_await(struct event** restrict events, size_t count);
 ssize_t event_await_blocking(struct event** restrict events, size_t count);
 size_t event_trigger(struct event* restrict evnt, bool linger_pending);
-
-#endif /* BD9665B7_59DD_4197_BB60_936735C86008 */

@@ -1,5 +1,3 @@
-#ifndef DB28D5EE_DEE5_4E22_9DD6_78A1F88FF744
-#define DB28D5EE_DEE5_4E22_9DD6_78A1F88FF744
 #pragma once
 
 #include <usr/vex/syscall.h>
@@ -58,4 +56,3 @@ extern const struct syscall unsorted_syscalls_start[];
 extern const struct syscall unsorted_syscalls_end[];
 
 void dispatch_syscall(struct hart_context* restrict regs);
-#endif /* DB28D5EE_DEE5_4E22_9DD6_78A1F88FF744 */

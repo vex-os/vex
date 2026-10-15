@@ -1,5 +1,5 @@
-#ifndef C1265F82_E321_4C99_9CFE_1C35CA0EE261
-#define C1265F82_E321_4C99_9CFE_1C35CA0EE261
+#ifndef USR_VEX_STAT_H
+#define USR_VEX_STAT_H
 
 #include <vex/types.h>
 
@@ -50,4 +50,4 @@ struct __k_stat {
     __k_blkcnt_t st_blocks;
 };
 
-#endif /* C1265F82_E321_4C99_9CFE_1C35CA0EE261 */
+#endif /* USR_VEX_STAT_H */

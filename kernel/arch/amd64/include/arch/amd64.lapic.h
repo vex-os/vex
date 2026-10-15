@@ -1,5 +1,3 @@
-#ifndef DB23EE75_B5FE_49DD_985F_BC1F71B976EB
-#define DB23EE75_B5FE_49DD_985F_BC1F71B976EB
 #pragma once
 
 #include <vex/compiler.h>
@@ -38,5 +36,3 @@ static __always_inline void lapic_send_eoi(void)
 {
     lapic_write(LAPIC_REG_EOI, 0);
 }
-
-#endif /* DB23EE75_B5FE_49DD_985F_BC1F71B976EB */

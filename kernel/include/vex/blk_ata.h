@@ -1,5 +1,3 @@
-#ifndef DC56E272_B668_44F0_A0D1_10B30073D8E6
-#define DC56E272_B668_44F0_A0D1_10B30073D8E6
 #pragma once
 
 #include <vex/compiler.h>
@@ -102,5 +100,3 @@ static __always_inline __nodiscard size_t ata_identify_logical_sector_size(const
 }
 
 void ata_identify_string(const uint16_t* restrict field, size_t field_nw, char* restrict string, size_t sz);
-
-#endif /* DC56E272_B668_44F0_A0D1_10B30073D8E6 */

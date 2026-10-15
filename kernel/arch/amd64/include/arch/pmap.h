@@ -1,5 +1,3 @@
-#ifndef A2C71F06_184E_4FD7_8913_D5ED1EB16655
-#define A2C71F06_184E_4FD7_8913_D5ED1EB16655
 #pragma once
 
 #include <vex/compiler.h>
@@ -110,5 +108,3 @@ static __always_inline void pmap_flush(uintptr_t virt)
 {
     asm volatile("invlpg (%0)" ::"r"(virt) : "memory");
 }
-
-#endif /* A2C71F06_184E_4FD7_8913_D5ED1EB16655 */

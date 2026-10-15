@@ -1,5 +1,3 @@
-#ifndef E7F3A178_693A_4817_A6DA_3793C8B5CE3F
-#define E7F3A178_693A_4817_A6DA_3793C8B5CE3F
 #pragma once
 
 #include <vex/compiler.h>
@@ -60,5 +58,3 @@ static __always_inline int vfs_sync_fs(struct vfs* restrict fs)
 
     return fs->ops->sync(fs);
 }
-
-#endif /* E7F3A178_693A_4817_A6DA_3793C8B5CE3F */
