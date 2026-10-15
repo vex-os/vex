@@ -83,9 +83,10 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
         old_pmap = proc->vms->pmap;
         new_pmap = handle_page_fault(old_pmap, &info);
 
-        if(new_pmap != nullptr) {
+        if(new_pmap) {
             proc->vms->pmap = new_pmap;
             thrd->arch.cr3 = new_pmap->phys;
+            pmap_switch(new_pmap);
             return;
         }
 
@@ -98,7 +99,6 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
         new_pmap = handle_page_fault(old_pmap, &info);
 
         if(new_pmap) {
-            pmap_switch(new_pmap);
             return;
         }
 
@@ -109,8 +109,6 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
 void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec)
 {
     disable_interrupts();
-
-    pmap_switch(&sys_pmap);
 
     struct hart_local* hart = this_hart();
 
