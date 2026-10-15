@@ -319,7 +319,7 @@ static int fat_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
         }
     }
     else {
-        for(size_t i = 2; i < total + 2; i++) {
+        for(size_t i = 2; i < total + 2; ++i) {
             size_t byte_off = i + i / 2;
 
             uint16_t value = UINT16_C(0);
@@ -455,7 +455,7 @@ static int fat_sync(struct vfs* restrict fs)
 
     size_t num_sectors = context->cache_size / context->sector_size;
 
-    for(unsigned i = 0; i < context->num_tables; i++) {
+    for(unsigned i = 0; i < context->num_tables; ++i) {
         uintptr_t lba = context->table_start + i * context->table_size_s;
         int retval = blk_write(context->device, lba, num_sectors, context->cache);
 

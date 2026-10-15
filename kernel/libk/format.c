@@ -123,21 +123,21 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
 
         for(unsigned i = stager; i < width; ++i) {
             func(pad, user);
-            counter++;
+            counter += 1;
         }
     }
 
     // Reverse the number into the callback
     while(stager--) {
         func(stage[stager], user);
-        counter++;
+        counter += 1;
     }
 
     // And now pad the number
     if(flags & F_LEFT) {
         for(unsigned i = 0; i < width; ++i) {
             func(' ', user);
-            counter++;
+            counter += 1;
         }
     }
 
@@ -162,22 +162,22 @@ static size_t write_str(format_func_type func, void* restrict user, const char* 
     if(0 == (flags & F_LEFT)) {
         for(size_t i = len; cap && i < width; ++i) {
             func(' ', user);
-            counter++;
-            cap--;
+            counter += 1;
+            cap -= 1;
         }
     }
 
     while(cap && *s) {
         func(*s++, user);
-        counter++;
-        cap--;
+        counter += 1;
+        cap -= 1;
     }
 
     if(flags & F_LEFT) {
         for(size_t i = len; cap && i < width; ++i) {
             func(' ', user);
-            counter++;
-            cap--;
+            counter += 1;
+            cap -= 1;
         }
     }
 
@@ -273,14 +273,14 @@ int vformat(format_func_type func, void* restrict user, const char* restrict fmt
     while(*fmt) {
         if(*fmt != '%' || *(++fmt) == '%') {
             func(*fmt++, user);
-            counter++;
+            counter += 1;
             continue;
         }
 
         flags = 0;
         while((fvalue = get_flag(*fmt)) != 0) {
             flags |= fvalue;
-            fmt++;
+            fmt += 1;
         }
 
         if((flags & F_ZERO_PAD) && (flags & F_LEFT)) {
@@ -302,27 +302,27 @@ int vformat(format_func_type func, void* restrict user, const char* restrict fmt
         length = L_INT;
         switch(*fmt) {
             case 'h':
-                fmt++;
+                fmt += 1;
                 length = L_SHORT;
                 break;
 
             case 'l':
-                fmt++;
+                fmt += 1;
                 length = L_LONG;
                 break;
 
             case 'j':
-                fmt++;
+                fmt += 1;
                 length = L_INTMAX_T;
                 break;
 
             case 'z':
-                fmt++;
+                fmt += 1;
                 length = L_SIZE_T;
                 break;
 
             case 't':
-                fmt++;
+                fmt += 1;
                 length = L_PTRDIFF_T;
                 break;
         }
@@ -330,12 +330,12 @@ int vformat(format_func_type func, void* restrict user, const char* restrict fmt
         if(length == L_SHORT || length == L_LONG) {
             switch(*fmt) {
                 case 'h':
-                    fmt++;
+                    fmt += 1;
                     length = L_CHAR;
                     break;
 
                 case 'l':
-                    fmt++;
+                    fmt += 1;
                     length = L_LLONG;
                     break;
             }
@@ -412,7 +412,7 @@ int vformat(format_func_type func, void* restrict user, const char* restrict fmt
 
             case 'c':
                 func(value, user);
-                counter++;
+                counter += 1;
                 break;
 
             case 's':
@@ -433,7 +433,7 @@ int vformat(format_func_type func, void* restrict user, const char* restrict fmt
                 break;
         }
 
-        fmt++;
+        fmt += 1;
     }
 
     if(counter > INT_MAX) {

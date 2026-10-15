@@ -166,7 +166,7 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
             if(num_ldir > 0) {
                 uint8_t expected = ldir_checksum(&entry->base);
 
-                for(unsigned i = 0; i < num_ldir; i++) {
+                for(unsigned i = 0; i < num_ldir; ++i) {
                     if(ldirs[i].checksum != expected) {
                         num_ldir = 0;
                         break;
@@ -221,7 +221,7 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
         }
     }
     else {
-        for(unsigned i = 0; i < 8 && !isspace(entry->base.name[i]); i++) {
+        for(unsigned i = 0; i < 8 && !isspace(entry->base.name[i]); ++i) {
             entry->full_name[name_pos] = entry->base.name[i];
             name_pos += 1;
         }
@@ -367,7 +367,7 @@ int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster
 
             uintptr_t lba = fat_cluster_lba(context, new_cluster);
 
-            for(size_t s = 0; s < context->cluster_size_s; s++) {
+            for(size_t s = 0; s < context->cluster_size_s; ++s) {
                 retval = blk_write(context->device, lba + s, 1, context->bounce);
 
                 if(retval < 0) {

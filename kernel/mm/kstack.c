@@ -27,7 +27,7 @@ static size_t claim_slot(void)
 {
     bool intr_state = spinlock_acquire_intr(&slots_lock);
 
-    for(size_t i = 0U; i < KSTACK_NUM_SLOTS; i += 1U) {
+    for(size_t i = 0U; i < KSTACK_NUM_SLOTS; ++i) {
         size_t slot = (next_slot + i) % KSTACK_NUM_SLOTS;
 
         if(bitmap_isset(slots, slot)) {
@@ -52,7 +52,7 @@ static void release_slot(size_t slot)
 
 static void unmap_pages(uintptr_t stack_bottom, size_t count)
 {
-    for(size_t i = 0U; i < count; i += 1U) {
+    for(size_t i = 0U; i < count; ++i) {
         uintptr_t virt = stack_bottom + i * PAGE_SIZE;
         uintptr_t phys = pmap_resolve_address(&sys_pmap, virt);
 
@@ -71,7 +71,7 @@ void* kstack_alloc(void)
 
     uintptr_t stack_bottom = slot_base(slot) + PAGE_SIZE;
 
-    for(size_t i = 0U; i < KSTACK_PAGES; i += 1U) {
+    for(size_t i = 0U; i < KSTACK_PAGES; ++i) {
         uintptr_t phys = pslab_alloc_phys();
 
         if(phys == 0U || pmap_map(&sys_pmap, stack_bottom + i * PAGE_SIZE, phys, VPROT_RW) < 0) {

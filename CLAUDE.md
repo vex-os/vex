@@ -50,7 +50,7 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
 - C23 idioms are used throughout: `nullptr`, `static_assert`, `unreachable()`, `restrict` pointer params.
 - Test a bitmask against zero explicitly: `if(0 == (flags & FLAG))`, not `if(!(flags & FLAG))`.
 - Compare pointers to `nullptr` only for the null case (`if(ptr == nullptr)`); for non-null, use the pointer itself (`if(ptr)`). A call whose result only signals failure can be negated directly: `if(!pmentry_get(table, i, true))`.
-- Loop counters step with `++i`, not `i += 1`.
+- Never use a standalone increment statement (`++x;`, `x++;`). Outside a `for` header, write `x += 1`. Inside a `for` header, a one-letter counter uses `++i`, and a longer name uses `page += 1`.
 - Within a translation unit, `static` helpers come before the public functions; init functions sit at the end next to their `initcall_*`.
 - Code should document itself through names. Comments are for a non-obvious "why" or an invariant that the code doesn't show, not for restating what it does:
   - Use `//` (`#` in assembly and shell), start with a capital letter, and leave off the trailing period.

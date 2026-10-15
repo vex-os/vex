@@ -13,7 +13,7 @@ const void* memchr(const void* restrict buf, int chr, size_t sz)
             return sp;
         }
 
-        sp++;
+        sp += 1;
     }
 
     return nullptr;
@@ -29,8 +29,8 @@ int memcmp(const void* restrict ba, const void* restrict bb, size_t sz)
             return *ap - *bp;
         }
 
-        ap++;
-        bp++;
+        ap += 1;
+        bp += 1;
     }
 
     return 0;
@@ -113,8 +113,8 @@ const char* strchr(const char* restrict str, int chr)
 int strcmp(const char* restrict sa, const char* restrict sb)
 {
     while(*sa && *sa == *sb) {
-        sa++;
-        sb++;
+        sa += 1;
+        sb += 1;
     }
 
     return *sa - *sb;
@@ -140,8 +140,8 @@ size_t strcspn(const char* restrict str, const char* restrict sym)
             return i;
         }
 
-        str++;
-        i++;
+        str += 1;
+        i += 1;
     }
 
     return i;
@@ -487,7 +487,7 @@ size_t strlen(const char* restrict str)
 {
     size_t i;
 
-    for(i = 0; *str++; i++) {
+    for(i = 0; *str++; ++i) {
         // empty
     }
 
@@ -499,11 +499,11 @@ char* strncat(char* restrict dst, const char* restrict src, size_t sz)
     char* save = dst;
 
     while(*dst) {
-        dst++;
+        dst += 1;
     }
 
     while(sz && (*dst++ = *src++)) {
-        sz--;
+        sz -= 1;
     }
 
     if(sz == 0) {
@@ -516,8 +516,8 @@ char* strncat(char* restrict dst, const char* restrict src, size_t sz)
 int strncmp(const char* restrict sa, const char* restrict sb, size_t sz)
 {
     while(sz-- && *sa && *sa == *sb) {
-        sa++;
-        sb++;
+        sa += 1;
+        sb += 1;
     }
 
     if(sz == SIZE_MAX) {
@@ -532,7 +532,7 @@ char* strncpy(char* restrict dst, const char* restrict src, size_t sz)
     char* save = dst;
 
     while(sz && (*dst++ = *src++)) {
-        sz--;
+        sz -= 1;
     }
 
     while(sz-- > 1) {
@@ -546,7 +546,7 @@ size_t strnlen(const char* restrict str, size_t sz)
 {
     size_t i;
 
-    for(i = 0; *str++ && i < sz; i++) {
+    for(i = 0; *str++ && i < sz; ++i) {
         // empty
     }
 
@@ -560,7 +560,7 @@ const char* strpbrk(const char* restrict str, const char* restrict sym)
             return str;
         }
 
-        str++;
+        str += 1;
     }
 
     return nullptr;
@@ -584,7 +584,7 @@ size_t strspn(const char* restrict str, const char* restrict sym)
     size_t i = 0;
 
     while(*str && strchr(sym, *str++)) {
-        i++;
+        i += 1;
     }
 
     return i;
@@ -599,8 +599,8 @@ const char* strstr(const char* restrict str, const char* restrict substr)
         bp = substr;
 
         while(*bp && (*ap == *bp)) {
-            ++ap;
-            ++bp;
+            ap += 1;
+            bp += 1;
         }
 
         if(!*bp) {

@@ -189,7 +189,7 @@ static int echfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out
     size_t free_blocks = 0;
     size_t data_blocks = context->total_blocks - context->data_start;
 
-    for(uint64_t i = context->data_start; i < context->total_blocks; i++) {
+    for(uint64_t i = context->data_start; i < context->total_blocks; ++i) {
         if(context->fat[i] == ECHFS_TABLE_FREE) {
             free_blocks += 1;
         }

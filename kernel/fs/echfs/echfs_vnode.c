@@ -276,7 +276,7 @@ static ssize_t echfs_vnode_read(struct vnode* restrict node, void* restrict buff
     else {
         block = ctx->start_block;
 
-        for(uint64_t i = 0; i < block_index; i++) {
+        for(uint64_t i = 0; i < block_index; ++i) {
             block = echfs_block_next(fs, block);
 
             if(block == UINTPTR_MAX) {
@@ -410,7 +410,7 @@ static ssize_t echfs_vnode_write(struct vnode* restrict node, const void* restri
     else {
         block = ctx->start_block;
 
-        for(uint64_t i = 0; i < block_index; i++) {
+        for(uint64_t i = 0; i < block_index; ++i) {
             uintptr_t next = echfs_block_next(fs, block);
             if(next == UINTPTR_MAX) {
                 next = echfs_block_alloc(fs);

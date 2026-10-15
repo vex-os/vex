@@ -15,7 +15,7 @@ static void vsnprintf_func(int chr, void* restrict arg)
         ft->data[ft->write] = chr;
     }
 
-    ft->write++;
+    ft->write += 1;
 }
 
 int snprintf(char* restrict str, size_t sz, const char* restrict fmt, ...)
