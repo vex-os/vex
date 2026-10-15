@@ -223,3 +223,10 @@ size_t event_trigger(struct event* restrict evnt, bool linger_pending)
 
     return num_handled;
 }
+
+void event_reset(struct event* restrict evnt)
+{
+    bool intr_state = spinlock_acquire_intr(&evnt->lock);
+    evnt->num_pending = 0;
+    spinlock_release_intr(&evnt->lock, intr_state);
+}

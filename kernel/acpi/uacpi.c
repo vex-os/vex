@@ -1,18 +1,128 @@
 #include <arch/ireq.h>
 #include <uacpi/kernel_api.h>
+#include <vex/atomic.h>
 #include <vex/clocksrc.h>
+#include <vex/event.h>
 #include <vex/hart.h>
 #include <vex/hhdm.h>
+#include <vex/initcall.h>
 #include <vex/intctl.h>
 #include <vex/ireq.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
+#include <vex/mutex.h>
 #include <vex/page.h>
+#include <vex/panic.h>
 #include <vex/pci.h>
 #include <vex/pmap.h>
 #include <vex/rsdp.h>
+#include <vex/sched.h>
+#include <vex/spinlock.h>
 #include <vex/vprot.h>
+
+#define UACPI_TIMEOUT_INFINITE 0xFFFF
+
+struct acpi_work {
+    struct acpi_work* next;
+    uacpi_work_handler handler;
+    uacpi_handle ctx;
+};
+
+static struct acpi_work* work_head;
+static struct acpi_work* work_tail;
+static spinlock_type work_lock = SPINLOCK_INIT;
+static struct event work_queued;
+static unsigned long works_running;
+static unsigned long irqs_running;
+
+// Waits by polling, yielding when the
+// scheduler can switch away and spinning otherwise
+static bool poll_until(bool (*done)(void* arg), void* arg, uacpi_u16 timeout_msec)
+{
+    uint64_t deadline = clocksrc_nsec() + timeout_msec * UINT64_C(1000000);
+
+    for(;;) {
+        if(done(arg)) {
+            return true;
+        }
+
+        if(timeout_msec != UACPI_TIMEOUT_INFINITE && clocksrc_nsec() >= deadline) {
+            return false;
+        }
+
+        if(interrupt_state()) {
+            sched_yield();
+        }
+        else {
+            hart_spin();
+        }
+    }
+}
+
+static bool try_mutex(void* arg)
+{
+    return mutex_try_acquire(arg);
+}
+
+static bool try_event(void* arg)
+{
+    struct event* evnt = arg;
+    return event_await(&evnt, 1) >= 0;
+}
+
+static bool no_irqs_running(void* arg)
+{
+    return 0 == atomic_load_n(&irqs_running, ATOMIC_ACQUIRE);
+}
+
+static bool no_works_running(void* arg)
+{
+    return 0 == atomic_load_n(&works_running, ATOMIC_ACQUIRE);
+}
+
+static struct acpi_work* pop_work(void)
+{
+    bool intr_state = spinlock_acquire_intr(&work_lock);
+
+    struct acpi_work* work = work_head;
+
+    if(work) {
+        work_head = work->next;
+
+        if(work_head == nullptr) {
+            work_tail = nullptr;
+        }
+
+        atomic_fetch_add(&works_running, 1, ATOMIC_ACQ_REL);
+    }
+
+    spinlock_release_intr(&work_lock, intr_state);
+
+    return work;
+}
+
+static void run_work(struct acpi_work* restrict work)
+{
+    work->handler(work->ctx);
+    kfree(work);
+    atomic_fetch_sub(&works_running, 1, ATOMIC_ACQ_REL);
+}
+
+static void __noreturn work_thread(void* restrict arg)
+{
+    for(;;) {
+        struct acpi_work* work = pop_work();
+
+        if(work) {
+            run_work(work);
+            continue;
+        }
+
+        struct event* queued = &work_queued;
+        event_await_blocking(&queued, 1);
+    }
+}
 
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out)
 {
@@ -88,47 +198,71 @@ void uacpi_kernel_free(void* mem)
 
 uacpi_handle uacpi_kernel_create_mutex(void)
 {
-    return (uacpi_handle)42;
+    struct mutex* mtx = kmalloc(sizeof(struct mutex));
+
+    if(mtx) {
+        mutex_init(mtx);
+    }
+
+    return mtx;
 }
 
 void uacpi_kernel_free_mutex(uacpi_handle handle)
 {
-    // empty
+    mutex_deinit(handle);
+    kfree(handle);
 }
 
 uacpi_status uacpi_kernel_acquire_mutex(uacpi_handle handle, uacpi_u16 timeout)
 {
-    return UACPI_STATUS_OK;
+    if(timeout == UACPI_TIMEOUT_INFINITE) {
+        mutex_acquire(handle);
+        return UACPI_STATUS_OK;
+    }
+
+    return poll_until(&try_mutex, handle, timeout) ? UACPI_STATUS_OK : UACPI_STATUS_TIMEOUT;
 }
 
 void uacpi_kernel_release_mutex(uacpi_handle handle)
 {
-    // empty
+    mutex_release(handle);
 }
 
 uacpi_handle uacpi_kernel_create_event(void)
 {
-    return (uacpi_handle)69;
+    struct event* evnt = kmalloc(sizeof(struct event));
+
+    if(evnt) {
+        event_init(evnt);
+    }
+
+    return evnt;
 }
 
 void uacpi_kernel_free_event(uacpi_handle handle)
 {
-    // empty
+    event_deinit(handle);
+    kfree(handle);
 }
 
 uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle handle, uacpi_u16 timeout)
 {
-    return UACPI_TRUE;
+    if(timeout == UACPI_TIMEOUT_INFINITE && interrupt_state()) {
+        struct event* evnt = handle;
+        return event_await_blocking(&evnt, 1) >= 0;
+    }
+
+    return poll_until(&try_event, handle, timeout);
 }
 
 void uacpi_kernel_signal_event(uacpi_handle handle)
 {
-    // empty
+    event_trigger(handle, true);
 }
 
 void uacpi_kernel_reset_event(uacpi_handle handle)
 {
-    // empty
+    event_reset(handle);
 }
 
 uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void)
@@ -241,7 +375,9 @@ static void acpi_irq_dispatch(unsigned number, const struct hart_context* restri
 {
     struct acpi_irq_trampoline* trampoline = ctxdata;
 
+    atomic_fetch_add(&irqs_running, 1, ATOMIC_ACQ_REL);
     trampoline->handler(trampoline->ctxdata);
+    atomic_fetch_sub(&irqs_running, 1, ATOMIC_ACQ_REL);
 }
 
 uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interrupt_handler handler, uacpi_handle ctxdata,
@@ -301,10 +437,57 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler ha
 
 uacpi_status uacpi_kernel_schedule_work(uacpi_work_type type, uacpi_work_handler handler, uacpi_handle ctx)
 {
+    // FIXME: GPE work should run on CPU0 to dodge
+    // SMI-related firmware bugs, but threads can't be pinned yet
+    struct acpi_work* work = kmalloc(sizeof(struct acpi_work));
+
+    if(work == nullptr) {
+        return UACPI_STATUS_OUT_OF_MEMORY;
+    }
+
+    work->handler = handler;
+    work->ctx = ctx;
+
+    bool intr_state = spinlock_acquire_intr(&work_lock);
+
+    if(work_tail) {
+        work_tail->next = work;
+    }
+    else {
+        work_head = work;
+    }
+
+    work_tail = work;
+
+    spinlock_release_intr(&work_lock, intr_state);
+
+    event_trigger(&work_queued, true);
+
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_wait_for_work_completion(void)
 {
+    poll_until(&no_irqs_running, nullptr, UACPI_TIMEOUT_INFINITE);
+
+    // Draining the queue here also works
+    // before the scheduler has started the worker
+    for(struct acpi_work* work = pop_work(); work; work = pop_work()) {
+        run_work(work);
+    }
+
+    poll_until(&no_works_running, nullptr, UACPI_TIMEOUT_INFINITE);
+
     return UACPI_STATUS_OK;
 }
+
+static void init_acpi_work(void)
+{
+    event_init(&work_queued);
+
+    if(!create_thread_kern_enq(&work_thread, nullptr)) {
+        panic("uacpi: out of memory");
+    }
+}
+
+initcall_bsp_multicore(init_acpi_work, INIT_LAST);
