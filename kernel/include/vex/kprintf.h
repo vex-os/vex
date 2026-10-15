@@ -1,5 +1,3 @@
-#ifndef CF91645C_FD7B_4867_ACAF_DFEFD227B222
-#define CF91645C_FD7B_4867_ACAF_DFEFD227B222
 #pragma once
 
 #include <stdarg.h>
@@ -39,5 +37,3 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap) __printflike(2,
 #define pr_notice(fmt, ...)   kprintf(KP_NOTICE, (fmt), ##__VA_ARGS__)
 #define pr_inform(fmt, ...)   kprintf(KP_INFORM, (fmt), ##__VA_ARGS__)
 #define pr_verbose(fmt, ...)  kprintf(KP_VERBOSE, (fmt), ##__VA_ARGS__)
-
-#endif /* CF91645C_FD7B_4867_ACAF_DFEFD227B222 */

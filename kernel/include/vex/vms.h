@@ -1,5 +1,3 @@
-#ifndef D4C8D15A_CB51_45C1_9C8C_8B495E540FE1
-#define D4C8D15A_CB51_45C1_9C8C_8B495E540FE1
 #pragma once
 
 #include <vex/spinlock.h>
@@ -31,5 +29,3 @@ int vms_unmap(struct vmspace* restrict vms, uintptr_t virt);
 int vms_unmap_all(struct vmspace* restrict vms);
 
 int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem);
-
-#endif /* D4C8D15A_CB51_45C1_9C8C_8B495E540FE1 */

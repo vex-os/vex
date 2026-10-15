@@ -1,5 +1,3 @@
-#ifndef D7775666_BC0A_4B3A_858D_ED749B705011
-#define D7775666_BC0A_4B3A_858D_ED749B705011
 #pragma once
 
 #include <vex/compiler.h>
@@ -100,5 +98,3 @@ static __always_inline uintptr_t echfs_block_lba(const struct echfs_vfs_context*
 {
     return block * context->sectors_per_block;
 }
-
-#endif /* D7775666_BC0A_4B3A_858D_ED749B705011 */

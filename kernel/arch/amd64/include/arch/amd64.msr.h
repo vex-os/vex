@@ -1,5 +1,3 @@
-#ifndef CD328B6D_F879_4EF6_AB5C_B4DADF87F15B
-#define CD328B6D_F879_4EF6_AB5C_B4DADF87F15B
 #pragma once
 
 #include <vex/compiler.h>
@@ -31,5 +29,3 @@ static __always_inline void wrmsr_hl(uint32_t msreg, uint32_t hi, uint32_t lo)
 {
     asm volatile("wrmsr" ::"a"(lo), "d"(hi), "c"(msreg));
 }
-
-#endif /* CD328B6D_F879_4EF6_AB5C_B4DADF87F15B */

@@ -1,5 +1,3 @@
-#ifndef EAAEA97D_DF46_4C1D_9BCC_3810B6FA33F7
-#define EAAEA97D_DF46_4C1D_9BCC_3810B6FA33F7
 #pragma once
 
 #include <vex/compiler.h>
@@ -63,5 +61,3 @@ ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, si
 ssize_t vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz);
 int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out);
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, uintptr_t argument);
-
-#endif /* EAAEA97D_DF46_4C1D_9BCC_3810B6FA33F7 */

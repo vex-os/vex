@@ -1,5 +1,3 @@
-#ifndef DF8BB6A9_D11B_4DA4_AFCD_0ACB441D1D5D
-#define DF8BB6A9_D11B_4DA4_AFCD_0ACB441D1D5D
 #pragma once
 
 #include <vex/compiler.h>
@@ -28,5 +26,3 @@
 
 #define atomic_cmpxchg(ptr, expected, desired, succ, fail)      __atomic_compare_exchange_n((ptr), (expected), (desired), 0, (succ), (fail))
 #define atomic_cmpxchg_weak(ptr, expected, desired, succ, fail) __atomic_compare_exchange_n((ptr), (expected), (desired), 1, (succ), (fail))
-
-#endif /* DF8BB6A9_D11B_4DA4_AFCD_0ACB441D1D5D */

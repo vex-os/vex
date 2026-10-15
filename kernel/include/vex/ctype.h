@@ -1,5 +1,3 @@
-#ifndef EF3B2190_ABFB_4621_B0A8_EF49AC4B5C9A
-#define EF3B2190_ABFB_4621_B0A8_EF49AC4B5C9A
 #pragma once
 
 bool isalnum(int codepoint);
@@ -17,5 +15,3 @@ bool isxdigit(int codepoint);
 
 int tolower(int codepoint);
 int toupper(int codepoint);
-
-#endif /* EF3B2190_ABFB_4621_B0A8_EF49AC4B5C9A */

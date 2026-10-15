@@ -1,5 +1,3 @@
-#ifndef B2600BF7_96F9_4B83_8FA8_6C2C28124FF2
-#define B2600BF7_96F9_4B83_8FA8_6C2C28124FF2
 #pragma once
 
 #include <vex/compiler.h>
@@ -58,5 +56,3 @@ static __always_inline int chr_device_ioctl(const struct chr_device* restrict de
         return -ENOTTY;
     return device->ops->ioctl(device, request, argument);
 }
-
-#endif /* B2600BF7_96F9_4B83_8FA8_6C2C28124FF2 */

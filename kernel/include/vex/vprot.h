@@ -1,5 +1,3 @@
-#ifndef AB66BCFE_D7D1_4116_8D38_EE7F447F0FD4
-#define AB66BCFE_D7D1_4116_8D38_EE7F447F0FD4
 #pragma once
 
 #define VPROT_NONE    0x0000U // Empty MMU protection flags
@@ -18,5 +16,3 @@
 #define VPROT_URX  (VPROT_READ | VPROT_EXEC | VPROT_USER)               // User read-execute page
 
 #define VPROT_MMIO (VPROT_RW | VPROT_NOCACHE) // Memory-mapped IO page
-
-#endif /* AB66BCFE_D7D1_4116_8D38_EE7F447F0FD4 */

@@ -1,5 +1,3 @@
-#ifndef B7AE4B7F_54AE_433C_9BA4_36A2569AF05A
-#define B7AE4B7F_54AE_433C_9BA4_36A2569AF05A
 #pragma once
 
 #include <vex/compiler.h>
@@ -27,5 +25,3 @@ size_t strcspn(const char* restrict str, const char* restrict sym) __nodiscard;
 size_t strlen(const char* restrict str) __nodiscard;
 size_t strnlen(const char* restrict str, size_t sz) __nodiscard;
 size_t strspn(const char* restrict str, const char* restrict sym) __nodiscard;
-
-#endif /* B7AE4B7F_54AE_433C_9BA4_36A2569AF05A */

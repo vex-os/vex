@@ -1,5 +1,3 @@
-#ifndef D23AA7F3_1D76_4ED1_B2EE_6C41CC40DDFA
-#define D23AA7F3_1D76_4ED1_B2EE_6C41CC40DDFA
 #pragma once
 
 #include <vex/compiler.h>
@@ -18,5 +16,3 @@ uint32_t crc32_get_ext_nro(const struct crc32_table* restrict table, const void*
 uint32_t crc32_get_ext_rfo(const struct crc32_table* restrict table, const void* restrict data, size_t sz, uint32_t ext) __nodiscard;
 uint32_t crc32_get_nro(const struct crc32_table* restrict table, const void* restrict data, size_t sz) __nodiscard;
 uint32_t crc32_get_rfo(const struct crc32_table* restrict table, const void* restrict data, size_t sz) __nodiscard;
-
-#endif /* D23AA7F3_1D76_4ED1_B2EE_6C41CC40DDFA */

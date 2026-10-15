@@ -1,5 +1,3 @@
-#ifndef A6A7BDE1_6F01_427C_80B6_14BB87B2C2AD
-#define A6A7BDE1_6F01_427C_80B6_14BB87B2C2AD
 #pragma once
 
 #include <arch/hart.h>
@@ -51,5 +49,3 @@ static __always_inline void spinlock_release_intr(spinlock_type* restrict lock, 
     spinlock_release(lock);
     restore_interrupts(intr_state);
 }
-
-#endif /* A6A7BDE1_6F01_427C_80B6_14BB87B2C2AD */

@@ -1,5 +1,3 @@
-#ifndef C1D6CD55_7B10_4B04_B0BB_64211D90DB93
-#define C1D6CD55_7B10_4B04_B0BB_64211D90DB93
 #pragma once
 
 #include <vex/compiler.h>
@@ -13,5 +11,3 @@
 
 int hrsize_bin(char* restrict buffer, size_t sz, size_t value); // IEC 1024-base prefixes
 int hrsize_dec(char* restrict buffer, size_t sz, size_t value); // SI 1000-base prefixes
-
-#endif /* C1D6CD55_7B10_4B04_B0BB_64211D90DB93 */

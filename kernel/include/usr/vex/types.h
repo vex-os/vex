@@ -1,5 +1,5 @@
-#ifndef D2A4146C_35A7_4524_B3D3_57C05E72B76A
-#define D2A4146C_35A7_4524_B3D3_57C05E72B76A
+#ifndef USR_VEX_TYPES_H
+#define USR_VEX_TYPES_H
 
 #include <limits.h>
 
@@ -85,4 +85,4 @@ typedef __k_SINT32_TYPE __k_timer_t;
 typedef __k_SINT64_TYPE __k_clock_t;
 typedef __k_SINT64_TYPE __k_time_t;
 
-#endif /* D2A4146C_35A7_4524_B3D3_57C05E72B76A */
+#endif /* USR_VEX_TYPES_H */

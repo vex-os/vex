@@ -1,5 +1,3 @@
-#ifndef D02B0642_A8FA_4DDB_87E1_45838B67458F
-#define D02B0642_A8FA_4DDB_87E1_45838B67458F
 #pragma once
 
 #include <vex/compiler.h>
@@ -51,5 +49,3 @@ static __always_inline void bitmap_set(bitmap_type* restrict bitmap, size_t bit)
     size_t bmod = bit % BITMAP_CHUNK_BITS;
     bitmap[bdiv] |= BITMAP_BIT(BITMAP_CHUNK_BITS - bmod - 1);
 }
-
-#endif /* D02B0642_A8FA_4DDB_87E1_45838B67458F */

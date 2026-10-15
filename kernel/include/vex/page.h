@@ -1,5 +1,3 @@
-#ifndef AE9FFA1D_8A1C_4366_9EC8_7085B303971C
-#define AE9FFA1D_8A1C_4366_9EC8_7085B303971C
 #pragma once
 
 #include <vex/compiler.h>
@@ -35,5 +33,3 @@ static __always_inline __nodiscard size_t page_offset(uintptr_t address)
 {
     return address & (PAGE_SIZE - 1);
 }
-
-#endif /* AE9FFA1D_8A1C_4366_9EC8_7085B303971C */

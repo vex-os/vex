@@ -1,5 +1,3 @@
-#ifndef E1A5A317_CB3A_4ABF_80EB_8AC9CD73E11C
-#define E1A5A317_CB3A_4ABF_80EB_8AC9CD73E11C
 #pragma once
 
 #include <vex/compiler.h>
@@ -34,5 +32,3 @@ int remove_binfmt(struct binfmt* restrict fmt);
 
 int load_binary(struct process* restrict proc, struct file* restrict fp, const char** restrict argv, const char** restrict envp,
     struct entry_point* restrict out);
-
-#endif /* E1A5A317_CB3A_4ABF_80EB_8AC9CD73E11C */

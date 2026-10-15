@@ -1,5 +1,3 @@
-#ifndef C02B5460_568D_48F8_B826_99E2AE03A5AC
-#define C02B5460_568D_48F8_B826_99E2AE03A5AC
 #pragma once
 
 #include <vex/compiler.h>
@@ -56,5 +54,3 @@ extern const struct initcall initcalls_smp_start[];
 extern const struct initcall initcalls_smp_end[];
 
 void invoke_initcalls(const struct initcall* restrict start, const struct initcall* restrict end);
-
-#endif /* C02B5460_568D_48F8_B826_99E2AE03A5AC */

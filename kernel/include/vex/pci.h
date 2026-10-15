@@ -1,5 +1,3 @@
-#ifndef DE230BAC_AA17_4780_B3C2_71F7DA67E522
-#define DE230BAC_AA17_4780_B3C2_71F7DA67E522
 #pragma once
 
 #include <vex/compiler.h>
@@ -220,5 +218,3 @@ void pci_disable_busmaster(struct pci_device* restrict device);
 
 int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handler, void* restrict ctxdata);
 void pci_release_irq(struct pci_device* restrict device);
-
-#endif /* DE230BAC_AA17_4780_B3C2_71F7DA67E522 */

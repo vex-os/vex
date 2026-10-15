@@ -1,5 +1,3 @@
-#ifndef F63D6B62_92FB_4609_8F6A_7D3FE9C20BB1
-#define F63D6B62_92FB_4609_8F6A_7D3FE9C20BB1
 #pragma once
 
 #include <vex/compiler.h>
@@ -59,5 +57,3 @@ unsigned long long strtoull(const char* restrict nptr, const char** restrict end
 intmax_t strtoimax(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
 uintmax_t strtoumax(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
 size_t strtousize(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
-
-#endif /* F63D6B62_92FB_4609_8F6A_7D3FE9C20BB1 */

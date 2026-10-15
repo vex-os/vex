@@ -1,5 +1,5 @@
-#ifndef F90798A9_D23B_4A3B_A235_04634F671719
-#define F90798A9_D23B_4A3B_A235_04634F671719
+#ifndef USR_VEX_ERRNO_H
+#define USR_VEX_ERRNO_H
 
 #define __k_EDOM   101
 #define __k_EILSEQ 102
@@ -82,4 +82,4 @@
 #define __k_EWOULDBLOCK     275
 #define __k_EXDEV           276
 
-#endif /* F90798A9_D23B_4A3B_A235_04634F671719 */
+#endif /* USR_VEX_ERRNO_H */

@@ -1,5 +1,3 @@
-#ifndef A5B67F05_8F06_424F_9A95_ABEEBF66D8F9
-#define A5B67F05_8F06_424F_9A95_ABEEBF66D8F9
 #pragma once
 
 #include <vex/compiler.h>
@@ -558,5 +556,3 @@ struct elf64_auxv {
     uint64_t a_type;
     uint64_t a_val;
 } __packed;
-
-#endif /* A5B67F05_8F06_424F_9A95_ABEEBF66D8F9 */

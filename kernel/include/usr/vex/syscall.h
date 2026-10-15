@@ -1,5 +1,5 @@
-#ifndef EA2F614B_CC26_4194_9F67_1556412D7D11
-#define EA2F614B_CC26_4194_9F67_1556412D7D11
+#ifndef USR_VEX_SYSCALL_H
+#define USR_VEX_SYSCALL_H
 
 #define __k_SYS_EXIT     1
 #define __k_SYS_FORK     2
@@ -34,4 +34,4 @@
 #define __k_SYS_GETTIME  31
 #define __k_SYS_TEST     32 /* for testing purposes */
 
-#endif /* EA2F614B_CC26_4194_9F67_1556412D7D11 */
+#endif /* USR_VEX_SYSCALL_H */

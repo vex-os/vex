@@ -1,5 +1,5 @@
-#ifndef DEC4043C_F5C4_4349_B982_BE8C8DA3BB67
-#define DEC4043C_F5C4_4349_B982_BE8C8DA3BB67
+#ifndef USR_VEX_FCNTL_H
+#define USR_VEX_FCNTL_H
 
 #include <vex/types.h>
 
@@ -10,4 +10,4 @@
 #define __k_O_TRUNC  ((__k_mode_t)(0x0008))
 #define __k_O_APPEND ((__k_mode_t)(0x0010))
 
-#endif /* DEC4043C_F5C4_4349_B982_BE8C8DA3BB67 */
+#endif /* USR_VEX_FCNTL_H */

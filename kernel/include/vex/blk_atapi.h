@@ -1,5 +1,3 @@
-#ifndef A3F9F255_18A7_4E12_B8B7_E0E4F6D47EEB
-#define A3F9F255_18A7_4E12_B8B7_E0E4F6D47EEB
 #pragma once
 
 #include <vex/blk_device.h>
@@ -24,5 +22,3 @@ struct atapi_device {
 
 int add_atapi_device(struct atapi_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index);
 void remove_atapi_device(struct atapi_device* restrict device);
-
-#endif /* A3F9F255_18A7_4E12_B8B7_E0E4F6D47EEB */

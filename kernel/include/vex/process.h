@@ -1,5 +1,3 @@
-#ifndef DAD7E4CF_1C26_44A8_B4BF_6ABBD792D805
-#define DAD7E4CF_1C26_44A8_B4BF_6ABBD792D805
 #pragma once
 
 #include <vex/event.h>
@@ -50,5 +48,3 @@ struct file* dereference_fd(struct process* proc, int fd) __nodiscard;
 int allocate_fd(struct process* proc, struct file* file) __nodiscard;
 int duplicate_fd(struct process* proc, int old_fd, int new_fd) __nodiscard;
 void release_fd(struct process* proc, int fd);
-
-#endif /* DAD7E4CF_1C26_44A8_B4BF_6ABBD792D805 */

@@ -1,5 +1,3 @@
-#ifndef C7E3A2B1_4F9D_4E8C_B6A5_D2C3E4F5A6B7
-#define C7E3A2B1_4F9D_4E8C_B6A5_D2C3E4F5A6B7
 #pragma once
 
 #include <arch/hart.h>
@@ -60,5 +58,3 @@ static_assert((0 * sizeof(uintptr_t)) == offsetof(struct thread, self));
 static_assert((1 * sizeof(uintptr_t)) == offsetof(struct thread, errno_value));
 static_assert((2 * sizeof(uintptr_t)) == offsetof(struct thread, kernel_rsp));
 static_assert((3 * sizeof(uintptr_t)) == offsetof(struct thread, entry_scratch));
-
-#endif /* C7E3A2B1_4F9D_4E8C_B6A5_D2C3E4F5A6B7 */

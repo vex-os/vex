@@ -1,5 +1,3 @@
-#ifndef DDF5F45D_960D_439C_8511_CE0CBA3BAEAF
-#define DDF5F45D_960D_439C_8511_CE0CBA3BAEAF
 #pragma once
 
 #include <vex/compiler.h>
@@ -28,5 +26,3 @@ extern struct blk_name* blk_name_virtio;
 struct blk_name* blk_name_query(const char* restrict prefix) __nodiscard;
 unsigned blk_name_increment(struct blk_name* restrict name) __nodiscard;
 unsigned blk_name_count(const struct blk_name* restrict name) __nodiscard;
-
-#endif /* DDF5F45D_960D_439C_8511_CE0CBA3BAEAF */

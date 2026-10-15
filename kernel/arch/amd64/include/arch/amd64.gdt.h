@@ -1,5 +1,3 @@
-#ifndef C0E501A6_2C96_4C65_8667_EC228CA1B283
-#define C0E501A6_2C96_4C65_8667_EC228CA1B283
 #pragma once
 
 #include <vex/compiler.h>
@@ -20,5 +18,3 @@
 
 static_assert(0x43 == gdt_selector(GDT_USER_CODE_64, 0, 3));
 static_assert(0x3B == gdt_selector(GDT_USER_DATA_64, 0, 3));
-
-#endif /* C0E501A6_2C96_4C65_8667_EC228CA1B283 */

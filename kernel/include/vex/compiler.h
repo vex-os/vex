@@ -1,5 +1,3 @@
-#ifndef A3F007DC_A45C_452A_9065_57ADF398B430
-#define A3F007DC_A45C_452A_9065_57ADF398B430
 #pragma once
 
 #ifndef __GNUC__
@@ -63,5 +61,3 @@
 #define align_floor(x, align) ((x) & ~(__typeof__(x))((align) - 1))
 
 #define LIMINE_REQUEST __used __section(".limine_requests")
-
-#endif /* A3F007DC_A45C_452A_9065_57ADF398B430 */

@@ -1,5 +1,3 @@
-#ifndef FBA4EE33_16D0_491E_B145_335A2BCB4620
-#define FBA4EE33_16D0_491E_B145_335A2BCB4620
 #pragma once
 
 #include <vex/types.h>
@@ -11,5 +9,3 @@ struct mmio_region {
     volatile uint64_t* virt64;
     size_t length;
 };
-
-#endif /* FBA4EE33_16D0_491E_B145_335A2BCB4620 */

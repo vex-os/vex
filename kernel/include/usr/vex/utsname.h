@@ -1,5 +1,5 @@
-#ifndef AB619E39_F4DB_49DB_A29B_9BFE8CDB266A
-#define AB619E39_F4DB_49DB_A29B_9BFE8CDB266A
+#ifndef USR_VEX_UTSNAME_H
+#define USR_VEX_UTSNAME_H
 
 #ifndef __k_UNAME_SIZE
 #define __k_UNAME_SIZE 128
@@ -13,4 +13,4 @@ struct __k_utsname {
     char machine[__k_UNAME_SIZE];
 };
 
-#endif /* AB619E39_F4DB_49DB_A29B_9BFE8CDB266A */
+#endif /* USR_VEX_UTSNAME_H */

@@ -1,5 +1,3 @@
-#ifndef A3F2C1D0_8B4E_4F7A_9C5D_E1B2A3F4C5D6
-#define A3F2C1D0_8B4E_4F7A_9C5D_E1B2A3F4C5D6
 #pragma once
 
 #include <vex/types.h>
@@ -27,5 +25,3 @@ void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, 
     void* restrict kernel_stack_top, void* restrict pfault_stack_top, struct vmspace* restrict vms);
 void arch_thread_ctx_save(struct thread* restrict thrd);
 void arch_thread_ctx_load(struct thread* restrict thrd);
-
-#endif /* A3F2C1D0_8B4E_4F7A_9C5D_E1B2A3F4C5D6 */
