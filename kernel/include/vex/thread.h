@@ -36,8 +36,9 @@ struct thread {
     struct hart_local* hart;
     unsigned short hart_index;
 
-    bool enqueued;
     bool enqueued_by_signal;
+    struct thread* rq_next;
+    struct thread* rq_prev;
 
     struct event** events; // events that can wake up this thread
     size_t wakeup_index;

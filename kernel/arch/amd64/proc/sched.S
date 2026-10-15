@@ -4,6 +4,13 @@
 .type sched_enter, @function
 sched_enter:
     movq %rdi, %rsp     # hart_context at rdi
+
+    # No longer on the previous thread's stack,
+    # so another hart may now resume that thread
+    testq %rsi, %rsi
+    jz 2f
+    movq $0, (%rsi)     # SPINLOCK_FREE
+2:
     popq %rax
     movq %rax, %ds      # hart_context::x86_ds
     popq %rax
