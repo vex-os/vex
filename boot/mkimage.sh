@@ -29,7 +29,9 @@ start=2048,size=8192,type=C12A7328-F81F-11D2-BA4B-00A0C93EC93B,name=ESP
 type=EBD0A0A2-B9E5-4433-87C0-68B6B72699C7,name=DATA
 SFDISK
 
-mkfs.fat -F16 --offset 2048 "${temp_file}" > /dev/null || exit 1
+# The block count is in KiB and must match the ESP size above,
+# otherwise mkfs.fat spans the filesystem to the end of the image
+mkfs.fat -F16 -s 1 --offset 2048 "${temp_file}" $((8192 / 2)) > /dev/null || exit 1
 
 if command -v echfs-utils > /dev/null 2>&1; then
     echfs-utils -g -p 1 "${temp_file}" quick-format 512 > /dev/null || exit 1
