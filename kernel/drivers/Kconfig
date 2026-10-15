@@ -1,0 +1,7 @@
+config AHCI
+    bool "AHCI SATA controllers"
+    default y
+
+config PS2KBD
+    bool "PS/2 keyboard"
+    default y

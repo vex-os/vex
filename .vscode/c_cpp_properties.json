@@ -15,7 +15,9 @@
       ],
       "includePath": [
         "${workspaceFolder}/kernel/arch/amd64/include",
-        "${workspaceFolder}/kernel/include"
+        "${workspaceFolder}/kernel/include",
+        "${workspaceFolder}/contrib/limine/include",
+        "${workspaceFolder}/contrib/uacpi/include"
       ],
       "compilerArgs": [
         "-ffreestanding",
@@ -26,7 +28,8 @@
         "-pedantic"
       ],
       "compilerPath": "clang",
-      "cStandard": "gnu23"
+      "cStandard": "gnu23",
+      "compileCommands": "${workspaceFolder}/build/compile_commands.json"
     }
   ]
 }

@@ -1,0 +1,9 @@
+Kconfiglib, vendored unmodified from the sysprog21 fork
+
+    https://github.com/sysprog21/Kconfiglib
+    commit 6d9102abd55b614d3c6133529ffa40dbea7fd2cf (version 15.0.0)
+
+Only the library and the tools the build uses are kept. Use update.sh
+to update them, optionally passing a branch, tag or commit; it also
+updates the hash above.
+Glue code lives in scripts/kconfig/.

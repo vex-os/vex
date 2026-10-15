@@ -1,0 +1,8 @@
+Limine, vendored unmodified from upstream
+
+    https://github.com/Limine-Bootloader/limine (v11.x-binary branch)
+    https://github.com/Limine-Bootloader/limine-protocol (trunk branch)
+
+BOOT*.EFI are prebuilt bootloader binaries, include/limine.h is the
+boot protocol header used by the kernel. Use update.sh to update
+them.

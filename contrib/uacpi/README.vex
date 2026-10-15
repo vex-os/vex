@@ -1,0 +1,7 @@
+uACPI, vendored unmodified from upstream
+
+    https://github.com/uACPI/uACPI
+
+include/ and source/ are copies of upstream's include/ and source/
+directories, use update.sh to update them. If upstream
+adds or removes source files, update the list in meson.build.

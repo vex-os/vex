@@ -1,0 +1,3 @@
+mainmenu "Vex kernel configuration"
+
+source "kernel/Kconfig"

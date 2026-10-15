@@ -4,20 +4,16 @@
 !/.vscode/c_cpp_properties.json
 !/.vscode/launch.json
 
-## Ignore build and output directories with
-## everything build process generates
+## Ignore clangd index
+/.cache/
+
+## Ignore meson build directories
 /build/
-/build/*
-/output/
-/output/*
+/build-*/
 
 ## Ignore stuff python runtime generates
 __pycache__/
-__pycache__/*
 *.pyc
-
-## Ignore configuration artifacts
-.config.*.mk
 
 ## Ignore stuff that QEMU and other scripts
 ## might emit during debugging sessions

@@ -1,0 +1,19 @@
+kernel_sources += files(
+    'blk_ata.c',
+    'blk_atapi.c',
+    'blk_device.c',
+    'blk_event.c',
+    'blk_name.c',
+    'blk_ptable.c',
+    'chr_device.c',
+    'chr_event.c',
+    'chr_name.c',
+)
+
+if kconfig.get('CONFIG_PTABLE_GPT', 'n') == 'y'
+    kernel_sources += files('ptable_gpt.c')
+endif
+
+if kconfig.get('CONFIG_PTABLE_MBR', 'n') == 'y'
+    kernel_sources += files('ptable_mbr.c')
+endif
