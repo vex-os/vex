@@ -72,7 +72,7 @@ static __always_inline __nodiscard unsigned pmentry_vprot(pmentry_type entry)
         vprot |= VPROT_WRITE;
     if(entry & AMD64_PML_USER)
         vprot |= VPROT_USER;
-    if(!(entry & AMD64_PML_NOEXEC))
+    if(0 == (entry & AMD64_PML_NOEXEC))
         vprot |= VPROT_EXEC;
     if(entry & AMD64_PML_PCD)
         vprot |= VPROT_NOCACHE;

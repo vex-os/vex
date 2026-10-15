@@ -50,7 +50,7 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
         sign = 0x00;
     }
 
-    if(!(flags & F_LEFT) && (flags & F_ZERO_PAD)) {
+    if(0 == (flags & F_LEFT) && (flags & F_ZERO_PAD)) {
         // Normally numeric values are padded (ie. moved)
         // with a whitespace character but if we are not
         // left-justified, we can use leading zeros for that.
@@ -81,7 +81,7 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
     }
 
     if(flags & F_HASH) {
-        if(!(flags & F_ZERO_PAD)) {
+        if(0 == (flags & F_ZERO_PAD)) {
             switch(base) {
                 case 2:
                     stage[stager++] = 'b';
@@ -102,7 +102,7 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
         }
     }
 
-    if(!(flags & F_LEFT)) {
+    if(0 == (flags & F_LEFT)) {
         // Add numeric prefix in cases of zero-padding
         // as the prefixes don't exist in the stage buffer
         if((flags & F_HASH) && (flags & F_ZERO_PAD)) {
@@ -159,7 +159,7 @@ static size_t write_str(format_func_type func, void* restrict user, const char* 
     size_t len = precision ? strnlen(s, precision) : strlen(s);
     size_t counter = 0;
 
-    if(!(flags & F_LEFT)) {
+    if(0 == (flags & F_LEFT)) {
         for(size_t i = len; cap && i < width; ++i) {
             func(' ', user);
             counter++;
