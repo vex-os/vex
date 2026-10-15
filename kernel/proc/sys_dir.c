@@ -9,31 +9,6 @@
 #include <vex/uaccess.h>
 #include <vex/vnode.h>
 
-static int resolve_parent(const char* path, struct vnode** out_parent, const char** out_name)
-{
-    const char* slash = strrchr(path, PATH_SEPARATOR);
-
-    out_name[0] = slash ? &slash[1] : path;
-
-    if(slash == nullptr || slash == path) {
-        // There is no parent directory
-        return path_resolve("/", out_parent);
-    }
-
-    char dir_path[NAME_SIZE];
-    size_t dir_length = slash - path;
-
-    if(dir_length >= NAME_SIZE) {
-        return -ENAMETOOLONG;
-    }
-
-    memcpy(dir_path, path, dir_length);
-
-    dir_path[dir_length] = 0x00;
-
-    return path_resolve(dir_path, out_parent);
-}
-
 static intptr_t sys_unlink(const uintptr_t* restrict args)
 {
     char path[PATH_SIZE];
@@ -45,7 +20,7 @@ static intptr_t sys_unlink(const uintptr_t* restrict args)
 
     const char* name;
     struct vnode* parent;
-    int retval = resolve_parent(path, &parent, &name);
+    int retval = path_resolve_parent(path, &parent, &name);
 
     if(retval < 0) {
         return retval;
@@ -69,7 +44,7 @@ static intptr_t sys_mkdir(const uintptr_t* restrict args)
 
     const char* name;
     struct vnode* parent;
-    int retval = resolve_parent(path, &parent, &name);
+    int retval = path_resolve_parent(path, &parent, &name);
 
     if(retval < 0) {
         return retval;

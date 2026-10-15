@@ -101,7 +101,7 @@ static intptr_t sys_syncfs(const uintptr_t* restrict args)
         return -EBADF;
     }
 
-    struct vfs* fs = vfs_get_fs(fp->node);
+    struct vfs* fs = fp->node->fs;
 
     if(fs == nullptr) {
         return -EINVAL;
@@ -125,7 +125,7 @@ static intptr_t sys_statvfs(const uintptr_t* restrict args)
         return -EBADF;
     }
 
-    struct vfs* fs = vfs_get_fs(fp->node);
+    struct vfs* fs = fp->node->fs;
 
     if(fs == nullptr) {
         return -EINVAL;
