@@ -478,6 +478,14 @@ static void init_mmu(void)
         }
     }
 
+    // Address spaces copy the kernel half's top-level entries when they are created,
+    // so every one of them must exist before the first copy for the kernel half to stay shared
+    for(size_t i = PAGEMAP_USER_END; i < PAGEMAP_SIZE; ++i) {
+        if(!pmentry_get(sys_pmap.virt, i, true)) {
+            panic("mmu: out of memory");
+        }
+    }
+
     pmap_switch(&sys_pmap);
 }
 

@@ -1,5 +1,4 @@
 #include <vex/bitmap.h>
-#include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/kstack.h>
 #include <vex/page.h>
@@ -122,17 +121,6 @@ bool kstack_is_guard(uintptr_t address)
 static void init_kstack(void)
 {
     bitmap_range_set(slots, 0U, KSTACK_NUM_SLOTS - 1U);
-
-    // Address spaces share kernel-half page tables by copying the top-level
-    // entries on creation; mapping a page here once creates the region's entry
-    uintptr_t phys = pslab_alloc_phys();
-
-    if(phys == 0U || pmap_map(&sys_pmap, KSTACK_REGION_BASE, phys, VPROT_RW) < 0) {
-        panic("kstack: out of memory");
-    }
-
-    pmap_unmap(&sys_pmap, KSTACK_REGION_BASE);
-    pslab_free_phys(phys);
 }
 
 initcall_bsp_heap(init_kstack, INIT_MIDDLE);
