@@ -1,6 +1,7 @@
 kernel_sources += files(
     'event.c',
     'hart.c',
+    'mutex.c',
     'process.c',
     'sched.c',
     'sys_dir.c',
