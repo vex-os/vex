@@ -178,6 +178,8 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         return -ENOMEM;
     }
 
+    mutex_init(&context->lock);
+
     context->device = device;
     context->filesystem_type = filesystem_type;
 
@@ -291,7 +293,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     return 0;
 }
 
-static int fat_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
+static int statvfs_locked(struct vfs* restrict fs, struct k_statvfs* restrict out)
 {
     struct fat_vfs_context* context = fs->ctxdata;
 
@@ -359,7 +361,7 @@ static int fat_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
     return 0;
 }
 
-static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
+static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
 {
     struct fat_vfs_context* context = fs->ctxdata;
 
@@ -440,12 +442,13 @@ static int fat_unmount(struct vfs* restrict fs)
 
     kfree(context->bounce);
     kfree(context->cache);
+    mutex_deinit(&context->lock);
     kfree(context);
 
     return 0;
 }
 
-static int fat_sync(struct vfs* restrict fs)
+static int sync_locked(struct vfs* restrict fs)
 {
     struct fat_vfs_context* context = fs->ctxdata;
 
@@ -469,6 +472,33 @@ static int fat_sync(struct vfs* restrict fs)
     invalidate_fsinfo(context);
 
     return 0;
+}
+
+static int fat_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
+{
+    struct fat_vfs_context* context = fs->ctxdata;
+    mutex_acquire(&context->lock);
+    int retval = statvfs_locked(fs, out);
+    mutex_release(&context->lock);
+    return retval;
+}
+
+static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
+{
+    struct fat_vfs_context* context = fs->ctxdata;
+    mutex_acquire(&context->lock);
+    int retval = fillnode_locked(fs, node);
+    mutex_release(&context->lock);
+    return retval;
+}
+
+static int fat_sync(struct vfs* restrict fs)
+{
+    struct fat_vfs_context* context = fs->ctxdata;
+    mutex_acquire(&context->lock);
+    int retval = sync_locked(fs);
+    mutex_release(&context->lock);
+    return retval;
 }
 
 static const struct vfs_ops fat_vfs_ops = {

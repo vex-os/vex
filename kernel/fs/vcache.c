@@ -1,3 +1,4 @@
+#include <vex/atomic.h>
 #include <vex/limits.h>
 #include <vex/mount.h>
 #include <vex/slab.h>
@@ -72,6 +73,33 @@ struct vnode* vcache_get_or_insert(struct vnode* restrict node)
     spinlock_release(&cache_lock);
 
     return node;
+}
+
+bool vcache_in_use(struct vfs* restrict fs, unsigned root_refs)
+{
+    spinlock_acquire(&cache_lock);
+
+    unsigned long actual = atomic_load(&fs->root->refcount, ATOMIC_RELAXED);
+    unsigned long expected = root_refs;
+
+    // The cache holds one reference to each node
+    // and every cached directory holds one to its parent
+    for(unsigned bucket = 0; bucket < NUM_BUCKETS; bucket += 1) {
+        for(struct vcache* it = cache[bucket]; it; it = it->next) {
+            if(it->fs == fs) {
+                actual += atomic_load(&it->node->refcount, ATOMIC_RELAXED);
+                expected += 1;
+
+                if(it->node->nodetype == VNODE_DIRECTORY && it->node->parent) {
+                    expected += 1;
+                }
+            }
+        }
+    }
+
+    spinlock_release(&cache_lock);
+
+    return actual > expected;
 }
 
 void vcache_evict(struct vfs* restrict fs)

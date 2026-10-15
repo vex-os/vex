@@ -90,6 +90,10 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
             return;
         }
 
+        // A fault from ring 3 holds
+        // no kernel locks, and exiting may sleep
+        enable_interrupts();
+
         process_exit(proc, -1);
         sched_terminate();
         unreachable();
@@ -133,6 +137,7 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
         struct process* proc = thrd->proc;
 
         if(proc) {
+            enable_interrupts();
             process_exit(proc, -1);
         }
 
