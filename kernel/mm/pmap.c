@@ -2,7 +2,6 @@
 #include <vex/hart.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
-#include <vex/ireq.h>
 #include <vex/kbase.h>
 #include <vex/kprintf.h>
 #include <vex/linker.h>
@@ -14,17 +13,11 @@
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
+#include <vex/tlb.h>
 
 static_assert(sizeof(struct pagemap) <= (PAGE_SIZE / 2));
 
-static unsigned flush_ipi_ireq;
-
 struct pagemap sys_pmap;
-
-static void flush_ipi_handler(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
-{
-    pmap_flush_all();
-}
 
 static size_t pte_index(uintptr_t virt, uintptr_t shift)
 {
@@ -191,27 +184,27 @@ int pmap_patch(struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot)
     bool intr_state = spinlock_acquire_intr(&pmap->lock);
 
     pmentry_type* entry = pmentry_walk(pmap, virt, false);
-    int retval;
 
     if(entry == nullptr) {
-        retval = -ENOMEM;
+        spinlock_release_intr(&pmap->lock, intr_state);
+        return -ENOMEM;
     }
-    else if(!pmentry_valid(*entry)) {
-        retval = -EINVAL;
+
+    if(!pmentry_valid(*entry)) {
+        spinlock_release_intr(&pmap->lock, intr_state);
+        return -EINVAL;
     }
-    else {
-        *entry = pmentry_setup(pmentry_address(*entry), vprot);
-        hart_ipi(HART_IPI_EXCEPT_ME, flush_ipi_ireq);
-        pmap_flush(virt);
-        retval = 0;
-    }
+
+    *entry = pmentry_setup(pmentry_address(*entry), vprot);
 
     spinlock_release_intr(&pmap->lock, intr_state);
 
-    return retval;
+    tlb_shootdown();
+
+    return 0;
 }
 
-int pmap_unmap(struct pagemap* restrict pmap, uintptr_t virt)
+int pmap_unmap_noflush(struct pagemap* restrict pmap, uintptr_t virt)
 {
     bool intr_state = spinlock_acquire_intr(&pmap->lock);
 
@@ -221,16 +214,24 @@ int pmap_unmap(struct pagemap* restrict pmap, uintptr_t virt)
         spinlock_release_intr(&pmap->lock, intr_state);
         return -ENOENT;
     }
-    else {
-        *entry = PMENTRY_NULL;
 
-        hart_ipi(HART_IPI_EXCEPT_ME, flush_ipi_ireq);
-        pmap_flush(virt);
+    *entry = PMENTRY_NULL;
+    pmap_flush(virt);
 
-        spinlock_release_intr(&pmap->lock, intr_state);
+    spinlock_release_intr(&pmap->lock, intr_state);
 
-        return 0;
+    return 0;
+}
+
+int pmap_unmap(struct pagemap* restrict pmap, uintptr_t virt)
+{
+    int retval = pmap_unmap_noflush(pmap, virt);
+
+    if(retval == 0) {
+        tlb_shootdown();
     }
+
+    return retval;
 }
 
 uintptr_t pmap_resolve_address(struct pagemap* restrict pmap, uintptr_t virt)
@@ -437,12 +438,6 @@ static int map_memmap_entry(const struct limine_memmap_entry* restrict entry)
 
 static void init_mmu(void)
 {
-    flush_ipi_ireq = add_ireq_handler(UINT_MAX, &flush_ipi_handler, nullptr);
-
-    if(flush_ipi_ireq == UINT_MAX) {
-        panic("mmu: out of ireq numbers");
-    }
-
     sys_pmap.lock = SPINLOCK_INIT;
     sys_pmap.num_levels = pmap_detect_levels();
 

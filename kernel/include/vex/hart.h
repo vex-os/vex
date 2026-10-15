@@ -12,6 +12,9 @@ struct hart_local {
     struct thread* idle_thread;
     struct thread* dead_thread;
 
+    bool tlb_online;
+    uint64_t tlb_flushed;
+
     struct arch_hart arch;
 };
 

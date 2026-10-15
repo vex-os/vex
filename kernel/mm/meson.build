@@ -8,6 +8,7 @@ kernel_sources += files(
     'pmap.c',
     'pslab.c',
     'slab.c',
+    'tlb.c',
     'uaccess.c',
     'vms.c',
 )

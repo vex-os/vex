@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/tlb.h>
 #include <vex/types.h>
 
 struct hart_context {
@@ -69,6 +70,10 @@ struct arch_hart {
 
 static __always_inline void hart_spin(void)
 {
+    // A hart spinning with interrupts
+    // disabled would otherwise never answer a shootdown
+    tlb_poll();
+
     asm volatile("pause");
 }
 

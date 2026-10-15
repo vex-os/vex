@@ -7,6 +7,7 @@
 #include <vex/pmap.h>
 #include <vex/sched.h>
 #include <vex/thread.h>
+#include <vex/tlb.h>
 
 LIMINE_REQUEST static volatile struct limine_mp_request mp_request = {
     .id = LIMINE_MP_REQUEST_ID,
@@ -26,6 +27,8 @@ static void __noreturn smp_entry(struct limine_mp_info* restrict info)
     hart_setup_2((struct hart_local*)(uintptr_t)(info->extra_argument));
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
+
+    tlb_hart_online();
 
     atomic_fetch_add(&ready_harts, 1, ATOMIC_RELEASE);
 
@@ -74,6 +77,8 @@ static void init_hart_boot(void)
     }
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
+
+    tlb_hart_online();
 
     atomic_store_n(&ready_harts, 1, ATOMIC_RELAXED);
 

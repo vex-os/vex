@@ -6,6 +6,7 @@
 #include <vex/pmap.h>
 #include <vex/pslab.h>
 #include <vex/spinlock.h>
+#include <vex/tlb.h>
 
 // Each slot is a guard page followed by the stack itself; the guard page
 // is never mapped, so running off the bottom of a stack faults right away
@@ -52,12 +53,18 @@ static void release_slot(size_t slot)
 
 static void unmap_pages(uintptr_t stack_bottom, size_t count)
 {
+    uintptr_t phys[KSTACK_PAGES];
+
     for(size_t i = 0U; i < count; ++i) {
         uintptr_t virt = stack_bottom + i * PAGE_SIZE;
-        uintptr_t phys = pmap_resolve_address(&sys_pmap, virt);
+        phys[i] = page_align(pmap_resolve_address(&sys_pmap, virt));
+        pmap_unmap_noflush(&sys_pmap, virt);
+    }
 
-        pmap_unmap(&sys_pmap, virt);
-        pslab_free_phys(page_align(phys));
+    tlb_shootdown();
+
+    for(size_t i = 0U; i < count; ++i) {
+        pslab_free_phys(phys[i]);
     }
 }
 
