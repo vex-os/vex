@@ -29,10 +29,82 @@ static intptr_t sys_exec(const uintptr_t* restrict args)
     return -ENOSYS;
 }
 
+// Takes over the caller's reference to a claimed zombie child
+static intptr_t collect_child(struct process* restrict target, uintptr_t wstatus)
+{
+    int exit_code = target->exit_code;
+    intptr_t retval = target->pid;
+
+    if(wstatus) {
+        ssize_t copied = user_copyout(wstatus, &exit_code, sizeof(exit_code));
+
+        if(copied < 0) {
+            retval = copied;
+        }
+    }
+
+    process_destroy(target);
+    process_decref(target);
+
+    return retval;
+}
+
+static intptr_t wait_any_child(struct process* restrict caller, uintptr_t wstatus)
+{
+    for(;;) {
+        struct process* target = nullptr;
+
+        bool intr_state = spinlock_acquire_intr(&caller->lock);
+
+        bool has_children = caller->children != nullptr;
+
+        for(struct process* it = caller->children; it; it = it->cnext) {
+            if(process_claim(it)) {
+                process_incref(it);
+                target = it;
+                break;
+            }
+        }
+
+        spinlock_release_intr(&caller->lock, intr_state);
+
+        if(target) {
+            return collect_child(target, wstatus);
+        }
+
+        if(!has_children) {
+            return -ECHILD;
+        }
+
+        // A child that dies before this wait starts leaves the event pending
+        struct event* child_exited = &caller->child_exited;
+        ssize_t result = event_await_blocking(&child_exited, 1);
+
+        if(result < 0) {
+            return result;
+        }
+    }
+}
+
 static intptr_t sys_waitpid(const uintptr_t* restrict args)
 {
     pid_t pid = args[0];
     uintptr_t wstatus = args[1];
+
+    struct thread* thrd = this_thread();
+    struct process* caller = thrd->proc;
+
+    if(caller == nullptr) {
+        return -ECHILD;
+    }
+
+    if(pid == -1) {
+        return wait_any_child(caller, wstatus);
+    }
+
+    if(pid <= 0) {
+        return -EINVAL; // Process groups don't exist yet
+    }
 
     struct process* target = process_locate(pid);
 
@@ -40,10 +112,7 @@ static intptr_t sys_waitpid(const uintptr_t* restrict args)
         return -ESRCH;
     }
 
-    struct thread* thrd = this_thread();
-    struct process* caller = thrd->proc;
-
-    if(caller == nullptr || target->ppid != caller->pid) {
+    if(atomic_load_n(&target->ppid, ATOMIC_RELAXED) != caller->pid) {
         process_decref(target);
         return -ECHILD;
     }
@@ -65,21 +134,7 @@ static intptr_t sys_waitpid(const uintptr_t* restrict args)
         return -ECHILD;
     }
 
-    int exit_code = target->exit_code;
-    intptr_t retval = pid;
-
-    if(wstatus) {
-        ssize_t copied = user_copyout(wstatus, &exit_code, sizeof(exit_code));
-
-        if(copied < 0) {
-            retval = copied;
-        }
-    }
-
-    process_destroy(target);
-    process_decref(target);
-
-    return retval;
+    return collect_child(target, wstatus);
 }
 
 static intptr_t sys_getpid(const uintptr_t* restrict args)
@@ -103,7 +158,7 @@ static intptr_t sys_getppid(const uintptr_t* restrict args)
         return -ESRCH;
     }
 
-    return proc->ppid;
+    return atomic_load_n(&proc->ppid, ATOMIC_RELAXED);
 }
 
 static intptr_t sys_yield(const uintptr_t* restrict args)

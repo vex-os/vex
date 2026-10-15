@@ -14,8 +14,9 @@ struct process {
     pid_t ppid;
     int exit_code;
 
-    // Held by the process table until process_destroy, by each thread
-    // until it is reaped and by each process_locate caller until process_decref
+    // Held by the process table until process_destroy
+    // by each thread until it is reaped and by each
+    // process_locate caller until process_decref
     unsigned refcount;
 
     bool zombie;
@@ -25,13 +26,16 @@ struct process {
 
     struct vmspace* vms;
 
-    // Stack for each thread is allocated below the previous one
-    // with an additional guard page; this points to the top of the last allocated stack
+    // Stack for each thread is allocated below the
+    // previous one with an additional guard page;
+    // this points to the top of the last allocated stack
     uintptr_t thread_stack_top;
 
     struct thread* threads;
     unsigned long num_threads;
 
+    // Linked under the parent's lock; orphans
+    // move to init/PID1 when their parent dies
     struct process* children;
     struct process* cnext;
     struct process* cprev;
@@ -39,8 +43,11 @@ struct process {
     struct process* pnext;
 
     struct event evnt;
+    struct event child_exited;
 
     struct vnode* cwd;
+
+    spinlock_type fd_lock;
     struct file** fds;
     size_t num_fds;
     size_t max_fds;
@@ -59,4 +66,4 @@ void process_destroy(struct process* proc);
 struct file* dereference_fd(struct process* proc, int fd) __nodiscard;
 int allocate_fd(struct process* proc, struct file* file) __nodiscard;
 int duplicate_fd(struct process* proc, int old_fd, int new_fd) __nodiscard;
-void release_fd(struct process* proc, int fd);
+int release_fd(struct process* proc, int fd);

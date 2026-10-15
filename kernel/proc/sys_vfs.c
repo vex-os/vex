@@ -86,21 +86,8 @@ static intptr_t sys_sync(const uintptr_t* restrict args)
     return vfs_sync_all();
 }
 
-static intptr_t sys_syncfs(const uintptr_t* restrict args)
+static intptr_t syncfs_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
-
-    if(proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    struct file* fp = dereference_fd(proc, args[0]);
-
-    if(fp == nullptr) {
-        return -EBADF;
-    }
-
     struct vfs* fs = fp->node->fs;
 
     if(fs == nullptr) {
@@ -110,21 +97,13 @@ static intptr_t sys_syncfs(const uintptr_t* restrict args)
     return vfs_sync_fs(fs);
 }
 
-static intptr_t sys_statvfs(const uintptr_t* restrict args)
+static intptr_t sys_syncfs(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    return syscall_with_fd(args, &syncfs_file);
+}
 
-    if(proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    struct file* fp = dereference_fd(proc, args[0]);
-
-    if(fp == nullptr) {
-        return -EBADF;
-    }
-
+static intptr_t statvfs_file(struct file* restrict fp, const uintptr_t* restrict args)
+{
     struct vfs* fs = fp->node->fs;
 
     if(fs == nullptr) {
@@ -139,6 +118,11 @@ static intptr_t sys_statvfs(const uintptr_t* restrict args)
     }
 
     return user_copyout(args[1], &st, sizeof(st));
+}
+
+static intptr_t sys_statvfs(const uintptr_t* restrict args)
+{
+    return syscall_with_fd(args, &statvfs_file);
 }
 
 define_syscall(sys_mount, SYS_MOUNT);

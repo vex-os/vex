@@ -37,6 +37,7 @@
 #define SYS_GETTIME  __k_SYS_GETTIME
 #define SYS_TEST     __k_SYS_TEST
 
+struct file;
 struct hart_context;
 
 struct syscall {
@@ -56,3 +57,5 @@ extern const struct syscall unsorted_syscalls_start[];
 extern const struct syscall unsorted_syscalls_end[];
 
 void dispatch_syscall(struct hart_context* restrict regs);
+
+intptr_t syscall_with_fd(const uintptr_t* restrict args, intptr_t (*op)(struct file* restrict fp, const uintptr_t* restrict args));

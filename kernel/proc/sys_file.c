@@ -49,25 +49,11 @@ static intptr_t sys_close(const uintptr_t* restrict args)
         return -ENOSYS;
     }
 
-    release_fd(proc, args[0]);
-    return 0;
+    return release_fd(proc, args[0]);
 }
 
-static intptr_t sys_read(const uintptr_t* restrict args)
+static intptr_t read_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
-
-    if(proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    struct file* fp = dereference_fd(proc, args[0]);
-
-    if(fp == nullptr) {
-        return -EBADF;
-    }
-
     uintptr_t user_buf = args[1];
     size_t remaining = args[2];
     size_t total = 0;
@@ -110,21 +96,13 @@ static intptr_t sys_read(const uintptr_t* restrict args)
     return total;
 }
 
-static intptr_t sys_write(const uintptr_t* restrict args)
+static intptr_t sys_read(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    return syscall_with_fd(args, &read_file);
+}
 
-    if(proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    struct file* fp = dereference_fd(proc, args[0]);
-
-    if(fp == nullptr) {
-        return -EBADF;
-    }
-
+static intptr_t write_file(struct file* restrict fp, const uintptr_t* restrict args)
+{
     uintptr_t user_buf = args[1];
     size_t remaining = args[2];
     size_t total = 0;
@@ -167,39 +145,23 @@ static intptr_t sys_write(const uintptr_t* restrict args)
     return total;
 }
 
-static intptr_t sys_seek(const uintptr_t* restrict args)
+static intptr_t sys_write(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    return syscall_with_fd(args, &write_file);
+}
 
-    if(proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    struct file* fp = dereference_fd(proc, args[0]);
-
-    if(fp == nullptr) {
-        return -EBADF;
-    }
-
+static intptr_t seek_file(struct file* restrict fp, const uintptr_t* restrict args)
+{
     return file_seek(fp, args[1], args[2]);
 }
 
-static intptr_t sys_stat(const uintptr_t* restrict args)
+static intptr_t sys_seek(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    return syscall_with_fd(args, &seek_file);
+}
 
-    if(proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    struct file* fp = dereference_fd(proc, args[0]);
-
-    if(fp == nullptr) {
-        return -EBADF;
-    }
-
+static intptr_t stat_file(struct file* restrict fp, const uintptr_t* restrict args)
+{
     struct k_stat st;
     int retval = vnode_stat(fp->node, &st);
 
@@ -208,6 +170,11 @@ static intptr_t sys_stat(const uintptr_t* restrict args)
     }
 
     return user_copyout(args[1], &st, sizeof(st));
+}
+
+static intptr_t sys_stat(const uintptr_t* restrict args)
+{
+    return syscall_with_fd(args, &stat_file);
 }
 
 static intptr_t sys_dup(const uintptr_t* restrict args)
@@ -241,22 +208,14 @@ static intptr_t sys_dup2(const uintptr_t* restrict args)
     return duplicate_fd(proc, old_fd, new_fd);
 }
 
+static intptr_t ioctl_file(struct file* restrict fp, const uintptr_t* restrict args)
+{
+    return file_ioctl(fp, args[1], args[2]);
+}
+
 static intptr_t sys_ioctl(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
-
-    if(proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    struct file* fp = dereference_fd(proc, args[0]);
-
-    if(fp == nullptr) {
-        return -EBADF;
-    }
-
-    return file_ioctl(fp, args[1], args[2]);
+    return syscall_with_fd(args, &ioctl_file);
 }
 
 define_syscall(sys_open, SYS_OPEN);

@@ -64,21 +64,8 @@ static intptr_t sys_mkdir(const uintptr_t* restrict args)
     return 0;
 }
 
-static intptr_t sys_readdir(const uintptr_t* restrict args)
+static intptr_t readdir_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
-
-    if(proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    struct file* fp = dereference_fd(proc, args[0]);
-
-    if(fp == nullptr) {
-        return -EBADF;
-    }
-
     struct k_dirent entry;
     int retval = vnode_iterate(fp->node, &entry, fp->offset);
 
@@ -99,6 +86,11 @@ static intptr_t sys_readdir(const uintptr_t* restrict args)
     fp->offset += 1;
 
     return 1;
+}
+
+static intptr_t sys_readdir(const uintptr_t* restrict args)
+{
+    return syscall_with_fd(args, &readdir_file);
 }
 
 static intptr_t sys_getcwd(const uintptr_t* restrict args)
