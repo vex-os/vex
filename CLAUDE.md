@@ -48,5 +48,11 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
 
 - Kernel-private headers use only `#pragma once`. Public headers under `include/usr/` (the userspace ABI) instead use a classic path-derived guard, e.g. `usr/vex/errno.h` → `USR_VEX_ERRNO_H`, closed with `#endif /* USR_VEX_ERRNO_H */`. Never start these names with `_`. Keep the guard in sync if the header is renamed.
 - C23 idioms are used throughout: `nullptr`, `static_assert`, `unreachable()`, `restrict` pointer params.
+- Within a translation unit, `static` helpers come before the public functions; init functions sit at the end next to their `initcall_*`.
+- Code should document itself through names. Comments are for a non-obvious "why" or an invariant that the code doesn't show, not for restating what it does:
+  - Use `//` (`#` in assembly and shell), start with a capital letter, and leave off the trailing period.
+  - A short note about a single line goes after it, as long as the line still fits the 140-column limit.
+  - Wrap longer comments at clause boundaries, at roughly the width of the code they describe (not much shorter).
+  - Don't document functions in headers unless the name is hard to understand and renaming isn't an option. Field comments are fine when they map a field to its spec name (FAT `BS_*`/`BPB_*`, ELF) or state an invariant such as ownership or locking rules.
 - `contrib/` is vendored third-party code: Limine, uACPI, kconfiglib, and EDK2 firmware. Each component has a `README.vex` and an `update.sh`. Don't edit it in place; update it through the script.
 - Commit messages use a `<area>: <lowercase summary>` prefix (e.g. `general: some important change`).
