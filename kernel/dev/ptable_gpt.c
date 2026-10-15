@@ -224,7 +224,7 @@ static int gpt_readpt(const struct blk_device* restrict device, void* restrict p
 
             unsigned i;
 
-            for(i = 0; i < name_len && i < 63 && name[i]; i += 1) {
+            for(i = 0; i < name_len && i < 63 && name[i]; ++i) {
                 out->part_label[i] = le16toh(name[i]) & 0x7F;
             }
 

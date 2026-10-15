@@ -233,8 +233,8 @@ void process_destroy(struct process* proc)
         proc->cwd = nullptr;
     }
 
-    for(size_t i = 0; i < proc->max_fds; i += 1) {
-        if(proc->fds[i] != nullptr) {
+    for(size_t i = 0; i < proc->max_fds; ++i) {
+        if(proc->fds[i]) {
             file_close(proc->fds[i]);
         }
     }
@@ -278,7 +278,7 @@ int allocate_fd(struct process* proc, struct file* file)
         return -ENOMEM;
     }
 
-    for(size_t i = proc->max_fds; i < new_max_fds; i += 1) {
+    for(size_t i = proc->max_fds; i < new_max_fds; ++i) {
         new_fds[i] = nullptr;
     }
 
@@ -336,7 +336,7 @@ int duplicate_fd(struct process* proc, int old_fd, int new_fd)
             return -ENOMEM;
         }
 
-        for(size_t i = proc->max_fds; i < new_max; i += 1) {
+        for(size_t i = proc->max_fds; i < new_max; ++i) {
             grown[i] = nullptr;
         }
 
