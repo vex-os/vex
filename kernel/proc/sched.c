@@ -13,7 +13,6 @@
 #include <vex/panic.h>
 #include <vex/preempt.h>
 #include <vex/process.h>
-#include <vex/pslab.h>
 #include <vex/sched.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -111,7 +110,6 @@ static void reap_thread(struct thread* restrict thrd)
     }
 
     kstack_free(thrd->kstack_top);
-    pslab_free_virt(thrd->pfstack);
     kfree(thrd->events);
     kfree(thrd);
 }
@@ -121,7 +119,7 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
     clockevt_stop();
 
     // Counters as narrow as the 24-bit ACPI PM timer
-    // wrap within seconds; this kind of shakes the
+    // wrap within seconds; this call kind of shakes the
     // timer a little without resetting the actual time
     // so that if there is any wrapping, it's accounted for
     clocksrc_update();
@@ -280,14 +278,6 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
         return nullptr;
     }
 
-    uint8_t* pfstack = pslab_alloc_virt();
-
-    if(pfstack == nullptr) {
-        kstack_free(kstack_top);
-        kfree(thrd);
-        return nullptr;
-    }
-
     thrd->self = thrd;
     thrd->state = THREAD_BLOCKED;
     thrd->timeslice = SCHED_TIMESLICE;
@@ -300,9 +290,8 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
     thrd->kstack_top = kstack_top;
-    thrd->pfstack = pfstack;
 
-    arch_thread_setup_user(thrd, (void*)(entry), (void*)(stack_top), kstack_top, pfstack + PAGE_SIZE, proc->vms);
+    arch_thread_setup_user(thrd, (void*)(entry), (void*)(stack_top), kstack_top, proc->vms);
 
     process_incref(proc); // The thread keeps its process alive until it is reaped
 

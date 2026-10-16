@@ -22,6 +22,14 @@ config DEFAULT_INIT
       Path to the first userspace process, used when the
       kernel command line does not specify init=
 
+config USER_STACK_SIZE
+    int "User stack size in KiB"
+    range 4 1048576
+    default 8192
+    help
+      Address space reserved for the stack of a new process,
+      a power of two; pages are only allocated once touched
+
 config FBCONS
     bool "Framebuffer console"
     default y

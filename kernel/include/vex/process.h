@@ -26,11 +26,6 @@ struct process {
 
     struct vmspace* vms;
 
-    // Stack for each thread is allocated below the
-    // previous one with an additional guard page;
-    // this points to the top of the last allocated stack
-    uintptr_t thread_stack_top;
-
     struct thread* threads;
     unsigned long num_threads;
 

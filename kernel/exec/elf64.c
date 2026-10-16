@@ -15,9 +15,11 @@
 #define ELF64_ARCH EM_NONE
 #endif
 
-#define ELF64_STACK_UVA  UINT64_C(0x0000700000000000)
-#define ELF64_STACK_SIZE PAGE_SIZE
+#define ELF64_STACK_TOP  UINT64_C(0x0000700000000000)
+#define ELF64_STACK_SIZE (UINT64_C(1024) * CONFIG_USER_STACK_SIZE)
 #define ELF64_ARGV_MAX   32
+
+static_assert(0 == (ELF64_STACK_SIZE & (ELF64_STACK_SIZE - 1)), "CONFIG_USER_STACK_SIZE has to be a power of two");
 
 static bool ehdr_valid(const struct elf64_ehdr* restrict ehdr)
 {
@@ -73,40 +75,62 @@ static bool segment_loads_range(const struct elf64_phdr* restrict phdr, uint64_t
     return size <= phdr->p_filesz - skip;
 }
 
-static int load_segment(struct process* restrict proc, struct file* restrict fp, const struct elf64_phdr* restrict phdr)
+// Segments come sorted by address, and one may start in the page
+// the previous one ends in; that page gets the rights of both
+static int map_segment(struct vmspace* restrict vms, const struct elf64_phdr* restrict phdr, uintptr_t* restrict mapped_end,
+    unsigned* restrict mapped_vprot)
 {
     unsigned vprot = phdr_vprot(phdr->p_flags);
 
     uintptr_t seg_start = page_align(phdr->p_vaddr);
     uintptr_t seg_end = page_align_up(phdr->p_vaddr + phdr->p_memsz);
+    uintptr_t map_start = seg_start;
 
-    for(uintptr_t page_uva = seg_start; page_uva < seg_end; page_uva += PAGE_SIZE) {
-        unsigned existing_vprot = pmap_resolve_vprot(proc->vms->pmap, page_uva);
-
-        if(existing_vprot) {
-            unsigned merged = vprot | existing_vprot;
-
-            if(merged != existing_vprot) {
-                int retval = vms_patch(proc->vms, page_uva, merged);
-
-                if(retval < 0) {
-                    return retval;
-                }
-            }
-        }
-        else {
-            int retval = vms_anon(proc->vms, page_uva, vprot);
-
-            if(retval < 0) {
-                return retval;
-            }
+    if(seg_start < *mapped_end) {
+        if(seg_start + PAGE_SIZE != *mapped_end) {
+            return -ENOEXEC;
         }
 
-        uintptr_t phys = pmap_resolve_address(proc->vms->pmap, page_uva);
+        *mapped_vprot |= vprot;
+
+        int retval = vms_protect(vms, seg_start, *mapped_end, *mapped_vprot);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        map_start = *mapped_end;
+    }
+
+    if(map_start < seg_end) {
+        int retval = vms_map_anon(vms, map_start, seg_end, vprot);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        *mapped_end = seg_end;
+        *mapped_vprot = vprot;
+    }
+
+    return 0;
+}
+
+// Only pages holding file data are filled in; the rest are zeroed on first touch
+static int load_segment(struct process* restrict proc, struct file* restrict fp, const struct elf64_phdr* restrict phdr)
+{
+    uintptr_t file_lo = phdr->p_vaddr;
+    uintptr_t file_hi = phdr->p_vaddr + phdr->p_filesz;
+
+    for(uintptr_t page_uva = page_align(file_lo); page_uva < file_hi; page_uva += PAGE_SIZE) {
+        uintptr_t phys = vms_touch(proc->vms, page_uva);
+
+        if(phys == 0) {
+            return -ENOMEM;
+        }
+
         uint8_t* kva = phys_to_virt(phys);
 
-        uintptr_t file_lo = phdr->p_vaddr;
-        uintptr_t file_hi = phdr->p_vaddr + phdr->p_filesz;
         uintptr_t copy_lo, copy_hi;
 
         if(page_uva > file_lo) {
@@ -123,17 +147,15 @@ static int load_segment(struct process* restrict proc, struct file* restrict fp,
             copy_hi = file_hi;
         }
 
-        if(copy_lo < copy_hi) {
-            size_t length = copy_hi - copy_lo;
-            off_t offset = phdr->p_offset + copy_lo - phdr->p_vaddr;
+        size_t length = copy_hi - copy_lo;
+        off_t offset = phdr->p_offset + copy_lo - phdr->p_vaddr;
 
-            if(file_seek(fp, offset, SEEK_SET) < 0) {
-                return -EIO;
-            }
+        if(file_seek(fp, offset, SEEK_SET) < 0) {
+            return -EIO;
+        }
 
-            if(file_read(fp, kva + copy_lo - page_uva, length) != (ssize_t)(length)) {
-                return -EIO;
-            }
+        if(file_read(fp, kva + copy_lo - page_uva, length) != (ssize_t)(length)) {
+            return -EIO;
         }
     }
 
@@ -306,6 +328,8 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
     int retval;
 
     uintptr_t phdr_uva = 0;
+    uintptr_t mapped_end = 0;
+    unsigned mapped_vprot = VPROT_NONE;
     uint64_t phdrs_size = (uint64_t)(ehdr.e_phnum) * ehdr.e_phentsize;
 
     for(uint16_t i = 0; i < ehdr.e_phnum; ++i) {
@@ -350,6 +374,12 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
             goto error;
         }
 
+        retval = map_segment(proc->vms, &phdr, &mapped_end, &mapped_vprot);
+
+        if(retval < 0) {
+            goto error;
+        }
+
         retval = load_segment(proc, fp, &phdr);
 
         if(retval < 0) {
@@ -357,16 +387,23 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
         }
     }
 
-    if(vms_anon(proc->vms, ELF64_STACK_UVA, VPROT_URW) < 0) {
+    retval = vms_map_anon(proc->vms, ELF64_STACK_TOP - ELF64_STACK_SIZE, ELF64_STACK_TOP, VPROT_RW);
+
+    if(retval < 0) {
+        goto error;
+    }
+
+    // Arguments only get the topmost page, the rest is zeroed on first touch
+    uintptr_t args_phys = vms_touch(proc->vms, ELF64_STACK_TOP - PAGE_SIZE);
+
+    if(args_phys == 0) {
         retval = -ENOMEM;
         goto error;
     }
 
-    uintptr_t stack_top_uva = ELF64_STACK_SIZE + ELF64_STACK_UVA;
-    uintptr_t stack_top_kva_phys = ELF64_STACK_SIZE + pmap_resolve_address(proc->vms->pmap, ELF64_STACK_UVA);
-    void* stack_top_kva = phys_to_virt(stack_top_kva_phys);
+    uint8_t* args_top_kva = (uint8_t*)(phys_to_virt(args_phys)) + PAGE_SIZE;
 
-    uintptr_t entry_rsp = build_ustack(stack_top_kva, stack_top_uva, ELF64_STACK_SIZE, argv, envp, &ehdr, phdr_uva);
+    uintptr_t entry_rsp = build_ustack(args_top_kva, ELF64_STACK_TOP, PAGE_SIZE, argv, envp, &ehdr, phdr_uva);
 
     if(entry_rsp == 0) {
         retval = -E2BIG;
