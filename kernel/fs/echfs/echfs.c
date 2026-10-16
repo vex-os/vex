@@ -1,3 +1,4 @@
+#include <vex/bitmap.h>
 #include <vex/blk_device.h>
 #include <vex/cmdline.h>
 #include <vex/errno.h>
@@ -145,9 +146,24 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
         return retval;
     }
 
+    context->fat_dirty = kmalloc(bitmap_bytecount(fat_size * sectors_per_block));
+    context->dir_dirty = kmalloc(bitmap_bytecount(dir_size * sectors_per_block));
+
+    if(context->fat_dirty == nullptr || context->dir_dirty == nullptr) {
+        kfree(context->dir_dirty);
+        kfree(context->fat_dirty);
+        kfree(context->dir_table);
+        kfree(context->fat);
+        kfree(context->bounce);
+        kfree(context);
+        return -ENOMEM;
+    }
+
     struct echfs_vnode_context* root_ctx = slab_alloc(sizeof(struct echfs_vnode_context));
 
     if(root_ctx == nullptr) {
+        kfree(context->dir_dirty);
+        kfree(context->fat_dirty);
         kfree(context->dir_table);
         kfree(context->fat);
         kfree(context->bounce);
@@ -166,6 +182,8 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 
     if(root == nullptr) {
         slab_free(root_ctx);
+        kfree(context->dir_dirty);
+        kfree(context->fat_dirty);
         kfree(context->dir_table);
         kfree(context->fat);
         kfree(context->bounce);
@@ -257,6 +275,8 @@ static int echfs_unmount(struct vfs* restrict fs)
 
     vnode_decref(fs->root);
 
+    kfree(context->dir_dirty);
+    kfree(context->fat_dirty);
     kfree(context->dir_table);
     kfree(context->fat);
     kfree(context->bounce);
@@ -266,29 +286,56 @@ static int echfs_unmount(struct vfs* restrict fs)
     return 0;
 }
 
+static int write_dirty_locked(struct echfs_vfs_context* restrict context, bitmap_type* restrict dirty, uint64_t start_block,
+    uint64_t num_blocks, const void* restrict buffer)
+{
+    size_t sector_size = context->block_size / context->sectors_per_block;
+    size_t num_sectors = num_blocks * context->sectors_per_block;
+    uintptr_t start_lba = start_block * context->sectors_per_block;
+    size_t sector = 0;
+
+    while(sector < num_sectors) {
+        if(0 == sector % BITMAP_CHUNK_BITS && 0 == dirty[sector / BITMAP_CHUNK_BITS]) {
+            sector += BITMAP_CHUNK_BITS;
+            continue;
+        }
+
+        if(!bitmap_isset(dirty, sector)) {
+            sector += 1;
+            continue;
+        }
+
+        size_t run_end = sector + 1;
+
+        while(run_end < num_sectors && bitmap_isset(dirty, run_end)) {
+            run_end += 1;
+        }
+
+        const uint8_t* data = (const uint8_t*)(buffer) + sector * sector_size;
+        int retval = blk_write(context->device, start_lba + sector, run_end - sector, data);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        bitmap_range_clear(dirty, sector, run_end - 1);
+        sector = run_end;
+    }
+
+    return 0;
+}
+
 static int sync_locked(struct vfs* restrict fs)
 {
     struct echfs_vfs_context* context = fs->ctxdata;
 
-    int retval;
+    int retval = write_dirty_locked(context, context->fat_dirty, context->fat_start, context->fat_size, context->fat);
 
-    if(context->fat_dirty) {
-        retval = blk_write(context->device, context->fat_start * context->sectors_per_block, context->fat_size * context->sectors_per_block,
-            context->fat);
-        if(retval < 0)
-            return retval;
-        context->fat_dirty = false;
+    if(retval < 0) {
+        return retval;
     }
 
-    if(context->dir_dirty) {
-        retval = blk_write(context->device, context->dir_start * context->sectors_per_block, context->dir_size * context->sectors_per_block,
-            context->dir_table);
-        if(retval < 0)
-            return retval;
-        context->dir_dirty = false;
-    }
-
-    return 0;
+    return write_dirty_locked(context, context->dir_dirty, context->dir_start, context->dir_size, context->dir_table);
 }
 
 static int echfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)

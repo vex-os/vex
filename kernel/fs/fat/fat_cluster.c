@@ -1,3 +1,4 @@
+#include <vex/bitmap.h>
 #include <vex/blk_device.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
@@ -9,6 +10,27 @@
 #define FAT16_EOC  UINT16_C(0xFFF8)
 #define FAT32_EOC  UINT32_C(0x0FFFFFF8)
 #define FAT32_MASK UINT32_C(0x0FFFFFFF)
+
+static void mark_entry_dirty(struct fat_vfs_context* restrict context, uintptr_t cluster)
+{
+    size_t offset;
+    size_t size;
+
+    if(context->filesystem_type == FAT_TYPE_12) {
+        offset = cluster + (cluster >> 1);
+        size = sizeof(uint16_t);
+    }
+    else if(context->filesystem_type == FAT_TYPE_16) {
+        offset = cluster * sizeof(uint16_t);
+        size = sizeof(uint16_t);
+    }
+    else {
+        offset = cluster * sizeof(uint32_t);
+        size = sizeof(uint32_t);
+    }
+
+    bitmap_range_set(context->dirty_sectors, offset / context->sector_size, (offset + size - 1) / context->sector_size);
+}
 
 static uint16_t fat12_get(const struct fat_vfs_context* restrict context, uintptr_t cluster)
 {
@@ -164,7 +186,7 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
                 if(0 == fat12_get(context, i)) {
                     fat12_set(context, i, 0x0FFF);
                     context->next_free_hint = i + 1;
-                    context->cache_dirty = true;
+                    mark_entry_dirty(context, i);
                     return i;
                 }
             }
@@ -198,7 +220,7 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
                     data16 = htole16(0xFFFF);
                     memcpy(context->cache + i * sizeof(uint16_t), &data16, sizeof(uint16_t));
                     context->next_free_hint = i + 1;
-                    context->cache_dirty = true;
+                    mark_entry_dirty(context, i);
                     return i;
                 }
             }
@@ -232,7 +254,7 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
                     data32 = htole32(FAT32_MASK);
                     memcpy(context->cache + i * sizeof(uint32_t), &data32, sizeof(uint32_t));
                     context->next_free_hint = i + 1;
-                    context->cache_dirty = true;
+                    mark_entry_dirty(context, i);
                     return i;
                 }
             }
@@ -262,7 +284,7 @@ void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluste
         memcpy(context->cache + cluster * sizeof(uint32_t), &data32, sizeof(uint32_t));
     }
 
-    context->cache_dirty = true;
+    mark_entry_dirty(context, cluster);
 }
 
 void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluster)
@@ -289,7 +311,7 @@ void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluste
         context->next_free_hint = cluster;
     }
 
-    context->cache_dirty = true;
+    mark_entry_dirty(context, cluster);
 }
 
 uintptr_t fat_cluster_alloc_zeroed(struct fat_vfs_context* restrict context)
