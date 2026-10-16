@@ -6,6 +6,7 @@
 #include <vex/kprintf.h>
 #include <vex/mount.h>
 #include <vex/process.h>
+#include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/thread.h>
@@ -15,6 +16,8 @@
 #define INIT_PID 1
 
 #define PROCTABLE_BUCKETS 1024
+
+static_assert(sizeof(struct process) <= SLAB_MAX_SIZE);
 
 static struct process* proctable[PROCTABLE_BUCKETS];
 static spinlock_type proctable_lock = SPINLOCK_INIT; // Taken with interrupts disabled: the scheduler looks up parents
@@ -147,7 +150,7 @@ static void release_files(struct process* restrict proc)
 
 struct process* process_create(struct process* restrict parent)
 {
-    struct process* proc = kmalloc(sizeof(struct process));
+    struct process* proc = slab_alloc(sizeof(struct process));
 
     if(proc == nullptr) {
         return nullptr;
@@ -156,7 +159,7 @@ struct process* process_create(struct process* restrict parent)
     proc->vms = vms_create();
 
     if(proc->vms == nullptr) {
-        kfree(proc);
+        slab_free(proc);
         return nullptr;
     }
 
@@ -184,7 +187,7 @@ struct process* process_create(struct process* restrict parent)
 
     if(proc->cwd == nullptr) {
         vms_release(proc->vms);
-        kfree(proc);
+        slab_free(proc);
         return nullptr;
     }
 
@@ -250,7 +253,7 @@ void process_decref(struct process* proc)
 
         event_deinit(&proc->evnt);
         event_deinit(&proc->child_exited);
-        kfree(proc);
+        slab_free(proc);
     }
 }
 

@@ -14,10 +14,13 @@
 #include <vex/preempt.h>
 #include <vex/process.h>
 #include <vex/sched.h>
+#include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/thread.h>
 #include <vex/vms.h>
+
+static_assert(sizeof(struct thread) <= SLAB_MAX_SIZE);
 
 #ifndef SCHED_TIMESLICE
 #define SCHED_TIMESLICE 5000000
@@ -111,7 +114,7 @@ static void reap_thread(struct thread* restrict thrd)
 
     kstack_free(thrd->kstack_top);
     kfree(thrd->events);
-    kfree(thrd);
+    slab_free(thrd);
 }
 
 static void sched_ireq_handler(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
@@ -219,7 +222,7 @@ static void sched_idle(void* restrict arg)
 
 static struct thread* alloc_thread_user(struct process* restrict proc)
 {
-    struct thread* thrd = kmalloc(sizeof(struct thread));
+    struct thread* thrd = slab_alloc(sizeof(struct thread));
 
     if(thrd == nullptr) {
         return nullptr;
@@ -228,7 +231,7 @@ static struct thread* alloc_thread_user(struct process* restrict proc)
     void* kstack_top = kstack_alloc();
 
     if(kstack_top == nullptr) {
-        kfree(thrd);
+        slab_free(thrd);
         return nullptr;
     }
 
@@ -268,7 +271,7 @@ static void attach_thread_user(struct process* restrict proc, struct thread* res
 
 struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
 {
-    struct thread* thrd = kmalloc(sizeof(struct thread));
+    struct thread* thrd = slab_alloc(sizeof(struct thread));
 
     if(thrd == nullptr) {
         return nullptr;
@@ -277,7 +280,7 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
     void* kstack_top = kstack_alloc();
 
     if(kstack_top == nullptr) {
-        kfree(thrd);
+        slab_free(thrd);
         return nullptr;
     }
 
