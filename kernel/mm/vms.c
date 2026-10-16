@@ -145,6 +145,27 @@ static void free_batch(uintptr_t* restrict batch, size_t* restrict count, bool s
     *count = 0;
 }
 
+static void release_pages(struct vmspace* restrict vms, const struct vm_region* restrict region, uintptr_t* restrict batch,
+    size_t* restrict count, bool shootdown)
+{
+    for(uintptr_t page = region->start; page < region->end; page += PAGE_SIZE) {
+        uintptr_t phys = pmap_resolve_address(vms->pmap, page);
+
+        if(phys == 0) {
+            continue;
+        }
+
+        pmap_unmap_noflush(vms->pmap, page);
+
+        batch[*count] = phys;
+        *count += 1;
+
+        if(*count == FREE_BATCH) {
+            free_batch(batch, count, shootdown);
+        }
+    }
+}
+
 static void unmap_all_locked(struct vmspace* restrict vms, bool shootdown)
 {
     uintptr_t batch[FREE_BATCH];
@@ -154,27 +175,89 @@ static void unmap_all_locked(struct vmspace* restrict vms, bool shootdown)
         struct vm_region* region = vms->regions;
         vms->regions = region->next;
 
-        for(uintptr_t page = region->start; page < region->end; page += PAGE_SIZE) {
-            uintptr_t phys = pmap_resolve_address(vms->pmap, page);
-
-            if(phys == 0) {
-                continue;
-            }
-
-            pmap_unmap_noflush(vms->pmap, page);
-
-            batch[count] = phys;
-            count += 1;
-
-            if(count == FREE_BATCH) {
-                free_batch(batch, &count, shootdown);
-            }
-        }
-
+        release_pages(vms, region, batch, &count, shootdown);
         slab_free(region);
     }
 
     free_batch(batch, &count, shootdown);
+}
+
+// Holes in the range are fine, as with munmap
+static int unmap_locked(struct vmspace* restrict vms, uintptr_t start, uintptr_t end)
+{
+    int retval = split_region(vms, start);
+
+    if(retval == 0) {
+        retval = split_region(vms, end);
+    }
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    uintptr_t batch[FREE_BATCH];
+    size_t count = 0;
+
+    struct vm_region** prev = &vms->regions;
+
+    while(*prev && (*prev)->start < end) {
+        struct vm_region* region = *prev;
+
+        if(region->start < start) {
+            prev = &region->next;
+            continue;
+        }
+
+        *prev = region->next;
+
+        release_pages(vms, region, batch, &count, true);
+        slab_free(region);
+    }
+
+    free_batch(batch, &count, true);
+
+    return 0;
+}
+
+// Picks the highest gap below VMS_MMAP_TOP that fits
+static bool find_gap(struct vmspace* restrict vms, size_t size, uintptr_t* restrict out)
+{
+    uintptr_t gap_start = VMS_MMAP_MIN;
+    bool found = false;
+
+    for(struct vm_region* it = vms->regions;; it = it->next) {
+        uintptr_t gap_end = VMS_MMAP_TOP;
+
+        if(it && it->start < VMS_MMAP_TOP) {
+            gap_end = it->start;
+        }
+
+        if(gap_end > gap_start && gap_end - gap_start >= size) {
+            *out = gap_end - size;
+            found = true;
+        }
+
+        if(it == nullptr || it->start >= VMS_MMAP_TOP) {
+            return found;
+        }
+
+        if(it->end > gap_start) {
+            gap_start = it->end;
+        }
+    }
+}
+
+static struct vm_region* alloc_region(uintptr_t start, uintptr_t end, unsigned vprot)
+{
+    struct vm_region* region = slab_alloc(sizeof(struct vm_region));
+
+    if(region) {
+        region->start = start;
+        region->end = end;
+        region->vprot = vprot & ~VPROT_USER;
+    }
+
+    return region;
 }
 
 struct vmspace* vms_create(void)
@@ -214,15 +297,11 @@ int vms_map_anon(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, u
         return -EINVAL;
     }
 
-    struct vm_region* region = slab_alloc(sizeof(struct vm_region));
+    struct vm_region* region = alloc_region(start, end, vprot);
 
     if(region == nullptr) {
         return -ENOMEM;
     }
-
-    region->start = start;
-    region->end = end;
-    region->vprot = vprot & ~VPROT_USER;
 
     mutex_acquire(&vms->lock);
 
@@ -237,6 +316,78 @@ int vms_map_anon(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, u
     mutex_release(&vms->lock);
 
     return 0;
+}
+
+int vms_map_anon_replace(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot)
+{
+    if(!range_valid(vms, start, end)) {
+        return -EINVAL;
+    }
+
+    struct vm_region* region = alloc_region(start, end, vprot);
+
+    if(region == nullptr) {
+        return -ENOMEM;
+    }
+
+    mutex_acquire(&vms->lock);
+
+    int retval = unmap_locked(vms, start, end);
+
+    if(retval < 0) {
+        mutex_release(&vms->lock);
+        slab_free(region);
+        return retval;
+    }
+
+    insert_region(vms, region);
+
+    mutex_release(&vms->lock);
+
+    return 0;
+}
+
+int vms_map_anon_any(struct vmspace* restrict vms, size_t size, unsigned vprot, uintptr_t* restrict out)
+{
+    if(size == 0 || page_offset(size)) {
+        return -EINVAL;
+    }
+
+    struct vm_region* region = alloc_region(0, 0, vprot);
+
+    if(region == nullptr) {
+        return -ENOMEM;
+    }
+
+    mutex_acquire(&vms->lock);
+
+    if(!find_gap(vms, size, &region->start)) {
+        mutex_release(&vms->lock);
+        slab_free(region);
+        return -ENOMEM;
+    }
+
+    region->end = region->start + size;
+    insert_region(vms, region);
+
+    *out = region->start;
+
+    mutex_release(&vms->lock);
+
+    return 0;
+}
+
+int vms_unmap(struct vmspace* restrict vms, uintptr_t start, uintptr_t end)
+{
+    if(!range_valid(vms, start, end)) {
+        return -EINVAL;
+    }
+
+    mutex_acquire(&vms->lock);
+    int retval = unmap_locked(vms, start, end);
+    mutex_release(&vms->lock);
+
+    return retval;
 }
 
 int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot)
