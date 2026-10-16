@@ -382,40 +382,44 @@ static int map_kernel_section(const void* restrict start, const void* restrict e
     uintptr_t virt_end = page_align_up((uintptr_t)end);
     uintptr_t phys = virt - kbase_virt + kbase_phys;
 
-    while(virt < virt_end) {
-        int retval = pmap_map(&sys_pmap, virt, phys, vprot);
-
-        if(retval == 0) {
-            virt += PAGE_SIZE;
-            phys += PAGE_SIZE;
-            continue;
-        }
-
-        return retval;
-    }
-
-    return 0;
+    return pmap_map_range(&sys_pmap, virt, phys, virt_end - virt, vprot);
 }
 
-static int map_memmap_entry(const struct limine_memmap_entry* restrict entry)
+static void map_hhdm_run(uintptr_t start, uintptr_t end)
 {
-    uintptr_t phys = page_align(entry->base);
-    uintptr_t virt = phys + hhdm_base;
-    uintptr_t virt_end = page_align_up(virt + entry->length);
+    if(end > start && pmap_map_range(&sys_pmap, start + hhdm_base, start, end - start, VPROT_RW) < 0) {
+        panic("mmu: failed to map %#zx-%#zx into the HHDM", start, end);
+    }
+}
 
-    while(virt < virt_end) {
-        int retval = pmap_map(&sys_pmap, virt, phys, VPROT_RW);
+static void map_hhdm(void)
+{
+    uintptr_t run_start = 0;
+    uintptr_t run_end = 0;
 
-        if(retval == 0 || retval == -EEXIST) {
-            virt += PAGE_SIZE;
-            phys += PAGE_SIZE;
+    for(size_t i = 0; i < memmap->entry_count; ++i) {
+        const struct limine_memmap_entry* entry = memmap->entries[i];
+
+        if(!memmap_is_ram_type(entry->type)) {
             continue;
         }
 
-        return retval;
+        uintptr_t start = page_align(entry->base);
+        uintptr_t end = page_align_up(entry->base + entry->length);
+
+        kassert(start >= run_start); // Limine sorts the memory map by base
+
+        if(start > run_end) {
+            map_hhdm_run(run_start, run_end);
+            run_start = start;
+        }
+
+        if(end > run_end) {
+            run_end = end;
+        }
     }
 
-    return 0;
+    map_hhdm_run(run_start, run_end);
 }
 
 static void init_mmu(void)
@@ -448,13 +452,7 @@ static void init_mmu(void)
         panic("mmu: failed to map kernel.data");
     }
 
-    for(size_t i = 0; i < memmap->entry_count; ++i) {
-        retval = map_memmap_entry(memmap->entries[i]);
-
-        if(retval < 0) {
-            panic("mmu: failed to map memmap entry");
-        }
-    }
+    map_hhdm();
 
     // Address spaces copy the kernel half's top-level entries when they are created,
     // so every one of them must exist before the first copy for the kernel half to stay shared

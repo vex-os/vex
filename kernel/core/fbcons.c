@@ -1,9 +1,11 @@
 #include <limine.h>
 #include <vex/console.h>
 #include <vex/hart.h>
+#include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
+#include <vex/mmio.h>
 #include <vex/panic.h>
 #include <vex/string.h>
 
@@ -450,9 +452,18 @@ static void init_fbcons(void)
 
                 fb_length = fb_width * fb_height;
 
-                fb_8 = fb->address;
-                fb_16 = fb->address;
-                fb_32 = fb->address;
+                // Limine hands out an HHDM address, but only RAM is in the direct map
+                uintptr_t fb_phys = virt_to_phys(fb->address);
+                void* fb_virt = mmio_map(fb_phys, fb->pitch * fb->height, VPROT_RW | VPROT_CACHE_WC);
+
+                if(fb_virt == nullptr) {
+                    pr_warning("fbcons: failed to map the framebuffer");
+                    return;
+                }
+
+                fb_8 = fb_virt;
+                fb_16 = fb_virt;
+                fb_32 = fb_virt;
 
                 vt_width = fb_width / FONT_WIDTH;
                 vt_height = fb_height / FONT_HEIGHT;
