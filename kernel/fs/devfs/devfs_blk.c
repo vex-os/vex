@@ -2,8 +2,8 @@
 #include <vex/blk_event.h>
 #include <vex/errno.h>
 #include <vex/kmalloc.h>
+#include <vex/mutex.h>
 #include <vex/slab.h>
-#include <vex/spinlock.h>
 #include <vex/stat.h>
 #include <vex/string.h>
 #include <vex/vnode.h>
@@ -12,7 +12,7 @@
 
 struct devfs_blk_context {
     const struct blk_device* device;
-    spinlock_type bounce_lock;
+    struct mutex bounce_lock; // Held across the I/O that fills bounce_buffer
     uint8_t* bounce_buffer;
 };
 
@@ -21,6 +21,7 @@ static_assert(sizeof(struct devfs_blk_context) <= (PAGE_SIZE / 2));
 static void devfs_blk_release(struct vnode* restrict node)
 {
     struct devfs_blk_context* context = node->ctxdata;
+    mutex_deinit(&context->bounce_lock);
     kfree(context->bounce_buffer);
     slab_free(context);
 }
@@ -58,16 +59,16 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
             chunk = remaining;
         }
 
-        spinlock_acquire(&context->bounce_lock);
+        mutex_acquire(&context->bounce_lock);
         int retval = blk_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
-            spinlock_release(&context->bounce_lock);
+            mutex_release(&context->bounce_lock);
             return retval;
         }
 
         memcpy(buffer_ptr, context->bounce_buffer + byte_offset, chunk);
-        spinlock_release(&context->bounce_lock);
+        mutex_release(&context->bounce_lock);
 
         buffer_ptr += chunk;
         remaining -= chunk;
@@ -88,18 +89,18 @@ static ssize_t devfs_blk_read(struct vnode* restrict node, void* restrict buffer
     }
 
     if(remaining > 0) {
-        spinlock_acquire(&context->bounce_lock);
+        mutex_acquire(&context->bounce_lock);
 
         int retval = blk_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
-            spinlock_release(&context->bounce_lock);
+            mutex_release(&context->bounce_lock);
             return retval;
         }
 
         memcpy(buffer_ptr, context->bounce_buffer, remaining);
 
-        spinlock_release(&context->bounce_lock);
+        mutex_release(&context->bounce_lock);
     }
 
     return sz;
@@ -138,12 +139,12 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
             chunk = remaining;
         }
 
-        spinlock_acquire(&context->bounce_lock);
+        mutex_acquire(&context->bounce_lock);
 
         int retval = blk_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
-            spinlock_release(&context->bounce_lock);
+            mutex_release(&context->bounce_lock);
             return retval;
         }
 
@@ -151,7 +152,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
 
         retval = blk_write(device, current, 1, context->bounce_buffer);
 
-        spinlock_release(&context->bounce_lock);
+        mutex_release(&context->bounce_lock);
 
         if(retval < 0) {
             return retval;
@@ -176,12 +177,12 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
     }
 
     if(remaining > 0) {
-        spinlock_acquire(&context->bounce_lock);
+        mutex_acquire(&context->bounce_lock);
 
         int retval = blk_read(device, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
-            spinlock_release(&context->bounce_lock);
+            mutex_release(&context->bounce_lock);
             return retval;
         }
 
@@ -189,7 +190,7 @@ static ssize_t devfs_blk_write(struct vnode* restrict node, const void* restrict
 
         retval = blk_write(device, current, 1, context->bounce_buffer);
 
-        spinlock_release(&context->bounce_lock);
+        mutex_release(&context->bounce_lock);
 
         if(retval < 0) {
             return retval;
@@ -236,7 +237,7 @@ void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict d
         }
 
         context->device = device;
-        context->bounce_lock = SPINLOCK_INIT;
+        mutex_init(&context->bounce_lock);
         context->bounce_buffer = kmalloc(device->sector_size);
 
         if(context->bounce_buffer == nullptr) {
