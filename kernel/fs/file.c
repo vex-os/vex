@@ -7,10 +7,10 @@
 #include <vex/string.h>
 #include <vex/vnode.h>
 
-struct file* file_open(const char* restrict path, unsigned flags)
+int file_open(const char* restrict path, unsigned flags, struct file** restrict out)
 {
     if(path == nullptr) {
-        return nullptr;
+        return -EINVAL;
     }
 
     struct vnode* node;
@@ -23,7 +23,7 @@ struct file* file_open(const char* restrict path, unsigned flags)
         retval = path_resolve_parent(path, &parent, &filename);
 
         if(retval < 0) {
-            return nullptr;
+            return retval;
         }
 
         retval = vnode_create(parent, filename, VNODE_FILE, &node);
@@ -35,18 +35,18 @@ struct file* file_open(const char* restrict path, unsigned flags)
         }
 
         if(retval < 0) {
-            return nullptr;
+            return retval;
         }
     }
     else if(retval < 0) {
-        return nullptr;
+        return retval;
     }
 
     retval = vnode_open(node, flags);
 
     if(retval < 0 && retval != -ENOSYS) {
         vnode_decref(node);
-        return nullptr;
+        return retval;
     }
 
     struct file* fp = slab_alloc(sizeof(struct file));
@@ -54,7 +54,7 @@ struct file* file_open(const char* restrict path, unsigned flags)
     if(fp == nullptr) {
         vnode_close(node);
         vnode_decref(node);
-        return nullptr;
+        return -ENOMEM;
     }
 
     fp->node = node;
@@ -63,7 +63,9 @@ struct file* file_open(const char* restrict path, unsigned flags)
 
     atomic_store(&fp->refcount, 1, ATOMIC_RELAXED);
 
-    return fp;
+    *out = fp;
+
+    return 0;
 }
 
 struct file* file_dupe(struct file* restrict fp)

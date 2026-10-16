@@ -69,10 +69,11 @@ static void spawn_init(void)
         unreachable();
     }
 
-    struct file* fp = file_open(path, O_RDONLY);
+    struct file* fp;
+    int retval = file_open(path, O_RDONLY, &fp);
 
-    if(fp == nullptr) {
-        panic("kmain: %s: file_open failed", path);
+    if(retval < 0) {
+        panic("kmain: %s: file_open failed: %s", path, strerror(retval));
         unreachable();
     }
 
@@ -80,7 +81,7 @@ static void spawn_init(void)
     const char* envp[] = { nullptr };
 
     struct entry_point entry;
-    int retval = load_binary(proc, fp, argv, envp, &entry);
+    retval = load_binary(proc, fp, argv, envp, &entry);
 
     if(retval < 0) {
         panic("kmain: %s: load_binary failed: %s", path, strerror(retval));

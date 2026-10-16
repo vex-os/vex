@@ -24,10 +24,11 @@ static intptr_t sys_open(const uintptr_t* restrict args)
         return copied;
     }
 
-    struct file* fp = file_open(path, args[1]);
+    struct file* fp;
+    int retval = file_open(path, args[1], &fp);
 
-    if(fp == nullptr) {
-        return -ENOENT;
+    if(retval < 0) {
+        return retval;
     }
 
     int fd = allocate_fd(proc, fp);
