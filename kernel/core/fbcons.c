@@ -226,7 +226,7 @@ static volatile __used __section(".limine_requests") struct limine_framebuffer_r
 static size_t fb_width = 0U;
 static size_t fb_height = 0U;
 static size_t fb_depth = 0U;
-static size_t fb_length = 0U;
+static size_t fb_stride = 0U;
 static uint8_t* fb_8 = nullptr;
 static uint16_t* fb_16 = nullptr;
 static uint32_t* fb_32 = nullptr;
@@ -268,7 +268,7 @@ static void render_cell(size_t sx, size_t sy, int value)
     size_t i = sy * FONT_HEIGHT;
     if(i > fb_height)
         return;
-    pixel += i * fb_width;
+    pixel += i * fb_stride;
 
     i = sx * FONT_WIDTH;
     if(i > fb_width)
@@ -283,7 +283,7 @@ static void render_cell(size_t sx, size_t sy, int value)
         for(size_t gx = 0U; gx < FONT_WIDTH; gx += 1U)
             put_pixel(pixel + gx, (gptr[gx >> 3] & (0x80 >> (gx & 0x07))));
         gptr += FONT_SCANLINE;
-        pixel += fb_width;
+        pixel += fb_stride;
     }
 }
 
@@ -294,7 +294,7 @@ static void render_cursor(size_t sx, size_t sy)
     size_t i = sy * FONT_HEIGHT;
     if(i > fb_height)
         return;
-    pixel += i * fb_width;
+    pixel += i * fb_stride;
 
     i = sx * FONT_WIDTH;
     if(i > fb_width)
@@ -304,7 +304,7 @@ static void render_cursor(size_t sx, size_t sy)
     for(size_t gy = 0U; gy < FONT_HEIGHT; gy += 1U) {
         for(size_t gx = 0U; gx < FONT_WIDTH; gx += 1U)
             put_pixel(pixel + gx, true);
-        pixel += fb_width;
+        pixel += fb_stride;
     }
 }
 
@@ -356,8 +356,10 @@ static void do_redraw(void)
 
 static void do_clear(void)
 {
-    for(size_t i = 0U; i < fb_length; ++i) {
-        put_pixel(i, false);
+    for(size_t y = 0U; y < fb_height; ++y) {
+        for(size_t x = 0U; x < fb_width; ++x) {
+            put_pixel(y * fb_stride + x, false);
+        }
     }
 
     memset(vt_cells, 0, vt_length * sizeof(struct vt_cell));
@@ -445,12 +447,13 @@ static void init_fbcons(void)
         for(size_t i = 0U; i < fb_request.response->framebuffer_count; ++i) {
             struct limine_framebuffer* fb = fb_request.response->framebuffers[i];
 
-            if(fb->bpp == 8 || fb->bpp == 16 || fb->bpp == 32) {
+            bool depth_supported = fb->bpp == 8 || fb->bpp == 16 || fb->bpp == 32;
+
+            if(depth_supported && 0 == fb->pitch % (fb->bpp / 8)) {
                 fb_width = fb->width;
                 fb_height = fb->height;
                 fb_depth = fb->bpp;
-
-                fb_length = fb_width * fb_height;
+                fb_stride = fb->pitch / (fb->bpp / 8);
 
                 // Limine hands out an HHDM address, but only RAM is in the direct map
                 uintptr_t fb_phys = virt_to_phys(fb->address);
