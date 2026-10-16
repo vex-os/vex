@@ -8,3 +8,7 @@
 #define O_CREAT  __k_O_CREAT
 #define O_TRUNC  __k_O_TRUNC
 #define O_APPEND __k_O_APPEND
+
+#define AT_FDCWD            __k_AT_FDCWD
+#define AT_SYMLINK_NOFOLLOW __k_AT_SYMLINK_NOFOLLOW
+#define AT_REMOVEDIR        __k_AT_REMOVEDIR

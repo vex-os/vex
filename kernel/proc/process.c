@@ -125,12 +125,7 @@ static void reparent_children(struct process* restrict proc)
 // thread rather than when the scheduler reaps the last thread
 static void release_files(struct process* restrict proc)
 {
-    struct vnode* cwd = proc->cwd;
-    proc->cwd = nullptr;
-
-    if(cwd) {
-        vnode_decref(cwd);
-    }
+    process_set_cwd(proc, nullptr);
 
     spinlock_acquire(&proc->fd_lock);
 
@@ -176,11 +171,14 @@ struct process* process_create(struct process* restrict parent)
     event_init(&proc->evnt);
     event_init(&proc->child_exited);
 
-    if(parent && parent->cwd) {
-        vnode_incref(parent->cwd);
-        proc->cwd = parent->cwd;
+    if(parent) {
+        proc->cwd = process_get_cwd(parent);
     }
     else {
+        proc->cwd = nullptr;
+    }
+
+    if(proc->cwd == nullptr) {
         proc->cwd = vfs_get_root();
     }
 
@@ -367,6 +365,35 @@ void process_destroy(struct process* proc)
     release_files(proc);
 
     process_decref(proc);
+}
+
+struct vnode* process_get_cwd(struct process* proc)
+{
+    bool intr_state = spinlock_acquire_intr(&proc->lock);
+
+    struct vnode* cwd = proc->cwd;
+
+    if(cwd) {
+        vnode_incref(cwd);
+    }
+
+    spinlock_release_intr(&proc->lock, intr_state);
+
+    return cwd;
+}
+
+void process_set_cwd(struct process* proc, struct vnode* node)
+{
+    bool intr_state = spinlock_acquire_intr(&proc->lock);
+
+    struct vnode* old_cwd = proc->cwd;
+    proc->cwd = node;
+
+    spinlock_release_intr(&proc->lock, intr_state);
+
+    if(old_cwd) {
+        vnode_decref(old_cwd);
+    }
 }
 
 struct file* dereference_fd(struct process* proc, int fd)

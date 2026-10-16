@@ -90,8 +90,19 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
         return retval;
     }
 
+    struct vnode* stem;
+    retval = syscall_dirfd(AT_FDCWD, path, &stem);
+
+    if(retval < 0) {
+        return retval;
+    }
+
     struct file* fp;
-    retval = file_open(path, O_RDONLY, &fp);
+    retval = file_open(stem, path, O_RDONLY, &fp);
+
+    if(stem) {
+        vnode_decref(stem);
+    }
 
     if(retval < 0) {
         return retval;

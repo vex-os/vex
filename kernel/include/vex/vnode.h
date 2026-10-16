@@ -54,7 +54,7 @@ bool vnode_decref(struct vnode* restrict node);
 int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out);
 int vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
 int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
-int vnode_unlink(struct vnode* restrict node, const char* restrict name);
+int vnode_unlink(struct vnode* restrict node, const char* restrict name, bool directory);
 int vnode_open(struct vnode* restrict node, unsigned mode);
 int vnode_close(struct vnode* restrict node);
 ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset);

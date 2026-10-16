@@ -1,5 +1,6 @@
 #include <vex/dirent.h>
 #include <vex/errno.h>
+#include <vex/fcntl.h>
 #include <vex/file.h>
 #include <vex/path.h>
 #include <vex/process.h>
@@ -9,42 +10,70 @@
 #include <vex/uaccess.h>
 #include <vex/vnode.h>
 
-static intptr_t sys_unlink(const uintptr_t* restrict args)
+static intptr_t sys_unlinkat(const uintptr_t* restrict args)
 {
+    unsigned flags = args[2];
+
+    if(flags & ~AT_REMOVEDIR) {
+        return -EINVAL;
+    }
+
     char path[PATH_SIZE];
-    ssize_t copied = user_copyin_str(path, args[0], sizeof(path));
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
 
     if(copied < 0) {
         return copied;
     }
 
-    const char* name;
-    struct vnode* parent;
-    int retval = path_resolve_parent(path, &parent, &name);
+    struct vnode* stem;
+    int retval = syscall_dirfd(args[0], path, &stem);
 
     if(retval < 0) {
         return retval;
     }
 
-    retval = vnode_unlink(parent, name);
+    const char* name;
+    struct vnode* parent;
+    retval = path_resolve_parent_at(stem, path, &parent, &name);
+
+    if(stem) {
+        vnode_decref(stem);
+    }
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = vnode_unlink(parent, name, flags & AT_REMOVEDIR);
 
     vnode_decref(parent);
 
     return retval;
 }
 
-static intptr_t sys_mkdir(const uintptr_t* restrict args)
+static intptr_t sys_mkdirat(const uintptr_t* restrict args)
 {
     char path[PATH_SIZE];
-    ssize_t copied = user_copyin_str(path, args[0], sizeof(path));
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
 
     if(copied < 0) {
         return copied;
     }
 
+    struct vnode* stem;
+    int retval = syscall_dirfd(args[0], path, &stem);
+
+    if(retval < 0) {
+        return retval;
+    }
+
     const char* name;
     struct vnode* parent;
-    int retval = path_resolve_parent(path, &parent, &name);
+    retval = path_resolve_parent_at(stem, path, &parent, &name);
+
+    if(stem) {
+        vnode_decref(stem);
+    }
 
     if(retval < 0) {
         return retval;
@@ -114,8 +143,19 @@ static intptr_t sys_chdir(const uintptr_t* restrict args)
         return copied;
     }
 
+    struct vnode* stem;
+    int retval = syscall_dirfd(AT_FDCWD, path, &stem);
+
+    if(retval < 0) {
+        return retval;
+    }
+
     struct vnode* node;
-    int retval = path_resolve(path, &node);
+    retval = path_resolve_at(stem, path, 0, &node);
+
+    if(stem) {
+        vnode_decref(stem);
+    }
 
     if(retval < 0) {
         return retval;
@@ -126,17 +166,43 @@ static intptr_t sys_chdir(const uintptr_t* restrict args)
         return -ENOTDIR;
     }
 
-    if(proc->cwd) {
-        vnode_decref(proc->cwd);
-    }
-
-    proc->cwd = node;
+    process_set_cwd(proc, node);
 
     return 0;
 }
 
-define_syscall(sys_unlink, SYS_UNLINK);
-define_syscall(sys_mkdir, SYS_MKDIR);
+static intptr_t sys_fchdir(const uintptr_t* restrict args)
+{
+    struct thread* thread = this_thread();
+    struct process* proc = thread->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    int fd = args[0];
+
+    if(fd == AT_FDCWD) {
+        return -EBADF;
+    }
+
+    // An empty path is never absolute, so this
+    // always hands back the directory behind fd
+    struct vnode* node;
+    int retval = syscall_dirfd(fd, "", &node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    process_set_cwd(proc, node);
+
+    return 0;
+}
+
+define_syscall(sys_unlinkat, SYS_UNLINKAT);
+define_syscall(sys_mkdirat, SYS_MKDIRAT);
 define_syscall(sys_readdir, SYS_READDIR);
 define_syscall(sys_getcwd, SYS_GETCWD);
 define_syscall(sys_chdir, SYS_CHDIR);
+define_syscall(sys_fchdir, SYS_FCHDIR);

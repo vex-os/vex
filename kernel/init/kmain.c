@@ -72,7 +72,7 @@ static void spawn_init(void)
     }
 
     struct file* fp;
-    int retval = file_open(path, O_RDONLY, &fp);
+    int retval = file_open(nullptr, path, O_RDONLY, &fp);
 
     if(retval < 0) {
         panic("kmain: %s: file_open failed: %s", path, strerror(retval));
