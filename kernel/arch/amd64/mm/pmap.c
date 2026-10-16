@@ -1,3 +1,4 @@
+#include <arch/amd64.cpuid.h>
 #include <limine.h>
 #include <vex/assert.h>
 #include <vex/errno.h>
@@ -29,6 +30,25 @@ unsigned pmap_detect_levels(void)
     }
 
     return 3;
+}
+
+unsigned pmap_detect_leaf_levels(void)
+{
+    uint32_t eax, ebx, ecx, edx;
+
+    cpuid(0x80000000, 0, &eax, &ebx, &ecx, &edx);
+
+    if(eax < 0x80000001) {
+        return 2;
+    }
+
+    cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx);
+
+    if(edx & CPUID_80000001_EDX_PDPE1GB) {
+        return 3;
+    }
+
+    return 2;
 }
 
 int arch_pmap_alloc(struct pagemap* restrict pmap)

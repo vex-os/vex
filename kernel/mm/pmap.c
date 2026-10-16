@@ -1,3 +1,4 @@
+#include <vex/assert.h>
 #include <vex/errno.h>
 #include <vex/hart.h>
 #include <vex/hhdm.h>
@@ -19,15 +20,17 @@ static_assert(sizeof(struct pagemap) <= (PAGE_SIZE / 2));
 
 struct pagemap sys_pmap;
 
-static size_t pte_index(uintptr_t virt, uintptr_t shift)
+static unsigned max_leaf_level = 1;
+
+static size_t pte_index(uintptr_t virt, unsigned level)
 {
-    return (virt >> shift) & PMENTRY_LEVEL_MASK;
+    return (virt >> pmentry_level_shift(level)) & PMENTRY_LEVEL_MASK;
 }
 
 static pmentry_type* pmentry_get(pmentry_type* restrict table, size_t index, bool allocate)
 {
     if(pmentry_valid(table[index])) {
-        return phys_to_virt(pmentry_address(table[index]));
+        return phys_to_virt(pmentry_table_address(table[index]));
     }
 
     if(allocate) {
@@ -36,7 +39,7 @@ static pmentry_type* pmentry_get(pmentry_type* restrict table, size_t index, boo
         if(phys) {
             pmentry_type* child = phys_to_virt(phys);
             memset(child, 0, PAGE_SIZE);
-            table[index] = pmentry_setup(phys, VPROT_URWX);
+            table[index] = pmentry_table(phys);
             return child;
         }
     }
@@ -44,54 +47,103 @@ static pmentry_type* pmentry_get(pmentry_type* restrict table, size_t index, boo
     return nullptr;
 }
 
-static pmentry_type* pmentry_walk(struct pagemap* restrict pmap, uintptr_t virt, bool allocate)
+static pmentry_type* pmentry_walk(struct pagemap* restrict pmap, uintptr_t virt, unsigned leaf_level, bool allocate,
+    unsigned* restrict out_level)
 {
     pmentry_type* table = pmap_root(pmap, virt);
+    unsigned level = pmap->num_levels;
 
-    if(pmap->num_levels >= 5) {
-        size_t index = pte_index(virt, PMENTRY_LVL5_SHIFT);
+    while(level > leaf_level) {
+        size_t index = pte_index(virt, level);
+
+        if(pmentry_valid(table[index]) && pmentry_leaf(table[index], level)) {
+            break;
+        }
+
         table = pmentry_get(table, index, allocate);
 
         if(table == nullptr) {
             return nullptr;
         }
+
+        level -= 1;
     }
 
-    if(pmap->num_levels >= 4) {
-        size_t index = pte_index(virt, PMENTRY_LVL4_SHIFT);
-        table = pmentry_get(table, index, allocate);
+    if(out_level) {
+        *out_level = level;
+    }
 
-        if(table == nullptr) {
-            return nullptr;
+    return &table[pte_index(virt, level)];
+}
+
+static int split_large_nolock(pmentry_type* restrict entry, unsigned level)
+{
+    uintptr_t phys = pslab_alloc_phys();
+
+    if(phys == 0) {
+        return -ENOMEM;
+    }
+
+    pmentry_type* table = phys_to_virt(phys);
+    uintptr_t base = pmentry_address(*entry, level);
+    uintptr_t step = pmentry_level_size(level - 1);
+    unsigned vprot = pmentry_vprot(*entry, level);
+
+    for(size_t i = 0; i < PAGEMAP_SIZE; ++i) {
+        table[i] = pmentry_setup(base + i * step, vprot, level - 1);
+    }
+
+    *entry = pmentry_table(phys);
+
+    return 0;
+}
+
+static int pmentry_walk_page_nolock(struct pagemap* restrict pmap, uintptr_t virt, pmentry_type** restrict out)
+{
+    for(;;) {
+        unsigned level;
+        pmentry_type* entry = pmentry_walk(pmap, virt, 1, false, &level);
+
+        if(entry == nullptr || !pmentry_valid(*entry)) {
+            return -ENOENT;
+        }
+
+        if(level == 1) {
+            *out = entry;
+            return 0;
+        }
+
+        int retval = split_large_nolock(entry, level);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+}
+
+static unsigned pick_leaf_level(uintptr_t virt, uintptr_t phys, size_t size, unsigned vprot)
+{
+    if(vprot & VPROT_USER) {
+        return 1;
+    }
+
+    for(unsigned level = max_leaf_level; level > 1; level -= 1) {
+        uintptr_t mask = pmentry_level_size(level) - 1;
+
+        if(0 == ((virt | phys) & mask) && size > mask) {
+            return level;
         }
     }
 
-    if(pmap->num_levels >= 3) {
-        size_t index = pte_index(virt, PMENTRY_LVL3_SHIFT);
-        table = pmentry_get(table, index, allocate);
-
-        if(table == nullptr) {
-            return nullptr;
-        }
-    }
-
-    size_t index = pte_index(virt, PMENTRY_LVL2_SHIFT);
-    table = pmentry_get(table, index, allocate);
-
-    if(table == nullptr) {
-        return nullptr;
-    }
-
-    index = pte_index(virt, PMENTRY_LVL1_SHIFT);
-    return &table[index];
+    return 1;
 }
 
 static void pmap_table_free(pmentry_type* restrict table, size_t begin, size_t end, unsigned depth)
 {
     if(depth) {
         for(size_t i = begin; i < end; ++i) {
-            if(pmentry_valid(table[i])) {
-                pmentry_type* child = phys_to_virt(pmentry_address(table[i]));
+            if(pmentry_valid(table[i]) && !pmentry_leaf(table[i], depth + 1)) {
+                pmentry_type* child = phys_to_virt(pmentry_table_address(table[i]));
                 pmap_table_free(child, 0, PAGEMAP_SIZE, depth - 1);
                 pslab_free_phys(virt_to_phys(child));
             }
@@ -101,10 +153,11 @@ static void pmap_table_free(pmentry_type* restrict table, size_t begin, size_t e
 
 static uintptr_t pmap_resolve_address_nolock(struct pagemap* restrict pmap, uintptr_t virt)
 {
-    pmentry_type* entry = pmentry_walk(pmap, virt, false);
+    unsigned level;
+    pmentry_type* entry = pmentry_walk(pmap, virt, 1, false, &level);
 
     if(entry && pmentry_valid(*entry)) {
-        return pmentry_address(*entry) + (virt & (PAGE_SIZE - 1));
+        return pmentry_address(*entry, level) + (virt & (pmentry_level_size(level) - 1));
     }
 
     return 0;
@@ -140,7 +193,7 @@ int pmap_map(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, unsi
 {
     bool intr_state = spinlock_acquire_intr(&pmap->lock);
 
-    pmentry_type* entry = pmentry_walk(pmap, virt, true);
+    pmentry_type* entry = pmentry_walk(pmap, virt, 1, true, nullptr);
     int retval;
 
     if(entry == nullptr) {
@@ -150,9 +203,45 @@ int pmap_map(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, unsi
         retval = -EEXIST;
     }
     else {
-        *entry = pmentry_setup(page_align(phys), vprot);
+        *entry = pmentry_setup(page_align(phys), vprot, 1);
         pmap_flush(virt);
         retval = 0;
+    }
+
+    spinlock_release_intr(&pmap->lock, intr_state);
+
+    return retval;
+}
+
+int pmap_map_range(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, size_t size, unsigned vprot)
+{
+    kassert(0 == ((virt | phys | size) & (PAGE_SIZE - 1)));
+
+    bool intr_state = spinlock_acquire_intr(&pmap->lock);
+
+    int retval = 0;
+
+    while(size > 0) {
+        unsigned level = pick_leaf_level(virt, phys, size, vprot);
+        pmentry_type* entry = pmentry_walk(pmap, virt, level, true, nullptr);
+
+        if(entry == nullptr) {
+            retval = -ENOMEM;
+            break;
+        }
+
+        if(pmentry_valid(*entry)) {
+            retval = -EEXIST;
+            break;
+        }
+
+        *entry = pmentry_setup(phys, vprot, level);
+        pmap_flush(virt);
+
+        uintptr_t step = pmentry_level_size(level);
+        virt += step;
+        phys += step;
+        size -= step;
     }
 
     spinlock_release_intr(&pmap->lock, intr_state);
@@ -164,24 +253,21 @@ int pmap_patch_noflush(struct pagemap* restrict pmap, uintptr_t virt, unsigned v
 {
     bool intr_state = spinlock_acquire_intr(&pmap->lock);
 
-    pmentry_type* entry = pmentry_walk(pmap, virt, false);
+    pmentry_type* entry;
+    int retval = pmentry_walk_page_nolock(pmap, virt, &entry);
 
-    if(entry == nullptr) {
-        spinlock_release_intr(&pmap->lock, intr_state);
-        return -ENOMEM;
+    if(retval == -ENOENT) {
+        retval = -EINVAL;
     }
 
-    if(!pmentry_valid(*entry)) {
-        spinlock_release_intr(&pmap->lock, intr_state);
-        return -EINVAL;
+    if(retval == 0) {
+        *entry = pmentry_setup(pmentry_address(*entry, 1), vprot, 1);
+        pmap_flush(virt);
     }
-
-    *entry = pmentry_setup(pmentry_address(*entry), vprot);
-    pmap_flush(virt);
 
     spinlock_release_intr(&pmap->lock, intr_state);
 
-    return 0;
+    return retval;
 }
 
 int pmap_patch(struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot)
@@ -199,19 +285,17 @@ int pmap_unmap_noflush(struct pagemap* restrict pmap, uintptr_t virt)
 {
     bool intr_state = spinlock_acquire_intr(&pmap->lock);
 
-    pmentry_type* entry = pmentry_walk(pmap, virt, false);
+    pmentry_type* entry;
+    int retval = pmentry_walk_page_nolock(pmap, virt, &entry);
 
-    if(entry == nullptr || !pmentry_valid(*entry)) {
-        spinlock_release_intr(&pmap->lock, intr_state);
-        return -ENOENT;
+    if(retval == 0) {
+        *entry = PMENTRY_NULL;
+        pmap_flush(virt);
     }
-
-    *entry = PMENTRY_NULL;
-    pmap_flush(virt);
 
     spinlock_release_intr(&pmap->lock, intr_state);
 
-    return 0;
+    return retval;
 }
 
 int pmap_unmap(struct pagemap* restrict pmap, uintptr_t virt)
@@ -237,11 +321,12 @@ unsigned pmap_resolve_vprot(struct pagemap* restrict pmap, uintptr_t virt)
 {
     bool intr_state = spinlock_acquire_intr(&pmap->lock);
 
-    pmentry_type* entry = pmentry_walk(pmap, virt, false);
+    unsigned level;
+    pmentry_type* entry = pmentry_walk(pmap, virt, 1, false, &level);
     unsigned result = 0;
 
     if(entry && pmentry_valid(*entry)) {
-        result = pmentry_vprot(*entry);
+        result = pmentry_vprot(*entry, level);
     }
 
     spinlock_release_intr(&pmap->lock, intr_state);
@@ -295,6 +380,7 @@ static void init_mmu(void)
 {
     sys_pmap.lock = SPINLOCK_INIT;
     sys_pmap.num_levels = pmap_detect_levels();
+    max_leaf_level = pmap_detect_leaf_levels();
 
     int retval = arch_pmap_alloc(&sys_pmap);
 
