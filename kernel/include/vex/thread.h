@@ -31,6 +31,8 @@ struct thread {
     unsigned long tid;
     unsigned short state;
 
+    struct hart_context* syscall_ctx; // The frame of the system call in progress, for fork and exec
+
     spinlock_type hart_lock;
     spinlock_type yield_await;
     struct hart_local* hart;

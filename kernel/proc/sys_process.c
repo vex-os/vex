@@ -1,11 +1,19 @@
 #include <vex/atomic.h>
+#include <vex/binfmt.h>
 #include <vex/errno.h>
 #include <vex/event.h>
+#include <vex/fcntl.h>
+#include <vex/file.h>
+#include <vex/kmalloc.h>
+#include <vex/limits.h>
+#include <vex/page.h>
 #include <vex/process.h>
+#include <vex/pslab.h>
 #include <vex/sched.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
 #include <vex/uaccess.h>
+#include <vex/vms.h>
 #include <vex/wait.h>
 
 static intptr_t __noreturn sys_exit(const uintptr_t* restrict args)
@@ -20,14 +28,171 @@ static intptr_t __noreturn sys_exit(const uintptr_t* restrict args)
     unreachable();
 }
 
+// Copies a null-terminated array of user strings, packing the strings at cursor
+static int copy_strings(uintptr_t user_array, const char** restrict out, char** restrict cursor, const char* restrict limit)
+{
+    size_t count = 0;
+
+    for(; user_array; count += 1) {
+        uintptr_t user_string;
+        ssize_t copied = user_copyin(&user_string, user_array + count * sizeof(uintptr_t), sizeof(uintptr_t));
+
+        if(copied < 0) {
+            return copied;
+        }
+
+        if(user_string == 0) {
+            break;
+        }
+
+        if(count == BINFMT_ARGS_MAX || *cursor >= limit) {
+            return -E2BIG;
+        }
+
+        copied = user_copyin_str(*cursor, user_string, limit - *cursor);
+
+        if(copied == -ENAMETOOLONG) {
+            return -E2BIG;
+        }
+
+        if(copied < 0) {
+            return copied;
+        }
+
+        out[count] = *cursor;
+        *cursor += copied + 1;
+    }
+
+    out[count] = nullptr;
+
+    return 0;
+}
+
+static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, char* restrict strings, const uintptr_t* restrict args)
+{
+    ssize_t copied = user_copyin_str(path, args[0], PATH_SIZE);
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    const char* argv[BINFMT_ARGS_MAX + 1];
+    const char* envp[BINFMT_ARGS_MAX + 1];
+    char* cursor = strings;
+
+    int retval = copy_strings(args[1], argv, &cursor, strings + PAGE_SIZE);
+
+    if(retval == 0) {
+        retval = copy_strings(args[2], envp, &cursor, strings + PAGE_SIZE);
+    }
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct file* fp;
+    retval = file_open(path, O_RDONLY, &fp);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    // Built aside, so a failure leaves
+    // the caller running in its old image
+    struct vmspace* vms = vms_create();
+
+    if(vms == nullptr) {
+        file_close(fp);
+        return -ENOMEM;
+    }
+
+    struct entry_point entry;
+    retval = load_binary(vms, fp, argv, envp, &entry);
+
+    file_close(fp);
+
+    if(retval < 0) {
+        vms_release(vms);
+        return retval;
+    }
+
+    struct process* proc = thrd->proc;
+    struct vmspace* old_vms = proc->vms;
+
+    proc->vms = vms;
+    arch_thread_exec(thrd, vms, entry.address, entry.ustack);
+
+    // No hart has the old
+    // page tables loaded anymore
+    vms_release(old_vms);
+
+    return 0;
+}
+
 static intptr_t sys_fork(const uintptr_t* restrict args)
 {
-    return -ENOSYS;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    struct process* child = process_create(proc);
+
+    if(child == nullptr) {
+        return -ENOMEM;
+    }
+
+    int retval = vms_clone(child->vms, proc->vms);
+
+    if(retval == 0) {
+        retval = copy_fds(child, proc);
+    }
+
+    struct thread* child_thread = nullptr;
+
+    if(retval == 0) {
+        child_thread = create_thread_fork(child, thrd->syscall_ctx);
+
+        if(child_thread == nullptr) {
+            retval = -ENOMEM;
+        }
+    }
+
+    if(retval < 0) {
+        process_destroy(child);
+        return retval;
+    }
+
+    pid_t pid = child->pid;
+
+    sched_enqueue(child_thread);
+
+    return pid;
 }
 
 static intptr_t sys_exec(const uintptr_t* restrict args)
 {
-    return -ENOSYS;
+    struct thread* thrd = this_thread();
+
+    if(thrd->proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    char* path = kmalloc(PATH_SIZE);
+    char* strings = pslab_alloc_virt();
+
+    intptr_t retval = -ENOMEM;
+
+    if(path && strings) {
+        retval = exec_image(thrd, path, strings, args);
+    }
+
+    pslab_free_virt(strings);
+    kfree(path);
+
+    return retval;
 }
 
 // Takes over the caller's reference to a claimed zombie child
@@ -77,7 +242,8 @@ static intptr_t wait_any_child(struct process* restrict caller, uintptr_t wstatu
             return -ECHILD;
         }
 
-        // A child that dies before this wait starts leaves the event pending
+        // A child that dies before this
+        // wait starts leaves the event pending
         struct event* child_exited = &caller->child_exited;
         ssize_t result = event_await_blocking(&child_exited, 1);
 

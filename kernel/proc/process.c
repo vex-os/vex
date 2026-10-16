@@ -478,3 +478,31 @@ int release_fd(struct process* proc, int fd)
 
     return 0;
 }
+
+int copy_fds(struct process* restrict proc, struct process* restrict stem)
+{
+    spinlock_acquire(&stem->fd_lock);
+
+    struct file** fds = nullptr;
+
+    if(stem->max_fds) {
+        fds = kmalloc(stem->max_fds * sizeof(struct file*));
+
+        if(fds == nullptr) {
+            spinlock_release(&stem->fd_lock);
+            return -ENOMEM;
+        }
+
+        for(size_t i = 0; i < stem->max_fds; ++i) {
+            fds[i] = file_dupe(stem->fds[i]);
+        }
+    }
+
+    proc->fds = fds;
+    proc->max_fds = stem->max_fds;
+    proc->num_fds = stem->num_fds;
+
+    spinlock_release(&stem->fd_lock);
+
+    return 0;
+}

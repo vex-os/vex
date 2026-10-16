@@ -45,7 +45,7 @@ int remove_binfmt(struct binfmt* restrict fmt)
     return -ENOENT;
 }
 
-int load_binary(struct process* restrict proc, struct file* restrict fp, const char** restrict argv, const char** restrict envp,
+int load_binary(struct vmspace* restrict vms, struct file* restrict fp, const char** restrict argv, const char** restrict envp,
     struct entry_point* restrict out)
 {
     uint8_t header[256];
@@ -69,7 +69,7 @@ int load_binary(struct process* restrict proc, struct file* restrict fp, const c
                 return retval;
             }
 
-            return it->ops->setup(proc, fp, argv, envp, out);
+            return it->ops->setup(vms, fp, argv, envp, out);
         }
     }
 
