@@ -161,7 +161,7 @@ static intptr_t sys_seek(const uintptr_t* restrict args)
     return syscall_with_fd(args, &seek_file);
 }
 
-static intptr_t stat_file(struct file* restrict fp, const uintptr_t* restrict args)
+static intptr_t fstat_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
     struct k_stat st;
     int retval = vnode_stat(fp->node, &st);
@@ -173,9 +173,9 @@ static intptr_t stat_file(struct file* restrict fp, const uintptr_t* restrict ar
     return user_copyout(args[1], &st, sizeof(st));
 }
 
-static intptr_t sys_stat(const uintptr_t* restrict args)
+static intptr_t sys_fstat(const uintptr_t* restrict args)
 {
-    return syscall_with_fd(args, &stat_file);
+    return syscall_with_fd(args, &fstat_file);
 }
 
 static intptr_t sys_dup(const uintptr_t* restrict args)
@@ -224,7 +224,7 @@ define_syscall(sys_close, SYS_CLOSE);
 define_syscall(sys_read, SYS_READ);
 define_syscall(sys_write, SYS_WRITE);
 define_syscall(sys_seek, SYS_SEEK);
-define_syscall(sys_stat, SYS_STAT);
+define_syscall(sys_fstat, SYS_FSTAT);
 define_syscall(sys_dup, SYS_DUP);
 define_syscall(sys_dup2, SYS_DUP2);
 define_syscall(sys_ioctl, SYS_IOCTL);

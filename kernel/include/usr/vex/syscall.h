@@ -13,7 +13,7 @@
 #define __k_SYS_READ     10
 #define __k_SYS_WRITE    11
 #define __k_SYS_SEEK     12
-#define __k_SYS_STAT     13
+#define __k_SYS_FSTAT    13
 #define __k_SYS_UNLINK   14
 #define __k_SYS_DUP      15
 #define __k_SYS_DUP2     16

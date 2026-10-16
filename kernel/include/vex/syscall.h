@@ -16,7 +16,7 @@
 #define SYS_READ     __k_SYS_READ
 #define SYS_WRITE    __k_SYS_WRITE
 #define SYS_SEEK     __k_SYS_SEEK
-#define SYS_STAT     __k_SYS_STAT
+#define SYS_FSTAT    __k_SYS_FSTAT
 #define SYS_UNLINK   __k_SYS_UNLINK
 #define SYS_DUP      __k_SYS_DUP
 #define SYS_DUP2     __k_SYS_DUP2
