@@ -277,7 +277,7 @@ static int map_memmap_entry(const struct limine_memmap_entry* restrict entry)
     uintptr_t virt_end = page_align_up(virt + entry->length);
 
     while(virt < virt_end) {
-        int retval = pmap_map(&sys_pmap, virt, phys, VPROT_RWX);
+        int retval = pmap_map(&sys_pmap, virt, phys, VPROT_RW);
 
         if(retval == 0 || retval == -EEXIST) {
             virt += PAGE_SIZE;
