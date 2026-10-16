@@ -1,17 +1,9 @@
+#include <arch/amd64.cpuid.h>
 #include <vex/initcall.h>
 #include <vex/types.h>
 
-#define CPUID_7_EBX_SMEP UINT32_C(0x00000080)
-#define CPUID_7_EBX_SMAP UINT32_C(0x00100000)
-
 #define CR4_SMEP UINT64_C(0x0000000000100000)
 #define CR4_SMAP UINT64_C(0x0000000000200000)
-
-static void cpuid(uint32_t leaf, uint32_t subleaf, uint32_t* restrict eax, uint32_t* restrict ebx, uint32_t* restrict ecx,
-    uint32_t* restrict edx)
-{
-    asm volatile("cpuid" : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx) : "a"(leaf), "c"(subleaf));
-}
 
 // The kernel reaches user memory only through the
 // direct map, never through user addresses, so SMAP
