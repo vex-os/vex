@@ -15,7 +15,7 @@ static void arch_init_syscall(void)
     wrmsr(MSR_STAR, star_value);
 
     wrmsr(MSR_LSTAR, (uintptr_t)(&amd64_syscall_entry));
-    wrmsr(MSR_SFMASK, UINT64_C(0x0000000000000700)); // Clear (TF | IF | DF) on syscall entry
+    wrmsr(MSR_SFMASK, UINT64_C(0x0000000000040700)); // Clear (TF | IF | DF | AC) on syscall entry
 }
 
 initcall_smp_syscall(arch_init_syscall, INIT_EARLY);
