@@ -1,4 +1,5 @@
 #include <vex/assert.h>
+#include <vex/atomic.h>
 #include <vex/blk_device.h>
 #include <vex/cmdline.h>
 #include <vex/kmalloc.h>
@@ -294,7 +295,7 @@ int vfs_unmount(const char* restrict path)
 
     int retval = 0;
 
-    if(vcache_in_use(fs, is_root ? 2 : 1)) {
+    if(atomic_load(&fs->orphans, ATOMIC_ACQUIRE) || vcache_in_use(fs, is_root ? 2 : 1)) {
         retval = -EBUSY;
     }
     else {

@@ -21,7 +21,7 @@ struct vnode_ops {
     int (*lookup)(struct vnode* restrict node, const char* restrict name, ino_t* restrict out);
     int (*iterate)(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
     int (*create)(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
-    int (*unlink)(struct vnode* restrict node, const char* restrict name);
+    int (*unlink)(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target);
     int (*open)(struct vnode* restrict node, unsigned mode);
     int (*close)(struct vnode* restrict node);
     ssize_t (*read)(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset);
@@ -41,6 +41,7 @@ struct vnode {
     spinlock_type lock;
     unsigned refcount;
     unsigned nodetype;
+    bool orphaned; // Unlinked, counted in fs->orphans until released
     ino_t nodenumber;
     const struct blk_device* blkdev;
     void* ctxdata;

@@ -1,3 +1,4 @@
+#include <vex/assert.h>
 #include <vex/bitmap.h>
 #include <vex/blk_device.h>
 #include <vex/ctype.h>
@@ -178,6 +179,8 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
         }
     }
 
+    entry->num_lfn = num_ldir;
+
     ptrdiff_t name_pos = 0;
 
     if(num_ldir > 0) {
@@ -325,6 +328,32 @@ int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t 
     union fat_entry raw;
     memcpy(&raw.dir, entry, sizeof(struct fat_dir_entry));
     return write_entry(context, cluster, offset, &raw);
+}
+
+int fat_dirent_remove(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, unsigned num_lfn)
+{
+    kassert(offset >= num_lfn);
+
+    // The order byte of a long name entry sits
+    // where the first name byte of a short one does
+    for(size_t slot = offset - num_lfn; slot <= offset; slot += 1) {
+        union fat_entry raw;
+        int retval = read_entry(context, cluster, slot, &raw);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        raw.dir.name[0] = 0xE5;
+
+        retval = write_entry(context, cluster, slot, &raw);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
+    return 0;
 }
 
 int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset)
