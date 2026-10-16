@@ -47,67 +47,50 @@ extern void amd64_isr_1F(void);
 
 static void page_fault_handler(struct hart_local* restrict hart, struct hart_context* restrict ctx)
 {
-    struct page_fault_info info;
-    memset(&info, 0, sizeof(info));
+    uintptr_t fault;
+    asm volatile("movq %%cr2, %0" : "=r"(fault));
 
-    info.present = ctx->amd64_err & 0x1;
+    unsigned access;
 
     if(ctx->amd64_err & 0x2) {
-        info.vprot = VPROT_WRITE;
+        access = VPROT_WRITE;
     }
     else if(ctx->amd64_err & 0x10) {
-        info.vprot = VPROT_EXEC;
+        access = VPROT_EXEC;
     }
     else {
-        info.vprot = VPROT_READ;
+        access = VPROT_READ;
     }
 
-    if(ctx->amd64_err & 0x4) {
-        info.vprot |= VPROT_USER;
+    if(3 != (ctx->amd64_cs & 3)) {
+        panic("kernel page fault: hart=%hu fault=%p rip=%p access=%02X present=%d", hart->index, (void*)(fault), (void*)(ctx->amd64_rip),
+            access, (int)(ctx->amd64_err & 0x1));
     }
-
-    asm volatile("movq %%cr2, %0" : "=r"(info.fault));
 
     struct thread* thrd = hart->curr_thread;
     struct process* proc = thrd->proc;
 
-    if(proc == nullptr && 3 == (ctx->amd64_cs & 3)) {
+    if(proc == nullptr) {
         sched_terminate();
         unreachable();
     }
 
-    struct pagemap* old_pmap;
-    struct pagemap* new_pmap;
+    // A fault from ring 3 holds
+    // no kernel locks, so resolving
+    // or exiting may sleep
+    enable_interrupts();
 
-    if(3 == (ctx->amd64_cs & 3)) {
-        old_pmap = proc->vms->pmap;
-        new_pmap = handle_page_fault(old_pmap, &info);
-
-        if(new_pmap) {
-            proc->vms->pmap = new_pmap;
-            thrd->arch.cr3 = new_pmap->phys;
-            pmap_switch(new_pmap);
-            return;
-        }
-
-        // A fault from ring 3 holds
-        // no kernel locks, and exiting may sleep
-        enable_interrupts();
-
-        process_exit(proc, -1);
-        sched_terminate();
-        unreachable();
+    if(0 == vms_fault(proc->vms, fault, access)) {
+        // The way back to ring 3 swaps GS
+        // and an interrupt landing after
+        // that would take the user GS for the kernel GS
+        disable_interrupts();
+        return;
     }
-    else {
-        old_pmap = &sys_pmap;
-        new_pmap = handle_page_fault(old_pmap, &info);
 
-        if(new_pmap) {
-            return;
-        }
-
-        panic("kernel page fault: hart=%hu fault=%p vprot=%02X present=%d", hart->index, (void*)(info.fault), info.vprot, info.present);
-    }
+    process_exit(proc, -1);
+    sched_terminate();
+    unreachable();
 }
 
 void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec)
@@ -117,6 +100,8 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
     struct hart_local* hart = this_hart();
 
     // Harts only get set up at the multicore stage
+    // so anything happening before that quite literally
+    // means it's joever and we're all gonna die
     if(hart == nullptr) {
         uintptr_t fault;
         asm volatile("movq %%cr2, %0" : "=r"(fault));

@@ -167,10 +167,6 @@ struct process* process_create(struct process* restrict parent)
 
     if(parent) {
         proc->ppid = parent->pid;
-        proc->thread_stack_top = parent->thread_stack_top;
-    }
-    else {
-        proc->thread_stack_top = UINT64_C(0x0000700000000000);
     }
 
     proc->pid = atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);

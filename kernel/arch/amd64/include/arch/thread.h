@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vex/compiler.h>
 #include <vex/types.h>
 
 struct thread;
@@ -10,7 +11,6 @@ struct arch_thread {
     void* fs_base;
     uint64_t cr3;
     void* kernel_stack;
-    void* pfault_stack;
 };
 
 static __always_inline __nodiscard struct thread* this_thread(void)
@@ -22,6 +22,6 @@ static __always_inline __nodiscard struct thread* this_thread(void)
 
 void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, void* restrict arg, void* restrict kernel_stack_top);
 void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, void* restrict user_stack_top,
-    void* restrict kernel_stack_top, void* restrict pfault_stack_top, struct vmspace* restrict vms);
+    void* restrict kernel_stack_top, struct vmspace* restrict vms);
 void arch_thread_ctx_save(struct thread* restrict thrd);
 void arch_thread_ctx_load(struct thread* restrict thrd);

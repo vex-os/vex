@@ -30,7 +30,7 @@ void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, 
 }
 
 void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, void* restrict user_stack_top,
-    void* restrict kernel_stack_top, void* restrict pfault_stack_top, struct vmspace* restrict vms)
+    void* restrict kernel_stack_top, struct vmspace* restrict vms)
 {
     memset(&thrd->ctx, 0, sizeof(thrd->ctx));
 
@@ -45,7 +45,6 @@ void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, 
     thrd->arch.gs_base = nullptr;
     thrd->arch.fs_base = nullptr;
     thrd->arch.kernel_stack = kernel_stack_top;
-    thrd->arch.pfault_stack = pfault_stack_top;
     thrd->arch.cr3 = vms->pmap->phys;
     thrd->kernel_rsp = kernel_stack_top;
 }
@@ -68,7 +67,6 @@ void arch_thread_ctx_load(struct thread* restrict thrd)
     struct hart_local* hart = this_hart();
 
     hart->arch.tss.rsp_0 = (uintptr_t)(thrd->arch.kernel_stack);
-    hart->arch.tss.ist_4 = (uintptr_t)(thrd->arch.pfault_stack); // IDT_IST_PAGE_FAULT
 
     wrmsr(MSR_GS_BASE, (uintptr_t)(thrd));
     wrmsr(MSR_FS_BASE, (uintptr_t)(thrd->arch.fs_base));
