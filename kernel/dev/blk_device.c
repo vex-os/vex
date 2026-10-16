@@ -1,25 +1,34 @@
+#include <vex/atomic.h>
 #include <vex/blk_device.h>
 #include <vex/blk_event.h>
 #include <vex/blk_name.h>
 #include <vex/kmalloc.h>
 #include <vex/limits.h>
+#include <vex/spinlock.h>
 #include <vex/sprintf.h>
 #include <vex/string.h>
 
-struct blk_device* blk_devices_head = nullptr;
+// Event handlers may do I/O so they run outside the lock
+static spinlock_type blk_devices_lock = SPINLOCK_INIT;
+static struct blk_device* blk_devices_head = nullptr;
 
 static int blk_device_register_internal(struct blk_device* restrict device)
 {
-    struct blk_device* it;
+    spinlock_acquire(&blk_devices_lock);
 
-    for(it = blk_devices_head; it; it = it->priv.next) {
+    for(struct blk_device* it = blk_devices_head; it; it = it->priv.next) {
         if(it == device) {
+            spinlock_release(&blk_devices_lock);
             return -EEXIST;
         }
     }
 
+    atomic_store(&device->priv.refcount, 1, ATOMIC_RELAXED);
+
     device->priv.next = blk_devices_head;
     blk_devices_head = device;
+
+    spinlock_release(&blk_devices_lock);
 
     blk_event_notify(BLK_EVENT_DEVICE_ADDED, device);
 
@@ -58,51 +67,83 @@ int add_blk_device_named(struct blk_device* restrict device)
 
 int remove_blk_device(struct blk_device* restrict device)
 {
-    if(blk_devices_head == device) {
-        blk_devices_head = device->priv.next;
-    }
-    else {
-        struct blk_device* it;
-        struct blk_device* prev = nullptr;
+    spinlock_acquire(&blk_devices_lock);
 
-        for(it = blk_devices_head; it; it = it->priv.next) {
-            if(it == device) {
-                prev->priv.next = it->priv.next;
-                break;
-            }
+    struct blk_device** prev = &blk_devices_head;
 
-            prev = it;
-        }
-
-        if(it == nullptr) {
-            return -ENODEV;
-        }
+    while(*prev && *prev != device) {
+        prev = &(*prev)->priv.next;
     }
 
-    if(device->flags & BLK_FLAG_PRESENT) {
+    if(*prev == nullptr) {
+        spinlock_release(&blk_devices_lock);
+        return -ENODEV;
+    }
+
+    *prev = device->priv.next;
+    device->priv.next = nullptr;
+
+    spinlock_release(&blk_devices_lock);
+
+    // Holders of a reference keep the structure, not
+    // the hardware; their I/O fails from here on
+    bool was_present = device->flags & BLK_FLAG_PRESENT;
+    device->flags &= ~BLK_FLAG_PRESENT;
+
+    if(was_present) {
         blk_event_notify(BLK_EVENT_MEDIA_DISCONNECTED, device);
     }
 
     blk_event_notify(BLK_EVENT_DEVICE_REMOVED, device);
 
-    if(device->ops->release) {
-        device->ops->release(device);
-    }
+    blk_device_decref(device);
 
     return 0;
 }
 
+void blk_device_incref(const struct blk_device* restrict device)
+{
+    struct blk_device* mutable_device = (struct blk_device*)(device);
+    atomic_fetch_add(&mutable_device->priv.refcount, 1, ATOMIC_RELAXED);
+}
+
+void blk_device_decref(const struct blk_device* restrict device)
+{
+    struct blk_device* mutable_device = (struct blk_device*)(device);
+
+    if(1 == atomic_fetch_sub(&mutable_device->priv.refcount, 1, ATOMIC_ACQ_REL)) {
+        if(device->ops->release) {
+            device->ops->release(device);
+        }
+    }
+}
+
 const struct blk_device* find_blk_device(const char* restrict name)
 {
-    struct blk_device* it;
+    spinlock_acquire(&blk_devices_lock);
 
-    for(it = blk_devices_head; it; it = it->priv.next) {
-        if(strcmp(it->identifier, name) == 0) {
+    for(struct blk_device* it = blk_devices_head; it; it = it->priv.next) {
+        if(0 == strcmp(it->identifier, name)) {
+            blk_device_incref(it);
+            spinlock_release(&blk_devices_lock);
             return it;
         }
     }
 
+    spinlock_release(&blk_devices_lock);
+
     return nullptr;
+}
+
+void iterate_blk_devices(void (*callback)(const struct blk_device* restrict device, void* restrict arg), void* restrict arg)
+{
+    spinlock_acquire(&blk_devices_lock);
+
+    for(struct blk_device* it = blk_devices_head; it; it = it->priv.next) {
+        callback(it, arg);
+    }
+
+    spinlock_release(&blk_devices_lock);
 }
 
 int blk_read_sector_prefix(const struct blk_device* restrict device, uintptr_t lba, void* restrict buffer, size_t size)

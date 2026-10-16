@@ -49,6 +49,9 @@ static int part_flush(const struct blk_device* restrict device)
 
 static void part_release(const struct blk_device* restrict device)
 {
+    const struct blk_part_device* part = (const struct blk_part_device*)(device);
+
+    blk_device_decref(part->root);
     kfree((void*)(device));
 }
 
@@ -139,6 +142,8 @@ static void probe_device(const struct blk_device* restrict device)
                 kfree(part);
                 continue;
             }
+
+            blk_device_incref(device); // Dropped by part_release
 
             part->next = state->parts;
             state->parts = part;

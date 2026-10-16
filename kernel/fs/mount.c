@@ -191,6 +191,12 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
 
     spinlock_release(&mounts_lock);
 
+    fs->device = device;
+
+    if(device) {
+        blk_device_incref(device);
+    }
+
     return 0;
 }
 
@@ -338,6 +344,10 @@ int vfs_unmount(const char* restrict path)
 
     vcache_evict(fs);
     fs->ops->unmount(fs);
+
+    if(fs->device) {
+        blk_device_decref(fs->device);
+    }
 
     slab_free(fs);
     kfree(entry->path);

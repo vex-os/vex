@@ -37,6 +37,8 @@ static void mount_root(void)
 
     int retval = vfs_mount(nullptr, "/", device, nullptr);
 
+    blk_device_decref(device);
+
     if(retval < 0) {
         panic("kmain: %s: mount failed: %s", device_name, strerror(retval));
         unreachable();
@@ -82,6 +84,8 @@ static void spawn_init(void)
 
     struct entry_point entry;
     retval = load_binary(proc, fp, argv, envp, &entry);
+
+    file_close(fp);
 
     if(retval < 0) {
         panic("kmain: %s: load_binary failed: %s", path, strerror(retval));

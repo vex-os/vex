@@ -21,6 +21,7 @@ static_assert(sizeof(struct devfs_blk_context) <= (PAGE_SIZE / 2));
 static void devfs_blk_release(struct vnode* restrict node)
 {
     struct devfs_blk_context* context = node->ctxdata;
+    blk_device_decref(context->device);
     mutex_deinit(&context->bounce_lock);
     kfree(context->bounce_buffer);
     slab_free(context);
@@ -254,6 +255,7 @@ void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict d
         }
 
         vnode->blkdev = device;
+        blk_device_incref(device); // Dropped by devfs_blk_release
 
         int retval = devfs_insert(ctxdata, device->identifier, vnode);
 

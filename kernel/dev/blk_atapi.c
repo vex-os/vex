@@ -92,10 +92,20 @@ static int atapi_flush(const struct blk_device* restrict device)
     return atapi->ops->send_packet(atapi, cdb, nullptr, 0);
 }
 
+static void atapi_release(const struct blk_device* restrict device)
+{
+    const struct atapi_device* atapi = ATAPI_DEVICE_FROM_BLK(device);
+
+    if(atapi->ops->release) {
+        atapi->ops->release(atapi);
+    }
+}
+
 static const struct blk_device_ops atapi_blk_device_ops = {
     .read = &atapi_read,
     .write = &atapi_write,
     .flush = &atapi_flush,
+    .release = &atapi_release,
 };
 
 int add_atapi_device(struct atapi_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index)
