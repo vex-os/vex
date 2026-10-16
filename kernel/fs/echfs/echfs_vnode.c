@@ -11,32 +11,12 @@
 
 static_assert(sizeof(struct echfs_vnode_context) <= (PAGE_SIZE / 2));
 
-static void echfs_vnode_release(struct vnode* restrict node);
-static int echfs_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out);
-static int echfs_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
-static int echfs_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
-static int echfs_vnode_unlink(struct vnode* restrict node, const char* restrict name);
-static ssize_t echfs_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset);
-static ssize_t echfs_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset);
-static int echfs_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out);
-
-const struct vnode_ops echfs_vnode_ops = {
-    .release = &echfs_vnode_release,
-    .lookup = &echfs_vnode_lookup,
-    .iterate = &echfs_vnode_iterate,
-    .create = &echfs_vnode_create,
-    .unlink = &echfs_vnode_unlink,
-    .read = &echfs_vnode_read,
-    .write = &echfs_vnode_write,
-    .stat = &echfs_vnode_stat,
-};
-
 static void echfs_vnode_release(struct vnode* restrict node)
 {
     slab_free(node->ctxdata);
 }
 
-static int echfs_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
+static int lookup_locked(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
 
@@ -52,7 +32,7 @@ static int echfs_vnode_lookup(struct vnode* restrict node, const char* restrict 
     return 0;
 }
 
-static int echfs_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
+static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
@@ -117,14 +97,14 @@ static uint64_t alloc_dir_id(const struct echfs_vfs_context* restrict context)
     return max_id + 1;
 }
 
-static int echfs_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
+static int create_locked(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
 
     ino_t existing;
 
-    if(0 == echfs_vnode_lookup(node, name, &existing)) {
+    if(0 == lookup_locked(node, name, &existing)) {
         return -EEXIST;
     }
 
@@ -196,7 +176,7 @@ static int echfs_vnode_create(struct vnode* restrict node, const char* restrict 
     return 0;
 }
 
-static int echfs_vnode_unlink(struct vnode* restrict node, const char* restrict name)
+static int unlink_locked(struct vnode* restrict node, const char* restrict name)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
@@ -244,7 +224,7 @@ static int echfs_vnode_unlink(struct vnode* restrict node, const char* restrict 
     return echfs_dirent_write(fs, index, &deleted);
 }
 
-static ssize_t echfs_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
+static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
@@ -355,7 +335,7 @@ static ssize_t echfs_vnode_read(struct vnode* restrict node, void* restrict buff
     return done;
 }
 
-static ssize_t echfs_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t write_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
@@ -539,7 +519,7 @@ static ssize_t echfs_vnode_write(struct vnode* restrict node, const void* restri
     return done;
 }
 
-static int echfs_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
+static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
@@ -573,3 +553,76 @@ static int echfs_vnode_stat(struct vnode* restrict node, struct k_stat* restrict
 
     return 0;
 }
+
+static struct mutex* fs_lock(struct vnode* restrict node)
+{
+    struct echfs_vnode_context* context = node->ctxdata;
+    return &context->fs_ctx->lock;
+}
+
+static int echfs_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = lookup_locked(node, name, out);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static int echfs_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = iterate_locked(node, out, index);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static int echfs_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = create_locked(node, name, type, out);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static int echfs_vnode_unlink(struct vnode* restrict node, const char* restrict name)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = unlink_locked(node, name);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static ssize_t echfs_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
+{
+    mutex_acquire(fs_lock(node));
+    ssize_t retval = read_locked(node, buffer, sz, offset);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static ssize_t echfs_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+{
+    mutex_acquire(fs_lock(node));
+    ssize_t retval = write_locked(node, buffer, sz, offset);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static int echfs_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = stat_locked(node, out);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+const struct vnode_ops echfs_vnode_ops = {
+    .release = &echfs_vnode_release,
+    .lookup = &echfs_vnode_lookup,
+    .iterate = &echfs_vnode_iterate,
+    .create = &echfs_vnode_create,
+    .unlink = &echfs_vnode_unlink,
+    .read = &echfs_vnode_read,
+    .write = &echfs_vnode_write,
+    .stat = &echfs_vnode_stat,
+};
