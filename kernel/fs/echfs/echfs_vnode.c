@@ -125,7 +125,7 @@ static int echfs_vnode_create(struct vnode* restrict node, const char* restrict 
     ino_t existing;
 
     if(0 == echfs_vnode_lookup(node, name, &existing)) {
-        return vnode_lookup(node, name, out);
+        return -EEXIST;
     }
 
     uint64_t free_index;

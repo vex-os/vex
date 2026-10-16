@@ -30,6 +30,10 @@ struct file* file_open(const char* restrict path, unsigned flags)
 
         vnode_decref(parent);
 
+        if(retval == -EEXIST) {
+            retval = path_resolve(path, &node); // Lost a race with another creator
+        }
+
         if(retval < 0) {
             return nullptr;
         }

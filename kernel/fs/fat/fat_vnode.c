@@ -239,7 +239,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     ino_t existing_nodenumber;
 
     if(0 == lookup_locked(node, name, &existing_nodenumber)) {
-        return vnode_lookup(node, name, out);
+        return -EEXIST;
     }
 
     size_t name_len = strnlen(name, NAME_SIZE);
