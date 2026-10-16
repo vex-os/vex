@@ -1,4 +1,5 @@
 #include <vex/assert.h>
+#include <vex/atomic.h>
 #include <vex/blk_ata.h>
 #include <vex/blk_atapi.h>
 #include <vex/blk_device.h>
@@ -105,8 +106,11 @@ static_assert(32 == sizeof(struct ahci_cmd_header));
 static_assert(20 == sizeof(struct ata_fis_h2d));
 static_assert(16 == sizeof(struct ahci_prdt_entry));
 
+struct ahci_pci_context;
+
 struct ahci_port {
     struct mutex lock; // Held for a whole polled command, every one of which uses slot 0 and the DMA buffer
+    struct ahci_pci_context* context;
     struct pci_bar* bar;
     uintptr_t port_base;
     uintptr_t dma_phys;
@@ -123,6 +127,7 @@ struct ahci_pci_context {
     unsigned ata_iterator;
     uint32_t atapi_mask;
     uint32_t ata_mask;
+    unsigned refcount; // One for the PCI device and one per registered block device
 };
 
 static __always_inline uint32_t port_read(struct ahci_port* restrict port, uint32_t offset)
@@ -133,6 +138,43 @@ static __always_inline uint32_t port_read(struct ahci_port* restrict port, uint3
 static __always_inline void port_write(struct ahci_port* restrict port, uint32_t offset, uint32_t value)
 {
     pci_bar_write32(port->bar, port->port_base + offset, value);
+}
+
+// A port torn down by ahci_remove may still be reached
+// through a block device someone holds a reference to
+static __nodiscard bool port_acquire(struct ahci_port* restrict port)
+{
+    mutex_acquire(&port->lock);
+
+    if(port->dma_phys == 0) {
+        mutex_release(&port->lock);
+        return false;
+    }
+
+    return true;
+}
+
+static void context_decref(struct ahci_pci_context* restrict context)
+{
+    if(1 == atomic_fetch_sub(&context->refcount, 1, ATOMIC_ACQ_REL)) {
+        for(unsigned port_num = 0; port_num < 32; port_num += 1) {
+            mutex_deinit(&context->ports[port_num].lock);
+        }
+
+        kfree(context);
+    }
+}
+
+static void ahci_blk_release(const struct blk_device* restrict device)
+{
+    const struct ahci_port* port = device->ctxdata;
+    context_decref(port->context);
+}
+
+static void ahci_atapi_release(const struct atapi_device* restrict device)
+{
+    const struct ahci_port* port = device->base.ctxdata;
+    context_decref(port->context);
 }
 
 static void ahci_stop(struct ahci_port* restrict port)
@@ -375,7 +417,9 @@ static int ahci_atapi_packet(const struct atapi_device* restrict device, const a
         return -EINVAL;
     }
 
-    mutex_acquire(&port->lock);
+    if(!port_acquire(port)) {
+        return -ENODEV;
+    }
 
     if(write && count > 0) {
         memcpy((void*)databuf, buffer, count);
@@ -396,6 +440,7 @@ static int ahci_atapi_packet(const struct atapi_device* restrict device, const a
 
 static const struct atapi_device_ops ahci_atapi_ops = {
     .send_packet = &ahci_atapi_packet,
+    .release = &ahci_atapi_release,
 };
 
 static size_t max_command_sectors(const struct blk_device* restrict device)
@@ -424,7 +469,9 @@ static int ahci_read(const struct blk_device* restrict device, uintptr_t lba, si
         size_t chunk = count < max_sectors ? count : max_sectors;
         size_t bytes = chunk * device->sector_size;
 
-        mutex_acquire(&port->lock);
+        if(!port_acquire(port)) {
+            return -ENODEV;
+        }
 
         ahci_setup(port, lba, ATA_CMD_READ_DMA_EXT, (uint16_t)chunk, bytes, false);
 
@@ -464,7 +511,9 @@ static int ahci_write(const struct blk_device* restrict device, uintptr_t lba, s
         size_t chunk = count < max_sectors ? count : max_sectors;
         size_t bytes = chunk * device->sector_size;
 
-        mutex_acquire(&port->lock);
+        if(!port_acquire(port)) {
+            return -ENODEV;
+        }
 
         memcpy((void*)databuf, buf, bytes);
 
@@ -490,7 +539,9 @@ static int ahci_flush(const struct blk_device* restrict device)
 {
     struct ahci_port* port = device->ctxdata;
 
-    mutex_acquire(&port->lock);
+    if(!port_acquire(port)) {
+        return -ENODEV;
+    }
 
     ahci_setup(port, 0, ATA_CMD_FLUSH_EXT, 0, 512, false);
     int retval = ahci_issue(port, 0);
@@ -539,18 +590,22 @@ static int ahci_port_init(struct ahci_pci_context* restrict context, struct pci_
 
 static void ahci_port_teardown(struct ahci_port* restrict port)
 {
+    mutex_acquire(&port->lock);
+
     ahci_stop(port);
 
     pdma_free_phys(port->dma_phys, DMA_NUM_PAGES);
-    mutex_deinit(&port->lock);
 
     port->dma_phys = 0;
+
+    mutex_release(&port->lock);
 }
 
 static const struct blk_device_ops ahci_blk_device_ops = {
     .read = &ahci_read,
     .write = &ahci_write,
     .flush = &ahci_flush,
+    .release = &ahci_blk_release,
 };
 
 static int ahci_port_register_ata(struct ahci_pci_context* restrict context, unsigned port_num)
@@ -560,14 +615,23 @@ static int ahci_port_register_ata(struct ahci_pci_context* restrict context, uns
     }
 
     struct blk_device* device = &context->devices[port_num];
+    struct ahci_port* port = &context->ports[port_num];
+
+    port->context = context;
 
     device->ops = &ahci_blk_device_ops;
     device->sector_count = 0;
     device->sector_size = 0;
     device->flags = 0;
-    device->ctxdata = nullptr;
+    device->ctxdata = port;
 
-    return add_blk_device_root(device, blk_name_ata, context->ata_iterator, port_num);
+    int retval = add_blk_device_root(device, blk_name_ata, context->ata_iterator, port_num);
+
+    if(retval == 0) {
+        context->refcount += 1;
+    }
+
+    return retval;
 }
 
 static int ahci_port_register_atapi(struct ahci_pci_context* restrict context, unsigned port_num)
@@ -577,15 +641,24 @@ static int ahci_port_register_atapi(struct ahci_pci_context* restrict context, u
     }
 
     struct atapi_device* atapi_dev = &context->atapi_devices[port_num];
+    struct ahci_port* port = &context->ports[port_num];
+
+    port->context = context;
 
     atapi_dev->ops = &ahci_atapi_ops;
     atapi_dev->flags = 0;
-    atapi_dev->base.ctxdata = nullptr;
+    atapi_dev->base.ctxdata = port;
     atapi_dev->base.sector_count = 0;
     atapi_dev->base.sector_size = 0;
     atapi_dev->base.flags = 0;
 
-    return add_atapi_device(atapi_dev, blk_name_atapi, context->atapi_iterator, port_num);
+    int retval = add_atapi_device(atapi_dev, blk_name_atapi, context->atapi_iterator, port_num);
+
+    if(retval == 0) {
+        context->refcount += 1;
+    }
+
+    return retval;
 }
 
 static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
@@ -692,6 +765,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
 
     context->ata_iterator = UINT_MAX;
     context->atapi_iterator = UINT_MAX;
+    context->refcount = 1;
 
     pci_dev->ctxdata = context;
 
@@ -801,9 +875,9 @@ static void ahci_remove(struct pci_device* restrict pci_dev)
 
     pci_bar_unmap(pci_dev, 5);
 
-    kfree(context);
-
     pci_dev->ctxdata = nullptr;
+
+    context_decref(context);
 }
 
 static const struct pci_driver_ops ahci_driver_ops = {

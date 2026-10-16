@@ -75,6 +75,18 @@ void devfs_remove(struct vfs* restrict fs, const char* restrict name)
     spinlock_release(&state->lock);
 }
 
+static void add_present_blk_device(const struct blk_device* restrict device, void* restrict arg)
+{
+    if(BLK_FLAG_PRESENT == (device->flags & (BLK_FLAG_PRESENT | BLK_FLAG_HIDDEN))) {
+        if(device->flags & BLK_FLAG_PARTITION) {
+            devfs_blk_event_handler(BLK_EVENT_PARTITION_ADDED, device, arg);
+        }
+        else {
+            devfs_blk_event_handler(BLK_EVENT_MEDIA_CONNECTED, device, arg);
+        }
+    }
+}
+
 static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
 {
     struct devfs_state* state = slab_alloc(sizeof(struct devfs_state));
@@ -98,16 +110,7 @@ static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     fs->root = root;
     fs->ctxdata = state;
 
-    for(const struct blk_device* blk = blk_devices_head; blk; blk = blk->priv.next) {
-        if(BLK_FLAG_PRESENT == (blk->flags & (BLK_FLAG_PRESENT | BLK_FLAG_HIDDEN))) {
-            if(blk->flags & BLK_FLAG_PARTITION) {
-                devfs_blk_event_handler(BLK_EVENT_PARTITION_ADDED, blk, fs);
-            }
-            else {
-                devfs_blk_event_handler(BLK_EVENT_MEDIA_CONNECTED, blk, fs);
-            }
-        }
-    }
+    iterate_blk_devices(&add_present_blk_device, fs);
 
     for(const struct chr_device* chr = chr_devices_head; chr; chr = chr->priv.next) {
         devfs_chr_event_handler(CHR_EVENT_DEVICE_ADDED, chr, fs);

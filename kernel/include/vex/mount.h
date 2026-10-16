@@ -23,6 +23,7 @@ struct vfs {
     const struct vfs_ops* ops;
     struct vnode* mountpoint;
     struct vnode* root;
+    const struct blk_device* device; // Referenced for as long as the filesystem is mounted
     void* ctxdata;
     bool unmounting; // Under mounts_lock; turns away operations crossing into the filesystem
 };

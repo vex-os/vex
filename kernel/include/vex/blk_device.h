@@ -11,13 +11,14 @@ struct blk_device_ops {
     int (*read)(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer);
     int (*write)(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer);
     int (*flush)(const struct blk_device* restrict device);
-    void (*release)(const struct blk_device* restrict device);
+    void (*release)(const struct blk_device* restrict device); // Once the last reference is dropped
 };
 
 struct blk_device_private {
     struct blk_device* next;
     struct blk_name* name;
     unsigned name_iterator;
+    unsigned refcount; // The registry holds one while the device is listed
 };
 
 #define BLK_FLAG_PRESENT   0x0001 // Media is present and ready
@@ -35,14 +36,16 @@ struct blk_device {
     void* ctxdata;
 };
 
-extern struct blk_device* blk_devices_head;
-
 int add_blk_device_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index);
 int add_blk_device_part(struct blk_device* restrict device, const struct blk_device* restrict root, unsigned partition);
 int add_blk_device_named(struct blk_device* restrict device);
 int remove_blk_device(struct blk_device* restrict device);
 
+void blk_device_incref(const struct blk_device* restrict device);
+void blk_device_decref(const struct blk_device* restrict device);
+
 const struct blk_device* find_blk_device(const char* restrict name) __nodiscard;
+void iterate_blk_devices(void (*callback)(const struct blk_device* restrict device, void* restrict arg), void* restrict arg);
 
 int blk_read_sector_prefix(const struct blk_device* restrict device, uintptr_t lba, void* restrict buffer, size_t size);
 
