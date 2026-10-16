@@ -35,5 +35,6 @@
 #define __k_SYS_TEST     32 /* for testing purposes */
 #define __k_SYS_FSTATAT  33
 #define __k_SYS_FCHDIR   34
+#define __k_SYS_TCB_SET  35
 
 #endif /* USR_VEX_SYSCALL_H */
