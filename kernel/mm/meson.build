@@ -5,6 +5,7 @@ kernel_sources += files(
     'kstack.c',
     'memmap.c',
     'pdma.c',
+    'pframe.c',
     'pmap.c',
     'pslab.c',
     'slab.c',
