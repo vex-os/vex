@@ -6,6 +6,7 @@
 #include <vex/syscall.h>
 #include <vex/thread.h>
 #include <vex/uaccess.h>
+#include <vex/wait.h>
 
 static intptr_t __noreturn sys_exit(const uintptr_t* restrict args)
 {
@@ -32,11 +33,11 @@ static intptr_t sys_exec(const uintptr_t* restrict args)
 // Takes over the caller's reference to a claimed zombie child
 static intptr_t collect_child(struct process* restrict target, uintptr_t wstatus)
 {
-    int exit_code = target->exit_code;
+    int status = W_EXITCODE(target->exit_code, 0);
     intptr_t retval = target->pid;
 
     if(wstatus) {
-        ssize_t copied = user_copyout(wstatus, &exit_code, sizeof(exit_code));
+        ssize_t copied = user_copyout(wstatus, &status, sizeof(status));
 
         if(copied < 0) {
             retval = copied;
