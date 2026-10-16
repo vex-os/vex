@@ -280,15 +280,32 @@ int vfs_unmount(const char* restrict path)
     struct vfs* fs = entry->fs;
     bool is_root = vfs_root == fs->root;
 
+    // Operations that crossed in before the flag was set
+    // hold a reference for their whole duration, so the check sees them
+    spinlock_acquire(&mounts_lock);
+    fs->unmounting = true;
+    spinlock_release(&mounts_lock);
+
+    int retval = 0;
+
     if(vcache_in_use(fs, is_root ? 2 : 1)) {
-        mutex_release(&mounts_mutex);
-        return -EBUSY;
+        retval = -EBUSY;
+    }
+    else {
+        retval = vfs_sync_fs(fs);
+
+        if(retval == -ENOSYS) {
+            retval = 0;
+        }
     }
 
-    int retval = vfs_sync_fs(fs);
+    if(retval < 0) {
+        spinlock_acquire(&mounts_lock);
+        fs->unmounting = false;
+        spinlock_release(&mounts_lock);
 
-    if(retval < 0 && retval != -ENOSYS) {
         mutex_release(&mounts_mutex);
+
         return retval;
     }
 
@@ -366,7 +383,7 @@ struct vnode* vfs_get_root(void)
 {
     spinlock_acquire(&mounts_lock);
 
-    if(vfs_root == nullptr) {
+    if(vfs_root == nullptr || vfs_root->fs->unmounting) {
         spinlock_release(&mounts_lock);
         return nullptr;
     }
@@ -418,4 +435,37 @@ struct vfs* vfs_get_fs(struct vnode* restrict node)
     spinlock_release(&mounts_lock);
 
     return nullptr;
+}
+
+int vfs_cross_mount(struct vnode* restrict node, struct vnode** restrict out)
+{
+    kassert(node);
+    kassert(out);
+
+    if(node->nodetype != VNODE_DIRECTORY) {
+        vnode_incref(node);
+        *out = node;
+        return 0;
+    }
+
+    spinlock_acquire(&mounts_lock);
+
+    struct vfs* fs = node->fs_mounted;
+
+    if(fs && fs->unmounting) {
+        spinlock_release(&mounts_lock);
+        return -EBUSY;
+    }
+
+    if(fs) {
+        node = fs->root;
+    }
+
+    vnode_incref(node);
+
+    spinlock_release(&mounts_lock);
+
+    *out = node;
+
+    return 0;
 }

@@ -10,13 +10,6 @@
 
 static_assert(sizeof(struct vnode) <= (PAGE_SIZE / 2));
 
-static __always_inline struct vnode* resolve_mount(struct vnode* node)
-{
-    if(node->nodetype == VNODE_DIRECTORY && node->fs_mounted)
-        return node->fs_mounted->root;
-    return node;
-}
-
 static struct vnode* alloc_internal(struct vfs* restrict fs, ino_t nodenumber, const struct vnode_ops* restrict ops)
 {
     kassert(fs);
@@ -37,53 +30,8 @@ static struct vnode* alloc_internal(struct vfs* restrict fs, ino_t nodenumber, c
     return result;
 }
 
-struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict ops, void* ctxdata)
+static int lookup_crossed(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out)
 {
-    kassert(ops);
-
-    struct vnode* result = slab_alloc(sizeof(struct vnode));
-
-    if(result == nullptr) {
-        return nullptr;
-    }
-
-    result->ops = ops;
-    result->nodetype = nodetype;
-    result->ctxdata = ctxdata;
-
-    atomic_store(&result->refcount, 1, ATOMIC_RELAXED);
-
-    return result;
-}
-
-void vnode_incref(struct vnode* restrict node)
-{
-    kassert(node);
-
-    atomic_fetch_add(&node->refcount, 1, ATOMIC_RELAXED);
-}
-
-bool vnode_decref(struct vnode* restrict node)
-{
-    kassert(node);
-
-    unsigned prev = atomic_fetch_sub(&node->refcount, 1, ATOMIC_ACQ_REL);
-
-    if(prev == 1) {
-        if(node->ops->release)
-            node->ops->release(node);
-        slab_free(node);
-    }
-
-    return prev == 1U;
-}
-
-int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out)
-{
-    kassert(node);
-
-    node = resolve_mount(node);
-
     if(node->ops->lookup == nullptr) {
         return -ENOSYS;
     }
@@ -145,23 +93,8 @@ int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct 
     return 0;
 }
 
-int vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
+static int create_crossed(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
 {
-    kassert(node);
-
-    node = resolve_mount(node);
-
-    if(node->ops->iterate == nullptr)
-        return -ENOSYS;
-    return node->ops->iterate(node, out, index);
-}
-
-int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
-{
-    kassert(node);
-
-    node = resolve_mount(node);
-
     if(node->ops->create == nullptr) {
         return -ENOSYS;
     }
@@ -202,70 +135,242 @@ int vnode_create(struct vnode* restrict node, const char* restrict name, unsigne
     return 0;
 }
 
+struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict ops, void* ctxdata)
+{
+    kassert(ops);
+
+    struct vnode* result = slab_alloc(sizeof(struct vnode));
+
+    if(result == nullptr) {
+        return nullptr;
+    }
+
+    result->ops = ops;
+    result->nodetype = nodetype;
+    result->ctxdata = ctxdata;
+
+    atomic_store(&result->refcount, 1, ATOMIC_RELAXED);
+
+    return result;
+}
+
+void vnode_incref(struct vnode* restrict node)
+{
+    kassert(node);
+
+    atomic_fetch_add(&node->refcount, 1, ATOMIC_RELAXED);
+}
+
+bool vnode_decref(struct vnode* restrict node)
+{
+    kassert(node);
+
+    unsigned prev = atomic_fetch_sub(&node->refcount, 1, ATOMIC_ACQ_REL);
+
+    if(prev == 1) {
+        if(node->ops->release)
+            node->ops->release(node);
+        slab_free(node);
+    }
+
+    return prev == 1U;
+}
+
+int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out)
+{
+    kassert(node);
+
+    struct vnode* target;
+    int retval = vfs_cross_mount(node, &target);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = lookup_crossed(target, name, out);
+
+    vnode_decref(target);
+
+    return retval;
+}
+
+int vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
+{
+    kassert(node);
+
+    struct vnode* target;
+    int retval = vfs_cross_mount(node, &target);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->ops->iterate == nullptr) {
+        retval = -ENOSYS;
+    }
+    else {
+        retval = target->ops->iterate(target, out, index);
+    }
+
+    vnode_decref(target);
+
+    return retval;
+}
+
+int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
+{
+    kassert(node);
+
+    struct vnode* target;
+    int retval = vfs_cross_mount(node, &target);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = create_crossed(target, name, type, out);
+
+    vnode_decref(target);
+
+    return retval;
+}
+
 int vnode_unlink(struct vnode* restrict node, const char* restrict name)
 {
     kassert(node);
 
-    node = resolve_mount(node);
+    struct vnode* target;
+    int retval = vfs_cross_mount(node, &target);
 
-    if(node->ops->unlink == nullptr)
-        return -ENOSYS;
-    return node->ops->unlink(node, name);
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->ops->unlink == nullptr) {
+        retval = -ENOSYS;
+    }
+    else {
+        retval = target->ops->unlink(target, name);
+    }
+
+    vnode_decref(target);
+
+    return retval;
 }
 
 int vnode_open(struct vnode* restrict node, unsigned mode)
 {
     kassert(node);
 
-    node = resolve_mount(node);
+    struct vnode* target;
+    int retval = vfs_cross_mount(node, &target);
 
-    if(node->ops->open == nullptr)
-        return -ENOSYS;
-    return node->ops->open(node, mode);
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->ops->open == nullptr) {
+        retval = -ENOSYS;
+    }
+    else {
+        retval = target->ops->open(target, mode);
+    }
+
+    vnode_decref(target);
+
+    return retval;
 }
 
 int vnode_close(struct vnode* restrict node)
 {
     kassert(node);
 
-    node = resolve_mount(node);
+    struct vnode* target;
+    int retval = vfs_cross_mount(node, &target);
 
-    if(node->ops->close == nullptr)
-        return -ENOSYS;
-    return node->ops->close(node);
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->ops->close == nullptr) {
+        retval = -ENOSYS;
+    }
+    else {
+        retval = target->ops->close(target);
+    }
+
+    vnode_decref(target);
+
+    return retval;
 }
 
 ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
 {
     kassert(node);
 
-    node = resolve_mount(node);
+    struct vnode* target;
+    ssize_t retval = vfs_cross_mount(node, &target);
 
-    if(node->ops->read == nullptr)
-        return -ENOSYS;
-    return node->ops->read(node, buffer, sz, offset);
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->ops->read == nullptr) {
+        retval = -ENOSYS;
+    }
+    else {
+        retval = target->ops->read(target, buffer, sz, offset);
+    }
+
+    vnode_decref(target);
+
+    return retval;
 }
 
 ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
     kassert(node);
 
-    node = resolve_mount(node);
+    struct vnode* target;
+    ssize_t retval = vfs_cross_mount(node, &target);
 
-    if(node->ops->write == nullptr)
-        return -ENOSYS;
-    return node->ops->write(node, buffer, sz, offset);
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->ops->write == nullptr) {
+        retval = -ENOSYS;
+    }
+    else {
+        retval = target->ops->write(target, buffer, sz, offset);
+    }
+
+    vnode_decref(target);
+
+    return retval;
 }
 
 int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
 {
     kassert(node);
 
-    node = resolve_mount(node);
+    struct vnode* target;
+    int retval = vfs_cross_mount(node, &target);
 
-    if(node->ops->stat == nullptr)
-        return -ENOSYS;
-    return node->ops->stat(node, out);
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->ops->stat == nullptr) {
+        retval = -ENOSYS;
+    }
+    else {
+        retval = target->ops->stat(target, out);
+    }
+
+    vnode_decref(target);
+
+    return retval;
 }
 
 ssize_t vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz)
@@ -281,9 +386,21 @@ int vnode_ioctl(struct vnode* restrict node, uint32_t request, uintptr_t argumen
 {
     kassert(node);
 
-    node = resolve_mount(node);
+    struct vnode* target;
+    int retval = vfs_cross_mount(node, &target);
 
-    if(node->ops->ioctl == nullptr)
-        return -ENOSYS;
-    return node->ops->ioctl(node, request, argument);
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->ops->ioctl == nullptr) {
+        retval = -ENOSYS;
+    }
+    else {
+        retval = target->ops->ioctl(target, request, argument);
+    }
+
+    vnode_decref(target);
+
+    return retval;
 }
