@@ -26,6 +26,8 @@ void dispatch_syscall(struct hart_context* restrict regs)
         return;
     }
 
+    this_thread()->syscall_ctx = regs;
+
     uintptr_t args[6];
     args[0] = regs->syscall_arg_1;
     args[1] = regs->syscall_arg_2;

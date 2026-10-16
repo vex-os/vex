@@ -1,3 +1,4 @@
+#include <vex/assert.h>
 #include <vex/errno.h>
 #include <vex/hhdm.h>
 #include <vex/page.h>
@@ -449,6 +450,63 @@ int vms_unmap_all(struct vmspace* restrict vms)
     mutex_acquire(&vms->lock);
     unmap_all_locked(vms, true);
     mutex_release(&vms->lock);
+    return 0;
+}
+
+// FIXME: every present page is copied right away; fork followed by
+// exec throws all of that away, so pages should be shared read-only
+// and copied on the first write instead, counted through pframe
+int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem)
+{
+    kassert(vms->regions == nullptr);
+
+    mutex_acquire(&stem->lock);
+
+    struct vm_region** tail = &vms->regions;
+
+    for(const struct vm_region* it = stem->regions; it; it = it->next) {
+        struct vm_region* region = alloc_region(it->start, it->end, it->vprot);
+
+        if(region == nullptr) {
+            mutex_release(&stem->lock);
+            vms_unmap_all(vms);
+            return -ENOMEM;
+        }
+
+        region->next = nullptr;
+        *tail = region;
+        tail = &region->next;
+
+        for(uintptr_t page = it->start; page < it->end; page += PAGE_SIZE) {
+            uintptr_t stem_phys = pmap_resolve_address(stem->pmap, page);
+
+            if(stem_phys == 0) {
+                continue;
+            }
+
+            uintptr_t phys = pslab_alloc_phys();
+
+            if(phys == 0) {
+                mutex_release(&stem->lock);
+                vms_unmap_all(vms);
+                return -ENOMEM;
+            }
+
+            memcpy(phys_to_virt(phys), phys_to_virt(stem_phys), PAGE_SIZE);
+
+            int retval = pmap_map(vms->pmap, page, phys, it->vprot | VPROT_USER);
+
+            if(retval < 0) {
+                pslab_free_phys(phys);
+                mutex_release(&stem->lock);
+                vms_unmap_all(vms);
+                return retval;
+            }
+        }
+    }
+
+    mutex_release(&stem->lock);
+
     return 0;
 }
 

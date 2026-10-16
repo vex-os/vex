@@ -31,6 +31,7 @@ int vms_map_anon_any(struct vmspace* restrict vms, size_t size, unsigned vprot, 
 int vms_unmap(struct vmspace* restrict vms, uintptr_t start, uintptr_t end);
 int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot);
 int vms_unmap_all(struct vmspace* restrict vms);
+int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem);
 
 int vms_fault(struct vmspace* restrict vms, uintptr_t virt, unsigned access);
 uintptr_t vms_touch(struct vmspace* restrict vms, uintptr_t virt) __nodiscard;

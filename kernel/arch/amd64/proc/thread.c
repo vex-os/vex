@@ -49,6 +49,56 @@ void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, 
     thrd->kernel_rsp = kernel_stack_top;
 }
 
+void arch_thread_setup_fork(struct thread* restrict thrd, const struct hart_context* restrict ctx, void* restrict kernel_stack_top,
+    struct vmspace* restrict vms)
+{
+    memcpy(&thrd->ctx, ctx, sizeof(thrd->ctx));
+    thrd->ctx.syscall_retval = 0;
+
+    // Inside the kernel, userspace's GS base waits in KERNEL_GS_BASE
+    thrd->arch.gs_base = (void*)((uintptr_t)(rdmsr(MSR_KERNEL_GS_BASE)));
+    thrd->arch.fs_base = (void*)((uintptr_t)(rdmsr(MSR_FS_BASE)));
+    thrd->arch.kernel_stack = kernel_stack_top;
+    thrd->arch.cr3 = vms->pmap->phys;
+    thrd->kernel_rsp = kernel_stack_top;
+}
+
+void arch_thread_exec(struct thread* restrict thrd, struct vmspace* restrict vms, uintptr_t entry, uintptr_t user_stack_top)
+{
+    struct hart_context* ctx = thrd->syscall_ctx;
+
+    memset(ctx, 0, sizeof(struct hart_context));
+
+    ctx->amd64_ds = gdt_selector(GDT_USER_DATA_64, 0, 3);
+    ctx->amd64_es = gdt_selector(GDT_USER_DATA_64, 0, 3);
+    ctx->amd64_cs = gdt_selector(GDT_USER_CODE_64, 0, 3);
+    ctx->amd64_ss = gdt_selector(GDT_USER_DATA_64, 0, 3);
+    ctx->amd64_rip = entry;
+    ctx->amd64_rsp = user_stack_top;
+    ctx->amd64_rflags = 0x202;
+
+    // sysretq takes these instead of
+    // the frame's rip, rflags and rsp
+    ctx->amd64_rcx = entry;
+    ctx->amd64_r11 = 0x202;
+    thrd->entry_scratch = (void*)(user_stack_top);
+
+    thrd->arch.gs_base = nullptr;
+    thrd->arch.fs_base = nullptr;
+
+    // Switching away in between would
+    // save the old CR3 back into the thread
+    bool intr_state = disable_interrupts();
+
+    wrmsr(MSR_KERNEL_GS_BASE, 0);
+    wrmsr(MSR_FS_BASE, 0);
+
+    thrd->arch.cr3 = vms->pmap->phys;
+    pmap_switch(vms->pmap);
+
+    restore_interrupts(intr_state);
+}
+
 void arch_thread_ctx_save(struct thread* restrict thrd)
 {
     // I'm pretty certain arch_thread_ctx_save isn't going to get

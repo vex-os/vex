@@ -217,6 +217,55 @@ static void sched_idle(void* restrict arg)
     }
 }
 
+static struct thread* alloc_thread_user(struct process* restrict proc)
+{
+    struct thread* thrd = kmalloc(sizeof(struct thread));
+
+    if(thrd == nullptr) {
+        return nullptr;
+    }
+
+    void* kstack_top = kstack_alloc();
+
+    if(kstack_top == nullptr) {
+        kfree(thrd);
+        return nullptr;
+    }
+
+    thrd->self = thrd;
+    thrd->state = THREAD_BLOCKED;
+    thrd->timeslice = SCHED_TIMESLICE;
+    thrd->proc = proc;
+    thrd->rq_next = nullptr;
+    thrd->rq_prev = nullptr;
+    thrd->preempt_count = 0;
+    thrd->need_resched = false;
+    thrd->pinned_hart = nullptr;
+    thrd->hart_lock = SPINLOCK_INIT;
+    thrd->yield_await = SPINLOCK_INIT;
+    thrd->kstack_top = kstack_top;
+
+    return thrd;
+}
+
+static void attach_thread_user(struct process* restrict proc, struct thread* restrict thrd)
+{
+    process_incref(proc); // The thread keeps its process alive until it is reaped
+
+    bool intr_state = spinlock_acquire_intr(&proc->lock);
+
+    thrd->tnext = proc->threads;
+
+    if(proc->threads) {
+        proc->threads->tprev = thrd;
+    }
+
+    proc->threads = thrd;
+    proc->num_threads += 1;
+
+    spinlock_release_intr(&proc->lock, intr_state);
+}
+
 struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
 {
     struct thread* thrd = kmalloc(sizeof(struct thread));
@@ -265,48 +314,24 @@ struct thread* create_thread_kern_enq(thread_entry_kern entry, void* restrict ar
 
 struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry, uintptr_t stack_top)
 {
-    struct thread* thrd = kmalloc(sizeof(struct thread));
+    struct thread* thrd = alloc_thread_user(proc);
 
-    if(thrd == nullptr) {
-        return nullptr;
+    if(thrd) {
+        arch_thread_setup_user(thrd, (void*)(entry), (void*)(stack_top), thrd->kstack_top, proc->vms);
+        attach_thread_user(proc, thrd);
     }
 
-    void* kstack_top = kstack_alloc();
+    return thrd;
+}
 
-    if(kstack_top == nullptr) {
-        kfree(thrd);
-        return nullptr;
+struct thread* create_thread_fork(struct process* restrict proc, const struct hart_context* restrict ctx)
+{
+    struct thread* thrd = alloc_thread_user(proc);
+
+    if(thrd) {
+        arch_thread_setup_fork(thrd, ctx, thrd->kstack_top, proc->vms);
+        attach_thread_user(proc, thrd);
     }
-
-    thrd->self = thrd;
-    thrd->state = THREAD_BLOCKED;
-    thrd->timeslice = SCHED_TIMESLICE;
-    thrd->proc = proc;
-    thrd->rq_next = nullptr;
-    thrd->rq_prev = nullptr;
-    thrd->preempt_count = 0;
-    thrd->need_resched = false;
-    thrd->pinned_hart = nullptr;
-    thrd->hart_lock = SPINLOCK_INIT;
-    thrd->yield_await = SPINLOCK_INIT;
-    thrd->kstack_top = kstack_top;
-
-    arch_thread_setup_user(thrd, (void*)(entry), (void*)(stack_top), kstack_top, proc->vms);
-
-    process_incref(proc); // The thread keeps its process alive until it is reaped
-
-    bool intr_state = spinlock_acquire_intr(&proc->lock);
-
-    thrd->tnext = proc->threads;
-
-    if(proc->threads) {
-        proc->threads->tprev = thrd;
-    }
-
-    proc->threads = thrd;
-    proc->num_threads += 1;
-
-    spinlock_release_intr(&proc->lock, intr_state);
 
     return thrd;
 }

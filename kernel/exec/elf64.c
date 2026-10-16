@@ -6,7 +6,6 @@
 #include <vex/initcall.h>
 #include <vex/page.h>
 #include <vex/pmap.h>
-#include <vex/process.h>
 #include <vex/string.h>
 #include <vex/vms.h>
 #include <vex/vprot.h>
@@ -17,7 +16,6 @@
 
 #define ELF64_STACK_TOP  UINT64_C(0x0000700000000000)
 #define ELF64_STACK_SIZE (UINT64_C(1024) * CONFIG_USER_STACK_SIZE)
-#define ELF64_ARGV_MAX   32
 
 static_assert(0 == (ELF64_STACK_SIZE & (ELF64_STACK_SIZE - 1)), "CONFIG_USER_STACK_SIZE has to be a power of two");
 
@@ -117,13 +115,13 @@ static int map_segment(struct vmspace* restrict vms, const struct elf64_phdr* re
 }
 
 // Only pages holding file data are filled in; the rest are zeroed on first touch
-static int load_segment(struct process* restrict proc, struct file* restrict fp, const struct elf64_phdr* restrict phdr)
+static int load_segment(struct vmspace* restrict vms, struct file* restrict fp, const struct elf64_phdr* restrict phdr)
 {
     uintptr_t file_lo = phdr->p_vaddr;
     uintptr_t file_hi = phdr->p_vaddr + phdr->p_filesz;
 
     for(uintptr_t page_uva = page_align(file_lo); page_uva < file_hi; page_uva += PAGE_SIZE) {
-        uintptr_t phys = vms_touch(proc->vms, page_uva);
+        uintptr_t phys = vms_touch(vms, page_uva);
 
         if(phys == 0) {
             return -ENOMEM;
@@ -179,7 +177,7 @@ static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t 
     int argc = 0;
 
     while(argv && argv[argc]) {
-        if(argc >= ELF64_ARGV_MAX)
+        if(argc >= BINFMT_ARGS_MAX)
             return 0;
         argc += 1;
     }
@@ -187,7 +185,7 @@ static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t 
     int envc = 0;
 
     while(envp && envp[envc]) {
-        if(envc >= ELF64_ARGV_MAX)
+        if(envc >= BINFMT_ARGS_MAX)
             return 0;
         envc += 1;
     }
@@ -196,8 +194,8 @@ static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t 
     uintptr_t uva = top_uva;
     uintptr_t low_bound = top_uva - avail;
 
-    uintptr_t argv_uva[ELF64_ARGV_MAX];
-    uintptr_t envp_uva[ELF64_ARGV_MAX];
+    uintptr_t argv_uva[BINFMT_ARGS_MAX];
+    uintptr_t envp_uva[BINFMT_ARGS_MAX];
 
     for(int i = argc - 1; i >= 0; --i) {
         size_t len = strlen(argv[i]) + 1;
@@ -299,7 +297,7 @@ static int elf64_probe(struct file* restrict fp, const uint8_t* restrict header,
     return 0;
 }
 
-static int elf64_setup(struct process* restrict proc, struct file* restrict fp, const char** restrict argv, const char** restrict envp,
+static int elf64_setup(struct vmspace* restrict vms, struct file* restrict fp, const char** restrict argv, const char** restrict envp,
     struct entry_point* restrict out)
 {
     struct elf64_ehdr ehdr;
@@ -316,14 +314,12 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
         return -ENOEXEC;
     }
 
-    uintptr_t user_end = pmap_user_end(proc->vms->pmap);
+    uintptr_t user_end = pmap_user_end(vms->pmap);
 
     // A kernel or non-canonical entry point faults in kernel mode on the way to user mode
     if(ehdr.e_entry >= user_end) {
         return -ENOEXEC;
     }
-
-    vms_unmap_all(proc->vms); // clear all existing mappings in case we're SYS_EXEC'ing
 
     int retval;
 
@@ -374,27 +370,27 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
             goto error;
         }
 
-        retval = map_segment(proc->vms, &phdr, &mapped_end, &mapped_vprot);
+        retval = map_segment(vms, &phdr, &mapped_end, &mapped_vprot);
 
         if(retval < 0) {
             goto error;
         }
 
-        retval = load_segment(proc, fp, &phdr);
+        retval = load_segment(vms, fp, &phdr);
 
         if(retval < 0) {
             goto error;
         }
     }
 
-    retval = vms_map_anon(proc->vms, ELF64_STACK_TOP - ELF64_STACK_SIZE, ELF64_STACK_TOP, VPROT_RW);
+    retval = vms_map_anon(vms, ELF64_STACK_TOP - ELF64_STACK_SIZE, ELF64_STACK_TOP, VPROT_RW);
 
     if(retval < 0) {
         goto error;
     }
 
     // Arguments only get the topmost page, the rest is zeroed on first touch
-    uintptr_t args_phys = vms_touch(proc->vms, ELF64_STACK_TOP - PAGE_SIZE);
+    uintptr_t args_phys = vms_touch(vms, ELF64_STACK_TOP - PAGE_SIZE);
 
     if(args_phys == 0) {
         retval = -ENOMEM;
@@ -416,7 +412,7 @@ static int elf64_setup(struct process* restrict proc, struct file* restrict fp, 
     return 0;
 
 error:
-    vms_unmap_all(proc->vms);
+    vms_unmap_all(vms);
     return retval;
 }
 

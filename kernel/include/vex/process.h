@@ -62,3 +62,4 @@ struct file* dereference_fd(struct process* proc, int fd) __nodiscard;
 int allocate_fd(struct process* proc, struct file* file) __nodiscard;
 int duplicate_fd(struct process* proc, int old_fd, int new_fd) __nodiscard;
 int release_fd(struct process* proc, int fd);
+int copy_fds(struct process* restrict proc, struct process* restrict stem) __nodiscard;
