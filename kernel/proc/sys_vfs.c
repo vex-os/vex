@@ -1,3 +1,4 @@
+#include <vex/blk_device.h>
 #include <vex/errno.h>
 #include <vex/file.h>
 #include <vex/mount.h>
@@ -23,6 +24,19 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
 
     if(copied < 0) {
         return copied;
+    }
+
+    char params[256];
+    const char* params_ptr = nullptr;
+
+    if(args[4]) {
+        copied = user_copyin_str(params, args[4], sizeof(params));
+
+        if(copied < 0) {
+            return copied;
+        }
+
+        params_ptr = params;
     }
 
     const struct blk_device* device = nullptr;
@@ -60,24 +74,18 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
             }
 
             device = source_node->blkdev;
+            blk_device_incref(device);
             vnode_decref(source_node);
         }
     }
 
-    char params[256];
-    const char* params_ptr = nullptr;
+    int retval = vfs_mount(fstype, target, device, params_ptr);
 
-    if(args[4]) {
-        copied = user_copyin_str(params, args[4], sizeof(params));
-
-        if(copied < 0) {
-            return copied;
-        }
-
-        params_ptr = params;
+    if(device) {
+        blk_device_decref(device);
     }
 
-    return vfs_mount(fstype, target, device, params_ptr);
+    return retval;
 }
 
 static intptr_t sys_umount(const uintptr_t* restrict args)
