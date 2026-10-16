@@ -30,6 +30,40 @@ config USER_STACK_SIZE
       Address space reserved for the stack of a new process,
       a power of two; pages are only allocated once touched
 
+config KSTACK_PAGES
+    int "Kernel stack size in pages"
+    range 2 64
+    default 4
+    help
+      Pages in the kernel stack of every thread,
+      not counting the unmapped guard page below it
+
+config MAX_THREADS
+    int "Maximum number of threads"
+    range 32 65536
+    default 16384
+    help
+      Every thread takes a kernel stack slot in a region of fixed
+      size, so this caps kernel and user threads together; a multiple of 32
+
+config MAX_FDS
+    int "Maximum open file descriptors per process"
+    range 16 1048576
+    default 1024
+
+config SCHED_TIMESLICE
+    int "Scheduler timeslice in microseconds"
+    range 100 1000000
+    default 5000
+
+config KPRINTF_BUFSIZE
+    int "Kernel log buffer size in bytes"
+    range 256 1048576
+    default 4096
+    help
+      Ring buffer of recent kernel messages, replayed to
+      consoles that register or unblank later
+
 config FBCONS
     bool "Framebuffer console"
     default y

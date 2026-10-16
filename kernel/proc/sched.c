@@ -22,9 +22,7 @@
 
 static_assert(sizeof(struct thread) <= SLAB_MAX_SIZE);
 
-#ifndef SCHED_TIMESLICE
-#define SCHED_TIMESLICE 5000000
-#endif
+#define SCHED_TIMESLICE (UINT64_C(CONFIG_SCHED_TIMESLICE) * 1000) // In nanoseconds
 
 // Holds RUNNABLE threads only; the lock also covers every thread's state
 static spinlock_type sched_lock = SPINLOCK_INIT;

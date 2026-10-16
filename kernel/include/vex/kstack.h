@@ -4,7 +4,7 @@
 #include <vex/limits.h>
 #include <vex/types.h>
 
-#define KSTACK_PAGES 4U
+#define KSTACK_PAGES ((unsigned)(CONFIG_KSTACK_PAGES))
 #define KSTACK_SIZE  (KSTACK_PAGES * PAGE_SIZE)
 
 void* kstack_alloc(void) __nodiscard;

@@ -10,10 +10,11 @@
 
 // Each slot is a guard page followed by the stack itself; the guard page
 // is never mapped, so running off the bottom of a stack faults right away
-#define KSTACK_SLOT_SIZE ((KSTACK_PAGES + 1U) * PAGE_SIZE)
-#define KSTACK_NUM_SLOTS 16384U
+#define KSTACK_SLOT_SIZE ((KSTACK_PAGES + 1U) * (size_t)(PAGE_SIZE))
+#define KSTACK_NUM_SLOTS ((unsigned)(CONFIG_MAX_THREADS))
 
 static_assert(KSTACK_NUM_SLOTS % BITMAP_CHUNK_BITS == 0);
+static_assert(KSTACK_NUM_SLOTS * KSTACK_SLOT_SIZE <= KSTACK_REGION_SIZE);
 
 static bitmap_type slots[KSTACK_NUM_SLOTS / BITMAP_CHUNK_BITS]; // A set bit means the slot is free
 static size_t next_slot = 0U;
