@@ -65,30 +65,23 @@ static int lookup_crossed(struct vnode* restrict node, const char* restrict name
         }
     }
 
-    struct vnode* cached_now = vcache_get_or_insert(result);
-
-    if(cached_now != result) {
-        if(result->ops->release)
-            result->ops->release(result);
-        slab_free(result);
-
-        if(cached_now == nullptr) {
-            return -ENOMEM;
-        }
-
-        *out = cached_now;
-        return 0;
-    }
-
     if(result->nodetype == VNODE_DIRECTORY) {
         result->fs_mounted = vfs_get_fs(result);
         result->parent = node;
         vnode_incref(node);
     }
 
-    vnode_incref(result);
+    struct vnode* cached_now = vcache_get_or_insert(result);
 
-    *out = result;
+    if(cached_now != result) {
+        vnode_destroy(result);
+
+        if(cached_now == nullptr) {
+            return -ENOMEM;
+        }
+    }
+
+    *out = cached_now;
 
     return 0;
 }
@@ -106,31 +99,24 @@ static int create_crossed(struct vnode* restrict node, const char* restrict name
         return retval;
     }
 
-    // Cached like a looked-up node, so a later
-    // lookup of the same name finds this vnode
-    vnode_incref(created);
-
-    struct vnode* cached_now = vcache_get_or_insert(created);
-
-    if(cached_now != created) {
-        if(created->ops->release)
-            created->ops->release(created);
-        slab_free(created);
-
-        if(cached_now == nullptr) {
-            return -ENOMEM;
-        }
-
-        *out = cached_now;
-        return 0;
-    }
-
     if(created->nodetype == VNODE_DIRECTORY) {
         created->parent = node;
         vnode_incref(node);
     }
 
-    *out = created;
+    // Cached like a looked-up node, so a later
+    // lookup of the same name finds this vnode
+    struct vnode* cached_now = vcache_get_or_insert(created);
+
+    if(cached_now != created) {
+        vnode_destroy(created);
+
+        if(cached_now == nullptr) {
+            return -ENOMEM;
+        }
+    }
+
+    *out = cached_now;
 
     return 0;
 }
@@ -215,23 +201,32 @@ bool vnode_decref(struct vnode* restrict node)
 
     unsigned prev = atomic_fetch_sub(&node->refcount, 1, ATOMIC_ACQ_REL);
 
-    if(prev == 1) {
-        struct vnode* parent = node->parent;
-
-        if(node->orphaned) {
-            atomic_fetch_sub(&node->fs->orphans, 1, ATOMIC_RELEASE);
-        }
-
-        if(node->ops->release)
-            node->ops->release(node);
-        slab_free(node);
-
-        if(parent) {
-            vnode_decref(parent);
-        }
+    if(prev != 1 || vcache_keep(node)) {
+        return false;
     }
 
-    return prev == 1U;
+    vnode_destroy(node);
+
+    return true;
+}
+
+void vnode_destroy(struct vnode* restrict node)
+{
+    kassert(node->cache_entry == nullptr);
+
+    struct vnode* parent = node->parent;
+
+    if(node->orphaned) {
+        atomic_fetch_sub(&node->fs->orphans, 1, ATOMIC_RELEASE);
+    }
+
+    if(node->ops->release)
+        node->ops->release(node);
+    slab_free(node);
+
+    if(parent) {
+        vnode_decref(parent);
+    }
 }
 
 int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out)

@@ -1,4 +1,6 @@
+#include <vex/assert.h>
 #include <vex/atomic.h>
+#include <vex/errno.h>
 #include <vex/limits.h>
 #include <vex/mount.h>
 #include <vex/slab.h>
@@ -8,9 +10,12 @@
 
 #define NUM_BUCKETS 256
 
-static_assert(sizeof(struct vcache) <= (PAGE_SIZE / 2));
+static_assert(sizeof(struct vcache) <= SLAB_MAX_SIZE);
 
 static struct vcache* cache[NUM_BUCKETS];
+static struct vcache* unused_head;
+static struct vcache* unused_tail;
+static size_t num_unused;
 static spinlock_type cache_lock = SPINLOCK_INIT;
 
 static unsigned hash_bucket(struct vfs* restrict fs, ino_t nodenumber)
@@ -23,25 +28,80 @@ static unsigned hash_bucket(struct vfs* restrict fs, ino_t nodenumber)
     return hash % NUM_BUCKETS;
 }
 
-struct vnode* vcache_get(struct vfs* restrict fs, ino_t nodenumber)
+static void unused_append_nolock(struct vcache* restrict entry)
 {
-    spinlock_acquire(&cache_lock);
+    entry->unused = true;
+    entry->unused_prev = unused_tail;
+    entry->unused_next = nullptr;
 
-    unsigned bucket = hash_bucket(fs, nodenumber);
+    if(unused_tail) {
+        unused_tail->unused_next = entry;
+    }
+    else {
+        unused_head = entry;
+    }
 
-    for(struct vcache* it = cache[bucket]; it; it = it->next) {
-        if(it->fs == fs && it->nodenumber == nodenumber) {
-            vnode_incref(it->node);
-            spinlock_release(&cache_lock);
-            return it->node;
+    unused_tail = entry;
+    num_unused += 1;
+}
+
+static void unused_unlink_nolock(struct vcache* restrict entry)
+{
+    if(entry->unused_prev) {
+        entry->unused_prev->unused_next = entry->unused_next;
+    }
+    else {
+        unused_head = entry->unused_next;
+    }
+
+    if(entry->unused_next) {
+        entry->unused_next->unused_prev = entry->unused_prev;
+    }
+    else {
+        unused_tail = entry->unused_prev;
+    }
+
+    entry->unused = false;
+    num_unused -= 1;
+}
+
+static void bucket_unlink_nolock(struct vcache* restrict entry)
+{
+    unsigned bucket = hash_bucket(entry->fs, entry->nodenumber);
+
+    for(struct vcache** prev = &cache[bucket]; *prev; prev = &(*prev)->next) {
+        if(*prev == entry) {
+            *prev = entry->next;
+            break;
         }
     }
 
-    spinlock_release(&cache_lock);
+    entry->node->cache_entry = nullptr;
+}
+
+static struct vnode* take_nolock(struct vcache* restrict entry)
+{
+    if(entry->unused) {
+        unused_unlink_nolock(entry);
+    }
+
+    vnode_incref(entry->node);
+
+    return entry->node;
+}
+
+static struct vcache* find_nolock(struct vfs* restrict fs, ino_t nodenumber)
+{
+    for(struct vcache* it = cache[hash_bucket(fs, nodenumber)]; it; it = it->next) {
+        if(it->fs == fs && it->nodenumber == nodenumber) {
+            return it;
+        }
+    }
+
     return nullptr;
 }
 
-struct vnode* vcache_get_or_insert(struct vnode* restrict node)
+static struct vnode* insert(struct vnode* restrict node, bool pinned)
 {
     struct vcache* entry = slab_alloc(sizeof(struct vcache));
 
@@ -52,27 +112,105 @@ struct vnode* vcache_get_or_insert(struct vnode* restrict node)
     entry->node = node;
     entry->nodenumber = node->nodenumber;
     entry->fs = node->fs;
+    entry->pinned = pinned;
 
     spinlock_acquire(&cache_lock);
 
-    unsigned bucket = hash_bucket(node->fs, node->nodenumber);
+    struct vcache* existing = find_nolock(node->fs, node->nodenumber);
 
-    for(struct vcache* it = cache[bucket]; it; it = it->next) {
-        if(it->fs == node->fs && it->nodenumber == node->nodenumber) {
-            struct vnode* cached = it->node;
-            vnode_incref(cached);
-            spinlock_release(&cache_lock);
-            slab_free(entry);
-            return cached;
-        }
+    if(existing) {
+        struct vnode* cached = take_nolock(existing);
+        spinlock_release(&cache_lock);
+        slab_free(entry);
+        return cached;
     }
+
+    unsigned bucket = hash_bucket(node->fs, node->nodenumber);
 
     entry->next = cache[bucket];
     cache[bucket] = entry;
+    node->cache_entry = entry;
 
     spinlock_release(&cache_lock);
 
     return node;
+}
+
+struct vnode* vcache_get(struct vfs* restrict fs, ino_t nodenumber)
+{
+    spinlock_acquire(&cache_lock);
+
+    struct vcache* entry = find_nolock(fs, nodenumber);
+    struct vnode* node = entry ? take_nolock(entry) : nullptr;
+
+    spinlock_release(&cache_lock);
+
+    return node;
+}
+
+struct vnode* vcache_get_or_insert(struct vnode* restrict node)
+{
+    return insert(node, false);
+}
+
+int vcache_insert_pinned(struct vnode* restrict node)
+{
+    struct vnode* cached = insert(node, true);
+
+    if(cached == nullptr) {
+        return -ENOMEM;
+    }
+
+    if(cached != node) {
+        vnode_decref(cached);
+        return -EEXIST;
+    }
+
+    return 0;
+}
+
+bool vcache_keep(struct vnode* restrict node)
+{
+    struct vcache* evicted = nullptr;
+
+    spinlock_acquire(&cache_lock);
+
+    if(atomic_load(&node->refcount, ATOMIC_ACQUIRE)) {
+        spinlock_release(&cache_lock);
+        return true;
+    }
+
+    struct vcache* entry = node->cache_entry;
+
+    if(entry == nullptr) {
+        spinlock_release(&cache_lock);
+        return false;
+    }
+
+    if(!entry->unused) {
+        unused_append_nolock(entry);
+    }
+
+    while(num_unused > CONFIG_VCACHE_MAX_UNUSED) {
+        struct vcache* oldest = unused_head;
+
+        unused_unlink_nolock(oldest);
+        bucket_unlink_nolock(oldest);
+
+        oldest->next = evicted;
+        evicted = oldest;
+    }
+
+    spinlock_release(&cache_lock);
+
+    while(evicted) {
+        struct vcache* next = evicted->next;
+        vnode_destroy(evicted->node);
+        slab_free(evicted);
+        evicted = next;
+    }
+
+    return true;
 }
 
 bool vcache_in_use(struct vfs* restrict fs, unsigned root_refs)
@@ -82,13 +220,14 @@ bool vcache_in_use(struct vfs* restrict fs, unsigned root_refs)
     unsigned long actual = atomic_load(&fs->root->refcount, ATOMIC_RELAXED);
     unsigned long expected = root_refs;
 
-    // The cache holds one reference to each node
-    // and every cached directory holds one to its parent
     for(unsigned bucket = 0; bucket < NUM_BUCKETS; bucket += 1) {
         for(struct vcache* it = cache[bucket]; it; it = it->next) {
             if(it->fs == fs) {
                 actual += atomic_load(&it->node->refcount, ATOMIC_RELAXED);
-                expected += 1;
+
+                if(it->pinned) {
+                    expected += 1;
+                }
 
                 if(it->node->nodetype == VNODE_DIRECTORY && it->node->parent) {
                     expected += 1;
@@ -104,6 +243,8 @@ bool vcache_in_use(struct vfs* restrict fs, unsigned root_refs)
 
 void vcache_evict(struct vfs* restrict fs)
 {
+    struct vcache* evicted = nullptr;
+
     spinlock_acquire(&cache_lock);
 
     for(unsigned bucket = 0; bucket < NUM_BUCKETS; bucket += 1) {
@@ -112,39 +253,47 @@ void vcache_evict(struct vfs* restrict fs)
         while(*prev) {
             struct vcache* entry = *prev;
 
-            if(entry->fs == fs) {
-                *prev = entry->next;
-                vnode_decref(entry->node);
-                slab_free(entry);
+            if(entry->fs != fs) {
+                prev = &entry->next;
+                continue;
+            }
+
+            *prev = entry->next;
+            entry->node->cache_entry = nullptr;
+
+            if(entry->unused) {
+                unused_unlink_nolock(entry);
+                entry->next = evicted;
+                evicted = entry;
             }
             else {
-                prev = &entry->next;
+                slab_free(entry); // Whoever holds the node frees it with the last reference
             }
         }
     }
 
     spinlock_release(&cache_lock);
+
+    while(evicted) {
+        struct vcache* next = evicted->next;
+        vnode_destroy(evicted->node);
+        slab_free(evicted);
+        evicted = next;
+    }
 }
 
 void vcache_remove(struct vnode* restrict node)
 {
     spinlock_acquire(&cache_lock);
 
-    unsigned bucket = hash_bucket(node->fs, node->nodenumber);
+    struct vcache* entry = node->cache_entry;
 
-    for(struct vcache** prev = &cache[bucket]; *prev; prev = &(*prev)->next) {
-        struct vcache* entry = *prev;
-
-        if(entry->node == node) {
-            *prev = entry->next;
-            spinlock_release(&cache_lock);
-
-            slab_free(entry);
-            vnode_decref(node);
-
-            return;
-        }
+    if(entry) {
+        kassert(!entry->unused); // Callers hold a reference
+        bucket_unlink_nolock(entry);
     }
 
     spinlock_release(&cache_lock);
+
+    slab_free(entry);
 }

@@ -41,8 +41,9 @@ struct vnode {
     spinlock_type lock;
     unsigned refcount;
     unsigned nodetype;
-    bool orphaned; // Unlinked, counted in fs->orphans until released
+    bool orphaned;
     ino_t nodenumber;
+    struct vcache* cache_entry;
     const struct blk_device* blkdev;
     void* ctxdata;
 };
@@ -50,6 +51,7 @@ struct vnode {
 struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict ops, void* restrict ctxdata) __nodiscard;
 void vnode_incref(struct vnode* restrict node);
 bool vnode_decref(struct vnode* restrict node);
+void vnode_destroy(struct vnode* restrict node);
 
 int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out);
 int vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);

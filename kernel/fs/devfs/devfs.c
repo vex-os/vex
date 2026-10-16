@@ -32,9 +32,11 @@ int devfs_insert(struct vfs* restrict fs, const char* restrict name, struct vnod
     node->fs = fs;
     node->nodenumber = (ino_t)(uintptr_t)node;
 
-    if(!vcache_get_or_insert(node)) {
+    int retval = vcache_insert_pinned(node);
+
+    if(retval < 0) {
         slab_free(entry);
-        return -ENOMEM;
+        return retval;
     }
 
     entry->node = node;
@@ -54,6 +56,8 @@ void devfs_remove(struct vfs* restrict fs, const char* restrict name)
 {
     struct devfs_state* state = fs->root->ctxdata;
 
+    struct devfs_node* removed = nullptr;
+
     spinlock_acquire(&state->lock);
 
     for(struct devfs_node** prev = &state->head; *prev; prev = &((**prev).next)) {
@@ -61,17 +65,19 @@ void devfs_remove(struct vfs* restrict fs, const char* restrict name)
 
         if(0 == strcmp(it->name, name)) {
             *prev = it->next;
-
-            vnode_decref(it->node);
-            slab_free(it);
-
+            removed = it;
             state->num_devices -= 1;
-
             break;
         }
     }
 
     spinlock_release(&state->lock);
+
+    if(removed) {
+        vcache_remove(removed->node);
+        vnode_decref(removed->node);
+        slab_free(removed);
+    }
 }
 
 static int devfs_unmount(struct vfs* restrict fs)
@@ -83,13 +89,18 @@ static int devfs_unmount(struct vfs* restrict fs)
 
     spinlock_acquire(&state->lock);
 
-    for(struct devfs_node* it = state->head; it;) {
+    struct devfs_node* head = state->head;
+    state->head = nullptr;
+
+    spinlock_release(&state->lock);
+
+    for(struct devfs_node* it = head; it;) {
         struct devfs_node* next = it->next;
+        vcache_remove(it->node);
+        vnode_decref(it->node);
         slab_free(it);
         it = next;
     }
-
-    spinlock_release(&state->lock);
 
     vnode_decref(fs->root);
 
