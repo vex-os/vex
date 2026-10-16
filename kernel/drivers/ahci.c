@@ -10,10 +10,10 @@
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
+#include <vex/mutex.h>
 #include <vex/page.h>
 #include <vex/pci.h>
 #include <vex/pdma.h>
-#include <vex/spinlock.h>
 #include <vex/sprintf.h>
 #include <vex/string.h>
 
@@ -106,7 +106,7 @@ static_assert(20 == sizeof(struct ata_fis_h2d));
 static_assert(16 == sizeof(struct ahci_prdt_entry));
 
 struct ahci_port {
-    spinlock_type lock;
+    struct mutex lock; // Held for a whole polled command, every one of which uses slot 0 and the DMA buffer
     struct pci_bar* bar;
     uintptr_t port_base;
     uintptr_t dma_phys;
@@ -375,7 +375,7 @@ static int ahci_atapi_packet(const struct atapi_device* restrict device, const a
         return -EINVAL;
     }
 
-    spinlock_acquire(&port->lock);
+    mutex_acquire(&port->lock);
 
     if(write && count > 0) {
         memcpy((void*)databuf, buffer, count);
@@ -389,7 +389,7 @@ static int ahci_atapi_packet(const struct atapi_device* restrict device, const a
         memcpy(buffer, (const void*)(databuf), count);
     }
 
-    spinlock_release(&port->lock);
+    mutex_release(&port->lock);
 
     return retval;
 }
@@ -424,7 +424,7 @@ static int ahci_read(const struct blk_device* restrict device, uintptr_t lba, si
         size_t chunk = count < max_sectors ? count : max_sectors;
         size_t bytes = chunk * device->sector_size;
 
-        spinlock_acquire(&port->lock);
+        mutex_acquire(&port->lock);
 
         ahci_setup(port, lba, ATA_CMD_READ_DMA_EXT, (uint16_t)chunk, bytes, false);
 
@@ -434,7 +434,7 @@ static int ahci_read(const struct blk_device* restrict device, uintptr_t lba, si
             memcpy(buf, (const uint8_t*)databuf, bytes);
         }
 
-        spinlock_release(&port->lock);
+        mutex_release(&port->lock);
 
         if(retval < 0) {
             return retval;
@@ -464,7 +464,7 @@ static int ahci_write(const struct blk_device* restrict device, uintptr_t lba, s
         size_t chunk = count < max_sectors ? count : max_sectors;
         size_t bytes = chunk * device->sector_size;
 
-        spinlock_acquire(&port->lock);
+        mutex_acquire(&port->lock);
 
         memcpy((void*)databuf, buf, bytes);
 
@@ -472,7 +472,7 @@ static int ahci_write(const struct blk_device* restrict device, uintptr_t lba, s
 
         int retval = ahci_issue(port, lba);
 
-        spinlock_release(&port->lock);
+        mutex_release(&port->lock);
 
         if(retval < 0) {
             return retval;
@@ -490,12 +490,12 @@ static int ahci_flush(const struct blk_device* restrict device)
 {
     struct ahci_port* port = device->ctxdata;
 
-    spinlock_acquire(&port->lock);
+    mutex_acquire(&port->lock);
 
     ahci_setup(port, 0, ATA_CMD_FLUSH_EXT, 0, 512, false);
     int retval = ahci_issue(port, 0);
 
-    spinlock_release(&port->lock);
+    mutex_release(&port->lock);
 
     return retval;
 }
@@ -515,7 +515,7 @@ static int ahci_port_init(struct ahci_pci_context* restrict context, struct pci_
 
     memset(dma_virt, 0, PAGE_SIZE * DMA_NUM_PAGES);
 
-    port->lock = SPINLOCK_INIT;
+    mutex_init(&port->lock);
     port->number = port_num;
     port->bar = abar;
     port->port_base = port_base;
@@ -542,6 +542,7 @@ static void ahci_port_teardown(struct ahci_port* restrict port)
     ahci_stop(port);
 
     pdma_free_phys(port->dma_phys, DMA_NUM_PAGES);
+    mutex_deinit(&port->lock);
 
     port->dma_phys = 0;
 }
