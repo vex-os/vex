@@ -99,6 +99,16 @@ void arch_thread_exec(struct thread* restrict thrd, struct vmspace* restrict vms
     restore_interrupts(intr_state);
 }
 
+void arch_thread_set_tcb(struct thread* restrict thrd, uintptr_t tcb)
+{
+    bool intr_state = disable_interrupts();
+
+    thrd->arch.fs_base = (void*)(tcb);
+    wrmsr(MSR_FS_BASE, tcb);
+
+    restore_interrupts(intr_state);
+}
+
 void arch_thread_ctx_save(struct thread* restrict thrd)
 {
     // I'm pretty certain arch_thread_ctx_save isn't going to get
