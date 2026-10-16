@@ -22,7 +22,7 @@ uintptr_t echfs_block_alloc(struct echfs_vfs_context* restrict context)
     for(uint64_t i = context->data_start; i < context->total_blocks; ++i) {
         if(context->fat[i] == ECHFS_TABLE_FREE) {
             context->fat[i] = ECHFS_TABLE_EOC;
-            context->fat_dirty = true;
+            echfs_mark_dirty(context, context->fat_dirty, i * sizeof(uint64_t), sizeof(uint64_t));
             return i;
         }
     }
@@ -37,5 +37,15 @@ void echfs_block_free(struct echfs_vfs_context* restrict context, uintptr_t bloc
     }
 
     context->fat[block] = ECHFS_TABLE_FREE;
-    context->fat_dirty = true;
+    echfs_mark_dirty(context, context->fat_dirty, block * sizeof(uint64_t), sizeof(uint64_t));
+}
+
+void echfs_block_link(struct echfs_vfs_context* restrict context, uintptr_t block, uintptr_t next)
+{
+    if(block >= context->total_blocks) {
+        return;
+    }
+
+    context->fat[block] = next;
+    echfs_mark_dirty(context, context->fat_dirty, block * sizeof(uint64_t), sizeof(uint64_t));
 }

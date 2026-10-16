@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vex/bitmap.h>
 #include <vex/compiler.h>
 #include <vex/mutex.h>
 #include <vex/path.h>
@@ -64,10 +65,10 @@ struct echfs_vfs_context {
     uint64_t data_start;
 
     uint64_t* fat;
-    bool fat_dirty;
+    bitmap_type* fat_dirty;
 
     struct echfs_dirent* dir_table;
-    bool dir_dirty;
+    bitmap_type* dir_dirty;
 
     uint64_t dir_entries;
 
@@ -89,6 +90,7 @@ extern const struct vnode_ops echfs_vnode_ops;
 
 uintptr_t echfs_block_alloc(struct echfs_vfs_context* restrict context) __nodiscard;
 void echfs_block_free(struct echfs_vfs_context* restrict context, uintptr_t block);
+void echfs_block_link(struct echfs_vfs_context* restrict context, uintptr_t block, uintptr_t next);
 uintptr_t echfs_block_next(const struct echfs_vfs_context* restrict context, uintptr_t block) __nodiscard;
 
 int echfs_dirent_find(const struct echfs_vfs_context* restrict context, uint64_t parent_id, const char* restrict name,
@@ -96,6 +98,13 @@ int echfs_dirent_find(const struct echfs_vfs_context* restrict context, uint64_t
 int echfs_dirent_read(const struct echfs_vfs_context* restrict context, uint64_t index, struct echfs_dirent* restrict out);
 int echfs_dirent_write(struct echfs_vfs_context* restrict context, uint64_t index, const struct echfs_dirent* restrict entry);
 int echfs_dirent_alloc(struct echfs_vfs_context* restrict context, uint64_t* restrict out_index) __nodiscard;
+
+static __always_inline void echfs_mark_dirty(const struct echfs_vfs_context* restrict context, bitmap_type* restrict dirty, size_t offset,
+    size_t size)
+{
+    size_t sector_size = context->block_size / context->sectors_per_block;
+    bitmap_range_set(dirty, offset / sector_size, (offset + size - 1) / sector_size);
+}
 
 static __always_inline uintptr_t echfs_block_lba(const struct echfs_vfs_context* restrict context, uintptr_t block)
 {

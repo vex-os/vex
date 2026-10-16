@@ -2,6 +2,7 @@
 
 #include <vex/mutex.h>
 
+#include <vex/bitmap.h>
 #include <vex/compiler.h>
 #include <vex/path.h>
 #include <vex/types.h>
@@ -165,7 +166,8 @@ struct fat_vfs_context {
 
     uint8_t* cache;
     size_t cache_size;
-    bool cache_dirty;
+    bitmap_type* dirty_sectors;
+    bool fsinfo_invalidated;
 
     uintptr_t next_free_hint;
 

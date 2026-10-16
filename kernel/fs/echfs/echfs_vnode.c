@@ -411,8 +411,7 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
                     return -ENOSPC;
                 }
 
-                fs->fat[block] = next;
-                fs->fat_dirty = true;
+                echfs_block_link(fs, block, next);
             }
 
             block = next;
@@ -430,8 +429,7 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
                     return -ENOSPC;
                 }
 
-                fs->fat[block] = next;
-                fs->fat_dirty = true;
+                echfs_block_link(fs, block, next);
             }
 
             block = next;
@@ -523,8 +521,7 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
                     return -ENOSPC;
                 }
 
-                fs->fat[block] = next;
-                fs->fat_dirty = true;
+                echfs_block_link(fs, block, next);
             }
 
             block = next;

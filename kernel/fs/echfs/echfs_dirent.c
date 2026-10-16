@@ -47,7 +47,7 @@ int echfs_dirent_write(struct echfs_vfs_context* restrict context, uint64_t inde
     }
 
     memcpy(&context->dir_table[index], entry, sizeof(struct echfs_dirent));
-    context->dir_dirty = true;
+    echfs_mark_dirty(context, context->dir_dirty, index * sizeof(struct echfs_dirent), sizeof(struct echfs_dirent));
     return 0;
 }
 

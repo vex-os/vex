@@ -1,3 +1,4 @@
+#include <vex/bitmap.h>
 #include <vex/blk_device.h>
 #include <vex/cmdline.h>
 #include <vex/endian.h>
@@ -228,10 +229,19 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     context->cache_size = fat_size * sector_size;
     context->cache = kmalloc(context->cache_size);
-    context->cache_dirty = false;
 
     if(context->cache == nullptr) {
         kfree(boot);
+        kfree(context);
+        return -ENOMEM;
+    }
+
+    context->dirty_sectors = kmalloc(bitmap_bytecount(fat_size));
+    context->fsinfo_invalidated = false;
+
+    if(context->dirty_sectors == nullptr) {
+        kfree(boot);
+        kfree(context->cache);
         kfree(context);
         return -ENOMEM;
     }
@@ -242,6 +252,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     if(context->bounce == nullptr) {
         kfree(boot);
+        kfree(context->dirty_sectors);
         kfree(context->cache);
         kfree(context);
         return -ENOMEM;
@@ -252,6 +263,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     if(retval < 0) {
         kfree(boot);
         kfree(context->bounce);
+        kfree(context->dirty_sectors);
         kfree(context->cache);
         kfree(context);
         return retval;
@@ -263,6 +275,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     if(root_context == nullptr) {
         kfree(context->bounce);
+        kfree(context->dirty_sectors);
         kfree(context->cache);
         kfree(context);
         return -ENOMEM;
@@ -279,6 +292,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     if(root == nullptr) {
         slab_free(root_context);
         kfree(context->bounce);
+        kfree(context->dirty_sectors);
         kfree(context->cache);
         kfree(context);
         return -ENOMEM;
@@ -441,6 +455,7 @@ static int fat_unmount(struct vfs* restrict fs)
     vnode_decref(fs->root);
 
     kfree(context->bounce);
+    kfree(context->dirty_sectors);
     kfree(context->cache);
     mutex_deinit(&context->lock);
     kfree(context);
@@ -452,24 +467,42 @@ static int sync_locked(struct vfs* restrict fs)
 {
     struct fat_vfs_context* context = fs->ctxdata;
 
-    if(!context->cache_dirty) {
-        return 0;
-    }
+    size_t sector = 0;
 
-    size_t num_sectors = context->cache_size / context->sector_size;
+    while(sector < context->table_size_s) {
+        if(0 == sector % BITMAP_CHUNK_BITS && 0 == context->dirty_sectors[sector / BITMAP_CHUNK_BITS]) {
+            sector += BITMAP_CHUNK_BITS;
+            continue;
+        }
 
-    for(unsigned i = 0; i < context->num_tables; ++i) {
-        uintptr_t lba = context->table_start + i * context->table_size_s;
-        int retval = blk_write(context->device, lba, num_sectors, context->cache);
+        if(!bitmap_isset(context->dirty_sectors, sector)) {
+            sector += 1;
+            continue;
+        }
 
-        if(retval < 0) {
-            return retval;
+        size_t run_end = sector + 1;
+
+        while(run_end < context->table_size_s && bitmap_isset(context->dirty_sectors, run_end)) {
+            run_end += 1;
+        }
+
+        for(unsigned i = 0; i < context->num_tables; ++i) {
+            uintptr_t lba = context->table_start + i * context->table_size_s + sector;
+            int retval = blk_write(context->device, lba, run_end - sector, context->cache + sector * context->sector_size);
+
+            if(retval < 0) {
+                return retval;
+            }
+        }
+
+        bitmap_range_clear(context->dirty_sectors, sector, run_end - 1);
+        sector = run_end;
+
+        if(!context->fsinfo_invalidated) {
+            invalidate_fsinfo(context);
+            context->fsinfo_invalidated = true;
         }
     }
-
-    context->cache_dirty = false;
-
-    invalidate_fsinfo(context);
 
     return 0;
 }
