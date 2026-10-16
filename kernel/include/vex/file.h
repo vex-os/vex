@@ -16,7 +16,7 @@ struct file {
     off_t offset;
 };
 
-struct file* file_open(const char* restrict path, unsigned flags) __nodiscard;
+int file_open(const char* restrict path, unsigned flags, struct file** restrict out) __nodiscard;
 struct file* file_dupe(struct file* restrict fp) __nodiscard;
 void file_close(struct file* restrict fp);
 
