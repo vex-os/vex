@@ -9,7 +9,7 @@ static volatile __used __section(".limine_requests") struct limine_memmap_reques
     .revision = 0,
 };
 
-static bool is_ram_type(uint64_t type)
+bool memmap_is_ram_type(uint64_t type)
 {
     switch(type) {
         case LIMINE_MEMMAP_USABLE:
@@ -39,7 +39,7 @@ bool memmap_is_ram(uintptr_t phys, size_t size)
             }
         }
 
-        if(found == nullptr || !is_ram_type(found->type)) {
+        if(found == nullptr || !memmap_is_ram_type(found->type)) {
             return false;
         }
 

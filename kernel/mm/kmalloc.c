@@ -1,8 +1,6 @@
 #include <vex/assert.h>
 #include <vex/errno.h>
-#include <vex/initcall.h>
 #include <vex/kmalloc.h>
-#include <vex/linker.h>
 #include <vex/page.h>
 #include <vex/panic.h>
 #include <vex/pmap.h>
@@ -31,7 +29,7 @@ static_assert(sizeof(struct memblock) <= (PAGE_SIZE / 2));
 
 static struct memblock* head = nullptr;
 static struct memblock* tail = nullptr;
-static uintptr_t heap_end = 0;
+static uintptr_t heap_end = HEAP_REGION_BASE;
 static spinlock_type heap_lock = SPINLOCK_INIT;
 
 static struct memblock* find_free_block(size_t sz)
@@ -54,6 +52,11 @@ static struct memblock* extend_heap(size_t sz)
     uintptr_t virt;
 
     size_t npages = page_count(sz);
+
+    if(npages > (HEAP_REGION_BASE + HEAP_REGION_SIZE - heap_end) / PAGE_SIZE) {
+        return nullptr;
+    }
+
     struct memblock* block = slab_alloc(sizeof(struct memblock));
 
     if(block == nullptr) {
@@ -341,10 +344,3 @@ char* kvasprintf(const char* restrict fmt, va_list ap)
 
     return result;
 }
-
-static void init_kmalloc(void)
-{
-    heap_end = PAGE_SIZE + page_align_up((uintptr_t)kernel_end);
-}
-
-initcall_bsp_heap(init_kmalloc, INIT_FIRST);
