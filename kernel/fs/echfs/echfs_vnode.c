@@ -5,15 +5,34 @@
 #include <vex/stat.h>
 #include <vex/string.h>
 #include <vex/strings.h>
+#include <vex/vcache.h>
 #include <vex/vnode.h>
 
 #include "echfs.h"
 
 static_assert(sizeof(struct echfs_vnode_context) <= (PAGE_SIZE / 2));
 
+static void free_chain(struct echfs_vfs_context* restrict fs, uint64_t block)
+{
+    while(block != ECHFS_TABLE_EOC && block != ECHFS_TABLE_FREE && block < ECHFS_TABLE_RESERVED) {
+        uint64_t next = fs->fat[block];
+        echfs_block_free(fs, block);
+        block = next;
+    }
+}
+
 static void echfs_vnode_release(struct vnode* restrict node)
 {
-    slab_free(node->ctxdata);
+    struct echfs_vnode_context* ctx = node->ctxdata;
+
+    // Held open past unlink, the blocks stay until the last user is gone
+    if(ctx->unlinked && node->nodetype != VNODE_DIRECTORY) {
+        mutex_acquire(&ctx->fs_ctx->lock);
+        free_chain(ctx->fs_ctx, ctx->start_block);
+        mutex_release(&ctx->fs_ctx->lock);
+    }
+
+    slab_free(ctx);
 }
 
 static int lookup_locked(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
@@ -176,9 +195,10 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     return 0;
 }
 
-static int unlink_locked(struct vnode* restrict node, const char* restrict name)
+static int unlink_locked(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
+    struct echfs_vnode_context* target_ctx = target->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
 
     uint64_t index;
@@ -186,6 +206,12 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name)
 
     if(retval < 0) {
         return retval;
+    }
+
+    // The name was looked up without the lock
+    // held, so it may have been replaced since
+    if(index != target_ctx->dir_entry) {
+        return -ENOENT;
     }
 
     struct echfs_dirent entry;
@@ -208,20 +234,21 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name)
             }
         }
     }
-    else {
-        uint64_t block = entry.start_block;
-
-        while(block != ECHFS_TABLE_EOC && block != ECHFS_TABLE_FREE && block < ECHFS_TABLE_RESERVED) {
-            uint64_t next = fs->fat[block];
-            echfs_block_free(fs, block);
-            block = next;
-        }
-    }
 
     struct echfs_dirent deleted;
     memset(&deleted, 0, sizeof(deleted));
     deleted.directory_id = ECHFS_DIR_ID_DELETED;
-    return echfs_dirent_write(fs, index, &deleted);
+
+    retval = echfs_dirent_write(fs, index, &deleted);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    target_ctx->unlinked = true;
+    vcache_remove(target);
+
+    return 0;
 }
 
 static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
@@ -351,17 +378,21 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
         ctx->cached_block = new_block;
         ctx->cached_block_idx = 0;
 
-        struct echfs_dirent entry;
-        int retval = echfs_dirent_read(fs, ctx->dir_entry, &entry);
+        // An unlinked file's entry may
+        // belong to another file by now
+        if(!ctx->unlinked) {
+            struct echfs_dirent entry;
+            int retval = echfs_dirent_read(fs, ctx->dir_entry, &entry);
 
-        if(retval < 0) {
-            echfs_block_free(fs, new_block);
-            ctx->start_block = ECHFS_TABLE_EOC;
-            return retval;
+            if(retval < 0) {
+                echfs_block_free(fs, new_block);
+                ctx->start_block = ECHFS_TABLE_EOC;
+                return retval;
+            }
+
+            entry.start_block = new_block;
+            echfs_dirent_write(fs, ctx->dir_entry, &entry);
         }
-
-        entry.start_block = new_block;
-        echfs_dirent_write(fs, ctx->dir_entry, &entry);
     }
 
     uint64_t block_index = offset / fs->block_size;
@@ -509,7 +540,7 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
 
         struct echfs_dirent entry;
 
-        if(0 == echfs_dirent_read(fs, ctx->dir_entry, &entry)) {
+        if(!ctx->unlinked && 0 == echfs_dirent_read(fs, ctx->dir_entry, &entry)) {
             entry.file_size = ctx->size;
 
             echfs_dirent_write(fs, ctx->dir_entry, &entry);
@@ -531,7 +562,7 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
     out->st_blksize = fs->block_size;
     out->st_blocks = (ctx->size + fs->device->sector_size - 1) / fs->device->sector_size;
 
-    if(ctx->dir_entry != UINT64_MAX) {
+    if(ctx->dir_entry != UINT64_MAX && !ctx->unlinked) {
         const struct echfs_dirent* entry = &fs->dir_table[ctx->dir_entry];
 
         out->st_uid = entry->owner_uid;
@@ -584,10 +615,10 @@ static int echfs_vnode_create(struct vnode* restrict node, const char* restrict 
     return retval;
 }
 
-static int echfs_vnode_unlink(struct vnode* restrict node, const char* restrict name)
+static int echfs_vnode_unlink(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
 {
     mutex_acquire(fs_lock(node));
-    int retval = unlink_locked(node, name);
+    int retval = unlink_locked(node, name, target);
     mutex_release(fs_lock(node));
     return retval;
 }

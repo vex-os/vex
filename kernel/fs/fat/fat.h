@@ -137,6 +137,7 @@ union fat_entry {
 struct fat_dirent {
     struct fat_dir_entry base;
     char full_name[NAME_SIZE];
+    unsigned num_lfn; // Long name entries right before base
 };
 
 struct fat_vfs_context {
@@ -179,6 +180,7 @@ struct fat_vnode_context {
     size_t dir_offset;
     uintptr_t cached_cluster;
     size_t cached_cluster_idx;
+    bool unlinked; // The entry at dir_offset is gone, clusters are freed on release
 };
 
 extern const struct vnode_ops fat_vnode_ops;
@@ -197,6 +199,7 @@ int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t c
 int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
     const struct fat_dir_entry* restrict entry);
 int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset);
+int fat_dirent_remove(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, unsigned num_lfn);
 
 // Clusters 0 and 1 are reserved, data clusters are numbered from 2
 static __always_inline bool fat_cluster_valid(const struct fat_vfs_context* restrict context, uintptr_t cluster)

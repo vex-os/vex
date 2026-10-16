@@ -82,6 +82,7 @@ struct echfs_vnode_context {
     uint64_t size;
     uint64_t cached_block;
     uint64_t cached_block_idx;
+    bool unlinked; // The entry at dir_entry is gone, blocks are freed on release
 };
 
 extern const struct vnode_ops echfs_vnode_ops;

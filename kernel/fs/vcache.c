@@ -125,3 +125,26 @@ void vcache_evict(struct vfs* restrict fs)
 
     spinlock_release(&cache_lock);
 }
+
+void vcache_remove(struct vnode* restrict node)
+{
+    spinlock_acquire(&cache_lock);
+
+    unsigned bucket = hash_bucket(node->fs, node->nodenumber);
+
+    for(struct vcache** prev = &cache[bucket]; *prev; prev = &(*prev)->next) {
+        struct vcache* entry = *prev;
+
+        if(entry->node == node) {
+            *prev = entry->next;
+            spinlock_release(&cache_lock);
+
+            slab_free(entry);
+            vnode_decref(node);
+
+            return;
+        }
+    }
+
+    spinlock_release(&cache_lock);
+}

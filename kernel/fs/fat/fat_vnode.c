@@ -9,6 +9,7 @@
 #include <vex/stat.h>
 #include <vex/string.h>
 #include <vex/strings.h>
+#include <vex/vcache.h>
 #include <vex/vnode.h>
 
 #include "fat.h"
@@ -156,9 +157,28 @@ static void shortname_build(const char* restrict name, unsigned tail_n, uint8_t 
     }
 }
 
+static void free_chain(struct fat_vfs_context* restrict fs, uintptr_t cluster)
+{
+    while(cluster != 0 && cluster != UINTPTR_MAX) {
+        uintptr_t next = fat_cluster_next(fs, cluster);
+        fat_cluster_free(fs, cluster);
+        cluster = next;
+    }
+}
+
 static void fat_vnode_release(struct vnode* restrict node)
 {
-    slab_free(node->ctxdata);
+    struct fat_vnode_context* context = node->ctxdata;
+
+    // Held open past unlink, the clusters
+    // stay until the last user is gone
+    if(context->unlinked) {
+        mutex_acquire(&context->fs_ctx->lock);
+        free_chain(context->fs_ctx, context->first_cluster);
+        mutex_release(&context->fs_ctx->lock);
+    }
+
+    slab_free(context);
 }
 
 static int lookup_locked(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
@@ -411,6 +431,85 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     return 0;
 }
 
+static int check_empty(const struct fat_vfs_context* restrict fs, uintptr_t cluster)
+{
+    struct fat_dirent dirent;
+    size_t offset = 0;
+
+    for(;;) {
+        int retval = fat_dirent_read(fs, cluster, &offset, &dirent);
+
+        if(retval == -ENOENT) {
+            return 0;
+        }
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        if(0 == strcmp(dirent.full_name, ".") || 0 == strcmp(dirent.full_name, "..")) {
+            continue;
+        }
+
+        if(0 == (dirent.base.attribute & FAT_ATTR_VOLUME_ID)) {
+            return -ENOTEMPTY;
+        }
+    }
+}
+
+static int unlink_locked(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+{
+    struct fat_vnode_context* context = node->ctxdata;
+    struct fat_vnode_context* target_context = target->ctxdata;
+    struct fat_vfs_context* fs = context->fs_ctx;
+
+    if(fs->param_readonly) {
+        return -EROFS;
+    }
+
+    if(target->nodetype == VNODE_DIRECTORY) {
+        int retval = check_empty(fs, target_context->first_cluster);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
+    struct fat_dirent dirent;
+    size_t offset = 0;
+
+    for(;;) {
+        int retval = fat_dirent_read(fs, context->first_cluster, &offset, &dirent);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        if(0 == strncasecmp(dirent.full_name, name, NAME_MAX)) {
+            break;
+        }
+    }
+
+    size_t entry_offset = offset - 1; // fat_dirent_read increments the offset
+
+    // The name was looked up without the lock
+    // held, so it may have been replaced since
+    if(entry_offset != target_context->dir_offset) {
+        return -ENOENT;
+    }
+
+    int retval = fat_dirent_remove(fs, context->first_cluster, entry_offset, dirent.num_lfn);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    target_context->unlinked = true;
+    vcache_remove(target);
+
+    return 0;
+}
+
 static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
 {
     struct fat_vnode_context* context = node->ctxdata;
@@ -548,19 +647,23 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
         context->cached_cluster = new_cluster;
         context->cached_cluster_idx = 0;
 
-        struct fat_dirent dirent;
-        size_t dir_off = context->dir_offset;
-        int retval = fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent);
+        // An unlinked file's entry slot
+        // may belong to another file by now
+        if(!context->unlinked) {
+            struct fat_dirent dirent;
+            size_t dir_off = context->dir_offset;
+            int retval = fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent);
 
-        if(retval < 0) {
-            fat_cluster_free(fs, new_cluster);
-            context->first_cluster = 0;
-            return retval;
+            if(retval < 0) {
+                fat_cluster_free(fs, new_cluster);
+                context->first_cluster = 0;
+                return retval;
+            }
+
+            dirent.base.first_cluster_hi = htole16(new_cluster >> 16);
+            dirent.base.first_cluster_lo = htole16(new_cluster & 0xFFFF);
+            fat_dirent_update(context->fs_ctx, context->dir_cluster, context->dir_offset, &dirent.base);
         }
-
-        dirent.base.first_cluster_hi = htole16(new_cluster >> 16);
-        dirent.base.first_cluster_lo = htole16(new_cluster & 0xFFFF);
-        fat_dirent_update(context->fs_ctx, context->dir_cluster, context->dir_offset, &dirent.base);
     }
 
     size_t cluster_index = offset / fs->cluster_size_b;
@@ -705,7 +808,7 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
         struct fat_dirent dirent;
         size_t dir_off = context->dir_offset;
 
-        if(0 == fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent)) {
+        if(!context->unlinked && 0 == fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent)) {
             dirent.base.file_size = htole32(context->size_bytes);
 
             fat_dirent_update(context->fs_ctx, context->dir_cluster, context->dir_offset, &dirent.base);
@@ -769,6 +872,14 @@ static int fat_vnode_iterate(struct vnode* restrict node, struct k_dirent* restr
     return retval;
 }
 
+static int fat_vnode_unlink(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = unlink_locked(node, name, target);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
 static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
 {
     mutex_acquire(fs_lock(node));
@@ -806,6 +917,7 @@ const struct vnode_ops fat_vnode_ops = {
     .lookup = &fat_vnode_lookup,
     .iterate = &fat_vnode_iterate,
     .create = &fat_vnode_create,
+    .unlink = &fat_vnode_unlink,
     .read = &fat_vnode_read,
     .write = &fat_vnode_write,
     .stat = &fat_vnode_stat,

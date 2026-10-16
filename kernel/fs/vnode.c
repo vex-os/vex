@@ -135,6 +135,44 @@ static int create_crossed(struct vnode* restrict node, const char* restrict name
     return 0;
 }
 
+static int unlink_crossed(struct vnode* restrict node, const char* restrict name)
+{
+    if(node->ops->unlink == nullptr) {
+        return -ENOSYS;
+    }
+
+    if(0 == strcmp(name, ".") || 0 == strcmp(name, "..")) {
+        return -EINVAL;
+    }
+
+    struct vnode* victim;
+    int retval = lookup_crossed(node, name, &victim);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(victim->fs_mounted) {
+        vnode_decref(victim);
+        return -EBUSY;
+    }
+
+    // The filesystem has to vcache_remove the victim under its own lock,
+    // before the entry can be reused, or a new file there gets this vnode
+    retval = node->ops->unlink(node, name, victim);
+
+    // Whichever reference goes last, possibly
+    // the one dropped right below, uncounts it
+    if(retval == 0) {
+        victim->orphaned = true;
+        atomic_fetch_add(&victim->fs->orphans, 1, ATOMIC_RELAXED);
+    }
+
+    vnode_decref(victim);
+
+    return retval;
+}
+
 struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict ops, void* ctxdata)
 {
     kassert(ops);
@@ -168,9 +206,19 @@ bool vnode_decref(struct vnode* restrict node)
     unsigned prev = atomic_fetch_sub(&node->refcount, 1, ATOMIC_ACQ_REL);
 
     if(prev == 1) {
+        struct vnode* parent = node->parent;
+
+        if(node->orphaned) {
+            atomic_fetch_sub(&node->fs->orphans, 1, ATOMIC_RELEASE);
+        }
+
         if(node->ops->release)
             node->ops->release(node);
         slab_free(node);
+
+        if(parent) {
+            vnode_decref(parent);
+        }
     }
 
     return prev == 1U;
@@ -246,12 +294,7 @@ int vnode_unlink(struct vnode* restrict node, const char* restrict name)
         return retval;
     }
 
-    if(target->ops->unlink == nullptr) {
-        retval = -ENOSYS;
-    }
-    else {
-        retval = target->ops->unlink(target, name);
-    }
+    retval = unlink_crossed(target, name);
 
     vnode_decref(target);
 
