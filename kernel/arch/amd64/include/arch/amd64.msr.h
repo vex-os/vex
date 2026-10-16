@@ -3,6 +3,7 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
+#define MSR_PAT            UINT32_C(0x00000277)
 #define MSR_EFER           UINT32_C(0xC0000080)
 #define MSR_STAR           UINT32_C(0xC0000081)
 #define MSR_LSTAR          UINT32_C(0xC0000082)

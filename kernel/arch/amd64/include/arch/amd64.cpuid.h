@@ -1,0 +1,14 @@
+#pragma once
+
+#include <vex/compiler.h>
+#include <vex/types.h>
+
+#define CPUID_1_EDX_PAT  UINT32_C(0x00010000)
+#define CPUID_7_EBX_SMEP UINT32_C(0x00000080)
+#define CPUID_7_EBX_SMAP UINT32_C(0x00100000)
+
+static __always_inline void cpuid(uint32_t leaf, uint32_t subleaf, uint32_t* restrict eax, uint32_t* restrict ebx, uint32_t* restrict ecx,
+    uint32_t* restrict edx)
+{
+    asm volatile("cpuid" : "=a"(*eax), "=b"(*ebx), "=c"(*ecx), "=d"(*edx) : "a"(leaf), "c"(subleaf));
+}
