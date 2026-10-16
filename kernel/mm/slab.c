@@ -143,7 +143,7 @@ static void init_slab(void)
 {
     slabs_count = 0U;
 
-    while(SLAB_BLOCKSIZE(slabs_count) <= (PAGE_SIZE / 2)) {
+    while(SLAB_BLOCKSIZE(slabs_count) <= SLAB_MAX_SIZE) {
         slabs_count += 1U;
     }
 

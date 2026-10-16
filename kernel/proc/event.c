@@ -4,7 +4,10 @@
 #include <vex/kmalloc.h>
 #include <vex/panic.h>
 #include <vex/sched.h>
+#include <vex/slab.h>
 #include <vex/thread.h>
+
+static_assert(sizeof(struct event) <= SLAB_MAX_SIZE);
 
 void event_init(struct event* restrict evnt)
 {

@@ -2,7 +2,10 @@
 #include <vex/atomic.h>
 #include <vex/hart.h>
 #include <vex/mutex.h>
+#include <vex/slab.h>
 #include <vex/thread.h>
+
+static_assert(sizeof(struct mutex) <= SLAB_MAX_SIZE);
 
 void mutex_init(struct mutex* restrict mtx)
 {

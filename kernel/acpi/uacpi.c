@@ -19,6 +19,7 @@
 #include <vex/pci.h>
 #include <vex/rsdp.h>
 #include <vex/sched.h>
+#include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/thread.h>
 #include <vex/vprot.h>
@@ -30,6 +31,8 @@ struct acpi_work {
     uacpi_work_handler handler;
     uacpi_handle ctx;
 };
+
+static_assert(sizeof(struct acpi_work) <= SLAB_MAX_SIZE);
 
 static struct acpi_work* work_head;
 static struct acpi_work* work_tail;
@@ -107,7 +110,7 @@ static struct acpi_work* pop_work(void)
 static void run_work(struct acpi_work* restrict work)
 {
     work->handler(work->ctx);
-    kfree(work);
+    slab_free(work);
     atomic_fetch_sub(&works_running, 1, ATOMIC_ACQ_REL);
 }
 
@@ -196,7 +199,7 @@ void uacpi_kernel_free(void* mem)
 
 uacpi_handle uacpi_kernel_create_mutex(void)
 {
-    struct mutex* mtx = kmalloc(sizeof(struct mutex));
+    struct mutex* mtx = slab_alloc(sizeof(struct mutex));
 
     if(mtx) {
         mutex_init(mtx);
@@ -208,7 +211,7 @@ uacpi_handle uacpi_kernel_create_mutex(void)
 void uacpi_kernel_free_mutex(uacpi_handle handle)
 {
     mutex_deinit(handle);
-    kfree(handle);
+    slab_free(handle);
 }
 
 uacpi_status uacpi_kernel_acquire_mutex(uacpi_handle handle, uacpi_u16 timeout)
@@ -228,7 +231,7 @@ void uacpi_kernel_release_mutex(uacpi_handle handle)
 
 uacpi_handle uacpi_kernel_create_event(void)
 {
-    struct event* evnt = kmalloc(sizeof(struct event));
+    struct event* evnt = slab_alloc(sizeof(struct event));
 
     if(evnt) {
         event_init(evnt);
@@ -240,7 +243,7 @@ uacpi_handle uacpi_kernel_create_event(void)
 void uacpi_kernel_free_event(uacpi_handle handle)
 {
     event_deinit(handle);
-    kfree(handle);
+    slab_free(handle);
 }
 
 uacpi_bool uacpi_kernel_wait_for_event(uacpi_handle handle, uacpi_u16 timeout)
@@ -435,7 +438,7 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler ha
 
 uacpi_status uacpi_kernel_schedule_work(uacpi_work_type type, uacpi_work_handler handler, uacpi_handle ctx)
 {
-    struct acpi_work* work = kmalloc(sizeof(struct acpi_work));
+    struct acpi_work* work = slab_alloc(sizeof(struct acpi_work));
 
     if(work == nullptr) {
         return UACPI_STATUS_OUT_OF_MEMORY;
