@@ -60,3 +60,4 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
   - Don't document functions in headers unless the name is hard to understand and renaming isn't an option. Field comments are fine when they map a field to its spec name (FAT `BS_*`/`BPB_*`, ELF) or state an invariant such as ownership or locking rules.
 - `contrib/` is vendored third-party code: Limine, uACPI, kconfiglib, and EDK2 firmware. Each component has a `README.vex` and an `update.sh`. Don't edit it in place; update it through the script.
 - Commit messages use a `<area>: <lowercase summary>` prefix (e.g. `general: some important change`).
+- Don't commit on your own. Leave changes in the working tree for review; commit only when explicitly told to, and only to the active branch.
