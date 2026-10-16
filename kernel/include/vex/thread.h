@@ -34,7 +34,7 @@ struct thread {
     spinlock_type hart_lock;
     spinlock_type yield_await;
     struct hart_local* hart;
-    unsigned short hart_index;
+    struct hart_local* pinned_hart; // Set before the first enqueue; nullptr runs on any hart
 
     bool enqueued_by_signal;
     struct thread* rq_next;

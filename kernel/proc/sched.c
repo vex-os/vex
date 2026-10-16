@@ -67,9 +67,13 @@ static void rq_remove_nolock(struct thread* restrict thrd)
 
 // A thread woken up before it got off its
 // hart is still locked by that hart and is skipped
-static struct thread* rq_take_nolock(void)
+static struct thread* rq_take_nolock(struct hart_local* restrict hart)
 {
     for(struct thread* thrd = rq_head; thrd; thrd = thrd->rq_next) {
+        if(thrd->pinned_hart && thrd->pinned_hart != hart) {
+            continue;
+        }
+
         if(spinlock_try_acquire(&thrd->hart_lock)) {
             rq_remove_nolock(thrd);
             return thrd;
@@ -79,8 +83,16 @@ static struct thread* rq_take_nolock(void)
     return nullptr;
 }
 
-static void kick_idle_hart(void)
+static void kick_idle_hart(const struct thread* restrict thrd)
 {
+    if(thrd->pinned_hart) {
+        if(0 == (atomic_load_n(&thrd->pinned_hart->flags, ATOMIC_RELAXED) & HART_FLAG_ACTIVE)) {
+            hart_ipi(thrd->pinned_hart, sched_ireq_number);
+        }
+
+        return;
+    }
+
     for(unsigned long i = 0; i < num_harts; ++i) {
         struct hart_local* hart = &harts[i];
 
@@ -127,7 +139,7 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
 
     spinlock_acquire(&sched_lock);
 
-    struct thread* next = rq_take_nolock();
+    struct thread* next = rq_take_nolock(hart);
 
     // The handler runs on curr's stack, so curr
     // may only be handed over once sched_enter is off it
@@ -217,6 +229,7 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
     thrd->proc = nullptr;
     thrd->rq_next = nullptr;
     thrd->rq_prev = nullptr;
+    thrd->pinned_hart = nullptr;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
     thrd->kstack_top = kstack_top;
@@ -268,6 +281,7 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
     thrd->proc = proc;
     thrd->rq_next = nullptr;
     thrd->rq_prev = nullptr;
+    thrd->pinned_hart = nullptr;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
     thrd->kstack_top = kstack_top;
@@ -320,7 +334,7 @@ void sched_enqueue(struct thread* restrict thrd)
 
     spinlock_release_intr(&sched_lock, intr_state);
 
-    kick_idle_hart();
+    kick_idle_hart(thrd);
 }
 
 void sched_dequeue(struct thread* restrict thrd)
