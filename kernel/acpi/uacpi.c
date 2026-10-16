@@ -19,6 +19,7 @@
 #include <vex/rsdp.h>
 #include <vex/sched.h>
 #include <vex/spinlock.h>
+#include <vex/thread.h>
 #include <vex/vprot.h>
 
 #define UACPI_TIMEOUT_INFINITE 0xFFFF
@@ -437,8 +438,6 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler ha
 
 uacpi_status uacpi_kernel_schedule_work(uacpi_work_type type, uacpi_work_handler handler, uacpi_handle ctx)
 {
-    // FIXME: GPE work should run on CPU0 to dodge
-    // SMI-related firmware bugs, but threads can't be pinned yet
     struct acpi_work* work = kmalloc(sizeof(struct acpi_work));
 
     if(work == nullptr) {
@@ -485,9 +484,17 @@ static void init_acpi_work(void)
 {
     event_init(&work_queued);
 
-    if(!create_thread_kern_enq(&work_thread, nullptr)) {
+    struct thread* worker = create_thread_kern(&work_thread, nullptr);
+
+    if(worker == nullptr) {
         panic("uacpi: out of memory");
     }
+
+    // GPE work has to run on the boot CPU,
+    // some firmware has SMI handlers that assume it
+    worker->pinned_hart = boot_hart();
+
+    sched_enqueue(worker);
 }
 
 initcall_bsp_multicore(init_acpi_work, INIT_LAST);

@@ -47,6 +47,17 @@ struct hart_local* this_hart(void)
     return thrd->hart;
 }
 
+struct hart_local* boot_hart(void)
+{
+    for(unsigned long i = 0; i < num_harts; ++i) {
+        if(harts[i].flags & HART_FLAG_BSP) {
+            return &harts[i];
+        }
+    }
+
+    unreachable();
+}
+
 static void init_hart_structs(void)
 {
     if(mp_request.response == nullptr) {
@@ -69,12 +80,7 @@ static void init_hart_structs(void)
 
 static void init_hart_boot(void)
 {
-    for(unsigned long i = 0; i < num_harts; ++i) {
-        if(harts[i].flags & HART_FLAG_BSP) {
-            hart_setup_2(&harts[i]);
-            break;
-        }
-    }
+    hart_setup_2(boot_hart());
 
     invoke_initcalls(initcalls_smp_start, initcalls_smp_end);
 

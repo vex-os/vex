@@ -22,3 +22,4 @@ extern struct hart_local* harts;
 extern unsigned long num_harts;
 
 struct hart_local* this_hart(void) __nodiscard;
+struct hart_local* boot_hart(void) __nodiscard;
