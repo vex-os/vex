@@ -43,10 +43,9 @@ int devfs_insert(struct vfs* restrict fs, const char* restrict name, struct vnod
 
     entry->next = state->head;
     state->head = entry;
+    state->num_devices += 1;
 
     spinlock_release(&state->lock);
-
-    state->num_devices += 1;
 
     return 0;
 }
@@ -66,25 +65,37 @@ void devfs_remove(struct vfs* restrict fs, const char* restrict name)
             vnode_decref(it->node);
             slab_free(it);
 
+            state->num_devices -= 1;
+
             break;
         }
     }
 
-    state->num_devices -= 1;
-
     spinlock_release(&state->lock);
 }
 
-static void add_present_blk_device(const struct blk_device* restrict device, void* restrict arg)
+static int devfs_unmount(struct vfs* restrict fs)
 {
-    if(BLK_FLAG_PRESENT == (device->flags & (BLK_FLAG_PRESENT | BLK_FLAG_HIDDEN))) {
-        if(device->flags & BLK_FLAG_PARTITION) {
-            devfs_blk_event_handler(BLK_EVENT_PARTITION_ADDED, device, arg);
-        }
-        else {
-            devfs_blk_event_handler(BLK_EVENT_MEDIA_CONNECTED, device, arg);
-        }
+    struct devfs_state* state = fs->ctxdata;
+
+    blk_event_unsubscribe(&devfs_blk_event_handler, fs);
+    chr_event_unsubscribe(&devfs_chr_event_handler, fs);
+
+    spinlock_acquire(&state->lock);
+
+    for(struct devfs_node* it = state->head; it;) {
+        struct devfs_node* next = it->next;
+        slab_free(it);
+        it = next;
     }
+
+    spinlock_release(&state->lock);
+
+    vnode_decref(fs->root);
+
+    slab_free(state);
+
+    return 0;
 }
 
 static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
@@ -110,14 +121,16 @@ static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     fs->root = root;
     fs->ctxdata = state;
 
-    iterate_blk_devices(&add_present_blk_device, fs);
+    int retval = blk_event_subscribe(&devfs_blk_event_handler, fs);
 
-    for(const struct chr_device* chr = chr_devices_head; chr; chr = chr->priv.next) {
-        devfs_chr_event_handler(CHR_EVENT_DEVICE_ADDED, chr, fs);
+    if(retval == 0) {
+        retval = chr_event_subscribe(&devfs_chr_event_handler, fs);
     }
 
-    blk_event_subscribe(&devfs_blk_event_handler, fs);
-    chr_event_subscribe(&devfs_chr_event_handler, fs);
+    if(retval < 0) {
+        devfs_unmount(fs);
+        return retval;
+    }
 
     return 0;
 }
@@ -131,30 +144,6 @@ static int devfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out
     out->f_files = state->num_devices;
     out->f_fsid = (uint32_t)(uintptr_t)(fs);
     out->f_namemax = NAME_MAX;
-
-    return 0;
-}
-
-static int devfs_unmount(struct vfs* restrict fs)
-{
-    struct devfs_state* state = fs->ctxdata;
-
-    spinlock_acquire(&state->lock);
-
-    for(struct devfs_node* it = state->head; it;) {
-        struct devfs_node* next = it->next;
-        slab_free(it);
-        it = next;
-    }
-
-    spinlock_release(&state->lock);
-
-    vnode_decref(fs->root);
-
-    slab_free(state);
-
-    blk_event_unsubscribe(&devfs_blk_event_handler, fs);
-    chr_event_unsubscribe(&devfs_chr_event_handler, fs);
 
     return 0;
 }

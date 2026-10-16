@@ -2,36 +2,46 @@
 #include <vex/errno.h>
 #include <vex/intctl.h>
 #include <vex/kprintf.h>
+#include <vex/spinlock.h>
 
+static spinlock_type intctl_lock = SPINLOCK_INIT;
 static struct intctl* intctl_head = nullptr;
 
 int add_intctl(struct intctl* restrict controller)
 {
+    spinlock_acquire(&intctl_lock);
+
     for(struct intctl* it = intctl_head; it; it = it->priv.next) {
         if(it == controller) {
+            spinlock_release(&intctl_lock);
             return -EEXIST;
         }
     }
 
+    controller->priv.next = intctl_head;
+    intctl_head = controller;
+
+    spinlock_release(&intctl_lock);
+
     size_t gsi_base = controller->gsi_base;
     size_t gsi_count = controller->gsi_count;
     pr_verbose("intctl: adding %s: gsi_base=%zu, gsi_count=%zu", controller->identifier, gsi_base, gsi_count);
-
-    controller->priv.next = intctl_head;
-    intctl_head = controller;
 
     return 0;
 }
 
 struct intctl* find_intctl(uint32_t gsi)
 {
-    struct intctl* it;
+    spinlock_acquire(&intctl_lock);
 
-    for(it = intctl_head; it; it = it->priv.next) {
+    for(struct intctl* it = intctl_head; it; it = it->priv.next) {
         if(gsi >= it->gsi_base && gsi < (it->gsi_base + it->gsi_count)) {
+            spinlock_release(&intctl_lock);
             return it;
         }
     }
+
+    spinlock_release(&intctl_lock);
 
     return nullptr;
 }

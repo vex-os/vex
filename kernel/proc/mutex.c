@@ -1,4 +1,5 @@
 #include <vex/assert.h>
+#include <vex/atomic.h>
 #include <vex/hart.h>
 #include <vex/mutex.h>
 #include <vex/thread.h>
@@ -90,4 +91,9 @@ void mutex_release(struct mutex* restrict mtx)
     if(contended) {
         event_trigger(&mtx->released, true);
     }
+}
+
+bool mutex_held(const struct mutex* restrict mtx)
+{
+    return atomic_load(&mtx->owner, ATOMIC_RELAXED) == this_thread();
 }

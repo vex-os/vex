@@ -21,3 +21,5 @@ void mutex_deinit(struct mutex* restrict mtx);
 bool mutex_try_acquire(struct mutex* restrict mtx) __nodiscard;
 void mutex_acquire(struct mutex* restrict mtx);
 void mutex_release(struct mutex* restrict mtx);
+
+bool mutex_held(const struct mutex* restrict mtx) __nodiscard;

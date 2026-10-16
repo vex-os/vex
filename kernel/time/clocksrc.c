@@ -57,17 +57,25 @@ static void activate_nolock(struct clocksrc* restrict src)
     }
 }
 
-int add_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
+static bool is_registered_nolock(const struct clocksrc* restrict src)
 {
     for(struct clocksrc* it = clocksrc_head; it; it = it->priv.next) {
         if(it == src) {
-            return -EEXIST;
+            return true;
         }
     }
 
-    pr_verbose("clocksrc: adding %s: rating=%u", src->identifier, src->rating);
+    return false;
+}
 
+int add_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
+{
     bool intr_state = spinlock_acquire_intr(&clocksrc_lock);
+
+    if(is_registered_nolock(src)) {
+        spinlock_release_intr(&clocksrc_lock, intr_state);
+        return -EEXIST;
+    }
 
     compute_mult_shift(src, scale, frequency);
 
@@ -82,6 +90,8 @@ int add_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t fre
 
     spinlock_release_intr(&clocksrc_lock, intr_state);
 
+    pr_verbose("clocksrc: added %s: rating=%u", src->identifier, src->rating);
+
     if(activated) {
         pr_verbose("clocksrc: %s is now active", src->identifier);
     }
@@ -91,66 +101,60 @@ int add_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t fre
 
 int calibrate_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
 {
-    for(struct clocksrc* it = clocksrc_head; it; it = it->priv.next) {
-        if(it == src) {
-            bool intr_state = spinlock_acquire_intr(&clocksrc_lock);
+    bool intr_state = spinlock_acquire_intr(&clocksrc_lock);
 
-            // Ticks counted so far
-            // still convert at the old rate
-            if(src == clocksrc_active) {
-                update_nolock();
-            }
-
-            compute_mult_shift(src, scale, frequency);
-
-            spinlock_release_intr(&clocksrc_lock, intr_state);
-
-            return 0;
-        }
+    if(!is_registered_nolock(src)) {
+        spinlock_release_intr(&clocksrc_lock, intr_state);
+        return -ENOENT;
     }
 
-    return -ENOENT;
+    // Ticks counted so far
+    // still convert at the old rate
+    if(src == clocksrc_active) {
+        update_nolock();
+    }
+
+    compute_mult_shift(src, scale, frequency);
+
+    spinlock_release_intr(&clocksrc_lock, intr_state);
+
+    return 0;
 }
 
 int remove_clocksrc(struct clocksrc* restrict src)
 {
-    if(clocksrc_head == src) {
-        clocksrc_head = src->priv.next;
-    }
-    else {
-        struct clocksrc* it;
-        struct clocksrc* prev = nullptr;
+    bool intr_state = spinlock_acquire_intr(&clocksrc_lock);
 
-        for(it = clocksrc_head; it; it = it->priv.next) {
-            if(it == src) {
-                prev->priv.next = it->priv.next;
-                break;
-            }
+    struct clocksrc** prev = &clocksrc_head;
 
-            prev = it;
-        }
-
-        if(it == nullptr) {
-            return -ENOENT;
-        }
+    while(*prev && *prev != src) {
+        prev = &(*prev)->priv.next;
     }
 
-    if(clocksrc_active == src) {
-        struct clocksrc* best = nullptr;
+    if(*prev == nullptr) {
+        spinlock_release_intr(&clocksrc_lock, intr_state);
+        return -ENOENT;
+    }
 
+    *prev = src->priv.next;
+
+    struct clocksrc* best = nullptr;
+    bool was_active = clocksrc_active == src;
+
+    if(was_active) {
         for(struct clocksrc* it = clocksrc_head; it; it = it->priv.next) {
             if(best == nullptr || it->rating > best->rating) {
                 best = it;
             }
         }
 
-        bool intr_state = spinlock_acquire_intr(&clocksrc_lock);
         activate_nolock(best);
-        spinlock_release_intr(&clocksrc_lock, intr_state);
+    }
 
-        if(best) {
-            pr_verbose("clocksrc: %s is now active", best->identifier);
-        }
+    spinlock_release_intr(&clocksrc_lock, intr_state);
+
+    if(was_active && best) {
+        pr_verbose("clocksrc: %s is now active", best->identifier);
     }
 
     return 0;
