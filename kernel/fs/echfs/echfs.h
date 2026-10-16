@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/mutex.h>
 #include <vex/path.h>
 #include <vex/types.h>
 
@@ -71,6 +72,7 @@ struct echfs_vfs_context {
     uint64_t dir_entries;
 
     uint8_t* bounce;
+    struct mutex lock; // Serializes every use of bounce, fat and dir_table
 };
 
 struct echfs_vnode_context {

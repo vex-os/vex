@@ -81,6 +81,8 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 
     memset(context, 0, sizeof(struct echfs_vfs_context));
 
+    mutex_init(&context->lock);
+
     context->param_readonly = false;
     context->param_readonly = context->param_readonly || cmdline_contains(params, "ro");
     context->param_readonly = context->param_readonly || cmdline_contains(params, "readonly");
@@ -180,7 +182,7 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     return 0;
 }
 
-static int echfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
+static int statvfs_locked(struct vfs* restrict fs, struct k_statvfs* restrict out)
 {
     struct echfs_vfs_context* context = fs->ctxdata;
 
@@ -208,7 +210,7 @@ static int echfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out
     return 0;
 }
 
-static int echfs_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
+static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
 {
     struct echfs_vfs_context* context = fs->ctxdata;
 
@@ -258,12 +260,13 @@ static int echfs_unmount(struct vfs* restrict fs)
     kfree(context->dir_table);
     kfree(context->fat);
     kfree(context->bounce);
+    mutex_deinit(&context->lock);
     kfree(context);
 
     return 0;
 }
 
-static int echfs_sync(struct vfs* restrict fs)
+static int sync_locked(struct vfs* restrict fs)
 {
     struct echfs_vfs_context* context = fs->ctxdata;
 
@@ -286,6 +289,33 @@ static int echfs_sync(struct vfs* restrict fs)
     }
 
     return 0;
+}
+
+static int echfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
+{
+    struct echfs_vfs_context* context = fs->ctxdata;
+    mutex_acquire(&context->lock);
+    int retval = statvfs_locked(fs, out);
+    mutex_release(&context->lock);
+    return retval;
+}
+
+static int echfs_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
+{
+    struct echfs_vfs_context* context = fs->ctxdata;
+    mutex_acquire(&context->lock);
+    int retval = fillnode_locked(fs, node);
+    mutex_release(&context->lock);
+    return retval;
+}
+
+static int echfs_sync(struct vfs* restrict fs)
+{
+    struct echfs_vfs_context* context = fs->ctxdata;
+    mutex_acquire(&context->lock);
+    int retval = sync_locked(fs);
+    mutex_release(&context->lock);
+    return retval;
 }
 
 static const struct vfs_ops echfs_vfs_ops = {
