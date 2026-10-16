@@ -2,13 +2,11 @@
 #include <arch/amd64.msr.h>
 #include <vex/errno.h>
 #include <vex/hart.h>
-#include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
+#include <vex/mmio.h>
 #include <vex/page.h>
 #include <vex/panic.h>
-#include <vex/pmap.h>
-#include <vex/string.h>
 
 #define MSR_IA32_APIC_BASE     UINT32_C(0x0000001B)
 #define MSR_APIC_BASE_PHYSMASK UINT64_C(0x0000000FFFFFF000)
@@ -54,12 +52,11 @@ static void arch_init_lapic(void)
     }
 
     uintptr_t lapic_phys = msr & MSR_APIC_BASE_PHYSMASK;
-    lapic_mmio = phys_to_virt(lapic_phys);
+    // Every hart maps it and gets the same address back
+    lapic_mmio = mmio_map(lapic_phys, PAGE_SIZE, VPROT_MMIO);
 
-    int retval = pmap_map(&sys_pmap, (uintptr_t)(lapic_mmio), lapic_phys, VPROT_MMIO);
-
-    if(retval < 0 && retval != -EEXIST) {
-        panic("lapic: pmap_map: %s", strerror(retval));
+    if(lapic_mmio == nullptr) {
+        panic("lapic: failed to map registers");
     }
 
     uint32_t svr = lapic_read(LAPIC_REG_SVR);

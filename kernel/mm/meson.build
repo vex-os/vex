@@ -3,6 +3,7 @@ kernel_sources += files(
     'kbase.c',
     'kmalloc.c',
     'kstack.c',
+    'mmio.c',
     'memmap.c',
     'pdma.c',
     'pframe.c',

@@ -1,15 +1,14 @@
 #include <arch/ireq.h>
 #include <vex/assert.h>
 #include <vex/errno.h>
-#include <vex/hhdm.h>
 #include <vex/intctl.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
+#include <vex/mmio.h>
 #include <vex/mutex.h>
 #include <vex/page.h>
 #include <vex/pci.h>
-#include <vex/pmap.h>
 #include <vex/vprot.h>
 
 #define PCI_MAX_BUS_DEVICES 32
@@ -166,26 +165,6 @@ static uint64_t bar_length(struct pci_device* restrict device, unsigned bar_inde
     }
 
     return ~mask + 1;
-}
-
-static void* bar_map_mmio(uintptr_t phys, size_t size)
-{
-    for(uintptr_t page = page_align(phys); page < page_align_up(phys + size); page += PAGE_SIZE) {
-        int retval = pmap_map(&sys_pmap, (uintptr_t)(phys_to_virt(page)), page, VPROT_MMIO);
-
-        if(retval < 0 && retval != -EEXIST) {
-            return nullptr;
-        }
-    }
-
-    return phys_to_virt(phys);
-}
-
-static void bar_unmap_mmio(uintptr_t phys, size_t size)
-{
-    for(uintptr_t page = page_align(phys); page < page_align_up(phys + size); page += PAGE_SIZE) {
-        pmap_unmap(&sys_pmap, (uintptr_t)(phys_to_virt(page)));
-    }
 }
 
 int add_pci_bus(struct pci_bus* restrict bus)
@@ -378,7 +357,7 @@ struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_ind
         pmio_region_setup(&bar->pmio);
     }
     else {
-        void* virt = bar_map_mmio(bar_address(device, bar_index), length);
+        void* virt = mmio_map(bar_address(device, bar_index), length, VPROT_MMIO);
 
         if(virt == nullptr) {
             return nullptr;
@@ -405,7 +384,7 @@ void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index)
         struct pci_bar* bar = &device->priv.bars[bar_index];
 
         if(bar->type == PCI_BAR_TYPE_MMIO) {
-            bar_unmap_mmio(virt_to_phys((void*)(bar->mmio.virt8)), bar->mmio.length);
+            mmio_unmap(bar->mmio.virt8);
         }
 
         device->priv.bars_mapped &= ~(1U << bar_index);

@@ -11,11 +11,12 @@
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
+#include <vex/memmap.h>
+#include <vex/mmio.h>
 #include <vex/mutex.h>
 #include <vex/page.h>
 #include <vex/panic.h>
 #include <vex/pci.h>
-#include <vex/pmap.h>
 #include <vex/rsdp.h>
 #include <vex/sched.h>
 #include <vex/spinlock.h>
@@ -169,22 +170,18 @@ void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* msg)
 
 void* uacpi_kernel_map(uacpi_phys_addr addr, uacpi_size len)
 {
-    uintptr_t phys = page_align(addr);
-    uintptr_t virt = hhdm_base + phys;
-    uintptr_t end = page_align_up(addr + len);
-
-    while(phys < end) {
-        pmap_map(&sys_pmap, virt, phys, VPROT_RW);
-        phys += PAGE_SIZE;
-        virt += PAGE_SIZE;
+    if(memmap_is_ram(addr, len)) {
+        return phys_to_virt(addr);
     }
 
-    return phys_to_virt(addr);
+    return mmio_map(addr, len, VPROT_MMIO);
 }
 
 void uacpi_kernel_unmap(void* addr, uacpi_size len)
 {
-    // empty: hhdm pages may back other tables and RAM
+    if(mmio_owns(addr)) {
+        mmio_unmap(addr);
+    }
 }
 
 void* uacpi_kernel_alloc(uacpi_size size)

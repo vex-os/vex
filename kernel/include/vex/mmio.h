@@ -1,6 +1,8 @@
 #pragma once
 
+#include <vex/compiler.h>
 #include <vex/types.h>
+#include <vex/vprot.h>
 
 struct mmio_region {
     volatile uint8_t* virt8;
@@ -9,3 +11,7 @@ struct mmio_region {
     volatile uint64_t* virt64;
     size_t length;
 };
+
+void* mmio_map(uintptr_t phys, size_t size, unsigned vprot) __nodiscard;
+void mmio_unmap(volatile void* virt);
+bool mmio_owns(const volatile void* virt) __nodiscard;

@@ -63,6 +63,10 @@ static pmentry_type* pmentry_walk(struct pagemap* restrict pmap, uintptr_t virt,
         table = pmentry_get(table, index, allocate);
 
         if(table == nullptr) {
+            if(out_level) {
+                *out_level = level; // Where the table is missing, so callers can skip what it would cover
+            }
+
             return nullptr;
         }
 
@@ -305,6 +309,44 @@ int pmap_unmap(struct pagemap* restrict pmap, uintptr_t virt)
     if(retval == 0) {
         tlb_shootdown();
     }
+
+    return retval;
+}
+
+int pmap_unmap_range_noflush(struct pagemap* restrict pmap, uintptr_t virt, size_t size)
+{
+    kassert(0 == ((virt | size) & (PAGE_SIZE - 1)));
+
+    bool intr_state = spinlock_acquire_intr(&pmap->lock);
+
+    uintptr_t end = virt + size;
+    int retval = 0;
+
+    while(virt < end) {
+        unsigned level;
+        pmentry_type* entry = pmentry_walk(pmap, virt, 1, false, &level);
+        uintptr_t mask = pmentry_level_size(level) - 1;
+
+        if(entry == nullptr || !pmentry_valid(*entry)) {
+            virt = (virt | mask) + 1;
+            continue;
+        }
+
+        if(0 == (virt & mask) && end - virt > mask) {
+            *entry = PMENTRY_NULL;
+            pmap_flush(virt);
+            virt += mask + 1;
+            continue;
+        }
+
+        retval = split_large_nolock(entry, level);
+
+        if(retval < 0) {
+            break;
+        }
+    }
+
+    spinlock_release_intr(&pmap->lock, intr_state);
 
     return retval;
 }

@@ -1,18 +1,18 @@
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
 #include <vex/errno.h>
-#include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/intctl.h>
 #include <vex/kmalloc.h>
+#include <vex/mmio.h>
 #include <vex/panic.h>
-#include <vex/pmap.h>
 #include <vex/sprintf.h>
 #include <vex/string.h>
 #include <vex/vprot.h>
 
 #define IOAPIC_MMIO_SELECT 0
 #define IOAPIC_MMIO_WINDOW 4
+#define IOAPIC_MMIO_SIZE   0x20
 
 #define IOAPIC_REG_ID         UINT32_C(0x00000000)
 #define IOAPIC_REG_VER        UINT32_C(0x00000001)
@@ -141,12 +141,10 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
             panic("ioapic: out of memory");
         }
 
-        data->base = phys_to_virt(ioapic->address);
+        data->base = mmio_map(ioapic->address, IOAPIC_MMIO_SIZE, VPROT_MMIO);
 
-        int retval = pmap_map(&sys_pmap, (uintptr_t)(data->base), ioapic->address, VPROT_MMIO);
-
-        if(retval < 0 && retval != -EEXIST) {
-            panic("ioapic: pmap_map: %s", strerror(retval));
+        if(data->base == nullptr) {
+            panic("ioapic: failed to map registers");
         }
 
         uint32_t id = ioapic_read(data, IOAPIC_REG_ID) >> 24;
@@ -167,7 +165,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
             ioapic_set_rte(data, i, (struct rte_entry) { .masked = 1 });
         }
 
-        retval = add_intctl(controller);
+        int retval = add_intctl(controller);
 
         if(retval < 0) {
             panic("ioapic: %s", strerror(retval));
