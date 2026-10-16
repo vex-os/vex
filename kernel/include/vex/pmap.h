@@ -18,6 +18,7 @@ int pmap_patch(struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot);
 int pmap_patch_noflush(struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot);
 int pmap_unmap(struct pagemap* restrict pmap, uintptr_t virt);
 int pmap_unmap_noflush(struct pagemap* restrict pmap, uintptr_t virt);
+int pmap_unmap_range_noflush(struct pagemap* restrict pmap, uintptr_t virt, size_t size);
 
 uintptr_t pmap_resolve_address(struct pagemap* restrict pmap, uintptr_t virt);
 unsigned pmap_resolve_vprot(struct pagemap* restrict pmap, uintptr_t virt);

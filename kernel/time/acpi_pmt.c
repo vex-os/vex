@@ -2,14 +2,11 @@
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
 #include <vex/clocksrc.h>
-#include <vex/errno.h>
-#include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
+#include <vex/mmio.h>
 #include <vex/panic.h>
-#include <vex/pmap.h>
-#include <vex/string.h>
 #include <vex/vprot.h>
 
 #define ACPI_CLOCKSRC_FREQ_HZ UINT64_C(3579545)
@@ -63,12 +60,10 @@ static void init_acpi_pmt(void)
 
     if(fadt->x_pm_tmr_blk.address) {
         if(fadt->x_pm_tmr_blk.address_space_id == ACPI_AS_ID_SYS_MEM) {
-            priv->mmio = phys_to_virt(fadt->x_pm_tmr_blk.address);
+            priv->mmio = mmio_map(fadt->x_pm_tmr_blk.address, sizeof(uint32_t), VPROT_MMIO);
 
-            int retval = pmap_map(&sys_pmap, (uintptr_t)(priv->mmio), fadt->x_pm_tmr_blk.address, VPROT_MMIO);
-
-            if(retval < 0 && retval != -EEXIST) {
-                pr_warning("acpi_pmt: pmap_map failed: %s", strerror(retval));
+            if(priv->mmio == nullptr) {
+                pr_warning("acpi_pmt: failed to map the timer");
 
                 kfree(priv);
 

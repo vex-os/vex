@@ -2,17 +2,17 @@
 #include <uacpi/tables.h>
 #include <vex/clocksrc.h>
 #include <vex/errno.h>
-#include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
+#include <vex/mmio.h>
 #include <vex/panic.h>
-#include <vex/pmap.h>
-#include <vex/string.h>
 #include <vex/vprot.h>
 
 #define HPET_REG_CAPS   0x000
 #define HPET_REG_CONFIG 0x010
 #define HPET_REG_MAIN   0x0F0
+
+#define HPET_MMIO_SIZE 0x400
 
 #define HPET_CAPS_PERIOD_SHIFT UINT64_C(32)
 #define HPET_CAPS_COUNT_64BIT  UINT64_C(0x2000)
@@ -55,12 +55,10 @@ static void arch_init_hpet(void)
         struct acpi_hpet* hpet = (struct acpi_hpet*)(table.hdr);
 
         if(hpet->address.address) {
-            volatile uint64_t* mmio = phys_to_virt(hpet->address.address);
+            volatile uint64_t* mmio = mmio_map(hpet->address.address, HPET_MMIO_SIZE, VPROT_MMIO);
 
-            int retval = pmap_map(&sys_pmap, (uintptr_t)(mmio), hpet->address.address, VPROT_MMIO);
-
-            if(retval < 0 && retval != -EEXIST) {
-                panic("hpet: pmap_map: %s", strerror(retval));
+            if(mmio == nullptr) {
+                panic("hpet: failed to map registers");
             }
 
             hpet_clocksrc.ctxdata = (void*)(mmio); // this removes the volatile qualifier without a warning
