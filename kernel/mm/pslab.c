@@ -6,6 +6,7 @@
 #include <vex/memmap.h>
 #include <vex/page.h>
 #include <vex/pdma.h>
+#include <vex/pframe.h>
 #include <vex/pslab.h>
 #include <vex/spinlock.h>
 
@@ -20,6 +21,8 @@ static void pslab_add_region(uintptr_t start, size_t length)
     uintptr_t offset;
 
     for(offset = 0U; offset < length; offset += PAGE_SIZE) {
+        pframe_of(start + offset)->flags |= PFRAME_PSLAB;
+
         head_ptr = phys_to_virt(start + offset);
         head_ptr[0] = pslab_list;
         pslab_list = head_ptr;
@@ -27,6 +30,29 @@ static void pslab_add_region(uintptr_t start, size_t length)
     }
 
     pr_verbose("pslab: adding region: start=%p end=%p", (void*)(start), (void*)(start + length - 1U));
+}
+
+static void pslab_add_usable(uintptr_t start, size_t length)
+{
+    uintptr_t reserved_start;
+    size_t reserved_length;
+    pframe_storage(&reserved_start, &reserved_length);
+
+    uintptr_t end = start + length;
+    uintptr_t reserved_end = reserved_start + reserved_length;
+
+    if(reserved_end <= start || reserved_start >= end) {
+        pslab_add_region(start, length);
+        return;
+    }
+
+    if(reserved_start > start) {
+        pslab_add_region(start, reserved_start - start);
+    }
+
+    if(reserved_end < end) {
+        pslab_add_region(reserved_end, end - reserved_end);
+    }
 }
 
 uintptr_t pslab_alloc_phys(void)
@@ -47,6 +73,10 @@ void* pslab_alloc_virt(void)
         head_ptr = pslab_list;
         pslab_list = pslab_list[0];
         pslab_numused += 1U;
+
+        struct pframe* pf = pframe_of(virt_to_phys(head_ptr));
+        kassert(pf->refcount == 0);
+        pf->refcount = 1;
 
         spinlock_release_intr(&pslab_lock, intr_state);
 
@@ -72,6 +102,11 @@ void pslab_free_virt(void* restrict virtaddr)
     bool intr_state = spinlock_acquire_intr(&pslab_lock);
 
     if(virtaddr) {
+        struct pframe* pf = pframe_of(virt_to_phys(virtaddr));
+        kassert(pf->flags & PFRAME_PSLAB);
+        kassert(pf->refcount == 1);
+        pf->refcount = 0;
+
         head_ptr = virtaddr;
         head_ptr[0] = pslab_list;
         pslab_list = head_ptr;
@@ -105,7 +140,7 @@ static void init_pslab(void)
             }
 
             if(length > 0U) {
-                pslab_add_region(start, length);
+                pslab_add_usable(start, length);
             }
         }
     }
@@ -115,4 +150,4 @@ static void init_pslab(void)
     pr_verbose("pslab: tracking %s in %zu pages", hrsize_buffer, pslab_numpages);
 }
 
-initcall_bsp_pmm(init_pslab, INIT_EARLY);
+initcall_bsp_pmm(init_pslab, INIT_MIDDLE);
