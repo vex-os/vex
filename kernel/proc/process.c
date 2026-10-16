@@ -121,6 +121,35 @@ static void reparent_children(struct process* restrict proc)
     }
 }
 
+// Closing may sleep in a filesystem, so this runs in the exiting
+// thread rather than when the scheduler reaps the last thread
+static void release_files(struct process* restrict proc)
+{
+    struct vnode* cwd = proc->cwd;
+    proc->cwd = nullptr;
+
+    if(cwd) {
+        vnode_decref(cwd);
+    }
+
+    spinlock_acquire(&proc->fd_lock);
+
+    struct file** fds = proc->fds;
+    size_t max_fds = proc->max_fds;
+
+    proc->fds = nullptr;
+    proc->max_fds = 0;
+    proc->num_fds = 0;
+
+    spinlock_release(&proc->fd_lock);
+
+    for(size_t i = 0; i < max_fds; ++i) {
+        file_close(fds[i]);
+    }
+
+    kfree(fds);
+}
+
 struct process* process_create(struct process* restrict parent)
 {
     struct process* proc = kmalloc(sizeof(struct process));
@@ -237,6 +266,10 @@ void process_exit(struct process* proc, int exit_code)
 
     proc->exit_code = exit_code;
 
+    // A zombie must not keep filesystems
+    // busy until it is waited for
+    release_files(proc);
+
     // FIXME: lets the disk image be inspected with mtools
     // or echfs-utils after a test program exits and the VM is killed;
     // drop it once there is a clean shutdown that syncs filesystems
@@ -335,27 +368,7 @@ void process_destroy(struct process* proc)
         process_decref(parent);
     }
 
-    if(proc->cwd) {
-        vnode_decref(proc->cwd);
-        proc->cwd = nullptr;
-    }
-
-    spinlock_acquire(&proc->fd_lock);
-
-    struct file** fds = proc->fds;
-    size_t max_fds = proc->max_fds;
-
-    proc->fds = nullptr;
-    proc->max_fds = 0;
-    proc->num_fds = 0;
-
-    spinlock_release(&proc->fd_lock);
-
-    for(size_t i = 0; i < max_fds; ++i) {
-        file_close(fds[i]);
-    }
-
-    kfree(fds);
+    release_files(proc);
 
     process_decref(proc);
 }
