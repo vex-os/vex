@@ -6,6 +6,7 @@
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/panic.h>
+#include <vex/path.h>
 #include <vex/process.h>
 #include <vex/string.h>
 #include <vex/syscall.h>
@@ -37,6 +38,50 @@ void dispatch_syscall(struct hart_context* restrict regs)
     args[5] = regs->syscall_arg_6;
 
     regs->syscall_retval = syscall_table[regs->syscall_number].function(args);
+}
+
+int syscall_dirfd(int dirfd, const char* restrict path, struct vnode** restrict out)
+{
+    struct process* proc = this_thread()->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    if(path[0] == PATH_SEPARATOR) {
+        *out = nullptr;
+        return 0;
+    }
+
+    if(dirfd == AT_FDCWD) {
+        *out = process_get_cwd(proc);
+
+        if(*out == nullptr) {
+            return -ENOENT;
+        }
+
+        return 0;
+    }
+
+    struct file* fp = dereference_fd(proc, dirfd);
+
+    if(fp == nullptr) {
+        return -EBADF;
+    }
+
+    struct vnode* node = fp->node;
+
+    if(node->nodetype != VNODE_DIRECTORY) {
+        file_close(fp);
+        return -ENOTDIR;
+    }
+
+    vnode_incref(node);
+    file_close(fp);
+
+    *out = node;
+
+    return 0;
 }
 
 intptr_t syscall_with_fd(const uintptr_t* restrict args, intptr_t (*op)(struct file* restrict fp, const uintptr_t* restrict args))

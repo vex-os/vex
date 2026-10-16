@@ -11,17 +11,17 @@
 #define SYS_GETPID   __k_SYS_GETPID
 #define SYS_GETPPID  __k_SYS_GETPPID
 #define SYS_YIELD    __k_SYS_YIELD
-#define SYS_OPEN     __k_SYS_OPEN
+#define SYS_OPENAT   __k_SYS_OPENAT
 #define SYS_CLOSE    __k_SYS_CLOSE
 #define SYS_READ     __k_SYS_READ
 #define SYS_WRITE    __k_SYS_WRITE
 #define SYS_SEEK     __k_SYS_SEEK
 #define SYS_FSTAT    __k_SYS_FSTAT
-#define SYS_UNLINK   __k_SYS_UNLINK
+#define SYS_UNLINKAT __k_SYS_UNLINKAT
 #define SYS_DUP      __k_SYS_DUP
 #define SYS_DUP2     __k_SYS_DUP2
 #define SYS_IOCTL    __k_SYS_IOCTL
-#define SYS_MKDIR    __k_SYS_MKDIR
+#define SYS_MKDIRAT  __k_SYS_MKDIRAT
 #define SYS_READDIR  __k_SYS_READDIR
 #define SYS_GETCWD   __k_SYS_GETCWD
 #define SYS_CHDIR    __k_SYS_CHDIR
@@ -36,9 +36,12 @@
 #define SYS_UNAME    __k_SYS_UNAME
 #define SYS_GETTIME  __k_SYS_GETTIME
 #define SYS_TEST     __k_SYS_TEST
+#define SYS_FSTATAT  __k_SYS_FSTATAT
+#define SYS_FCHDIR   __k_SYS_FCHDIR
 
 struct file;
 struct hart_context;
+struct vnode;
 
 struct syscall {
     intptr_t (*function)(const uintptr_t* restrict args);
@@ -59,3 +62,4 @@ extern const struct syscall unsorted_syscalls_end[];
 void dispatch_syscall(struct hart_context* restrict regs);
 
 intptr_t syscall_with_fd(const uintptr_t* restrict args, intptr_t (*op)(struct file* restrict fp, const uintptr_t* restrict args));
+int syscall_dirfd(int dirfd, const char* restrict path, struct vnode** restrict out) __nodiscard;

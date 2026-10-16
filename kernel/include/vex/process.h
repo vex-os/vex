@@ -40,7 +40,7 @@ struct process {
     struct event evnt;
     struct event child_exited;
 
-    struct vnode* cwd;
+    struct vnode* cwd; // Under lock, so another thread's chdir can't drop it mid-use
 
     spinlock_type fd_lock;
     struct file** fds;
@@ -57,6 +57,9 @@ void process_exit(struct process* proc, int exit_code);
 void process_thread_reaped(struct process* proc, struct thread* thrd);
 bool process_claim(struct process* proc) __nodiscard;
 void process_destroy(struct process* proc);
+
+struct vnode* process_get_cwd(struct process* proc) __nodiscard;
+void process_set_cwd(struct process* proc, struct vnode* node);
 
 struct file* dereference_fd(struct process* proc, int fd) __nodiscard;
 int allocate_fd(struct process* proc, struct file* file) __nodiscard;

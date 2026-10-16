@@ -9,9 +9,19 @@ static struct binfmt* binfmt_head = nullptr;
 
 static struct binfmt* next_binfmt(const struct binfmt* restrict fmt)
 {
+    struct binfmt* next;
+
     spinlock_acquire(&binfmt_lock);
-    struct binfmt* next = fmt ? fmt->priv.next : binfmt_head;
+
+    if(fmt) {
+        next = fmt->priv.next;
+    }
+    else {
+        next = binfmt_head;
+    }
+
     spinlock_release(&binfmt_lock);
+
     return next;
 }
 

@@ -135,7 +135,7 @@ static int create_crossed(struct vnode* restrict node, const char* restrict name
     return 0;
 }
 
-static int unlink_crossed(struct vnode* restrict node, const char* restrict name)
+static int unlink_crossed(struct vnode* restrict node, const char* restrict name, bool directory)
 {
     if(node->ops->unlink == nullptr) {
         return -ENOSYS;
@@ -150,6 +150,16 @@ static int unlink_crossed(struct vnode* restrict node, const char* restrict name
 
     if(retval < 0) {
         return retval;
+    }
+
+    if(directory && victim->nodetype != VNODE_DIRECTORY) {
+        vnode_decref(victim);
+        return -ENOTDIR;
+    }
+
+    if(!directory && victim->nodetype == VNODE_DIRECTORY) {
+        vnode_decref(victim);
+        return -EISDIR;
     }
 
     if(victim->fs_mounted) {
@@ -283,7 +293,7 @@ int vnode_create(struct vnode* restrict node, const char* restrict name, unsigne
     return retval;
 }
 
-int vnode_unlink(struct vnode* restrict node, const char* restrict name)
+int vnode_unlink(struct vnode* restrict node, const char* restrict name, bool directory)
 {
     kassert(node);
 
@@ -294,7 +304,7 @@ int vnode_unlink(struct vnode* restrict node, const char* restrict name)
         return retval;
     }
 
-    retval = unlink_crossed(target, name);
+    retval = unlink_crossed(target, name, directory);
 
     vnode_decref(target);
 

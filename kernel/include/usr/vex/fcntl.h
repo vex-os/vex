@@ -10,4 +10,8 @@
 #define __k_O_TRUNC  ((__k_mode_t)(0x0008))
 #define __k_O_APPEND ((__k_mode_t)(0x0010))
 
+#define __k_AT_FDCWD            (-100)
+#define __k_AT_SYMLINK_NOFOLLOW 0x0100
+#define __k_AT_REMOVEDIR        0x0200
+
 #endif /* USR_VEX_FCNTL_H */

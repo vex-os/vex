@@ -8,17 +8,17 @@
 #define __k_SYS_GETPID   5
 #define __k_SYS_GETPPID  6
 #define __k_SYS_YIELD    7 /* forwards to sched_yield */
-#define __k_SYS_OPEN     8
+#define __k_SYS_OPENAT   8
 #define __k_SYS_CLOSE    9
 #define __k_SYS_READ     10
 #define __k_SYS_WRITE    11
 #define __k_SYS_SEEK     12
 #define __k_SYS_FSTAT    13
-#define __k_SYS_UNLINK   14
+#define __k_SYS_UNLINKAT 14
 #define __k_SYS_DUP      15
 #define __k_SYS_DUP2     16
 #define __k_SYS_IOCTL    17
-#define __k_SYS_MKDIR    18
+#define __k_SYS_MKDIRAT  18
 #define __k_SYS_READDIR  19
 #define __k_SYS_GETCWD   20
 #define __k_SYS_CHDIR    21
@@ -33,5 +33,7 @@
 #define __k_SYS_UNAME    30
 #define __k_SYS_GETTIME  31
 #define __k_SYS_TEST     32 /* for testing purposes */
+#define __k_SYS_FSTATAT  33
+#define __k_SYS_FCHDIR   34
 
 #endif /* USR_VEX_SYSCALL_H */

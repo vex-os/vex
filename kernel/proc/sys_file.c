@@ -8,7 +8,7 @@
 #include <vex/uaccess.h>
 #include <vex/vnode.h>
 
-static intptr_t sys_open(const uintptr_t* restrict args)
+static intptr_t sys_openat(const uintptr_t* restrict args)
 {
     struct thread* thread = this_thread();
     struct process* proc = thread->proc;
@@ -18,14 +18,25 @@ static intptr_t sys_open(const uintptr_t* restrict args)
     }
 
     char path[PATH_SIZE];
-    ssize_t copied = user_copyin_str(path, args[0], sizeof(path));
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
 
     if(copied < 0) {
         return copied;
     }
 
+    struct vnode* stem;
+    int retval = syscall_dirfd(args[0], path, &stem);
+
+    if(retval < 0) {
+        return retval;
+    }
+
     struct file* fp;
-    int retval = file_open(path, args[1], &fp);
+    retval = file_open(stem, path, args[2], &fp);
+
+    if(stem) {
+        vnode_decref(stem);
+    }
 
     if(retval < 0) {
         return retval;
@@ -178,6 +189,57 @@ static intptr_t sys_fstat(const uintptr_t* restrict args)
     return syscall_with_fd(args, &fstat_file);
 }
 
+static intptr_t sys_fstatat(const uintptr_t* restrict args)
+{
+    unsigned flags = args[3];
+
+    if(flags & ~AT_SYMLINK_NOFOLLOW) {
+        return -EINVAL;
+    }
+
+    char path[PATH_SIZE];
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    struct vnode* stem;
+    int retval = syscall_dirfd(args[0], path, &stem);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct vnode* node;
+
+    if(flags & AT_SYMLINK_NOFOLLOW) {
+        retval = path_resolve_at(stem, path, PATH_NOFOLLOW, &node);
+    }
+    else {
+        retval = path_resolve_at(stem, path, 0, &node);
+    }
+
+    if(stem) {
+        vnode_decref(stem);
+    }
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct k_stat st;
+    retval = vnode_stat(node, &st);
+
+    vnode_decref(node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    return user_copyout(args[2], &st, sizeof(st));
+}
+
 static intptr_t sys_dup(const uintptr_t* restrict args)
 {
     struct thread* thread = this_thread();
@@ -219,12 +281,13 @@ static intptr_t sys_ioctl(const uintptr_t* restrict args)
     return syscall_with_fd(args, &ioctl_file);
 }
 
-define_syscall(sys_open, SYS_OPEN);
+define_syscall(sys_openat, SYS_OPENAT);
 define_syscall(sys_close, SYS_CLOSE);
 define_syscall(sys_read, SYS_READ);
 define_syscall(sys_write, SYS_WRITE);
 define_syscall(sys_seek, SYS_SEEK);
 define_syscall(sys_fstat, SYS_FSTAT);
+define_syscall(sys_fstatat, SYS_FSTATAT);
 define_syscall(sys_dup, SYS_DUP);
 define_syscall(sys_dup2, SYS_DUP2);
 define_syscall(sys_ioctl, SYS_IOCTL);

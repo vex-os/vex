@@ -7,20 +7,20 @@
 #include <vex/string.h>
 #include <vex/vnode.h>
 
-int file_open(const char* restrict path, unsigned flags, struct file** restrict out)
+int file_open(struct vnode* restrict stem, const char* restrict path, unsigned flags, struct file** restrict out)
 {
     if(path == nullptr) {
         return -EINVAL;
     }
 
     struct vnode* node;
-    int retval = path_resolve(path, &node);
+    int retval = path_resolve_at(stem, path, 0, &node);
 
     if(retval == -ENOENT && (flags & O_CREAT)) {
         const char* filename;
         struct vnode* parent;
 
-        retval = path_resolve_parent(path, &parent, &filename);
+        retval = path_resolve_parent_at(stem, path, &parent, &filename);
 
         if(retval < 0) {
             return retval;
@@ -31,7 +31,7 @@ int file_open(const char* restrict path, unsigned flags, struct file** restrict 
         vnode_decref(parent);
 
         if(retval == -EEXIST) {
-            retval = path_resolve(path, &node); // Lost a race with another creator
+            retval = path_resolve_at(stem, path, 0, &node); // Lost a race with another creator
         }
 
         if(retval < 0) {

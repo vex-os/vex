@@ -36,8 +36,19 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
         }
 
         if(source[0] != 0) {
+            struct vnode* stem;
+            int retval = syscall_dirfd(AT_FDCWD, source, &stem);
+
+            if(retval < 0) {
+                return retval;
+            }
+
             struct vnode* source_node;
-            int retval = path_resolve(source, &source_node);
+            retval = path_resolve_at(stem, source, 0, &source_node);
+
+            if(stem) {
+                vnode_decref(stem);
+            }
 
             if(retval < 0) {
                 return retval;
