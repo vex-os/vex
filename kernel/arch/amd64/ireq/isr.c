@@ -116,6 +116,14 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
 
     struct hart_local* hart = this_hart();
 
+    // Harts only get set up at the multicore stage
+    if(hart == nullptr) {
+        uintptr_t fault;
+        asm volatile("movq %%cr2, %0" : "=r"(fault));
+        panic("early exception 0x%02zX: rip=%p cr2=%p err=0x%zX", (size_t)(intvec), (void*)(ctx->amd64_rip), (void*)(fault),
+            (size_t)(ctx->amd64_err));
+    }
+
     if(intvec == 0x0E) {
         page_fault_handler(hart, ctx);
         return;
@@ -184,4 +192,4 @@ static void arch_init_isr(void)
     set_idt_entry_kern(0x1F, false, &amd64_isr_1F);
 }
 
-initcall_smp_arch(arch_init_isr, INIT_MIDDLE);
+initcall_bsp_arch(arch_init_isr, INIT_MIDDLE);

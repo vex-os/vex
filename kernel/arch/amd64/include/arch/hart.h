@@ -1,5 +1,6 @@
 #pragma once
 
+#include <arch/amd64.gdt.h>
 #include <vex/compiler.h>
 #include <vex/tlb.h>
 #include <vex/types.h>
@@ -66,6 +67,7 @@ struct arch_hart {
     uint32_t lapic_id;
     uint64_t lapic_timer_hz;
     struct amd64_hart_tss tss;
+    struct amd64_gdt gdt; // Per hart, since loading the task register marks its TSS descriptor busy
 };
 
 static __always_inline void hart_spin(void)

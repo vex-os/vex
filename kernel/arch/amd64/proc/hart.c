@@ -12,6 +12,10 @@
 
 static unsigned panic_ipi_vector = 0;
 
+// Stands in for a thread until the harts are set up, so
+// this_thread() reads memory of ours and this_hart() is nullptr
+static struct thread boot_thread;
+
 static void panic_halt_handler(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
 {
     disable_interrupts();
@@ -58,6 +62,14 @@ void hart_ipi(struct hart_local* restrict target, unsigned ireq_number)
 
     lapic_ipi(target->arch.lapic_id, LAPIC_IPI_SPECIFIC, ireq_number + ARCH_IREQ_BASE);
 }
+
+static void arch_init_boot_thread(void)
+{
+    boot_thread.self = &boot_thread;
+    wrmsr(MSR_GS_BASE, (uintptr_t)(&boot_thread));
+}
+
+initcall_bsp_early(arch_init_boot_thread, INIT_FIRST);
 
 static void arch_init_panic_ipi(void)
 {

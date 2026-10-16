@@ -97,6 +97,8 @@ static void arch_init_idt_bsp(void)
 
     idtr.size = (uint16_t)(sizeof(idt) - 1);
     idtr.offset = (uintptr_t)(&idt[0]);
+
+    asm volatile("lidtq %0" ::"m"(idtr));
 }
 
 initcall_bsp_arch(arch_init_idt_bsp, INIT_EARLY);
