@@ -13,6 +13,7 @@ struct pagemap* pmap_create(void) __nodiscard;
 void pmap_release(struct pagemap* restrict pmap);
 
 int pmap_map(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, unsigned vprot);
+int pmap_map_range(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, size_t size, unsigned vprot);
 int pmap_patch(struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot);
 int pmap_patch_noflush(struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot);
 int pmap_unmap(struct pagemap* restrict pmap, uintptr_t virt);

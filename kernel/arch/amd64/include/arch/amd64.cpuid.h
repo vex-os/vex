@@ -3,7 +3,10 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-#define CPUID_1_EDX_PAT  UINT32_C(0x00010000)
+#define CPUID_1_EDX_PAT UINT32_C(0x00010000)
+
+#define CPUID_80000001_EDX_PDPE1GB UINT32_C(0x04000000)
+
 #define CPUID_7_EBX_SMEP UINT32_C(0x00000080)
 #define CPUID_7_EBX_SMAP UINT32_C(0x00100000)
 

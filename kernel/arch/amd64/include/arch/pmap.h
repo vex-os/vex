@@ -12,16 +12,16 @@
 #define AMD64_PML_USER    UINT64_C(0x0000000000000004)
 #define AMD64_PML_PWT     UINT64_C(0x0000000000000008)
 #define AMD64_PML_PCD     UINT64_C(0x0000000000000010)
-#define AMD64_PML_PAT     UINT64_C(0x0000000000000080)
+#define AMD64_PML_PAT     UINT64_C(0x0000000000000080) // In a 4 KiB entry
+#define AMD64_PML_LARGE   UINT64_C(0x0000000000000080) // PS, in a 2 MiB or 1 GiB entry
+#define AMD64_PML_PATL    UINT64_C(0x0000000000001000) // PAT, in a 2 MiB or 1 GiB entry
 #define AMD64_PML_NOEXEC  UINT64_C(0x8000000000000000)
 
 #define AMD64_PAGEMAP_START_KERN 256U
 
+// Level 1 entries map 4 KiB pages; each level above covers 512 times more
 #define PMENTRY_LVL1_SHIFT UINT64_C(12)
-#define PMENTRY_LVL2_SHIFT UINT64_C(21)
-#define PMENTRY_LVL3_SHIFT UINT64_C(30)
-#define PMENTRY_LVL4_SHIFT UINT64_C(39)
-#define PMENTRY_LVL5_SHIFT UINT64_C(48)
+#define PMENTRY_LEVEL_BITS UINT64_C(9)
 #define PMENTRY_LEVEL_MASK UINT64_C(0x1FF)
 
 #define PMENTRY_NULL UINT64_C(0x0000000000000000)
@@ -46,6 +46,7 @@ struct pagemap {
 };
 
 unsigned pmap_detect_levels(void);
+unsigned pmap_detect_leaf_levels(void);
 
 int arch_pmap_alloc(struct pagemap* restrict pmap) __nodiscard;
 void arch_pmap_free(struct pagemap* restrict pmap);
@@ -59,10 +60,27 @@ static __always_inline __nodiscard pmentry_type* pmap_root(const struct pagemap*
 
 static __always_inline __nodiscard uintptr_t pmap_user_end(const struct pagemap* restrict pmap)
 {
-    return UINT64_C(1) << (PMENTRY_LVL1_SHIFT + 9 * pmap->num_levels - 1);
+    return UINT64_C(1) << (PMENTRY_LVL1_SHIFT + PMENTRY_LEVEL_BITS * pmap->num_levels - 1);
 }
 
-static __always_inline __nodiscard pmentry_type amd64_pat_bits(unsigned vprot)
+static __always_inline __nodiscard unsigned pmentry_level_shift(unsigned level)
+{
+    return PMENTRY_LVL1_SHIFT + PMENTRY_LEVEL_BITS * (level - 1);
+}
+
+static __always_inline __nodiscard uintptr_t pmentry_level_size(unsigned level)
+{
+    return UINT64_C(1) << pmentry_level_shift(level);
+}
+
+static __always_inline __nodiscard pmentry_type amd64_pat_bit(unsigned level)
+{
+    if(level > 1)
+        return AMD64_PML_PATL;
+    return AMD64_PML_PAT;
+}
+
+static __always_inline __nodiscard pmentry_type amd64_pat_bits(unsigned vprot, unsigned level)
 {
     switch(vprot & VPROT_CACHE_MASK) {
         case VPROT_CACHE_WT:
@@ -70,13 +88,13 @@ static __always_inline __nodiscard pmentry_type amd64_pat_bits(unsigned vprot)
         case VPROT_CACHE_UC:
             return AMD64_PML_PCD | AMD64_PML_PWT;
         case VPROT_CACHE_WC:
-            return AMD64_PML_PAT;
+            return amd64_pat_bit(level);
         default:
             return 0;
     }
 }
 
-static __always_inline __nodiscard unsigned amd64_pat_vprot(pmentry_type entry)
+static __always_inline __nodiscard unsigned amd64_pat_vprot(pmentry_type entry, unsigned level)
 {
     static const unsigned types[8] = {
         VPROT_CACHE_WB,
@@ -95,7 +113,7 @@ static __always_inline __nodiscard unsigned amd64_pat_vprot(pmentry_type entry)
         index |= 1;
     if(entry & AMD64_PML_PCD)
         index |= 2;
-    if(entry & AMD64_PML_PAT)
+    if(entry & amd64_pat_bit(level))
         index |= 4;
 
     return types[index];
@@ -106,12 +124,22 @@ static __always_inline __nodiscard bool pmentry_valid(pmentry_type entry)
     return entry & AMD64_PML_PRESENT;
 }
 
-static __always_inline __nodiscard uintptr_t pmentry_address(pmentry_type entry)
+static __always_inline __nodiscard bool pmentry_leaf(pmentry_type entry, unsigned level)
+{
+    return level == 1 || (entry & AMD64_PML_LARGE);
+}
+
+static __always_inline __nodiscard uintptr_t pmentry_address(pmentry_type entry, unsigned level)
+{
+    return entry & AMD64_PML_ADDRESS_MASK & ~(pmentry_level_size(level) - 1);
+}
+
+static __always_inline __nodiscard uintptr_t pmentry_table_address(pmentry_type entry)
 {
     return entry & AMD64_PML_ADDRESS_MASK;
 }
 
-static __always_inline __nodiscard unsigned pmentry_vprot(pmentry_type entry)
+static __always_inline __nodiscard unsigned pmentry_vprot(pmentry_type entry, unsigned level)
 {
     unsigned vprot = VPROT_READ;
     if(entry & AMD64_PML_WRITE)
@@ -120,11 +148,11 @@ static __always_inline __nodiscard unsigned pmentry_vprot(pmentry_type entry)
         vprot |= VPROT_USER;
     if(0 == (entry & AMD64_PML_NOEXEC))
         vprot |= VPROT_EXEC;
-    vprot |= amd64_pat_vprot(entry);
+    vprot |= amd64_pat_vprot(entry, level);
     return vprot;
 }
 
-static __always_inline __nodiscard pmentry_type pmentry_setup(uintptr_t address, unsigned vprot)
+static __always_inline __nodiscard pmentry_type pmentry_setup(uintptr_t address, unsigned vprot, unsigned level)
 {
     pmentry_type result = PMENTRY_NULL;
 
@@ -132,15 +160,24 @@ static __always_inline __nodiscard pmentry_type pmentry_setup(uintptr_t address,
     result |= AMD64_PML_PRESENT;
     result |= AMD64_PML_NOEXEC;
 
+    if(level > 1) {
+        result |= AMD64_PML_LARGE;
+    }
+
     if(vprot & VPROT_WRITE)
         result |= AMD64_PML_WRITE;
     if(vprot & VPROT_USER)
         result |= AMD64_PML_USER;
     if(vprot & VPROT_EXEC)
         result &= ~AMD64_PML_NOEXEC;
-    result |= amd64_pat_bits(vprot);
+    result |= amd64_pat_bits(vprot, level);
 
     return result;
+}
+
+static __always_inline __nodiscard pmentry_type pmentry_table(uintptr_t address)
+{
+    return (address & AMD64_PML_ADDRESS_MASK) | AMD64_PML_PRESENT | AMD64_PML_WRITE | AMD64_PML_USER;
 }
 
 static __always_inline void pmap_switch(const struct pagemap* restrict pmap)
