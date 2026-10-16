@@ -11,6 +11,7 @@
 #include <vex/limits.h>
 #include <vex/page.h>
 #include <vex/panic.h>
+#include <vex/preempt.h>
 #include <vex/process.h>
 #include <vex/pslab.h>
 #include <vex/sched.h>
@@ -74,7 +75,7 @@ static struct thread* rq_take_nolock(struct hart_local* restrict hart)
             continue;
         }
 
-        if(spinlock_try_acquire(&thrd->hart_lock)) {
+        if(raw_spinlock_try_acquire(&thrd->hart_lock)) {
             rq_remove_nolock(thrd);
             return thrd;
         }
@@ -137,7 +138,17 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
 
     struct thread* curr = hart->curr_thread;
 
-    spinlock_acquire(&sched_lock);
+    // preempt_enable switches away once the last spinlock is
+    // released; a blocking or dying thread has none to hold
+    if(curr != hart->idle_thread && curr->state == THREAD_RUNNING && curr->preempt_count > 0) {
+        curr->need_resched = true;
+        clockevt_oneshot(sched_ireq_number, curr->timeslice);
+        return;
+    }
+
+    curr->need_resched = false;
+
+    raw_spinlock_acquire(&sched_lock);
 
     struct thread* next = rq_take_nolock(hart);
 
@@ -146,7 +157,7 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
     spinlock_type* curr_hart_lock = nullptr;
 
     if(curr != hart->idle_thread) {
-        spinlock_release(&curr->yield_await);
+        raw_spinlock_release(&curr->yield_await);
 
         if(curr->state == THREAD_DEAD) {
             hart->dead_thread = curr;
@@ -159,7 +170,7 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
                 curr->state = THREAD_RUNNING;
             }
 
-            spinlock_release(&sched_lock);
+            raw_spinlock_release(&sched_lock);
             clockevt_oneshot(sched_ireq_number, curr->timeslice);
             return;
         }
@@ -180,7 +191,7 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
         next->state = THREAD_RUNNING;
     }
 
-    spinlock_release(&sched_lock);
+    raw_spinlock_release(&sched_lock);
 
     if(next == nullptr) {
         hart->flags &= ~HART_FLAG_ACTIVE;
@@ -229,6 +240,8 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
     thrd->proc = nullptr;
     thrd->rq_next = nullptr;
     thrd->rq_prev = nullptr;
+    thrd->preempt_count = 0;
+    thrd->need_resched = false;
     thrd->pinned_hart = nullptr;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
@@ -281,6 +294,8 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
     thrd->proc = proc;
     thrd->rq_next = nullptr;
     thrd->rq_prev = nullptr;
+    thrd->preempt_count = 0;
+    thrd->need_resched = false;
     thrd->pinned_hart = nullptr;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
@@ -358,7 +373,7 @@ void __noreturn sched_terminate(void)
 
     struct thread* thrd = this_thread();
 
-    spinlock_acquire(&sched_lock);
+    raw_spinlock_acquire(&sched_lock);
 
     if(thrd->state == THREAD_RUNNABLE) {
         rq_remove_nolock(thrd);
@@ -366,7 +381,7 @@ void __noreturn sched_terminate(void)
 
     thrd->state = THREAD_DEAD;
 
-    spinlock_release(&sched_lock);
+    raw_spinlock_release(&sched_lock);
 
     struct hart_local* hart = this_hart();
     hart_ipi(hart, sched_ireq_number);
@@ -385,20 +400,40 @@ void sched_yield(void)
     // The switch is a self-IPI, which never
     // arrives with interrupts disabled
     kassert(interrupt_state());
+    kassert(this_thread()->preempt_count == 0);
 
     disable_interrupts();
 
     struct thread* thrd = this_thread();
     struct hart_local* hart = this_hart();
 
-    spinlock_acquire(&thrd->yield_await);
+    raw_spinlock_acquire(&thrd->yield_await);
 
     hart_ipi(hart, sched_ireq_number);
 
     enable_interrupts();
 
-    spinlock_acquire(&thrd->yield_await);
-    spinlock_release(&thrd->yield_await);
+    raw_spinlock_acquire(&thrd->yield_await);
+    raw_spinlock_release(&thrd->yield_await);
+}
+
+void preempt_disable(void)
+{
+    this_thread()->preempt_count += 1;
+}
+
+void preempt_enable(void)
+{
+    struct thread* thrd = this_thread();
+
+    kassert(thrd->preempt_count > 0);
+
+    thrd->preempt_count -= 1;
+
+    // With interrupts disabled the next tick picks it up instead
+    if(thrd->preempt_count == 0 && thrd->need_resched && interrupt_state()) {
+        sched_yield();
+    }
 }
 
 static void sched_init(void)

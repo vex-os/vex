@@ -46,6 +46,8 @@ struct thread {
     size_t max_events;
 
     uint64_t timeslice;
+    unsigned preempt_count; // Spinlocks held, the thread is not preempted while nonzero
+    bool need_resched;      // A tick arrived while preempt_count was nonzero
 
     struct process* proc;
     struct thread* tnext;
