@@ -1,4 +1,5 @@
 #include <vex/assert.h>
+#include <vex/atomic.h>
 #include <vex/hhdm.h>
 #include <vex/hrsize.h>
 #include <vex/initcall.h>
@@ -28,6 +29,29 @@ struct pframe* pframe_of(uintptr_t phys)
 uintptr_t pframe_phys(const struct pframe* restrict pf)
 {
     return (uintptr_t)(pf - pframes) * PAGE_SIZE;
+}
+
+void pframe_incref(struct pframe* restrict pf)
+{
+    atomic_fetch_add(&pf->refcount, 1, ATOMIC_RELAXED);
+}
+
+bool pframe_decref(struct pframe* restrict pf)
+{
+    uint32_t refcount = atomic_load(&pf->refcount, ATOMIC_ACQUIRE);
+
+    while(refcount > 1) {
+        if(atomic_cmpxchg_weak(&pf->refcount, &refcount, refcount - 1, ATOMIC_ACQ_REL, ATOMIC_ACQUIRE)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool pframe_shared(const struct pframe* restrict pf)
+{
+    return atomic_load(&pf->refcount, ATOMIC_ACQUIRE) > 1;
 }
 
 void pframe_storage(uintptr_t* restrict start, size_t* restrict length)

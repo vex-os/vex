@@ -2,6 +2,7 @@
 #include <vex/errno.h>
 #include <vex/hhdm.h>
 #include <vex/page.h>
+#include <vex/pframe.h>
 #include <vex/pmap.h>
 #include <vex/pslab.h>
 #include <vex/slab.h>
@@ -48,8 +49,6 @@ static void insert_region(struct vmspace* restrict vms, struct vm_region* restri
     *prev = region;
 }
 
-// Makes virt a region boundary, so whole
-// regions cover any range starting or ending there
 static int split_region(struct vmspace* restrict vms, uintptr_t virt)
 {
     struct vm_region* region = find_region(vms, virt);
@@ -84,7 +83,42 @@ static bool range_valid(struct vmspace* restrict vms, uintptr_t start, uintptr_t
     return start < end && end <= pmap_user_end(vms->pmap);
 }
 
-static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned access)
+static int unshare_locked(struct vmspace* restrict vms, const struct vm_region* restrict region, uintptr_t page, uintptr_t phys)
+{
+    unsigned vprot = region->vprot | VPROT_USER;
+    struct pframe* pf = pframe_of(phys);
+
+    if(!pframe_shared(pf)) {
+        if((pmap_resolve_vprot(vms->pmap, page) & VPROT_WRITE) != (vprot & VPROT_WRITE)) {
+            return pmap_patch_noflush(vms->pmap, page, vprot);
+        }
+
+        return 0;
+    }
+
+    uintptr_t copy = pslab_alloc_phys();
+
+    if(copy == 0) {
+        return -ENOMEM;
+    }
+
+    memcpy(phys_to_virt(copy), phys_to_virt(phys), PAGE_SIZE);
+
+    pmap_unmap_noflush(vms->pmap, page);
+
+    int retval = pmap_map(vms->pmap, page, copy, vprot);
+    kassert(retval == 0); // The page table that held the old entry is still there
+
+    tlb_shootdown();
+
+    if(pframe_decref(pf)) {
+        pslab_free_phys(phys);
+    }
+
+    return 0;
+}
+
+static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned access, bool exclusive)
 {
     struct vm_region* region = find_region(vms, page);
 
@@ -92,13 +126,18 @@ static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned a
         return -EFAULT;
     }
 
-    // Another thread faulted it in first
-    // or a stale TLB entry was behind the fault
-    if(pmap_resolve_address(vms->pmap, page)) {
-        return 0;
+    uintptr_t phys = pmap_resolve_address(vms->pmap, page);
+
+    if(phys) {
+        if(exclusive) {
+            return unshare_locked(vms, region, page, phys);
+        }
+        else {
+            return 0;
+        }
     }
 
-    uintptr_t phys = pslab_alloc_phys();
+    phys = pslab_alloc_phys();
 
     if(phys == 0) {
         return -ENOMEM;
@@ -116,11 +155,11 @@ static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned a
     return 0;
 }
 
-static uintptr_t resolve_locked(struct vmspace* restrict vms, uintptr_t virt, unsigned access)
+static uintptr_t resolve_locked(struct vmspace* restrict vms, uintptr_t virt, unsigned access, bool exclusive)
 {
     uintptr_t page = page_align(virt);
 
-    if(fault_locked(vms, page, access) < 0) {
+    if(fault_locked(vms, page, access, exclusive) < 0) {
         return 0;
     }
 
@@ -133,14 +172,14 @@ static void free_batch(uintptr_t* restrict batch, size_t* restrict count, bool s
         return;
     }
 
-    // The pages may only be reused once
-    // no hart can reach them through a stale TLB entry
     if(shootdown) {
         tlb_shootdown();
     }
 
     for(size_t i = 0; i < *count; ++i) {
-        pslab_free_phys(batch[i]);
+        if(pframe_decref(pframe_of(batch[i]))) {
+            pslab_free_phys(batch[i]);
+        }
     }
 
     *count = 0;
@@ -401,7 +440,6 @@ int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, un
 
     mutex_acquire(&vms->lock);
 
-    // Every page of the range has to be mapped
     uintptr_t covered = start;
 
     for(struct vm_region* it = find_region(vms, start); it && it->start <= covered && covered < end; it = it->next) {
@@ -430,7 +468,19 @@ int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, un
         it->vprot = vprot;
 
         for(uintptr_t page = it->start; page < it->end; page += PAGE_SIZE) {
-            if(0 == pmap_patch_noflush(vms->pmap, page, vprot | VPROT_USER)) {
+            uintptr_t phys = pmap_resolve_address(vms->pmap, page);
+
+            if(phys == 0) {
+                continue;
+            }
+
+            unsigned page_vprot = vprot | VPROT_USER;
+
+            if(pframe_shared(pframe_of(phys))) {
+                page_vprot &= ~VPROT_WRITE;
+            }
+
+            if(0 == pmap_patch_noflush(vms->pmap, page, page_vprot)) {
                 patched = true;
             }
         }
@@ -453,14 +503,14 @@ int vms_unmap_all(struct vmspace* restrict vms)
     return 0;
 }
 
-// FIXME: every present page is copied right away; fork followed by
-// exec throws all of that away, so pages should be shared read-only
-// and copied on the first write instead, counted through pframe
 int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem)
 {
     kassert(vms->regions == nullptr);
 
     mutex_acquire(&stem->lock);
+
+    bool patched = false;
+    int retval = 0;
 
     struct vm_region** tail = &vms->regions;
 
@@ -468,46 +518,56 @@ int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem)
         struct vm_region* region = alloc_region(it->start, it->end, it->vprot);
 
         if(region == nullptr) {
-            mutex_release(&stem->lock);
-            vms_unmap_all(vms);
-            return -ENOMEM;
+            retval = -ENOMEM;
+            break;
         }
 
         region->next = nullptr;
         *tail = region;
         tail = &region->next;
 
-        for(uintptr_t page = it->start; page < it->end; page += PAGE_SIZE) {
-            uintptr_t stem_phys = pmap_resolve_address(stem->pmap, page);
+        unsigned vprot = (it->vprot & ~VPROT_WRITE) | VPROT_USER;
 
-            if(stem_phys == 0) {
+        for(uintptr_t page = it->start; page < it->end && retval == 0; page += PAGE_SIZE) {
+            uintptr_t phys = pmap_resolve_address(stem->pmap, page);
+
+            if(phys == 0) {
                 continue;
             }
 
-            uintptr_t phys = pslab_alloc_phys();
+            pframe_incref(pframe_of(phys));
 
-            if(phys == 0) {
-                mutex_release(&stem->lock);
-                vms_unmap_all(vms);
-                return -ENOMEM;
-            }
-
-            memcpy(phys_to_virt(phys), phys_to_virt(stem_phys), PAGE_SIZE);
-
-            int retval = pmap_map(vms->pmap, page, phys, it->vprot | VPROT_USER);
+            retval = pmap_map(vms->pmap, page, phys, vprot);
 
             if(retval < 0) {
-                pslab_free_phys(phys);
-                mutex_release(&stem->lock);
-                vms_unmap_all(vms);
-                return retval;
+                bool last = pframe_decref(pframe_of(phys));
+                kassert(!last); // The stem still maps it
+                break;
+            }
+
+            if(it->vprot & VPROT_WRITE) {
+                retval = pmap_patch_noflush(stem->pmap, page, vprot);
+                kassert(retval == 0);
+                patched = true;
             }
         }
+
+        if(retval < 0) {
+            break;
+        }
+    }
+
+    if(patched) {
+        tlb_shootdown();
     }
 
     mutex_release(&stem->lock);
 
-    return 0;
+    if(retval < 0) {
+        vms_unmap_all(vms);
+    }
+
+    return retval;
 }
 
 int vms_fault(struct vmspace* restrict vms, uintptr_t virt, unsigned access)
@@ -517,7 +577,8 @@ int vms_fault(struct vmspace* restrict vms, uintptr_t virt, unsigned access)
     }
 
     mutex_acquire(&vms->lock);
-    int retval = fault_locked(vms, page_align(virt), access & ~VPROT_USER);
+    access &= ~VPROT_USER;
+    int retval = fault_locked(vms, page_align(virt), access, 0 != (access & VPROT_WRITE));
     mutex_release(&vms->lock);
 
     return retval;
@@ -530,7 +591,7 @@ uintptr_t vms_touch(struct vmspace* restrict vms, uintptr_t virt)
     }
 
     mutex_acquire(&vms->lock);
-    uintptr_t phys = resolve_locked(vms, virt, VPROT_NONE);
+    uintptr_t phys = resolve_locked(vms, virt, VPROT_NONE, true);
     mutex_release(&vms->lock);
 
     return phys;
@@ -547,7 +608,7 @@ ssize_t vms_copyin(void* restrict dst, struct vmspace* restrict vms, uintptr_t s
     mutex_acquire(&vms->lock);
 
     while(sz) {
-        uintptr_t src_phys = resolve_locked(vms, src, VPROT_READ);
+        uintptr_t src_phys = resolve_locked(vms, src, VPROT_READ, false);
 
         if(src_phys == 0) {
             mutex_release(&vms->lock);
@@ -587,7 +648,7 @@ ssize_t vms_copyin_str(char* restrict dst, struct vmspace* restrict vms, uintptr
         uintptr_t src_phys = 0;
 
         if(src < pmap_user_end(vms->pmap)) {
-            src_phys = resolve_locked(vms, src, VPROT_READ);
+            src_phys = resolve_locked(vms, src, VPROT_READ, false);
         }
 
         if(src_phys == 0) {
@@ -639,7 +700,7 @@ ssize_t vms_copyout(struct vmspace* restrict vms, uintptr_t dst, const void* res
     mutex_acquire(&vms->lock);
 
     while(sz) {
-        uintptr_t dst_phys = resolve_locked(vms, dst, VPROT_WRITE);
+        uintptr_t dst_phys = resolve_locked(vms, dst, VPROT_WRITE, true);
 
         if(dst_phys == 0) {
             mutex_release(&vms->lock);
