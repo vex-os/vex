@@ -27,13 +27,12 @@ struct chr_device {
     void* ctxdata;
 };
 
-extern struct chr_device* chr_devices_head;
-
 int add_chr_device(struct chr_device* restrict device, struct chr_name* restrict name);
 int add_chr_device_named(struct chr_device* restrict device, const char* restrict name);
 int remove_chr_device(struct chr_device* restrict device);
 
 const struct chr_device* find_chr_device(const char* restrict name) __nodiscard;
+void iterate_chr_devices(void (*callback)(const struct chr_device* restrict device, void* restrict arg), void* restrict arg);
 
 static __always_inline ssize_t chr_device_read(const struct chr_device* restrict device, off_t offset, void* restrict buffer, size_t sz)
 {

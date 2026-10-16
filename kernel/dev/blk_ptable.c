@@ -200,10 +200,11 @@ static void handle_blk_event(unsigned event, const struct blk_device* restrict d
 
 int add_blk_ptable(struct blk_ptable* restrict ptable)
 {
-    struct blk_ptable* it;
+    blk_event_lock();
 
-    for(it = ptable_head; it; it = it->priv.next) {
+    for(struct blk_ptable* it = ptable_head; it; it = it->priv.next) {
         if(it == ptable) {
+            blk_event_unlock();
             return -EEXIST;
         }
     }
@@ -211,46 +212,45 @@ int add_blk_ptable(struct blk_ptable* restrict ptable)
     ptable->priv.next = ptable_head;
     ptable_head = ptable;
 
+    blk_event_unlock();
+
     return 0;
 }
 
 int remove_blk_ptable(struct blk_ptable* restrict ptable)
 {
-    struct blk_ptable* it;
-    struct blk_ptable* prev = nullptr;
+    blk_event_lock();
 
-    if(ptable_head == ptable) {
-        ptable_head = ptable->priv.next;
-        return 0;
-    }
-
-    for(it = ptable_head; it; it = it->priv.next) {
-        if(it == ptable) {
-            prev->priv.next = it->priv.next;
+    for(struct blk_ptable** prev = &ptable_head; *prev; prev = &(*prev)->priv.next) {
+        if(*prev == ptable) {
+            *prev = ptable->priv.next;
+            blk_event_unlock();
             return 0;
         }
-
-        prev = it;
     }
+
+    blk_event_unlock();
 
     return -ENODEV;
 }
 
 int rescan_partitions(const struct blk_device* restrict device)
 {
-    struct blk_disk_state* state;
-
     if(device->flags & BLK_FLAG_PARTITION) {
         return -EINVAL;
     }
 
-    state = disk_state_find(device);
+    blk_event_lock();
+
+    struct blk_disk_state* state = disk_state_find(device);
 
     if(state) {
         disk_state_remove_parts(state);
     }
 
     probe_device(device);
+
+    blk_event_unlock();
 
     return 0;
 }

@@ -11,6 +11,9 @@ struct chr_device;
 
 typedef void (*chr_event_handler_type)(unsigned event, const struct chr_device* restrict device, void* restrict ctxdata);
 
+void chr_event_lock(void);
+void chr_event_unlock(void);
+
 int chr_event_subscribe(chr_event_handler_type handler, void* restrict ctxdata);
 int chr_event_unsubscribe(chr_event_handler_type handler, void* restrict ctxdata);
 void chr_event_notify(unsigned event, const struct chr_device* restrict device);

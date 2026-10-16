@@ -1,10 +1,13 @@
+#include <vex/atomic.h>
 #include <vex/blk_name.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/panic.h>
+#include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/strings.h>
 
+static spinlock_type blk_name_lock = SPINLOCK_INIT;
 static struct blk_name* blk_name_head = nullptr;
 
 struct blk_name* blk_name_ata;
@@ -12,41 +15,62 @@ struct blk_name* blk_name_atapi;
 struct blk_name* blk_name_nvme;
 struct blk_name* blk_name_virtio;
 
-struct blk_name* blk_name_query(const char* restrict prefix)
+static struct blk_name* find_name_nolock(const char* restrict prefix)
 {
-    struct blk_name* name;
-
-    for(name = blk_name_head; name; name = name->priv.next) {
-        if(strcmp(name->device_prefix, prefix) == 0) {
+    for(struct blk_name* name = blk_name_head; name; name = name->priv.next) {
+        if(0 == strcmp(name->device_prefix, prefix)) {
             return name;
         }
     }
 
-    name = kmalloc(sizeof(struct blk_name));
+    return nullptr;
+}
 
-    if(name == nullptr) {
+struct blk_name* blk_name_query(const char* restrict prefix)
+{
+    spinlock_acquire(&blk_name_lock);
+    struct blk_name* name = find_name_nolock(prefix);
+    spinlock_release(&blk_name_lock);
+
+    if(name) {
+        return name;
+    }
+
+    struct blk_name* created = kmalloc(sizeof(struct blk_name));
+
+    if(created == nullptr) {
         return nullptr;
     }
 
-    kstrncpy(name->device_prefix, prefix, sizeof(name->device_prefix));
+    kstrncpy(created->device_prefix, prefix, sizeof(created->device_prefix));
+    created->priv.next_iterator = 0;
 
-    name->priv.next = blk_name_head;
-    name->priv.next_iterator = 0;
-    blk_name_head = name;
+    spinlock_acquire(&blk_name_lock);
+
+    name = find_name_nolock(prefix);
+
+    if(name == nullptr) {
+        created->priv.next = blk_name_head;
+        blk_name_head = created;
+        name = created;
+        created = nullptr;
+    }
+
+    spinlock_release(&blk_name_lock);
+
+    kfree(created);
 
     return name;
 }
 
 unsigned blk_name_increment(struct blk_name* restrict name)
 {
-    unsigned result = name->priv.next_iterator;
-    name->priv.next_iterator += 1;
-    return result;
+    return atomic_fetch_add(&name->priv.next_iterator, 1, ATOMIC_RELAXED);
 }
 
 unsigned blk_name_count(const struct blk_name* restrict name)
 {
-    return name->priv.next_iterator;
+    return atomic_load(&name->priv.next_iterator, ATOMIC_RELAXED);
 }
 
 static void init_blk_name_predefined(void)

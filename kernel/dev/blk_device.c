@@ -8,17 +8,20 @@
 #include <vex/sprintf.h>
 #include <vex/string.h>
 
-// Event handlers may do I/O so they run outside the lock
+// Writers also hold blk_event_lock, which keeps the list still for
+// iterate_blk_devices; the spinlock is for lookups from anywhere else
 static spinlock_type blk_devices_lock = SPINLOCK_INIT;
 static struct blk_device* blk_devices_head = nullptr;
 
 static int blk_device_register_internal(struct blk_device* restrict device)
 {
+    blk_event_lock();
     spinlock_acquire(&blk_devices_lock);
 
     for(struct blk_device* it = blk_devices_head; it; it = it->priv.next) {
         if(it == device) {
             spinlock_release(&blk_devices_lock);
+            blk_event_unlock();
             return -EEXIST;
         }
     }
@@ -31,6 +34,8 @@ static int blk_device_register_internal(struct blk_device* restrict device)
     spinlock_release(&blk_devices_lock);
 
     blk_event_notify(BLK_EVENT_DEVICE_ADDED, device);
+
+    blk_event_unlock();
 
     return 0;
 }
@@ -67,6 +72,7 @@ int add_blk_device_named(struct blk_device* restrict device)
 
 int remove_blk_device(struct blk_device* restrict device)
 {
+    blk_event_lock();
     spinlock_acquire(&blk_devices_lock);
 
     struct blk_device** prev = &blk_devices_head;
@@ -77,6 +83,7 @@ int remove_blk_device(struct blk_device* restrict device)
 
     if(*prev == nullptr) {
         spinlock_release(&blk_devices_lock);
+        blk_event_unlock();
         return -ENODEV;
     }
 
@@ -95,6 +102,8 @@ int remove_blk_device(struct blk_device* restrict device)
     }
 
     blk_event_notify(BLK_EVENT_DEVICE_REMOVED, device);
+
+    blk_event_unlock();
 
     blk_device_decref(device);
 
@@ -137,13 +146,11 @@ const struct blk_device* find_blk_device(const char* restrict name)
 
 void iterate_blk_devices(void (*callback)(const struct blk_device* restrict device, void* restrict arg), void* restrict arg)
 {
-    spinlock_acquire(&blk_devices_lock);
-
-    for(struct blk_device* it = blk_devices_head; it; it = it->priv.next) {
+    for(struct blk_device* it = blk_devices_head; it;) {
+        struct blk_device* next = it->priv.next;
         callback(it, arg);
+        it = next;
     }
-
-    spinlock_release(&blk_devices_lock);
 }
 
 int blk_read_sector_prefix(const struct blk_device* restrict device, uintptr_t lba, void* restrict buffer, size_t size)

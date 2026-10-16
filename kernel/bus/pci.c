@@ -6,6 +6,7 @@
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
+#include <vex/mutex.h>
 #include <vex/page.h>
 #include <vex/pci.h>
 #include <vex/pmap.h>
@@ -13,6 +14,7 @@
 
 #define PCI_MAX_BUS_DEVICES 32
 
+static struct mutex pci_mutex = MUTEX_INIT;
 static struct pci_bus* bus_head = nullptr;
 static struct pci_driver* driver_head = nullptr;
 
@@ -133,8 +135,11 @@ static uint64_t bar_length(struct pci_device* restrict device, unsigned bar_inde
     uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
     uint32_t raw = pci_cfg_read32(device, offset);
 
-    // A half-written BAR would decode at a bogus address while it is being probed
+    // A half-written BAR would decode at
+    // a bogus address while it is being probed
+    // so we disable the BAR while probing its length
     uint16_t command = pci_cfg_read16(device, PCI_CFG_COMMAND);
+
     pci_cfg_write16(device, PCI_CFG_COMMAND, command & ~(PCI_COMMAND_IO | PCI_COMMAND_MEM));
 
     uint64_t mask = probe_bar_mask(device, offset);
@@ -185,8 +190,11 @@ static void bar_unmap_mmio(uintptr_t phys, size_t size)
 
 int add_pci_bus(struct pci_bus* restrict bus)
 {
+    mutex_acquire(&pci_mutex);
+
     for(struct pci_bus* it = bus_head; it; it = it->priv.next) {
         if(it == bus) {
+            mutex_release(&pci_mutex);
             return -EEXIST;
         }
     }
@@ -197,31 +205,27 @@ int add_pci_bus(struct pci_bus* restrict bus)
 
     bus_scan(bus);
 
+    mutex_release(&pci_mutex);
+
     return 0;
 }
 
 int remove_pci_bus(struct pci_bus* restrict bus)
 {
-    if(bus_head == bus) {
-        bus_head = bus->priv.next;
+    mutex_acquire(&pci_mutex);
+
+    struct pci_bus** prev = &bus_head;
+
+    while(*prev && *prev != bus) {
+        prev = &(*prev)->priv.next;
     }
-    else {
-        struct pci_bus* it;
-        struct pci_bus* prev = nullptr;
 
-        for(it = bus_head; it; it = it->priv.next) {
-            if(it == bus) {
-                prev->priv.next = it->priv.next;
-                break;
-            }
-
-            prev = it;
-        }
-
-        if(it == nullptr) {
-            return -ENODEV;
-        }
+    if(*prev == nullptr) {
+        mutex_release(&pci_mutex);
+        return -ENODEV;
     }
+
+    *prev = bus->priv.next;
 
     for(struct pci_device* it = bus->priv.devices; it;) {
         struct pci_device* next = it->priv.next;
@@ -235,13 +239,20 @@ int remove_pci_bus(struct pci_bus* restrict bus)
         it = next;
     }
 
+    bus->priv.devices = nullptr;
+
+    mutex_release(&pci_mutex);
+
     return 0;
 }
 
 int add_pci_driver(struct pci_driver* restrict driver)
 {
+    mutex_acquire(&pci_mutex);
+
     for(struct pci_driver* it = driver_head; it; it = it->priv.next) {
         if(it == driver) {
+            mutex_release(&pci_mutex);
             return -EEXIST;
         }
     }
@@ -255,57 +266,61 @@ int add_pci_driver(struct pci_driver* restrict driver)
         }
     }
 
+    mutex_release(&pci_mutex);
+
     return 0;
 }
 
 int remove_pci_driver(struct pci_driver* restrict driver)
 {
-    if(driver_head == driver) {
-        driver_head = driver->priv.next;
-    }
-    else {
-        struct pci_driver* it;
-        struct pci_driver* prev = nullptr;
+    mutex_acquire(&pci_mutex);
 
-        for(it = driver_head; it; it = it->priv.next) {
-            if(it == driver) {
-                prev->priv.next = it->priv.next;
-                break;
-            }
+    struct pci_driver** prev = &driver_head;
 
-            prev = it;
-        }
-
-        if(it == nullptr) {
-            return -ENODEV;
-        }
+    while(*prev && *prev != driver) {
+        prev = &(*prev)->priv.next;
     }
 
-    if(driver->ops->remove) {
-        for(struct pci_bus* bus = bus_head; bus; bus = bus->priv.next) {
-            for(struct pci_device* it = bus->priv.devices; it; it = it->priv.next) {
-                if(it->priv.driver == driver) {
+    if(*prev == nullptr) {
+        mutex_release(&pci_mutex);
+        return -ENODEV;
+    }
+
+    *prev = driver->priv.next;
+
+    for(struct pci_bus* bus = bus_head; bus; bus = bus->priv.next) {
+        for(struct pci_device* it = bus->priv.devices; it; it = it->priv.next) {
+            if(it->priv.driver == driver) {
+                if(driver->ops->remove) {
                     driver->ops->remove(it);
-                    it->priv.driver = nullptr;
                 }
+
+                it->priv.driver = nullptr;
             }
         }
     }
+
+    mutex_release(&pci_mutex);
 
     return 0;
 }
 
 struct pci_device* pci_find(unsigned segment, unsigned bus, unsigned device, unsigned function)
 {
+    mutex_acquire(&pci_mutex);
+
     for(struct pci_bus* it = bus_head; it; it = it->priv.next) {
         if(it->segment == segment && it->index == bus) {
             for(struct pci_device* dev = it->priv.devices; dev; dev = dev->priv.next) {
                 if(dev->index == device && dev->function == function) {
+                    mutex_release(&pci_mutex);
                     return dev;
                 }
             }
         }
     }
+
+    mutex_release(&pci_mutex);
 
     return nullptr;
 }
