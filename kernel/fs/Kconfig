@@ -1,5 +1,13 @@
 menu "Filesystems"
 
+config VCACHE_MAX_UNUSED
+    int "Unused vnodes kept cached"
+    range 0 1048576
+    default 1024
+    help
+      Vnodes that nobody holds stay cached up to this many,
+      so looking the same paths up again needs no disk access
+
 config DEVFS
     bool "Device filesystem"
     default y
