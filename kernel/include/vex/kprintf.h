@@ -4,14 +4,7 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-#ifndef KP_BUFSIZE
-#define KP_BUFSIZE 4096U
-#endif
-
-#if KP_BUFSIZE < 256U
-#undef KP_BUFSIZE
-#define KP_BUFSIZE 256U
-#endif
+#define KP_BUFSIZE ((unsigned)(CONFIG_KPRINTF_BUFSIZE))
 
 #define KP_EMERG    0U // The system is unusable, absolutely fatal condition
 #define KP_ALERT    1U // Action must be taken immediately, usually unrecoverable

@@ -28,10 +28,14 @@ static __always_inline __nodiscard size_t pid_bucket(pid_t pid)
     return pid % PROCTABLE_BUCKETS;
 }
 
-static bool grow_fds_locked(struct process* proc, size_t fd)
+static int grow_fds_locked(struct process* proc, size_t fd)
 {
     if(fd < proc->max_fds) {
-        return true;
+        return 0;
+    }
+
+    if(fd >= CONFIG_MAX_FDS) {
+        return -EMFILE;
     }
 
     size_t new_max = proc->max_fds ? proc->max_fds * 2 : 4;
@@ -40,10 +44,14 @@ static bool grow_fds_locked(struct process* proc, size_t fd)
         new_max *= 2;
     }
 
+    if(new_max > CONFIG_MAX_FDS) {
+        new_max = CONFIG_MAX_FDS;
+    }
+
     struct file** grown = krealloc(proc->fds, new_max * sizeof(struct file*));
 
     if(grown == nullptr) {
-        return false;
+        return -ENOMEM;
     }
 
     for(size_t i = proc->max_fds; i < new_max; ++i) {
@@ -53,7 +61,7 @@ static bool grow_fds_locked(struct process* proc, size_t fd)
     proc->fds = grown;
     proc->max_fds = new_max;
 
-    return true;
+    return 0;
 }
 
 static void notify_parent(struct process* restrict proc)
@@ -428,10 +436,11 @@ int allocate_fd(struct process* proc, struct file* file)
     }
 
     int fd = proc->max_fds;
+    int retval = grow_fds_locked(proc, fd);
 
-    if(!grow_fds_locked(proc, fd)) {
+    if(retval < 0) {
         spinlock_release(&proc->fd_lock);
-        return -ENOMEM;
+        return retval;
     }
 
     proc->fds[fd] = file;
@@ -465,12 +474,21 @@ int duplicate_fd(struct process* proc, int old_fd, int new_fd)
         return fd;
     }
 
+    // As POSIX has it, a descriptor past
+    // the limit is a bad one rather than one too many
+    if(new_fd >= CONFIG_MAX_FDS) {
+        file_close(copy);
+        return -EBADF;
+    }
+
     spinlock_acquire(&proc->fd_lock);
 
-    if(!grow_fds_locked(proc, new_fd)) {
+    int retval = grow_fds_locked(proc, new_fd);
+
+    if(retval < 0) {
         spinlock_release(&proc->fd_lock);
         file_close(copy);
-        return -ENOMEM;
+        return retval;
     }
 
     struct file* replaced = proc->fds[new_fd];
