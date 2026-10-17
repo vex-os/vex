@@ -6,7 +6,6 @@ export LC_ALL=C.UTF-8
 
 cd "$(dirname "$(realpath "${0}")")" || exit 1
 
-
 archive_url="https://github.com/uACPI/uACPI/archive/refs/heads/master.tar.gz"
 
 temp_file="$(mktemp /tmp/uacpi-XXXXXX.tar.gz)"
@@ -19,7 +18,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-${SHELL} ../download.sh ${temp_file} ${archive_url} || exit 1
+sh ../download.sh ${temp_file} ${archive_url} || exit 1
 
 tar -xzf ${temp_file} -C ${temp_dir} || exit 1
 

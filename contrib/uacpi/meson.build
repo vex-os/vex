@@ -15,7 +15,6 @@ uacpi_sources = files(
     'source/osi.c',
     'source/registers.c',
     'source/resources.c',
-    'source/shareable.c',
     'source/sleep.c',
     'source/stdlib.c',
     'source/tables.c',

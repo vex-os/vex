@@ -24,8 +24,6 @@
  */
 #define UACPI_NAMESPACE_NODE_FLAG_TEMPORARY (1u << 2)
 
-#define UACPI_NAMESPACE_NODE_PREDEFINED (1u << 31)
-
 typedef struct uacpi_namespace_node {
     struct uacpi_shareable shareable;
     uacpi_object_name name;
@@ -49,6 +47,10 @@ uacpi_status uacpi_namespace_node_type_unlocked(
 uacpi_status uacpi_namespace_node_is_one_of_unlocked(
     const uacpi_namespace_node *node, uacpi_object_type_bits type_mask,
     uacpi_bool *out
+);
+uacpi_status uacpi_namespace_node_next_typed_unlocked(
+    uacpi_namespace_node *parent, uacpi_namespace_node **iter,
+    uacpi_object_type_bits type_mask
 );
 
 uacpi_object *uacpi_namespace_node_get_object(const uacpi_namespace_node *node);

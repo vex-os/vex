@@ -12,9 +12,9 @@ url_base_hdr="https://raw.githubusercontent.com/Limine-Bootloader/limine-protoco
 
 mkdir -p include || exit 1
 
-${SHELL} ../download.sh include/limine.h              "${url_base_hdr}/include/limine.h"              || exit 1
-${SHELL} ../download.sh BOOTAA64.EFI                  "${url_base_bin}/BOOTAA64.EFI"                  || exit 1
-${SHELL} ../download.sh BOOTRISCV64.EFI               "${url_base_bin}/BOOTRISCV64.EFI"               || exit 1
-${SHELL} ../download.sh BOOTX64.EFI                   "${url_base_bin}/BOOTX64.EFI"                   || exit 1
+sh ../download.sh include/limine.h              "${url_base_hdr}/include/limine.h"              || exit 1
+sh ../download.sh BOOTAA64.EFI                  "${url_base_bin}/BOOTAA64.EFI"                  || exit 1
+sh ../download.sh BOOTRISCV64.EFI               "${url_base_bin}/BOOTRISCV64.EFI"               || exit 1
+sh ../download.sh BOOTX64.EFI                   "${url_base_bin}/BOOTX64.EFI"                   || exit 1
 
 exit 0
