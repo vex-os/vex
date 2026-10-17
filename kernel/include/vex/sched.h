@@ -17,5 +17,7 @@ struct thread* create_thread_fork(struct process* restrict proc, const struct ha
 
 void sched_enqueue(struct thread* restrict thrd);
 void sched_dequeue(struct thread* restrict thrd);
+void sched_wake_at(struct thread* restrict thrd, uint64_t deadline);
+void sched_wake_cancel(struct thread* restrict thrd);
 void sched_terminate(void) __noreturn;
 void sched_yield(void);

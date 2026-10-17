@@ -21,5 +21,6 @@ void event_init(struct event* restrict evnt);
 void event_deinit(struct event* restrict evnt);
 ssize_t event_await(struct event** restrict events, size_t count);
 ssize_t event_await_blocking(struct event** restrict events, size_t count);
+ssize_t event_await_timeout(struct event** restrict events, size_t count, uint64_t timeout_nsec);
 size_t event_trigger(struct event* restrict evnt, bool linger_pending);
 void event_reset(struct event* restrict evnt);
