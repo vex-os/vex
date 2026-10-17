@@ -1,3 +1,4 @@
+#include <vex/clocksrc.h>
 #include <vex/errno.h>
 #include <vex/event.h>
 #include <vex/hart.h>
@@ -55,7 +56,8 @@ ssize_t event_await(struct event** restrict events, size_t count)
     return result;
 }
 
-ssize_t event_await_blocking(struct event** restrict events, size_t count)
+// A deadline of zero waits forever
+static ssize_t await_until(struct event** restrict events, size_t count, uint64_t deadline)
 {
     ssize_t result = event_await(events, count);
 
@@ -152,6 +154,10 @@ ssize_t event_await_blocking(struct event** restrict events, size_t count)
 
     sched_dequeue(thrd);
 
+    if(deadline) {
+        sched_wake_at(thrd, deadline);
+    }
+
     for(size_t i = 0; i < count; ++i) {
         spinlock_release(&events[i]->lock);
     }
@@ -164,8 +170,17 @@ ssize_t event_await_blocking(struct event** restrict events, size_t count)
 
     sched_yield();
 
+    if(deadline) {
+        sched_wake_cancel(thrd);
+    }
+
+    // A trigger takes every listener off its event,
+    // so a thread still listening everywhere timed out
+    bool triggered = false;
+
     for(size_t i = 0; i < thrd->num_events; ++i) {
         struct event* evnt = thrd->events[i];
+        bool listening = false;
 
         spinlock_acquire(&evnt->lock);
 
@@ -173,11 +188,16 @@ ssize_t event_await_blocking(struct event** restrict events, size_t count)
             if(evnt->listeners[j].thrd == thrd) {
                 evnt->num_listeners -= 1;
                 evnt->listeners[j] = evnt->listeners[evnt->num_listeners];
+                listening = true;
                 break;
             }
         }
 
         spinlock_release(&evnt->lock);
+
+        if(!listening) {
+            triggered = true;
+        }
     }
 
     thrd->num_events = 0;
@@ -186,7 +206,27 @@ ssize_t event_await_blocking(struct event** restrict events, size_t count)
         return -EINTR;
     }
 
+    if(!triggered) {
+        return -ETIMEDOUT;
+    }
+
     return thrd->wakeup_index;
+}
+
+ssize_t event_await_blocking(struct event** restrict events, size_t count)
+{
+    return await_until(events, count, 0);
+}
+
+ssize_t event_await_timeout(struct event** restrict events, size_t count, uint64_t timeout_nsec)
+{
+    uint64_t deadline = clocksrc_nsec() + timeout_nsec;
+
+    if(deadline < timeout_nsec || deadline == 0) {
+        deadline = UINT64_MAX;
+    }
+
+    return await_until(events, count, deadline);
 }
 
 size_t event_trigger(struct event* restrict evnt, bool linger_pending)

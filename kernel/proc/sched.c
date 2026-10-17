@@ -31,6 +31,11 @@ static struct thread* rq_tail;
 
 static unsigned sched_ireq_number;
 
+// Threads waiting with a deadline, soonest first; taken
+// inside event locks and outside sched_lock
+static spinlock_type sleep_lock = SPINLOCK_INIT;
+static struct thread* sleep_head;
+
 static void rq_push_nolock(struct thread* restrict thrd)
 {
     thrd->rq_next = nullptr;
@@ -104,6 +109,24 @@ static void kick_idle_hart(const struct thread* restrict thrd)
     }
 }
 
+static void wake_expired(void)
+{
+    if(atomic_load(&sleep_head, ATOMIC_RELAXED)) {
+        uint64_t now = clocksrc_nsec();
+
+        raw_spinlock_acquire(&sleep_lock);
+
+        while(sleep_head && sleep_head->wake_deadline <= now) {
+            struct thread* thrd = sleep_head;
+            sleep_head = thrd->wake_next;
+            thrd->wake_next = nullptr;
+            sched_enqueue(thrd);
+        }
+
+        raw_spinlock_release(&sleep_lock);
+    }
+}
+
 static void reap_thread(struct thread* restrict thrd)
 {
     if(thrd->proc) {
@@ -124,6 +147,8 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
     // timer a little without resetting the actual time
     // so that if there is any wrapping, it's accounted for
     clocksrc_update();
+
+    wake_expired();
 
     struct hart_local* hart = this_hart();
 
@@ -242,6 +267,7 @@ static struct thread* alloc_thread_user(struct process* restrict proc)
     thrd->preempt_count = 0;
     thrd->need_resched = false;
     thrd->pinned_hart = nullptr;
+    thrd->wake_next = nullptr;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
     thrd->kstack_top = kstack_top;
@@ -291,6 +317,7 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
     thrd->preempt_count = 0;
     thrd->need_resched = false;
     thrd->pinned_hart = nullptr;
+    thrd->wake_next = nullptr;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
     thrd->kstack_top = kstack_top;
@@ -380,6 +407,38 @@ void sched_dequeue(struct thread* restrict thrd)
     }
 
     spinlock_release_intr(&sched_lock, intr_state);
+}
+
+void sched_wake_at(struct thread* restrict thrd, uint64_t deadline)
+{
+    bool intr_state = spinlock_acquire_intr(&sleep_lock);
+
+    struct thread** link = &sleep_head;
+
+    while(*link && (*link)->wake_deadline <= deadline) {
+        link = &(*link)->wake_next;
+    }
+
+    thrd->wake_deadline = deadline;
+    thrd->wake_next = *link;
+    *link = thrd;
+
+    spinlock_release_intr(&sleep_lock, intr_state);
+}
+
+void sched_wake_cancel(struct thread* restrict thrd)
+{
+    bool intr_state = spinlock_acquire_intr(&sleep_lock);
+
+    for(struct thread** link = &sleep_head; *link; link = &(*link)->wake_next) {
+        if(*link == thrd) {
+            *link = thrd->wake_next;
+            thrd->wake_next = nullptr;
+            break;
+        }
+    }
+
+    spinlock_release_intr(&sleep_lock, intr_state);
 }
 
 void __noreturn sched_terminate(void)

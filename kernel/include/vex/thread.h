@@ -47,6 +47,9 @@ struct thread {
     size_t num_events;
     size_t max_events;
 
+    uint64_t wake_deadline;
+    struct thread* wake_next;
+
     uint64_t timeslice;
     unsigned preempt_count; // Spinlocks held, the thread is not preempted while nonzero
     bool need_resched;      // A tick arrived while preempt_count was nonzero
