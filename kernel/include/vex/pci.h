@@ -68,6 +68,19 @@
 
 #define PCI_STS_CAP_LIST 0x0010
 
+#define PCI_MSI_CONTROL    0x02 // Message Control
+#define PCI_MSI_ADDRESS_LO 0x04 // Message Address
+#define PCI_MSI_ADDRESS_HI 0x08 // Message Upper Address, 64-bit capable functions only
+#define PCI_MSI_DATA_32    0x08 // Message Data
+#define PCI_MSI_DATA_64    0x0C
+#define PCI_MSI_MASK_32    0x0C // Mask Bits, per-vector masking capable functions only
+#define PCI_MSI_MASK_64    0x10
+
+#define PCI_MSI_CONTROL_ENABLE 0x0001 // MSI Enable
+#define PCI_MSI_CONTROL_MME    0x0070 // Multiple Message Enable
+#define PCI_MSI_CONTROL_64BIT  0x0080 // 64 Bit Address Capable
+#define PCI_MSI_CONTROL_PVM    0x0100 // Per-Vector Masking Capable
+
 enum {
     PCI_BAR_TYPE_MMIO,
     PCI_BAR_TYPE_PMIO,
