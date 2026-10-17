@@ -5,7 +5,10 @@
 #include <vex/blk_device.h>
 #include <vex/blk_event.h>
 #include <vex/blk_name.h>
+#include <vex/clocksrc.h>
+#include <vex/delay.h>
 #include <vex/endian.h>
+#include <vex/event.h>
 #include <vex/hart.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
@@ -18,13 +21,21 @@
 #include <vex/sprintf.h>
 #include <vex/string.h>
 
-#define HBA_CAP 0x00 // Host Capabilities
-#define HBA_GHC 0x04 // Global Host Control
-#define HBA_IS  0x08 // Interrupt Status (global)
-#define HBA_PI  0x0C // Ports Implemented
+#define HBA_CAP  0x00 // Host Capabilities
+#define HBA_GHC  0x04 // Global Host Control
+#define HBA_IS   0x08 // Interrupt Status (global)
+#define HBA_PI   0x0C // Ports Implemented
+#define HBA_CAP2 0x24 // Host Capabilities Extended
+#define HBA_BOHC 0x28 // BIOS/OS Handoff Control and Status
 
 #define HBA_GHC_AE UINT32_C(0x80000000) // AHCI Enable
 #define HBA_GHC_IE UINT32_C(0x00000002) // Interrupt Enable
+
+#define HBA_CAP2_BOH UINT32_C(0x00000001) // BIOS/OS Handoff
+
+#define HBA_BOHC_BOS UINT32_C(0x00000001) // BIOS Owned Semaphore
+#define HBA_BOHC_OOS UINT32_C(0x00000002) // OS Owned Semaphore
+#define HBA_BOHC_BB  UINT32_C(0x00000010) // BIOS Busy
 
 #define HBA_PORT_BASE 0x100 // Offset of port 0 registers
 #define HBA_PORT_SIZE 0x80  // Per-port register stride
@@ -39,6 +50,7 @@
 #define PORT_REG_TFD  0x20 // Task File Data
 #define PORT_REG_SIG  0x24 // Signature
 #define PORT_REG_SSTS 0x28 // SATA Status (SCR0)
+#define PORT_REG_SCTL 0x2C // SATA Control (SCR2)
 #define PORT_REG_SERR 0x30 // SATA Error (SCR1)
 #define PORT_REG_SACT 0x34 // SATA Active
 #define PORT_REG_CI   0x38 // Command Issue
@@ -47,6 +59,21 @@
 #define PORT_CMD_FRE UINT32_C(0x00000010) // FIS Receive Enable
 #define PORT_CMD_FR  UINT32_C(0x00004000) // FIS Receive Running
 #define PORT_CMD_CR  UINT32_C(0x00008000) // Command List Running
+
+#define PORT_IS_DHRS UINT32_C(0x00000001) // Device to Host Register FIS
+#define PORT_IS_PSS  UINT32_C(0x00000002) // PIO Setup FIS
+#define PORT_IS_DSS  UINT32_C(0x00000004) // DMA Setup FIS
+#define PORT_IS_SDBS UINT32_C(0x00000008) // Set Device Bits FIS
+#define PORT_IS_IFS  UINT32_C(0x08000000) // Interface Fatal Error
+#define PORT_IS_HBDS UINT32_C(0x10000000) // Host Bus Data Error
+#define PORT_IS_HBFS UINT32_C(0x20000000) // Host Bus Fatal Error
+#define PORT_IS_TFES UINT32_C(0x40000000) // Task File Error
+
+#define PORT_IS_DONE   (PORT_IS_DHRS | PORT_IS_PSS | PORT_IS_DSS | PORT_IS_SDBS)
+#define PORT_IS_ERRORS (PORT_IS_IFS | PORT_IS_HBDS | PORT_IS_HBFS | PORT_IS_TFES)
+
+#define PORT_SCTL_DET_MASK  UINT32_C(0x0000000F)
+#define PORT_SCTL_DET_RESET UINT32_C(0x00000001) // COMRESET
 
 #define PORT_TFD_ERR UINT32_C(0x00000001) // Task File Error
 #define PORT_TFD_DRQ UINT32_C(0x00000008) // Data Request
@@ -64,7 +91,11 @@
 #define DMA_BUFFER_SIZE 0x10000 // Max bytes per DMA command (64 KiB)
 #define DMA_NUM_PAGES   ((DMA_OFFSET_DATABUF + DMA_BUFFER_SIZE + PAGE_SIZE - 1) / PAGE_SIZE)
 
-#define AHCI_POLL_TIMEOUT 1000000
+#define AHCI_COMMAND_TIMEOUT_NS  UINT64_C(10000000000)
+#define AHCI_ENGINE_TIMEOUT_NS   UINT64_C(500000000) // PxCMD.CR and PxCMD.FR, per the spec
+#define AHCI_LINK_TIMEOUT_NS     UINT64_C(1000000000)
+#define AHCI_BIOS_BOS_TIMEOUT_NS UINT64_C(25000000)
+#define AHCI_BIOS_BB_TIMEOUT_NS  UINT64_C(2000000000)
 
 struct ahci_cmd_header {
     uint16_t flags; // CFL:5, A:1, W:1, P:1, R:1, B:1, C:1, rsvd:1, PMP:4
@@ -109,7 +140,9 @@ static_assert(16 == sizeof(struct ahci_prdt_entry));
 struct ahci_pci_context;
 
 struct ahci_port {
-    struct mutex lock; // Held for a whole polled command, every one of which uses slot 0 and the DMA buffer
+    struct mutex lock;   // Held for a whole command, every one of which uses slot 0 and the DMA buffer
+    struct event done;   // Triggered by the interrupt handler, reset before each command
+    uint32_t irq_status; // PxIS bits the interrupt handler cleared since the command was issued
     struct ahci_pci_context* context;
     struct pci_bar* bar;
     uintptr_t port_base;
@@ -120,6 +153,8 @@ struct ahci_port {
 };
 
 struct ahci_pci_context {
+    struct pci_bar* abar;
+    bool irq;
     struct blk_device devices[32];
     struct atapi_device atapi_devices[32];
     struct ahci_port ports[32];
@@ -127,7 +162,7 @@ struct ahci_pci_context {
     unsigned ata_iterator;
     uint32_t atapi_mask;
     uint32_t ata_mask;
-    unsigned refcount; // One for the PCI device and one per registered block device
+    unsigned refcount;
 };
 
 static __always_inline uint32_t port_read(struct ahci_port* restrict port, uint32_t offset)
@@ -159,6 +194,7 @@ static void context_decref(struct ahci_pci_context* restrict context)
     if(1 == atomic_fetch_sub(&context->refcount, 1, ATOMIC_ACQ_REL)) {
         for(unsigned port_num = 0; port_num < 32; port_num += 1) {
             mutex_deinit(&context->ports[port_num].lock);
+            event_deinit(&context->ports[port_num].done);
         }
 
         kfree(context);
@@ -177,19 +213,37 @@ static void ahci_atapi_release(const struct atapi_device* restrict device)
     context_decref(port->context);
 }
 
-static void ahci_stop(struct ahci_port* restrict port)
+static bool bar_wait(struct pci_bar* restrict bar, uintptr_t offset, uint32_t mask, uint32_t value, uint64_t timeout)
+{
+    uint64_t deadline = clocksrc_nsec() + timeout;
+
+    while((pci_bar_read32(bar, offset) & mask) != value) {
+        if(clocksrc_nsec() >= deadline) {
+            return false;
+        }
+
+        hart_spin();
+    }
+
+    return true;
+}
+
+static __always_inline bool port_wait(struct ahci_port* restrict port, uint32_t offset, uint32_t mask, uint32_t value, uint64_t timeout)
+{
+    return bar_wait(port->bar, port->port_base + offset, mask, value, timeout);
+}
+
+static bool ahci_stop(struct ahci_port* restrict port)
 {
     port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) & ~PORT_CMD_ST);
 
-    while(port_read(port, PORT_REG_CMD) & PORT_CMD_CR) {
-        hart_spin();
+    if(!port_wait(port, PORT_REG_CMD, PORT_CMD_CR, 0, AHCI_ENGINE_TIMEOUT_NS)) {
+        return false;
     }
 
     port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) & ~PORT_CMD_FRE);
 
-    while(port_read(port, PORT_REG_CMD) & PORT_CMD_FR) {
-        hart_spin();
-    }
+    return port_wait(port, PORT_REG_CMD, PORT_CMD_FR, 0, AHCI_ENGINE_TIMEOUT_NS);
 }
 
 static void ahci_start(struct ahci_port* restrict port)
@@ -198,32 +252,73 @@ static void ahci_start(struct ahci_port* restrict port)
     port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) | PORT_CMD_ST);
 }
 
-static int ahci_poll(struct ahci_port* restrict port, uintptr_t lba)
+static void ahci_comreset(struct ahci_port* restrict port)
 {
-    unsigned counter = 0;
+    uint32_t sctl = port_read(port, PORT_REG_SCTL) & ~PORT_SCTL_DET_MASK;
 
-    while(port_read(port, PORT_REG_CI) & 1) {
-        if(port_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
+    port_write(port, PORT_REG_SCTL, sctl | PORT_SCTL_DET_RESET);
+    delay_msec(1); // The spec asks for at least 1 ms of COMRESET
+    port_write(port, PORT_REG_SCTL, sctl);
+
+    if(!port_wait(port, PORT_REG_SSTS, 0x0F, PORT_SSTS_DET_PRESENT, AHCI_LINK_TIMEOUT_NS)) {
+        pr_verbose("ahci: %u.%u: link did not come back after COMRESET", port->iterator, port->number);
+    }
+}
+
+static void ahci_recover(struct ahci_port* restrict port)
+{
+    if(!ahci_stop(port)) {
+        pr_verbose("ahci: %u.%u: command engine did not stop", port->iterator, port->number);
+    }
+
+    if(port_read(port, PORT_REG_TFD) & (PORT_TFD_BSY | PORT_TFD_DRQ)) {
+        ahci_comreset(port);
+    }
+
+    port_write(port, PORT_REG_SERR, 0xFFFFFFFF);
+    port_write(port, PORT_REG_IS, 0xFFFFFFFF);
+
+    ahci_start(port);
+}
+
+static int ahci_wait(struct ahci_port* restrict port, uintptr_t lba)
+{
+    uint64_t deadline = clocksrc_nsec() + AHCI_COMMAND_TIMEOUT_NS;
+
+    // Nothing can switch away from a caller with interrupts
+    // disabled, such as kmain mounting the root during boot
+    bool sleep = port->context->irq && interrupt_state();
+
+    for(;;) {
+        uint32_t status = atomic_load(&port->irq_status, ATOMIC_ACQUIRE) | port_read(port, PORT_REG_IS);
+
+        if((status & PORT_IS_ERRORS) || (port_read(port, PORT_REG_TFD) & PORT_TFD_ERR)) {
             unsigned long tfd = port_read(port, PORT_REG_TFD);
-            pr_verbose("ahci: %u.%u: poll error: lba=%zu tfd=%08lX", port->iterator, port->number, (size_t)(lba), tfd);
+            pr_verbose("ahci: %u.%u: command error: lba=%zu is=%08lX tfd=%08lX", port->iterator, port->number, (size_t)(lba),
+                (unsigned long)(status), tfd);
             return -EIO;
         }
 
-        if(counter >= AHCI_POLL_TIMEOUT) {
-            pr_verbose("ahci: %u.%u: poll timeout: lba=%zu", port->iterator, port->number, (size_t)(lba));
+        if(0 == (port_read(port, PORT_REG_CI) & 1)) {
+            return 0;
+        }
+
+        uint64_t now = clocksrc_nsec();
+
+        if(now >= deadline) {
+            pr_verbose("ahci: %u.%u: command timeout: lba=%zu", port->iterator, port->number, (size_t)(lba));
             return -EIO;
         }
 
-        hart_spin();
-
-        counter += 1;
+        if(sleep) {
+            struct event* done = &port->done;
+            ssize_t result = event_await_timeout(&done, 1, deadline - now);
+            (void)(result); // Completion is read from the registers either way
+        }
+        else {
+            hart_spin();
+        }
     }
-
-    if(port_read(port, PORT_REG_TFD) & PORT_TFD_ERR) {
-        return -EIO;
-    }
-
-    return 0;
 }
 
 static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cmd, uint16_t count, size_t byte_count, bool write)
@@ -277,13 +372,24 @@ static int ahci_issue(struct ahci_port* restrict port, uintptr_t lba)
     port_write(port, PORT_REG_SERR, 0xFFFFFFFF);
     port_write(port, PORT_REG_IS, 0xFFFFFFFF);
 
-    while(port_read(port, PORT_REG_TFD) & (PORT_TFD_BSY | PORT_TFD_DRQ)) {
-        hart_spin();
+    if(!port_wait(port, PORT_REG_TFD, PORT_TFD_BSY | PORT_TFD_DRQ, 0, AHCI_COMMAND_TIMEOUT_NS)) {
+        pr_verbose("ahci: %u.%u: device stuck busy: lba=%zu", port->iterator, port->number, (size_t)(lba));
+        ahci_recover(port);
+        return -EIO;
     }
+
+    atomic_store(&port->irq_status, 0, ATOMIC_RELEASE);
+    event_reset(&port->done);
 
     port_write(port, PORT_REG_CI, 1);
 
-    return ahci_poll(port, lba);
+    int retval = ahci_wait(port, lba);
+
+    if(retval < 0) {
+        ahci_recover(port);
+    }
+
+    return retval;
 }
 
 static int ahci_identify(struct ahci_port* restrict port, ata_identify_type identify)
@@ -559,6 +665,7 @@ static int ahci_port_init(struct ahci_pci_context* restrict context, struct pci_
     uintptr_t dma_phys = pdma_alloc_phys(DMA_NUM_PAGES);
 
     if(dma_phys == 0) {
+        pr_verbose("ahci: out of memory");
         return -ENOMEM;
     }
 
@@ -567,13 +674,20 @@ static int ahci_port_init(struct ahci_pci_context* restrict context, struct pci_
     memset(dma_virt, 0, PAGE_SIZE * DMA_NUM_PAGES);
 
     mutex_init(&port->lock);
+    event_init(&port->done);
+    port->irq_status = 0;
     port->number = port_num;
     port->bar = abar;
     port->port_base = port_base;
     port->dma_phys = dma_phys;
     port->dma_virt = dma_virt;
 
-    ahci_stop(port);
+    if(!ahci_stop(port)) {
+        pr_verbose("ahci: %u: command engine did not stop", port_num);
+        pdma_free_phys(dma_phys, DMA_NUM_PAGES);
+        port->dma_phys = 0;
+        return -EIO;
+    }
 
     pci_bar_write32(abar, port_base + PORT_REG_CLB, dma_phys + DMA_OFFSET_CMDLIST);
     pci_bar_write32(abar, port_base + PORT_REG_CLBU, (dma_phys + DMA_OFFSET_CMDLIST) >> 32);
@@ -582,6 +696,7 @@ static int ahci_port_init(struct ahci_pci_context* restrict context, struct pci_
 
     pci_bar_write32(abar, port_base + PORT_REG_SERR, 0xFFFFFFFF);
     pci_bar_write32(abar, port_base + PORT_REG_IS, 0xFFFFFFFF);
+    pci_bar_write32(abar, port_base + PORT_REG_IE, PORT_IS_DONE | PORT_IS_ERRORS);
 
     ahci_start(port);
 
@@ -592,7 +707,11 @@ static void ahci_port_teardown(struct ahci_port* restrict port)
 {
     mutex_acquire(&port->lock);
 
-    ahci_stop(port);
+    port_write(port, PORT_REG_IE, 0);
+
+    if(!ahci_stop(port)) {
+        pr_verbose("ahci: %u.%u: command engine did not stop", port->iterator, port->number);
+    }
 
     pdma_free_phys(port->dma_phys, DMA_NUM_PAGES);
 
@@ -664,7 +783,6 @@ static int ahci_port_register_atapi(struct ahci_pci_context* restrict context, u
 static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
 {
     if(ahci_port_init(context, abar, port_num)) {
-        pr_verbose("ahci: out of memory");
         return;
     }
 
@@ -708,7 +826,6 @@ static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struc
 static void ahci_port_probe_atapi(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
 {
     if(ahci_port_init(context, abar, port_num)) {
-        pr_verbose("ahci: out of memory");
         return;
     }
 
@@ -754,6 +871,62 @@ static void ahci_port_probe_atapi(struct ahci_pci_context* restrict context, str
     blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, &atapi_dev->base);
 }
 
+static void ahci_ireq(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
+{
+    struct ahci_pci_context* context = ctxdata;
+    uint32_t pending = pci_bar_read32(context->abar, HBA_IS);
+
+    for(unsigned port_num = 0; port_num < 32; port_num += 1) {
+        if(0 == (pending & (UINT32_C(1) << port_num))) {
+            continue;
+        }
+
+        struct ahci_port* port = &context->ports[port_num];
+        uintptr_t port_base = HBA_PORT_BASE + port_num * HBA_PORT_SIZE;
+
+        // PxIS goes before IS, or the port raises IS again right away
+        uint32_t status = pci_bar_read32(context->abar, port_base + PORT_REG_IS);
+        pci_bar_write32(context->abar, port_base + PORT_REG_IS, status);
+
+        atomic_fetch_or(&port->irq_status, status, ATOMIC_RELEASE);
+        event_trigger(&port->done, true);
+    }
+
+    pci_bar_write32(context->abar, HBA_IS, pending);
+}
+
+// Firmware that drives the HBA itself (SMI-based legacy
+// emulation and the like) has to let go of it first
+static void ahci_handoff(struct pci_bar* restrict abar)
+{
+    if(0 == (pci_bar_read32(abar, HBA_CAP2) & HBA_CAP2_BOH)) {
+        return;
+    }
+
+    pci_bar_write32(abar, HBA_BOHC, pci_bar_read32(abar, HBA_BOHC) | HBA_BOHC_OOS);
+
+    uint64_t deadline = clocksrc_nsec() + AHCI_BIOS_BOS_TIMEOUT_NS;
+    bool busy = false;
+
+    while((pci_bar_read32(abar, HBA_BOHC) & HBA_BOHC_BOS) && clocksrc_nsec() < deadline) {
+        if(pci_bar_read32(abar, HBA_BOHC) & HBA_BOHC_BB) {
+            busy = true;
+            break;
+        }
+
+        hart_spin();
+    }
+
+    // Firmware that needs longer sets BB within 25 ms and then gets 2 s
+    if(busy) {
+        (void)bar_wait(abar, HBA_BOHC, HBA_BOHC_BOS, 0, AHCI_BIOS_BB_TIMEOUT_NS);
+    }
+
+    if(pci_bar_read32(abar, HBA_BOHC) & HBA_BOHC_BOS) {
+        pr_warning("ahci: firmware did not release the HBA, taking it anyway");
+    }
+}
+
 static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driver_id* restrict id)
 {
     struct ahci_pci_context* context = kmalloc(sizeof(struct ahci_pci_context));
@@ -763,6 +936,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         return -ENOMEM;
     }
 
+    context->irq = false;
     context->ata_iterator = UINT_MAX;
     context->atapi_iterator = UINT_MAX;
     context->refcount = 1;
@@ -782,6 +956,10 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
 
         return -ENOMEM;
     }
+
+    context->abar = abar;
+
+    ahci_handoff(abar);
 
     uint32_t ahci_ghc = pci_bar_read32(abar, HBA_GHC);
 
@@ -816,6 +994,14 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         kfree(context);
         pci_dev->ctxdata = nullptr;
         return -ENODEV;
+    }
+
+    if(0 == pci_request_irq(pci_dev, &ahci_ireq, context)) {
+        context->irq = true;
+        pci_bar_write32(abar, HBA_GHC, pci_bar_read32(abar, HBA_GHC) | HBA_GHC_IE);
+    }
+    else {
+        pr_verbose("ahci: no MSI, commands are polled");
     }
 
     for(unsigned port_num = 0; port_num < 32; port_num += 1) {
@@ -853,6 +1039,12 @@ static void ahci_remove(struct pci_device* restrict pci_dev)
 
     if(context == nullptr) {
         return;
+    }
+
+    if(context->irq) {
+        pci_bar_write32(context->abar, HBA_GHC, pci_bar_read32(context->abar, HBA_GHC) & ~HBA_GHC_IE);
+        pci_release_irq(pci_dev);
+        context->irq = false;
     }
 
     for(unsigned port_num = 0; port_num < 32; port_num += 1) {
