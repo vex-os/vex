@@ -1,3 +1,4 @@
+#include <arch/amd64.fpu.h>
 #include <arch/amd64.gdt.h>
 #include <arch/amd64.msr.h>
 #include <vex/hart.h>
@@ -5,6 +6,14 @@
 #include <vex/string.h>
 #include <vex/thread.h>
 #include <vex/vms.h>
+
+static void* reserve_fpu_state(struct thread* restrict thrd, void* restrict kernel_stack_top)
+{
+    uintptr_t stack_top = (uintptr_t)(kernel_stack_top);
+    uintptr_t state = stack_top - align_ceil(fpu_state_size, FPU_STATE_ALIGN);
+    thrd->arch.fpu_state = (void*)(state);
+    return (void*)(state);
+}
 
 void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, void* restrict arg, void* restrict kernel_stack_top)
 {
@@ -22,6 +31,7 @@ void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, 
     thrd->arch.gs_base = thrd;
     thrd->arch.fs_base = nullptr;
     thrd->arch.kernel_stack = kernel_stack_top;
+    thrd->arch.fpu_state = nullptr;
     thrd->kernel_rsp = kernel_stack_top;
 
     // A kernel thread made from within a system call
@@ -32,6 +42,9 @@ void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, 
 void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, void* restrict user_stack_top,
     void* restrict kernel_stack_top, struct vmspace* restrict vms)
 {
+    kernel_stack_top = reserve_fpu_state(thrd, kernel_stack_top);
+    fpu_init_state(thrd->arch.fpu_state);
+
     memset(&thrd->ctx, 0, sizeof(thrd->ctx));
 
     thrd->ctx.amd64_ds = gdt_selector(GDT_USER_DATA_64, 0, 3);
@@ -52,6 +65,9 @@ void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, 
 void arch_thread_setup_fork(struct thread* restrict thrd, const struct hart_context* restrict ctx, void* restrict kernel_stack_top,
     struct vmspace* restrict vms)
 {
+    kernel_stack_top = reserve_fpu_state(thrd, kernel_stack_top);
+    fpu_save(thrd->arch.fpu_state);
+
     memcpy(&thrd->ctx, ctx, sizeof(thrd->ctx));
     thrd->ctx.syscall_retval = 0;
 
@@ -92,6 +108,7 @@ void arch_thread_exec(struct thread* restrict thrd, struct vmspace* restrict vms
 
     wrmsr(MSR_KERNEL_GS_BASE, 0);
     wrmsr(MSR_FS_BASE, 0);
+    fpu_reset();
 
     thrd->arch.cr3 = vms->pmap->phys;
     pmap_switch(vms->pmap);
@@ -117,6 +134,10 @@ void arch_thread_ctx_save(struct thread* restrict thrd)
     uint64_t cr3;
     asm volatile("movq %%cr3, %0" : "=r"(cr3));
     thrd->arch.cr3 = cr3;
+
+    if(thrd->arch.fpu_state) {
+        fpu_save(thrd->arch.fpu_state);
+    }
 }
 
 void arch_thread_ctx_load(struct thread* restrict thrd)
@@ -130,4 +151,8 @@ void arch_thread_ctx_load(struct thread* restrict thrd)
     wrmsr(MSR_KERNEL_GS_BASE, (uintptr_t)(thrd->arch.gs_base));
 
     asm volatile("movq %0, %%cr3" ::"r"(thrd->arch.cr3) : "memory");
+
+    if(thrd->arch.fpu_state) {
+        fpu_load(thrd->arch.fpu_state);
+    }
 }

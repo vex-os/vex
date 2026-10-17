@@ -1,4 +1,5 @@
 kernel_sources += files(
+    'fpu.c',
     'hart.c',
     'sched.S',
     'syscall.c',
