@@ -4,7 +4,7 @@
 
 int hrsize_bin(char* restrict buffer, size_t sz, size_t value)
 {
-    static const char* suffixes[] = { "B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB" }; // it's a meebeeb guys
+    static const char* suffixes[] = { "B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB" };
     static const size_t num_suffixes = sizeof(suffixes) / sizeof(suffixes[0]);
 
     size_t index = 0U;

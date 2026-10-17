@@ -32,18 +32,12 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
     int sign, pad;
 
     if((flags & F_NEGATIVE) && (flags & F_SIGNED)) {
-        // The number is both signed and considered
-        // to be less than zero, we have to print a sign.
         sign = '-';
     }
     else if(flags & F_PLUS) {
-        // The number is either signed and positive
-        // or unsigned; and we were requested to print a sign.
         sign = '+';
     }
     else if(flags & F_SPACE) {
-        // If a number is signed (and it is), we want a
-        // whitespace placed in the place a minus would be.
         sign = ' ';
     }
     else {
@@ -51,9 +45,6 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
     }
 
     if(0 == (flags & F_LEFT) && (flags & F_ZERO_PAD)) {
-        // Normally numeric values are padded (ie. moved)
-        // with a whitespace character but if we are not
-        // left-justified, we can use leading zeros for that.
         pad = '0';
     }
     else {
@@ -75,8 +66,7 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
         value /= base;
     } while(value || precision);
 
-    if(sign) {
-        // Add the sign character
+    if(sign && pad == ' ') {
         stage[stager++] = sign;
     }
 
@@ -97,14 +87,19 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
         else if(base == 8) {
             // Octals start with a zero so we can
             // safely assume we won't miss when adding
-            // the numeric prefix right here. */
+            // the numeric prefix right here
             stage[stager++] = '0';
         }
     }
 
     if(0 == (flags & F_LEFT)) {
-        // Add numeric prefix in cases of zero-padding
-        // as the prefixes don't exist in the stage buffer
+        // Zero padding goes between the sign or prefix and the digits,
+        // so those are written here rather than taken from the stage buffer
+        if(sign && pad == '0') {
+            func(sign, user);
+            counter += 1;
+        }
+
         if((flags & F_HASH) && (flags & F_ZERO_PAD)) {
             switch(base) {
                 case 2:
@@ -121,21 +116,19 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
             }
         }
 
-        for(unsigned i = stager; i < width; ++i) {
+        for(size_t i = stager + counter; i < width; ++i) {
             func(pad, user);
             counter += 1;
         }
     }
 
-    // Reverse the number into the callback
     while(stager--) {
         func(stage[stager], user);
         counter += 1;
     }
 
-    // And now pad the number
     if(flags & F_LEFT) {
-        for(unsigned i = 0; i < width; ++i) {
+        while(counter < width) {
             func(' ', user);
             counter += 1;
         }
@@ -284,9 +277,7 @@ int vformat(format_func_type func, void* restrict user, const char* restrict fmt
         }
 
         if((flags & F_ZERO_PAD) && (flags & F_LEFT)) {
-            // Cannot add zeros after the value as they
-            // will not be leading zeros anymore and will
-            // have a meaning, multiplying the number by 10
+            // Zeros after a left-justified value would change it
             flags &= ~F_ZERO_PAD;
         }
 
@@ -343,9 +334,7 @@ int vformat(format_func_type func, void* restrict user, const char* restrict fmt
 
         value = 0;
         if(*fmt == 's' || *fmt == 'p') {
-            // L_POINTER is a special case, it tells the next
-            // switch statement that we don't want to call va_arg()
-            // ahead of time, instead waiting for later code to do that.
+            // %s and %p fetch their own argument below
             length = L_POINTER;
         }
         else {

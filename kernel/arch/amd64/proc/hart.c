@@ -42,13 +42,13 @@ void hart_setup_1(struct hart_local* restrict hart, unsigned short index, const 
 
 void hart_setup_2(struct hart_local* restrict hart)
 {
-    wrmsr(0xC0000101, (uintptr_t)(hart->idle_thread));
-    wrmsr(0xC0000102, (uintptr_t)(hart->idle_thread->arch.gs_base));
+    wrmsr(MSR_GS_BASE, (uintptr_t)(hart->idle_thread));
+    wrmsr(MSR_KERNEL_GS_BASE, (uintptr_t)(hart->idle_thread->arch.gs_base));
 }
 
 void hart_ipi(struct hart_local* restrict target, unsigned ireq_number)
 {
-    kassert(target); // old api bro
+    kassert(target);
 
     if(target == HART_IPI_EVERYONE) {
         lapic_ipi(0, LAPIC_IPI_EVERYONE, ireq_number + ARCH_IREQ_BASE);

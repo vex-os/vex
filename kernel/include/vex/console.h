@@ -3,7 +3,7 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-#define CONSF_NONE    0x0000U // No special flags
+#define CONSF_NONE    0x0000U
 #define CONSF_RECALL  0x0001U // Recall the last kprintf history on unblanking
 #define CONSF_BLANKED 0x1000U // The driver is blanked and won't receive write calls
 

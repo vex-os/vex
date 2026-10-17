@@ -84,6 +84,16 @@
 #define PORT_SSTS_DET_PRESENT 3 // Device detected, PHY communication established
 #define PORT_SSTS_IPM_ACTIVE  1 // Interface in active power state
 
+#define CMD_HEADER_A UINT16_C(0x0020) // ATAPI
+#define CMD_HEADER_W UINT16_C(0x0040) // Write
+
+#define CMDTABLE_ACMD 0x40 // ATAPI command
+
+#define FIS_H2D_C UINT8_C(0x80) // Command, not device control
+
+#define ATAPI_FEATURES_DMA         UINT8_C(0x01)
+#define ATAPI_CMD_READ_CAPACITY_10 0x25
+
 #define DMA_OFFSET_CMDLIST  0x000 // [0x000..0x3FF] command list (32 slots * 32 bytes)
 #define DMA_OFFSET_FIS      0x400 // [0x400..0x4FF] received FIS
 #define DMA_OFFSET_CMDTABLE 0x500 // [0x500..0x57F] command table (FIS at 0x00, ATAPI CDB at 0x40)
@@ -339,7 +349,7 @@ static void ahci_setup_header(struct ahci_port* restrict port, uint16_t flags, c
 
     kassert(num_segments <= AHCI_MAX_PRDT);
 
-    header->flags = htole16(flags | 5); // CFL=5
+    header->flags = htole16(flags | (sizeof(struct ata_fis_h2d) / sizeof(uint32_t))); // CFL, in dwords
     header->prdtl = htole16((uint16_t)(num_segments));
     header->prdbc = 0;
     header->ctba = htole32(cmdtable_phys);
@@ -364,10 +374,10 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
 
     memset((void*)fis, 0, sizeof(struct ata_fis_h2d));
 
-    ahci_setup_header(port, write ? (UINT16_C(1) << 6) : 0, segments, num_segments); // W bit
+    ahci_setup_header(port, write ? CMD_HEADER_W : 0, segments, num_segments);
 
     fis->type = ATA_FIS_TYPE_H2D;
-    fis->pm_port = 0x80; // C=1, new command
+    fis->pm_port = FIS_H2D_C;
     fis->command = cmd;
     fis->device = ATA_DEVICE_LBA;
     fis->lba0 = lba >> 0;
@@ -451,16 +461,16 @@ static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_ty
     size_t num_segments, size_t byte_count, bool write)
 {
     volatile struct ata_fis_h2d* fis = (volatile struct ata_fis_h2d*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
-    volatile uint8_t* atapi_area = port->dma_virt + DMA_OFFSET_CMDTABLE + 0x40;
+    volatile uint8_t* atapi_area = port->dma_virt + DMA_OFFSET_CMDTABLE + CMDTABLE_ACMD;
 
     memset((void*)fis, 0, sizeof(struct ata_fis_h2d));
 
-    ahci_setup_header(port, (write ? (UINT16_C(1) << 6) : 0) | (UINT16_C(1) << 5), segments, num_segments); // W and A bits
+    ahci_setup_header(port, (write ? CMD_HEADER_W : 0) | CMD_HEADER_A, segments, num_segments);
 
     fis->type = ATA_FIS_TYPE_H2D;
-    fis->pm_port = 0x80;
+    fis->pm_port = FIS_H2D_C;
     fis->command = ATA_CMD_PACKET;
-    fis->features = 0x01; // DMA
+    fis->features = ATAPI_FEATURES_DMA;
     fis->lba1 = byte_count & 0xFF;
     fis->lba2 = (byte_count >> 8) & 0xFF;
 
@@ -473,7 +483,7 @@ static int ahci_atapi_capacity(struct ahci_port* restrict port, size_t* restrict
 
     atapi_cdb_type cdb;
     memset(cdb, 0, sizeof(atapi_cdb_type));
-    cdb[0] = 0x25; // READ CAPACITY(10)
+    cdb[0] = ATAPI_CMD_READ_CAPACITY_10;
 
     uint8_t result[8];
     struct blk_segment segment = { port->dma_phys + DMA_OFFSET_DATABUF, sizeof(result) };

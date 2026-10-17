@@ -1,51 +1,51 @@
 .section .text
 
 .macro push_interrupt_frame
-    pushq %r15      # hart_context::x86_r15
-    pushq %r14      # hart_context::x86_r14
-    pushq %r13      # hart_context::x86_r13
-    pushq %r12      # hart_context::x86_r12
-    pushq %r11      # hart_context::x86_r11
-    pushq %r10      # hart_context::x86_r10
-    pushq %r9       # hart_context::x86_r9
-    pushq %r8       # hart_context::x86_r8
-    pushq %rbp      # hart_context::x86_rbp
-    pushq %rdi      # hart_context::x86_rdi
-    pushq %rsi      # hart_context::x86_rsi
-    pushq %rdx      # hart_context::x86_rdx
-    pushq %rcx      # hart_context::x86_rcx
-    pushq %rbx      # hart_context::x86_rbx
-    pushq %rax      # hart_context::x86_rax
+    pushq %r15      # hart_context::amd64_r15
+    pushq %r14      # hart_context::amd64_r14
+    pushq %r13      # hart_context::amd64_r13
+    pushq %r12      # hart_context::amd64_r12
+    pushq %r11      # hart_context::amd64_r11
+    pushq %r10      # hart_context::amd64_r10
+    pushq %r9       # hart_context::amd64_r9
+    pushq %r8       # hart_context::amd64_r8
+    pushq %rbp      # hart_context::amd64_rbp
+    pushq %rdi      # hart_context::amd64_rdi
+    pushq %rsi      # hart_context::amd64_rsi
+    pushq %rdx      # hart_context::amd64_rdx
+    pushq %rcx      # hart_context::amd64_rcx
+    pushq %rbx      # hart_context::amd64_rbx
+    pushq %rax      # hart_context::amd64_rax
     movq %es, %rax
-    pushq %rax      # hart_context::x86_es
+    pushq %rax      # hart_context::amd64_es
     movq %ds, %rax
-    pushq %rax      # hart_context::x86_ds
+    pushq %rax      # hart_context::amd64_ds
 .endm
 
 .macro pop_interrupt_frame
     popq %rax
-    movq %rax, %ds  # hart_context::x86_ds
+    movq %rax, %ds  # hart_context::amd64_ds
     popq %rax
-    movq %rax, %es  # hart_context::x86_es
-    popq %rax       # hart_context::x86_rax
-    popq %rbx       # hart_context::x86_rbx
-    popq %rcx       # hart_context::x86_rcx
-    popq %rdx       # hart_context::x86_rdx
-    popq %rsi       # hart_context::x86_rsi
-    popq %rdi       # hart_context::x86_rdi
-    popq %rbp       # hart_context::x86_rbp
-    popq %r8        # hart_context::x86_r8
-    popq %r9        # hart_context::x86_r9
-    popq %r10       # hart_context::x86_r10
-    popq %r11       # hart_context::x86_r11
-    popq %r12       # hart_context::x86_r12
-    popq %r13       # hart_context::x86_r13
-    popq %r14       # hart_context::x86_r14
-    popq %r15       # hart_context::x86_r15
+    movq %rax, %es  # hart_context::amd64_es
+    popq %rax       # hart_context::amd64_rax
+    popq %rbx       # hart_context::amd64_rbx
+    popq %rcx       # hart_context::amd64_rcx
+    popq %rdx       # hart_context::amd64_rdx
+    popq %rsi       # hart_context::amd64_rsi
+    popq %rdi       # hart_context::amd64_rdi
+    popq %rbp       # hart_context::amd64_rbp
+    popq %r8        # hart_context::amd64_r8
+    popq %r9        # hart_context::amd64_r9
+    popq %r10       # hart_context::amd64_r10
+    popq %r11       # hart_context::amd64_r11
+    popq %r12       # hart_context::amd64_r12
+    popq %r13       # hart_context::amd64_r13
+    popq %r14       # hart_context::amd64_r14
+    popq %r15       # hart_context::amd64_r15
 .endm
 
 .macro swapgs_if_user
-    testq $3, 16(%rsp)  # hart_context::x86_cs RPL bits
+    testq $3, 16(%rsp)  # hart_context::amd64_cs RPL bits
     jz 1f
     swapgs
     1:
@@ -74,7 +74,7 @@
     .type \stubname, @function
     \stubname:
         cli
-        pushq $0x0000000000000000 # hart_context::x86_err
+        pushq $0x0000000000000000 # hart_context::amd64_err
         swapgs_if_user
         push_interrupt_frame
 
@@ -97,7 +97,7 @@
     .type \stubname, @function
     \stubname:
         .if \has_errcode == 0
-        pushq $0x0000000000000000 # hart_context::x86_err
+        pushq $0x0000000000000000 # hart_context::amd64_err
         .endif
         push_interrupt_frame
 

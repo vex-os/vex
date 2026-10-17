@@ -61,7 +61,7 @@ static void arch_init_hpet(void)
                 panic("hpet: failed to map registers");
             }
 
-            hpet_clocksrc.ctxdata = (void*)(mmio); // this removes the volatile qualifier without a warning
+            hpet_clocksrc.ctxdata = (void*)(mmio); // hpet_read_reg adds volatile back
 
             uacpi_table_unref(&table);
 

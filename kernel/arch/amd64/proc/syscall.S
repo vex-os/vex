@@ -65,8 +65,7 @@ amd64_syscall_entry:
 
     swapgs                      # %gs:0                         -> whatever userspace had
 
-    # NOTENOTE: this trusts RCX to be a canonical address;
-    # this would need an explicit check when dispatch_syscall
-    # ever starts rewriting amd64_rip (and it probably will
-    # considering it's somewhat how signals are going to work)
+    # SYSRET with a non-canonical RCX faults in ring 0 on Intel,
+    # so whatever rewrites amd64_rip has to keep it in the user half,
+    # as exec does by rejecting such entry points
     sysretq

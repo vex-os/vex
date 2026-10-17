@@ -5,6 +5,24 @@
 
 #define EI_NIDENT 16
 
+#define EI_MAG0  0
+#define EI_MAG1  1
+#define EI_MAG2  2
+#define EI_MAG3  3
+#define EI_CLASS 4
+#define EI_DATA  5
+
+#define ELFMAG0 UINT8_C(0x7F)
+#define ELFMAG1 UINT8_C(0x45)
+#define ELFMAG2 UINT8_C(0x4C)
+#define ELFMAG3 UINT8_C(0x46)
+
+#define ELFCLASS32 UINT8_C(1)
+#define ELFCLASS64 UINT8_C(2)
+
+#define ELFDATA2LSB UINT8_C(1)
+#define ELFDATA2MSB UINT8_C(2)
+
 #define ET_NONE   UINT16_C(0)      // No file type
 #define ET_REL    UINT16_C(1)      // Relocatable file
 #define ET_EXEC   UINT16_C(2)      // Executable file
@@ -202,37 +220,37 @@
 #define EV_NUM     UINT32_C(2)
 
 struct elf32_ehdr {
-    uint8_t e_ident[EI_NIDENT]; // Magic number and other info
-    uint16_t e_type;            // Object file type
-    uint16_t e_machine;         // Architecture
-    uint32_t e_version;         // Object file version
-    uint32_t e_entry;           // Entry point virtual address
-    uint32_t e_phoff;           // Program header table file offset
-    uint32_t e_shoff;           // Section header table file offset
-    uint32_t e_flags;           // Processor-specific flags
-    uint16_t e_ehsize;          // ELF header size in bytes
-    uint16_t e_phentsize;       // Program header table entry size
-    uint16_t e_phnum;           // Program header table entry count
-    uint16_t e_shentsize;       // Section header table entry size
-    uint16_t e_shnum;           // Section header table entry count
-    uint16_t e_shstrndx;        // Section header string table index
+    uint8_t e_ident[EI_NIDENT];
+    uint16_t e_type;
+    uint16_t e_machine;
+    uint32_t e_version;
+    uint32_t e_entry;
+    uint32_t e_phoff;
+    uint32_t e_shoff;
+    uint32_t e_flags;
+    uint16_t e_ehsize;
+    uint16_t e_phentsize;
+    uint16_t e_phnum;
+    uint16_t e_shentsize;
+    uint16_t e_shnum;
+    uint16_t e_shstrndx;
 } __packed;
 
 struct elf64_ehdr {
-    uint8_t e_ident[EI_NIDENT]; // Magic number and other info
-    uint16_t e_type;            // Object file type
-    uint16_t e_machine;         // Architecture
-    uint32_t e_version;         // Object file version
-    uint64_t e_entry;           // Entry point virtual address
-    uint64_t e_phoff;           // Program header table file offset
-    uint64_t e_shoff;           // Section header table file offset
-    uint32_t e_flags;           // Processor-specific flags
-    uint16_t e_ehsize;          // ELF header size in bytes
-    uint16_t e_phentsize;       // Program header table entry size
-    uint16_t e_phnum;           // Program header table entry count
-    uint16_t e_shentsize;       // Section header table entry size
-    uint16_t e_shnum;           // Section header table entry count
-    uint16_t e_shstrndx;        // Section header string table index
+    uint8_t e_ident[EI_NIDENT];
+    uint16_t e_type;
+    uint16_t e_machine;
+    uint32_t e_version;
+    uint64_t e_entry;
+    uint64_t e_phoff;
+    uint64_t e_shoff;
+    uint32_t e_flags;
+    uint16_t e_ehsize;
+    uint16_t e_phentsize;
+    uint16_t e_phnum;
+    uint16_t e_shentsize;
+    uint16_t e_shnum;
+    uint16_t e_shstrndx;
 } __packed;
 
 #define SHT_NULL           UINT32_C(0)          // Section header table entry unused
@@ -289,29 +307,29 @@ struct elf64_ehdr {
 #define SHF_EXCLUDE          0x80000000 // Section is excluded unless referenced or allocated (Solaris).
 
 struct elf32_shdr {
-    uint32_t sh_name;      // Section name (string table index)
-    uint32_t sh_type;      // Section type
-    uint32_t sh_flags;     // Section flags
-    uint32_t sh_addr;      // Section virtual address at execution
-    uint32_t sh_offset;    // Section file offset
-    uint32_t sh_size;      // Section size in bytes
-    uint32_t sh_link;      // Link to another section
-    uint32_t sh_info;      // Additional section information
-    uint32_t sh_addralign; // Section alignment
-    uint32_t sh_entsize;   // Entry size if section holds table
+    uint32_t sh_name;
+    uint32_t sh_type;
+    uint32_t sh_flags;
+    uint32_t sh_addr;
+    uint32_t sh_offset;
+    uint32_t sh_size;
+    uint32_t sh_link;
+    uint32_t sh_info;
+    uint32_t sh_addralign;
+    uint32_t sh_entsize;
 } __packed;
 
 struct elf64_shdr {
-    uint32_t sh_name;      // Section name (string table index)
-    uint32_t sh_type;      // Section type
-    uint64_t sh_flags;     // Section flags
-    uint64_t sh_addr;      // Section virtual address at execution
-    uint64_t sh_offset;    // Section file offset
-    uint64_t sh_size;      // Section size in bytes
-    uint32_t sh_link;      // Link to another section
-    uint32_t sh_info;      // Additional section information
-    uint64_t sh_addralign; // Section alignment
-    uint64_t sh_entsize;   // Entry size if section holds table
+    uint32_t sh_name;
+    uint32_t sh_type;
+    uint64_t sh_flags;
+    uint64_t sh_addr;
+    uint64_t sh_offset;
+    uint64_t sh_size;
+    uint32_t sh_link;
+    uint32_t sh_info;
+    uint64_t sh_addralign;
+    uint64_t sh_entsize;
 } __packed;
 
 #define PT_NULL         UINT32_C(0)          // Program header table entry unused

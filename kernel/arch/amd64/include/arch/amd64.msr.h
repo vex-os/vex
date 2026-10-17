@@ -12,6 +12,8 @@
 #define MSR_GS_BASE        UINT32_C(0xC0000101)
 #define MSR_KERNEL_GS_BASE UINT32_C(0xC0000102)
 
+#define MSR_EFER_SCE UINT64_C(0x0000000000000001)
+
 static __always_inline __nodiscard uint64_t rdmsr(uint32_t msreg)
 {
     uint32_t lo, hi;

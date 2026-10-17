@@ -3,8 +3,7 @@
 #include <vex/pci.h>
 #include <vex/spinlock.h>
 
-// PCI configuration space access via cf8 CF8/CFC I/O ports.
-// Covers segment 0 only; other segments require ECAM (MCFG).
+// Covers segment 0 only; other segments require ECAM (MCFG)
 
 #define PCI_CF8 UINT16_C(0x0CF8)
 #define PCI_CFC UINT16_C(0x0CFC)

@@ -17,7 +17,7 @@ void arch_thread_setup_kern(struct thread* restrict thrd, void* restrict entry, 
     thrd->ctx.amd64_rip = (uintptr_t)(entry);
     thrd->ctx.amd64_rsp = (uintptr_t)(kernel_stack_top);
     thrd->ctx.amd64_rdi = (uintptr_t)(arg);
-    thrd->ctx.amd64_rflags = 0x202;
+    thrd->ctx.amd64_rflags = AMD64_RFLAGS_FIXED | AMD64_RFLAGS_IF;
 
     thrd->arch.gs_base = thrd;
     thrd->arch.fs_base = nullptr;
@@ -40,7 +40,7 @@ void arch_thread_setup_user(struct thread* restrict thrd, void* restrict entry, 
     thrd->ctx.amd64_ss = gdt_selector(GDT_USER_DATA_64, 0, 3);
     thrd->ctx.amd64_rip = (uintptr_t)(entry);
     thrd->ctx.amd64_rsp = (uintptr_t)(user_stack_top);
-    thrd->ctx.amd64_rflags = 0x202;
+    thrd->ctx.amd64_rflags = AMD64_RFLAGS_FIXED | AMD64_RFLAGS_IF;
 
     thrd->arch.gs_base = nullptr;
     thrd->arch.fs_base = nullptr;
@@ -75,12 +75,12 @@ void arch_thread_exec(struct thread* restrict thrd, struct vmspace* restrict vms
     ctx->amd64_ss = gdt_selector(GDT_USER_DATA_64, 0, 3);
     ctx->amd64_rip = entry;
     ctx->amd64_rsp = user_stack_top;
-    ctx->amd64_rflags = 0x202;
+    ctx->amd64_rflags = AMD64_RFLAGS_FIXED | AMD64_RFLAGS_IF;
 
     // sysretq takes these instead of
     // the frame's rip, rflags and rsp
     ctx->amd64_rcx = entry;
-    ctx->amd64_r11 = 0x202;
+    ctx->amd64_r11 = AMD64_RFLAGS_FIXED | AMD64_RFLAGS_IF;
     thrd->entry_scratch = (void*)(user_stack_top);
 
     thrd->arch.gs_base = nullptr;
@@ -111,9 +111,6 @@ void arch_thread_set_tcb(struct thread* restrict thrd, uintptr_t tcb)
 
 void arch_thread_ctx_save(struct thread* restrict thrd)
 {
-    // I'm pretty certain arch_thread_ctx_save isn't going to get
-    // called from userspace so whatever userspace keeps in GS_BASE
-    // is swapped into KERNEL_GS_BASE so it's preserved here
     thrd->arch.gs_base = (void*)((uintptr_t)(rdmsr(MSR_KERNEL_GS_BASE)));
     thrd->arch.fs_base = (void*)((uintptr_t)(rdmsr(MSR_FS_BASE)));
 

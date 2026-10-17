@@ -97,6 +97,10 @@ static_assert(512 == sizeof(struct fat_fsinfo_fat32));
 #define FAT_ATTR_ARCHIVE   UINT8_C(0x20)
 #define FAT_ATTR_LONG_NAME UINT8_C(0x0F)
 
+#define FAT_NAME_END        UINT8_C(0x00) // DIR_Name[0] of the first free entry, all later ones are free too
+#define FAT_NAME_DELETED    UINT8_C(0xE5)
+#define FAT_NAME_ESCAPED_E5 UINT8_C(0x05) // Stands for a real leading 0xE5 (KANJI lead byte)
+
 struct fat_dir_entry {
     uint8_t name[11];          // DIR_Name
     uint8_t attribute;         // DIR_Attr
@@ -194,6 +198,7 @@ uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintp
 uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context) __nodiscard;
 uintptr_t fat_cluster_alloc_zeroed(struct fat_vfs_context* restrict context) __nodiscard;
 
+// Leaves offset one past the short entry it returns
 int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t* restrict offset,
     struct fat_dirent* restrict entry);
 int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,

@@ -120,12 +120,11 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
             return retval;
         }
 
-        if(entry_raw.dir.name[0] == 0x00) {
+        if(entry_raw.dir.name[0] == FAT_NAME_END) {
             return -ENOENT;
         }
 
-        // Deleted entries (any type including LFN) are skipped
-        if(entry_raw.dir.name[0] == 0xE5) {
+        if(entry_raw.dir.name[0] == FAT_NAME_DELETED) {
             num_ldir = 0;
             continue;
         }
@@ -156,10 +155,8 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
             num_ldir = 0;
         }
         else {
-            // 0x05 is a Kanji escape for 0xE5 as first char of an 8.3 name.
-            // Only applies to regular/directory entries, not to LFN order bytes.
-            if(entry_raw.dir.name[0] == 0x05) {
-                entry_raw.dir.name[0] = 0xE5;
+            if(entry_raw.dir.name[0] == FAT_NAME_ESCAPED_E5) {
+                entry_raw.dir.name[0] = FAT_NAME_DELETED;
             }
 
             memcpy(&entry->base, &entry_raw.dir, sizeof(struct fat_dir_entry));
@@ -344,7 +341,7 @@ int fat_dirent_remove(const struct fat_vfs_context* restrict context, uintptr_t 
             return retval;
         }
 
-        raw.dir.name[0] = 0xE5;
+        raw.dir.name[0] = FAT_NAME_DELETED;
 
         retval = write_entry(context, cluster, slot, &raw);
 
@@ -367,13 +364,11 @@ int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster
         int retval = read_entry(context, cluster, offset, &raw);
 
         if(retval == -ENOENT) {
-            // End of directory chain reached.
-            // The fixed FAT12/FAT16 root area cannot be extended.
+            // The fixed FAT12/FAT16 root area cannot be extended
             if(cluster == 0) {
                 return -ENOSPC;
             }
 
-            // Walk to the tail cluster of this directory's chain
             uintptr_t tail = cluster;
 
             for(;;) {
@@ -419,7 +414,7 @@ int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster
 
         uint8_t first = raw.dir.name[0];
 
-        if(first == 0x00 || first == 0xE5) {
+        if(first == FAT_NAME_END || first == FAT_NAME_DELETED) {
             if(run == 0) {
                 run_start = offset;
             }

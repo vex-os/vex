@@ -22,16 +22,16 @@ static_assert(0 == (ELF64_STACK_SIZE & (ELF64_STACK_SIZE - 1)), "CONFIG_USER_STA
 static bool ehdr_valid(const struct elf64_ehdr* restrict ehdr)
 {
     bool result = true;
-    result = result && ehdr->e_ident[0] == 0x7F;
-    result = result && ehdr->e_ident[1] == 0x45; // ASCII E
-    result = result && ehdr->e_ident[2] == 0x4C; // ASCII L
-    result = result && ehdr->e_ident[3] == 0x46; // ASCII F
-    result = result && ehdr->e_ident[4] == 0x02; // ELFCLASS64
+    result = result && ehdr->e_ident[EI_MAG0] == ELFMAG0;
+    result = result && ehdr->e_ident[EI_MAG1] == ELFMAG1;
+    result = result && ehdr->e_ident[EI_MAG2] == ELFMAG2;
+    result = result && ehdr->e_ident[EI_MAG3] == ELFMAG3;
+    result = result && ehdr->e_ident[EI_CLASS] == ELFCLASS64;
 
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-    result = result && ehdr->e_ident[5] == 0x01; // ELFDATA2LSB
+    result = result && ehdr->e_ident[EI_DATA] == ELFDATA2LSB;
 #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-    result = result && ehdr->e_ident[5] == 0x02; // ELFDATA2MSB
+    result = result && ehdr->e_ident[EI_DATA] == ELFDATA2MSB;
 #else
 #error Unknown endianness
 #endif
