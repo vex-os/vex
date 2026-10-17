@@ -21,7 +21,9 @@ static void pslab_add_region(uintptr_t start, size_t length)
     uintptr_t offset;
 
     for(offset = 0U; offset < length; offset += PAGE_SIZE) {
-        pframe_of(start + offset)->flags |= PFRAME_PSLAB;
+        struct pframe* pf = pframe_of(start + offset);
+
+        pf->flags |= PFRAME_PSLAB;
 
         head_ptr = phys_to_virt(start + offset);
         head_ptr[0] = pslab_list;

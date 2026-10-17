@@ -27,7 +27,8 @@ void dispatch_syscall(struct hart_context* restrict regs)
         return;
     }
 
-    this_thread()->syscall_ctx = regs;
+    struct thread* thrd = this_thread();
+    thrd->syscall_ctx = regs;
 
     uintptr_t args[6];
     args[0] = regs->syscall_arg_1;
@@ -42,7 +43,8 @@ void dispatch_syscall(struct hart_context* restrict regs)
 
 int syscall_dirfd(int dirfd, const char* restrict path, struct vnode** restrict out)
 {
-    struct process* proc = this_thread()->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -86,7 +88,8 @@ int syscall_dirfd(int dirfd, const char* restrict path, struct vnode** restrict 
 
 intptr_t syscall_with_fd(const uintptr_t* restrict args, intptr_t (*op)(struct file* restrict fp, const uintptr_t* restrict args))
 {
-    struct process* proc = this_thread()->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
