@@ -20,76 +20,40 @@ static void setup_rw_cdb(atapi_cdb_type cdb, uint8_t command, uintptr_t lba, siz
     cdb[8] = count & 0xFF;
 }
 
-static size_t max_packet_sectors(const struct atapi_device* restrict atapi)
-{
-    size_t result = UINT16_MAX; // CDB transfer length is 16-bit
-
-    if(atapi->max_transfer) {
-        size_t limit = atapi->max_transfer / atapi->base.sector_size;
-
-        if(limit < result) {
-            result = limit;
-        }
-    }
-
-    return result;
-}
-
-static int atapi_transfer(const struct atapi_device* restrict atapi, uint8_t command, uintptr_t lba, size_t count, uint8_t* restrict buffer)
-{
-    size_t sector_size = atapi->base.sector_size;
-    size_t max_sectors = max_packet_sectors(atapi);
-
-    if(sector_size == 0 || max_sectors == 0) {
-        return -EIO;
-    }
-
-    while(count > 0) {
-        size_t chunk = count < max_sectors ? count : max_sectors;
-        atapi_cdb_type cdb;
-
-        setup_rw_cdb(cdb, command, lba, chunk);
-
-        int retval = atapi->ops->send_packet(atapi, cdb, buffer, chunk * sector_size);
-
-        if(retval < 0) {
-            return retval;
-        }
-
-        buffer += chunk * sector_size;
-        lba += chunk;
-        count -= chunk;
-    }
-
-    return 0;
-}
-
-static int atapi_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
-{
-    return atapi_transfer(ATAPI_DEVICE_FROM_BLK(device), ATAPI_CMD_READ_10, lba, count, buffer);
-}
-
-static int atapi_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
+static void atapi_submit(const struct blk_device* restrict device, struct blk_request* restrict req)
 {
     const struct atapi_device* atapi = ATAPI_DEVICE_FROM_BLK(device);
-
-    if(0 == (atapi->flags & ATAPI_FLAG_WRITABLE)) {
-        return -EROFS;
-    }
-
-    return atapi_transfer(atapi, ATAPI_CMD_WRITE_10, lba, count, (uint8_t*)(buffer)); // Only ever read for a write
-}
-
-static int atapi_flush(const struct blk_device* restrict device)
-{
-    const struct atapi_device* atapi = ATAPI_DEVICE_FROM_BLK(device);
-
+    size_t count = req->length / device->sector_size;
     atapi_cdb_type cdb;
 
-    memset(cdb, 0, sizeof(atapi_cdb_type));
-    cdb[0] = ATAPI_CMD_SYNC_CACHE;
+    if(count > UINT16_MAX) {
+        req->status = -EINVAL;
+        req->done(req);
+        return;
+    }
 
-    return atapi->ops->send_packet(atapi, cdb, nullptr, 0);
+    switch(req->op) {
+        case BLK_REQ_READ:
+            setup_rw_cdb(cdb, ATAPI_CMD_READ_10, req->lba, count);
+            break;
+
+        case BLK_REQ_WRITE:
+            if(0 == (atapi->flags & ATAPI_FLAG_WRITABLE)) {
+                req->status = -EROFS;
+                req->done(req);
+                return;
+            }
+
+            setup_rw_cdb(cdb, ATAPI_CMD_WRITE_10, req->lba, count);
+            break;
+
+        default:
+            memset(cdb, 0, sizeof(atapi_cdb_type));
+            cdb[0] = ATAPI_CMD_SYNC_CACHE;
+            break;
+    }
+
+    atapi->ops->submit_packet(atapi, cdb, req);
 }
 
 static void atapi_release(const struct blk_device* restrict device)
@@ -102,9 +66,7 @@ static void atapi_release(const struct blk_device* restrict device)
 }
 
 static const struct blk_device_ops atapi_blk_device_ops = {
-    .read = &atapi_read,
-    .write = &atapi_write,
-    .flush = &atapi_flush,
+    .submit = &atapi_submit,
     .release = &atapi_release,
 };
 

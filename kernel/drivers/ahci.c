@@ -28,6 +28,8 @@
 #define HBA_CAP2 0x24 // Host Capabilities Extended
 #define HBA_BOHC 0x28 // BIOS/OS Handoff Control and Status
 
+#define HBA_CAP_S64A UINT32_C(0x80000000) // Supports 64-bit Addressing
+
 #define HBA_GHC_AE UINT32_C(0x80000000) // AHCI Enable
 #define HBA_GHC_IE UINT32_C(0x00000002) // Interrupt Enable
 
@@ -85,11 +87,13 @@
 #define DMA_OFFSET_CMDLIST  0x000 // [0x000..0x3FF] command list (32 slots * 32 bytes)
 #define DMA_OFFSET_FIS      0x400 // [0x400..0x4FF] received FIS
 #define DMA_OFFSET_CMDTABLE 0x500 // [0x500..0x57F] command table (FIS at 0x00, ATAPI CDB at 0x40)
-#define DMA_OFFSET_PRDT     0x580 // [0x580..0x58F] PRDT entry
-#define DMA_OFFSET_DATABUF  0x600 // [0x600..] data buffer
+#define DMA_OFFSET_PRDT     0x580 // [0x580..0x77F] PRDT, AHCI_MAX_PRDT entries
+#define DMA_OFFSET_DATABUF  0x780 // [0x780..0x97F] identify and capacity data
+#define DMA_DATABUF_SIZE    0x200
+#define DMA_NUM_PAGES       1
 
-#define DMA_BUFFER_SIZE 0x10000 // Max bytes per DMA command (64 KiB)
-#define DMA_NUM_PAGES   ((DMA_OFFSET_DATABUF + DMA_BUFFER_SIZE + PAGE_SIZE - 1) / PAGE_SIZE)
+#define AHCI_MAX_PRDT     32
+#define AHCI_MAX_TRANSFER 0x10000 // Bytes per command (64 KiB)
 
 #define AHCI_COMMAND_TIMEOUT_NS  UINT64_C(10000000000)
 #define AHCI_ENGINE_TIMEOUT_NS   UINT64_C(500000000) // PxCMD.CR and PxCMD.FR, per the spec
@@ -137,6 +141,9 @@ static_assert(32 == sizeof(struct ahci_cmd_header));
 static_assert(20 == sizeof(struct ata_fis_h2d));
 static_assert(16 == sizeof(struct ahci_prdt_entry));
 
+static_assert(DMA_OFFSET_PRDT + AHCI_MAX_PRDT * sizeof(struct ahci_prdt_entry) <= DMA_OFFSET_DATABUF);
+static_assert(DMA_OFFSET_DATABUF + DMA_DATABUF_SIZE <= DMA_NUM_PAGES * PAGE_SIZE);
+
 struct ahci_pci_context;
 
 struct ahci_port {
@@ -154,6 +161,7 @@ struct ahci_port {
 
 struct ahci_pci_context {
     struct pci_bar* abar;
+    uintptr_t dma_limit;
     bool irq;
     struct blk_device devices[32];
     struct atapi_device atapi_devices[32];
@@ -321,25 +329,18 @@ static int ahci_wait(struct ahci_port* restrict port, uintptr_t lba)
     }
 }
 
-static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cmd, uint16_t count, size_t byte_count, bool write)
+static void ahci_setup_header(struct ahci_port* restrict port, uint16_t flags, const struct blk_segment* restrict segments,
+    size_t num_segments)
 {
     volatile struct ahci_cmd_header* header = (volatile struct ahci_cmd_header*)(port->dma_virt + DMA_OFFSET_CMDLIST);
-    volatile struct ata_fis_h2d* fis = (volatile struct ata_fis_h2d*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
     volatile struct ahci_prdt_entry* prdt = (volatile struct ahci_prdt_entry*)(port->dma_virt + DMA_OFFSET_PRDT);
 
     uintptr_t cmdtable_phys = port->dma_phys + DMA_OFFSET_CMDTABLE;
-    uintptr_t buffer_phys = port->dma_phys + DMA_OFFSET_DATABUF;
 
-    memset((void*)fis, 0, sizeof(struct ata_fis_h2d));
+    kassert(num_segments <= AHCI_MAX_PRDT);
 
-    if(write) {
-        header->flags = htole16((UINT16_C(1) << 6) | 5); // Write, CFL=5
-    }
-    else {
-        header->flags = htole16(5); // CFL=5
-    }
-
-    header->prdtl = htole16(1);
+    header->flags = htole16(flags | 5); // CFL=5
+    header->prdtl = htole16((uint16_t)(num_segments));
     header->prdbc = 0;
     header->ctba = htole32(cmdtable_phys);
     header->ctbau = htole32(cmdtable_phys >> 32);
@@ -347,6 +348,23 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
     header->reserved[1] = 0;
     header->reserved[2] = 0;
     header->reserved[3] = 0;
+
+    for(size_t i = 0; i < num_segments; ++i) {
+        prdt[i].dba = htole32(segments[i].phys);
+        prdt[i].dbau = htole32(segments[i].phys >> 32);
+        prdt[i].reserved = 0;
+        prdt[i].dbc = htole32((uint32_t)(segments[i].length) - 1);
+    }
+}
+
+static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cmd, uint16_t count,
+    const struct blk_segment* restrict segments, size_t num_segments, bool write)
+{
+    volatile struct ata_fis_h2d* fis = (volatile struct ata_fis_h2d*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
+
+    memset((void*)fis, 0, sizeof(struct ata_fis_h2d));
+
+    ahci_setup_header(port, write ? (UINT16_C(1) << 6) : 0, segments, num_segments); // W bit
 
     fis->type = ATA_FIS_TYPE_H2D;
     fis->pm_port = 0x80; // C=1, new command
@@ -360,11 +378,6 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
     fis->lba5 = lba >> 40;
     fis->count_lo = count >> 0;
     fis->count_hi = count >> 8;
-
-    prdt->dba = htole32(buffer_phys);
-    prdt->dbau = htole32(buffer_phys >> 32);
-    prdt->reserved = 0;
-    prdt->dbc = htole32((uint32_t)(byte_count)-1);
 }
 
 static int ahci_issue(struct ahci_port* restrict port, uintptr_t lba)
@@ -396,9 +409,11 @@ static int ahci_identify(struct ahci_port* restrict port, ata_identify_type iden
 {
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
 
-    memset((void*)databuf, 0, 512);
+    struct blk_segment segment = { port->dma_phys + DMA_OFFSET_DATABUF, sizeof(ata_identify_type) };
 
-    ahci_setup(port, 0, ATA_CMD_IDENTIFY, 0, sizeof(ata_identify_type), false);
+    memset((void*)databuf, 0, sizeof(ata_identify_type));
+
+    ahci_setup(port, 0, ATA_CMD_IDENTIFY, 0, &segment, 1, false);
 
     int retval = ahci_issue(port, 0);
 
@@ -415,9 +430,11 @@ static int ahci_atapi_identify(struct ahci_port* restrict port, ata_identify_typ
 {
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
 
+    struct blk_segment segment = { port->dma_phys + DMA_OFFSET_DATABUF, sizeof(ata_identify_type) };
+
     memset((void*)databuf, 0, sizeof(ata_identify_type));
 
-    ahci_setup(port, 0, ATA_CMD_IDENTIFY_ATAPI, 0, sizeof(ata_identify_type), false);
+    ahci_setup(port, 0, ATA_CMD_IDENTIFY_ATAPI, 0, &segment, 1, false);
 
     int retval = ahci_issue(port, 0);
 
@@ -430,34 +447,15 @@ static int ahci_atapi_identify(struct ahci_port* restrict port, ata_identify_typ
     return 0;
 }
 
-static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_type cdb, size_t byte_count, bool write)
+static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_type cdb, const struct blk_segment* restrict segments,
+    size_t num_segments, size_t byte_count, bool write)
 {
-    volatile struct ahci_cmd_header* header = (volatile struct ahci_cmd_header*)(port->dma_virt + DMA_OFFSET_CMDLIST);
     volatile struct ata_fis_h2d* fis = (volatile struct ata_fis_h2d*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
-    volatile struct ahci_prdt_entry* prdt = (volatile struct ahci_prdt_entry*)(port->dma_virt + DMA_OFFSET_PRDT);
-
     volatile uint8_t* atapi_area = port->dma_virt + DMA_OFFSET_CMDTABLE + 0x40;
-
-    uintptr_t cmdtable_phys = port->dma_phys + DMA_OFFSET_CMDTABLE;
-    uintptr_t buffer_phys = port->dma_phys + DMA_OFFSET_DATABUF;
 
     memset((void*)fis, 0, sizeof(struct ata_fis_h2d));
 
-    if(write) {
-        header->flags = htole16((UINT16_C(1) << 6) | (UINT16_C(1) << 5) | 5); // Write, ATAPI, CFL=5
-    }
-    else {
-        header->flags = htole16((UINT16_C(1) << 5) | 5); // ATAPI, CFL=5
-    }
-
-    header->prdtl = htole16(byte_count > 0 ? 1 : 0);
-    header->prdbc = 0;
-    header->ctba = htole32(cmdtable_phys);
-    header->ctbau = htole32(cmdtable_phys >> 32);
-    header->reserved[0] = 0;
-    header->reserved[1] = 0;
-    header->reserved[2] = 0;
-    header->reserved[3] = 0;
+    ahci_setup_header(port, (write ? (UINT16_C(1) << 6) : 0) | (UINT16_C(1) << 5), segments, num_segments); // W and A bits
 
     fis->type = ATA_FIS_TYPE_H2D;
     fis->pm_port = 0x80;
@@ -467,13 +465,6 @@ static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_ty
     fis->lba2 = (byte_count >> 8) & 0xFF;
 
     memcpy((void*)atapi_area, cdb, sizeof(atapi_cdb_type));
-
-    if(byte_count > 0) {
-        prdt->dba = htole32(buffer_phys);
-        prdt->dbau = htole32(buffer_phys >> 32);
-        prdt->reserved = 0;
-        prdt->dbc = htole32(byte_count - 1);
-    }
 }
 
 static int ahci_atapi_capacity(struct ahci_port* restrict port, size_t* restrict sector_count, size_t* restrict sector_size)
@@ -485,9 +476,11 @@ static int ahci_atapi_capacity(struct ahci_port* restrict port, size_t* restrict
     cdb[0] = 0x25; // READ CAPACITY(10)
 
     uint8_t result[8];
+    struct blk_segment segment = { port->dma_phys + DMA_OFFSET_DATABUF, sizeof(result) };
+
     memset((void*)databuf, 0, sizeof(result));
 
-    ahci_atapi_setup(port, cdb, sizeof(result), false);
+    ahci_atapi_setup(port, cdb, &segment, 1, sizeof(result), false);
 
     int retval = ahci_issue(port, 0);
 
@@ -511,150 +504,64 @@ static int ahci_atapi_capacity(struct ahci_port* restrict port, size_t* restrict
     return 0;
 }
 
-static int ahci_atapi_packet(const struct atapi_device* restrict device, const atapi_cdb_type cdb, void* restrict buffer, size_t count)
+static void finish(struct blk_request* restrict req, int status)
+{
+    req->status = status;
+    req->done(req);
+}
+
+static void ahci_atapi_submit(const struct atapi_device* restrict device, const atapi_cdb_type cdb, struct blk_request* restrict req)
 {
     struct ahci_port* port = device->base.ctxdata;
 
-    volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
-
-    bool write = cdb[0] == 0x2A; // WRITE(10)
-
-    if(count > DMA_BUFFER_SIZE) {
-        return -EINVAL;
-    }
-
     if(!port_acquire(port)) {
-        return -ENODEV;
+        finish(req, -ENODEV);
+        return;
     }
 
-    if(write && count > 0) {
-        memcpy((void*)databuf, buffer, count);
-    }
+    ahci_atapi_setup(port, cdb, req->segments, req->num_segments, req->length, req->op == BLK_REQ_WRITE);
 
-    ahci_atapi_setup(port, cdb, count, write);
-
-    int retval = ahci_issue(port, 0);
-
-    if(retval == 0 && !write && count > 0) {
-        memcpy(buffer, (const void*)(databuf), count);
-    }
+    int retval = ahci_issue(port, req->lba);
 
     mutex_release(&port->lock);
 
-    return retval;
+    finish(req, retval);
 }
 
 static const struct atapi_device_ops ahci_atapi_ops = {
-    .send_packet = &ahci_atapi_packet,
+    .submit_packet = &ahci_atapi_submit,
     .release = &ahci_atapi_release,
 };
 
-static size_t max_command_sectors(const struct blk_device* restrict device)
-{
-    return DMA_BUFFER_SIZE / device->sector_size;
-}
-
-static bool request_in_range(const struct blk_device* restrict device, uintptr_t lba, size_t count)
-{
-    return lba < device->sector_count && count <= device->sector_count - lba;
-}
-
-static int ahci_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+static void ahci_submit(const struct blk_device* restrict device, struct blk_request* restrict req)
 {
     struct ahci_port* port = device->ctxdata;
-
-    if(!request_in_range(device, lba, count)) {
-        return -EINVAL;
-    }
-
-    volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
-    size_t max_sectors = max_command_sectors(device);
-    uint8_t* buf = buffer;
-
-    while(count > 0) {
-        size_t chunk = count < max_sectors ? count : max_sectors;
-        size_t bytes = chunk * device->sector_size;
-
-        if(!port_acquire(port)) {
-            return -ENODEV;
-        }
-
-        ahci_setup(port, lba, ATA_CMD_READ_DMA_EXT, (uint16_t)chunk, bytes, false);
-
-        int retval = ahci_issue(port, lba);
-
-        if(retval == 0) {
-            memcpy(buf, (const uint8_t*)databuf, bytes);
-        }
-
-        mutex_release(&port->lock);
-
-        if(retval < 0) {
-            return retval;
-        }
-
-        buf += bytes;
-        lba += chunk;
-        count -= chunk;
-    }
-
-    return 0;
-}
-
-static int ahci_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
-{
-    struct ahci_port* port = device->ctxdata;
-
-    if(!request_in_range(device, lba, count)) {
-        return -EINVAL;
-    }
-
-    volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
-    size_t max_sectors = max_command_sectors(device);
-    const uint8_t* buf = buffer;
-
-    while(count > 0) {
-        size_t chunk = count < max_sectors ? count : max_sectors;
-        size_t bytes = chunk * device->sector_size;
-
-        if(!port_acquire(port)) {
-            return -ENODEV;
-        }
-
-        memcpy((void*)databuf, buf, bytes);
-
-        ahci_setup(port, lba, ATA_CMD_WRITE_DMA_EXT, (uint16_t)chunk, bytes, true);
-
-        int retval = ahci_issue(port, lba);
-
-        mutex_release(&port->lock);
-
-        if(retval < 0) {
-            return retval;
-        }
-
-        buf += bytes;
-        lba += chunk;
-        count -= chunk;
-    }
-
-    return 0;
-}
-
-static int ahci_flush(const struct blk_device* restrict device)
-{
-    struct ahci_port* port = device->ctxdata;
+    uint16_t count = (uint16_t)(req->length / device->sector_size);
 
     if(!port_acquire(port)) {
-        return -ENODEV;
+        finish(req, -ENODEV);
+        return;
     }
 
-    ahci_setup(port, 0, ATA_CMD_FLUSH_EXT, 0, 512, false);
-    int retval = ahci_issue(port, 0);
+    switch(req->op) {
+        case BLK_REQ_READ:
+            ahci_setup(port, req->lba, ATA_CMD_READ_DMA_EXT, count, req->segments, req->num_segments, false);
+            break;
+
+        case BLK_REQ_WRITE:
+            ahci_setup(port, req->lba, ATA_CMD_WRITE_DMA_EXT, count, req->segments, req->num_segments, true);
+            break;
+
+        default:
+            ahci_setup(port, 0, ATA_CMD_FLUSH_EXT, 0, nullptr, 0, false);
+            break;
+    }
+
+    int retval = ahci_issue(port, req->lba);
 
     mutex_release(&port->lock);
 
-    return retval;
+    finish(req, retval);
 }
 
 static int ahci_port_init(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
@@ -721,11 +628,17 @@ static void ahci_port_teardown(struct ahci_port* restrict port)
 }
 
 static const struct blk_device_ops ahci_blk_device_ops = {
-    .read = &ahci_read,
-    .write = &ahci_write,
-    .flush = &ahci_flush,
+    .submit = &ahci_submit,
     .release = &ahci_blk_release,
 };
+
+static void set_limits(const struct ahci_pci_context* restrict context, struct blk_device* restrict device)
+{
+    device->max_transfer = AHCI_MAX_TRANSFER;
+    device->max_segments = AHCI_MAX_PRDT;
+    device->dma_limit = context->dma_limit;
+    device->dma_align = 1; // PRDT DBA and DBC both have to be even
+}
 
 static int ahci_port_register_ata(struct ahci_pci_context* restrict context, unsigned port_num)
 {
@@ -743,6 +656,8 @@ static int ahci_port_register_ata(struct ahci_pci_context* restrict context, uns
     device->sector_size = 0;
     device->flags = 0;
     device->ctxdata = port;
+
+    set_limits(context, device);
 
     int retval = add_blk_device_root(device, blk_name_ata, context->ata_iterator, port_num);
 
@@ -770,6 +685,8 @@ static int ahci_port_register_atapi(struct ahci_pci_context* restrict context, u
     atapi_dev->base.sector_count = 0;
     atapi_dev->base.sector_size = 0;
     atapi_dev->base.flags = 0;
+
+    set_limits(context, &atapi_dev->base);
 
     int retval = add_atapi_device(atapi_dev, blk_name_atapi, context->atapi_iterator, port_num);
 
@@ -806,7 +723,7 @@ static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struc
     device->sector_count = ata_identify_sector_count(identify);
     device->sector_size = ata_identify_logical_sector_size(identify);
 
-    if(device->sector_size == 0 || device->sector_size > DMA_BUFFER_SIZE) {
+    if(device->sector_size == 0 || device->sector_size > AHCI_MAX_TRANSFER) {
         pr_verbose("ahci: %u.%u: unsupported sector size %zu", context->ata_iterator, port_num, device->sector_size);
         ahci_port_teardown(port);
         return;
@@ -853,7 +770,7 @@ static void ahci_port_probe_atapi(struct ahci_pci_context* restrict context, str
         return;
     }
 
-    if(sector_size == 0 || sector_size > DMA_BUFFER_SIZE) {
+    if(sector_size == 0 || sector_size > AHCI_MAX_TRANSFER) {
         pr_verbose("ahci: %u.%u: unsupported sector size %zu", context->atapi_iterator, port_num, sector_size);
         ahci_port_teardown(port);
         return;
@@ -861,7 +778,6 @@ static void ahci_port_probe_atapi(struct ahci_pci_context* restrict context, str
 
     atapi_dev->base.sector_count = sector_count;
     atapi_dev->base.sector_size = sector_size;
-    atapi_dev->max_transfer = DMA_BUFFER_SIZE;
     atapi_dev->base.flags = BLK_FLAG_PRESENT;
     atapi_dev->base.ctxdata = port;
 
@@ -958,6 +874,11 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
     }
 
     context->abar = abar;
+    context->dma_limit = UINT32_MAX;
+
+    if(pci_bar_read32(abar, HBA_CAP) & HBA_CAP_S64A) {
+        context->dma_limit = UINTPTR_MAX;
+    }
 
     ahci_handoff(abar);
 

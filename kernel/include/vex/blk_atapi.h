@@ -6,7 +6,7 @@ typedef uint8_t atapi_cdb_type[12];
 
 struct atapi_device;
 struct atapi_device_ops {
-    int (*send_packet)(const struct atapi_device* restrict device, const atapi_cdb_type cdb, void* restrict buffer, size_t count);
+    void (*submit_packet)(const struct atapi_device* restrict device, const atapi_cdb_type cdb, struct blk_request* restrict req);
     void (*release)(const struct atapi_device* restrict device);
 };
 
@@ -16,7 +16,6 @@ struct atapi_device {
     struct blk_device base;
     const struct atapi_device_ops* ops;
     unsigned flags;
-    size_t max_transfer; // Bytes per packet, zero if unlimited
     void* ctxdata;
 };
 
