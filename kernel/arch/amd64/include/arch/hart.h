@@ -58,25 +58,25 @@ struct amd64_hart_tss {
     uint32_t iopb;
 } __packed;
 
-#define HART_FLAG_BSP    0x0001
-#define HART_FLAG_ACTIVE 0x0002
-
 struct hart_local;
 
 struct arch_hart {
     uint32_t lapic_id;
     uint64_t lapic_timer_hz;
     struct amd64_hart_tss tss;
-    struct amd64_gdt gdt; // Per hart, since loading the task register marks its TSS descriptor busy
+    struct amd64_gdt gdt;
 };
+
+static __always_inline void hart_relax(void)
+{
+    asm volatile("pause");
+}
 
 static __always_inline void hart_spin(void)
 {
-    // A hart spinning with interrupts
-    // disabled would otherwise never answer a shootdown
-    tlb_poll();
+    tlb_poll(); // Answers shootdowns with interrupts disabled
 
-    asm volatile("pause");
+    hart_relax();
 }
 
 static __always_inline void hart_stop(void)
@@ -126,13 +126,11 @@ static __always_inline void restore_interrupts(bool enabled)
     }
 }
 
-struct limine_mp_response;
-struct limine_mp_info;
-
 #define HART_IPI_EVERYONE  ((struct hart_local*)(-1))
 #define HART_IPI_EXCEPT_ME ((struct hart_local*)(-2))
 
-void hart_setup_1(struct hart_local* restrict hart, unsigned short index, const struct limine_mp_info* restrict info,
-    const struct limine_mp_response* restrict response);
-void hart_setup_2(struct hart_local* restrict hart);
+void arch_enumerate_harts(void);
+void arch_start_hart(struct hart_local* restrict hart);
+
+void hart_setup(struct hart_local* restrict hart);
 void hart_ipi(struct hart_local* restrict target, unsigned ireq_number);

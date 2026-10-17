@@ -89,10 +89,17 @@ static struct thread* rq_take_nolock(struct hart_local* restrict hart)
     return nullptr;
 }
 
+static __always_inline __nodiscard bool hart_is_idle(const struct hart_local* restrict hart)
+{
+    unsigned short flags = atomic_load_n(&hart->flags, ATOMIC_RELAXED);
+
+    return HART_FLAG_ONLINE == (flags & (HART_FLAG_ONLINE | HART_FLAG_ACTIVE));
+}
+
 static void kick_idle_hart(const struct thread* restrict thrd)
 {
     if(thrd->pinned_hart) {
-        if(0 == (atomic_load_n(&thrd->pinned_hart->flags, ATOMIC_RELAXED) & HART_FLAG_ACTIVE)) {
+        if(hart_is_idle(thrd->pinned_hart)) {
             hart_ipi(thrd->pinned_hart, sched_ireq_number);
         }
 
@@ -102,7 +109,7 @@ static void kick_idle_hart(const struct thread* restrict thrd)
     for(unsigned long i = 0; i < num_harts; ++i) {
         struct hart_local* hart = &harts[i];
 
-        if(0 == (atomic_load_n(&hart->flags, ATOMIC_RELAXED) & HART_FLAG_ACTIVE)) {
+        if(hart_is_idle(hart)) {
             hart_ipi(hart, sched_ireq_number);
             return;
         }
