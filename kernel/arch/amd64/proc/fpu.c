@@ -1,16 +1,12 @@
 #include <arch/amd64.cpuid.h>
 #include <arch/amd64.fpu.h>
 #include <vex/compiler.h>
+#include <vex/cpucaps.h>
 #include <vex/initcall.h>
 #include <vex/kstack.h>
 #include <vex/page.h>
 #include <vex/panic.h>
 #include <vex/string.h>
-
-// FIXME: this assumes all the harts
-// support the exact same FPU features
-// as the bootstrap hart so if you run
-// a double-socketed motherboard, you're fucked
 
 #define CR0_MP UINT64_C(0x0000000000000002)
 #define CR0_EM UINT64_C(0x0000000000000004)
@@ -46,24 +42,16 @@ static __always_inline void xsetbv(uint32_t index, uint64_t value)
 
 static void detect_xfeatures(void)
 {
-    uint32_t eax, ebx, ecx, edx;
+    if(cpu_has(CPU_FEATURE_XSAVE)) {
+        xfeatures = XFEATURE_X87 | XFEATURE_SSE;
 
-    cpuid(1, 0, &eax, &ebx, &ecx, &edx);
+        if(cpu_has(CPU_FEATURE_AVX)) {
+            xfeatures |= XFEATURE_AVX;
+        }
 
-    if(0 == (edx & CPUID_1_EDX_FXSR)) {
-        panic("fpu: fxsave is not supported by the processor");
-    }
-
-    if(0 == (ecx & CPUID_1_ECX_XSAVE)) {
-        return;
-    }
-
-    cpuid(0x0D, 0, &eax, &ebx, &ecx, &edx);
-
-    xfeatures = (((uint64_t)(edx) << 32) | eax) & (XFEATURE_X87 | XFEATURE_SSE | XFEATURE_AVX | XFEATURE_AVX512);
-
-    if((xfeatures & XFEATURE_AVX512) != XFEATURE_AVX512 || 0 == (xfeatures & XFEATURE_AVX)) {
-        xfeatures &= ~XFEATURE_AVX512;
+        if(cpu_has(CPU_FEATURE_AVX512)) {
+            xfeatures |= XFEATURE_AVX512;
+        }
     }
 }
 

@@ -527,6 +527,10 @@ static void sched_init(void)
     }
 
     for(unsigned long i = 0; i < num_harts; ++i) {
+        if(harts[i].bringup == HART_BRINGUP_PARK) {
+            continue;
+        }
+
         harts[i].idle_thread = create_thread_kern(&sched_idle, nullptr);
 
         if(harts[i].idle_thread == nullptr) {

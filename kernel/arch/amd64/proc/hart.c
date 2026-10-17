@@ -35,7 +35,7 @@ static void panic_halt_handler(unsigned number, const struct hart_context* restr
 
 static void __noreturn limine_hart_entry(struct limine_mp_info* restrict info)
 {
-    hart_entry((struct hart_local*)(uintptr_t)(info->extra_argument));
+    hart_park((struct hart_local*)(uintptr_t)(info->extra_argument));
 }
 
 void arch_enumerate_harts(void)
