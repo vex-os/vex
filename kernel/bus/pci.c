@@ -1,7 +1,7 @@
 #include <arch/ireq.h>
+#include <arch/msi.h>
 #include <vex/assert.h>
 #include <vex/errno.h>
-#include <vex/intctl.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
@@ -582,21 +582,9 @@ void pci_disable_busmaster(struct pci_device* restrict device)
 
 int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handler, void* restrict ctxdata)
 {
-    uint8_t int_pin = pci_cfg_read8(device, PCI_CFG_INT_PIN);
+    uint8_t cap = pci_get_cap(device, PCI_CAP_MSI);
 
-    if(int_pin == 0) {
-        return -ENODEV;
-    }
-
-    uint8_t int_line = pci_cfg_read8(device, PCI_CFG_INT_LINE);
-
-    if(int_line == 0xFF) {
-        return -ENODEV;
-    }
-
-    struct intctl* controller = find_intctl(int_line);
-
-    if(controller == nullptr) {
+    if(cap == 0) {
         return -ENODEV;
     }
 
@@ -608,8 +596,35 @@ int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handle
 
     device->priv.ireq_number = ireq_number;
 
-    intctl_route(controller, int_line, ireq_number + ARCH_IREQ_BASE, 0, TRIGGER_LEVEL, ACTIVE_LOW);
-    intctl_unmask(controller, int_line);
+    uint64_t address;
+    uint32_t data;
+    arch_msi_compose(ireq_number + ARCH_IREQ_BASE, &address, &data);
+
+    uint16_t control = pci_cfg_read16(device, cap + PCI_MSI_CONTROL);
+    control &= ~(uint16_t)(PCI_MSI_CONTROL_ENABLE | PCI_MSI_CONTROL_MME);
+
+    pci_cfg_write16(device, cap + PCI_MSI_CONTROL, control);
+    pci_cfg_write32(device, cap + PCI_MSI_ADDRESS_LO, (uint32_t)(address));
+
+    uintptr_t mask_offset = cap + PCI_MSI_MASK_32;
+
+    if(control & PCI_MSI_CONTROL_64BIT) {
+        pci_cfg_write32(device, cap + PCI_MSI_ADDRESS_HI, (uint32_t)(address >> 32));
+        pci_cfg_write16(device, cap + PCI_MSI_DATA_64, (uint16_t)(data));
+        mask_offset = cap + PCI_MSI_MASK_64;
+    }
+    else {
+        pci_cfg_write16(device, cap + PCI_MSI_DATA_32, (uint16_t)(data));
+    }
+
+    if(control & PCI_MSI_CONTROL_PVM) {
+        pci_cfg_write32(device, mask_offset, pci_cfg_read32(device, mask_offset) & ~UINT32_C(1));
+    }
+
+    uint16_t cmd = pci_cfg_read16(device, PCI_CFG_COMMAND);
+    pci_cfg_write16(device, PCI_CFG_COMMAND, cmd | PCI_CMD_INT_DISABLE);
+
+    pci_cfg_write16(device, cap + PCI_MSI_CONTROL, control | PCI_MSI_CONTROL_ENABLE);
 
     return 0;
 }
@@ -620,11 +635,11 @@ void pci_release_irq(struct pci_device* restrict device)
         return;
     }
 
-    uint8_t int_line = pci_cfg_read8(device, PCI_CFG_INT_LINE);
-    struct intctl* controller = find_intctl(int_line);
+    uint8_t cap = pci_get_cap(device, PCI_CAP_MSI);
 
-    if(controller) {
-        intctl_mask(controller, int_line);
+    if(cap) {
+        uint16_t control = pci_cfg_read16(device, cap + PCI_MSI_CONTROL);
+        pci_cfg_write16(device, cap + PCI_MSI_CONTROL, control & ~(uint16_t)(PCI_MSI_CONTROL_ENABLE));
     }
 
     remove_ireq_handler(device->priv.ireq_number);
