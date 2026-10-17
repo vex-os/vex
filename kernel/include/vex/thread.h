@@ -38,11 +38,10 @@ struct thread {
     struct hart_local* hart;
     struct hart_local* pinned_hart; // Set before the first enqueue; nullptr runs on any hart
 
-    bool enqueued_by_signal;
     struct thread* rq_next;
     struct thread* rq_prev;
 
-    struct event** events; // events that can wake up this thread
+    struct event** events;
     size_t wakeup_index;
     size_t num_events;
     size_t max_events;

@@ -19,12 +19,12 @@
 #define IOAPIC_REG_TBL_BASE   UINT32_C(0x00000010)
 #define IOAPIC_REG_TBL_STRIDE UINT32_C(0x00000002)
 
-#define RTE_DELIVERY_FIXED  0 // fixed
-#define RTE_DELIVERY_LOWEST 1 // lowest priority
-#define RTE_DELIVERY_SMI    2 // SMI
-#define RTE_DELIVERY_NMI    4 // NMI
-#define RTE_DELIVERY_INIT   5 // INIT
-#define RTE_DELIVERY_EXTINT 7 // ExtINT
+#define RTE_DELIVERY_FIXED  0
+#define RTE_DELIVERY_LOWEST 1
+#define RTE_DELIVERY_SMI    2
+#define RTE_DELIVERY_NMI    4
+#define RTE_DELIVERY_INIT   5
+#define RTE_DELIVERY_EXTINT 7
 
 struct rte_entry {
     uint64_t vector : 8;

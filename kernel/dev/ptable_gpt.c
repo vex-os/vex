@@ -31,7 +31,7 @@ struct pmbr_sector {
 
 #ifndef __INTELLISENSE__
 static_assert(16 == sizeof(struct pmbr_entry));
-static_assert(512 == sizeof(struct pmbr_sector)); // shut your damn mouth it's not 516
+static_assert(512 == sizeof(struct pmbr_sector));
 #endif
 
 struct gpt_header {
@@ -61,7 +61,7 @@ struct gpt_entry {
 } __packed;
 
 #ifndef __INTELLISENSE__
-static_assert(92 == sizeof(struct gpt_header)); // shut your damn mouth it's not 96
+static_assert(92 == sizeof(struct gpt_header));
 static_assert(56 == sizeof(struct gpt_entry));
 #endif
 

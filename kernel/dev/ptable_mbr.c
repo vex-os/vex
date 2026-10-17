@@ -30,7 +30,7 @@ struct mbr_sector {
 
 #ifndef __INTELLISENSE__
 static_assert(16 == sizeof(struct mbr_entry));
-static_assert(512 == sizeof(struct mbr_sector)); // shutcho damn mouth it's not 516
+static_assert(512 == sizeof(struct mbr_sector));
 #endif
 
 static int mbr_detect(const struct blk_device* restrict device, void** restrict ptdata)

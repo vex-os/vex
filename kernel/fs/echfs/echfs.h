@@ -9,7 +9,7 @@
 struct blk_device;
 
 struct echfs_identity {
-    uint8_t reserved_1[4]; // Reserved for jump instruction or whatever else echfs-utils wants to put here
+    uint8_t reserved_1[4];
     uint8_t signature[8];
     uint64_t total_blocks;
     uint64_t maindir_size;

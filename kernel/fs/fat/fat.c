@@ -405,17 +405,13 @@ static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
     uintptr_t dir_entry_s = byte_offset / sizeof(union fat_entry);
     uintptr_t dir_lba = lba;
 
-    // Reconstruct dir_cluster and dir_offset from the nodenumber
-    // so that writes can update entries without additional scanning.
-    // For FAT12/FAT16 the root directory lives before data_start (cluster == 0).
-
+    // Recovered from the node number so writes don't have to scan the directory
     uintptr_t dir_cluster;
     size_t dir_offset;
 
     uintptr_t root_start = context->data_start - context->rootdir_sectors;
 
     if(dir_lba >= root_start && dir_lba < context->data_start) {
-        // Entry is in the fixed FAT12/FAT16 root directory area
         dir_cluster = 0;
         dir_offset = (dir_lba - root_start) * num_entries + dir_entry_s;
     }

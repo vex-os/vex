@@ -84,7 +84,11 @@ static __always_inline void hart_stop(void)
     asm volatile("hlt");
 }
 
-#define AMD64_RFLAGS_IF UINT64_C(0x0000000000000200)
+#define AMD64_RFLAGS_FIXED UINT64_C(0x0000000000000002) // Reserved, always set
+#define AMD64_RFLAGS_TF    UINT64_C(0x0000000000000100)
+#define AMD64_RFLAGS_IF    UINT64_C(0x0000000000000200)
+#define AMD64_RFLAGS_DF    UINT64_C(0x0000000000000400)
+#define AMD64_RFLAGS_AC    UINT64_C(0x0000000000040000)
 
 static __always_inline __nodiscard uint64_t read_rflags(void)
 {

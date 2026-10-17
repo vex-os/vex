@@ -198,7 +198,7 @@ static int lookup_locked(struct vnode* restrict node, const char* restrict name,
             continue;
         }
 
-        *out = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1); // fat_dirent_read increments the offset
+        *out = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1);
 
         return 0;
     }
@@ -229,7 +229,7 @@ static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict
             continue;
         }
 
-        out->d_ino = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1); // fat_dirent_read increments the offset
+        out->d_ino = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1);
 
         if(entry.base.attribute & FAT_ATTR_DIRECTORY) {
             out->d_nodetype = VNODE_DIRECTORY;
@@ -364,7 +364,6 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
         return retval;
     }
 
-    // Write . and .. entries into newly created directories
     if(type == VNODE_DIRECTORY) {
         union fat_entry dot_entry;
         memset(&dot_entry, 0, sizeof(union fat_entry));
@@ -387,8 +386,13 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
         dot_entry.dir.name[0] = '.';
         dot_entry.dir.name[1] = '.';
 
-        // For FAT12/16 the parent's cluster field is 0 if parent is root
+        // A ".." pointing at the root holds 0 on every
+        // FAT type, even though the FAT32 root has a real cluster
         uintptr_t parent_cluster = context->first_cluster;
+
+        if(parent_cluster == fs->root_cluster) {
+            parent_cluster = 0;
+        }
         dot_entry.dir.first_cluster_hi = htole16(parent_cluster >> 16);
         dot_entry.dir.first_cluster_lo = htole16(parent_cluster & 0xFFFF);
 
@@ -490,7 +494,7 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
         }
     }
 
-    size_t entry_offset = offset - 1; // fat_dirent_read increments the offset
+    size_t entry_offset = offset - 1;
 
     // The name was looked up without the lock
     // held, so it may have been replaced since

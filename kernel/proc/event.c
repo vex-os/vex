@@ -73,8 +73,7 @@ static ssize_t await_until(struct event** restrict events, size_t count, uint64_
         spinlock_acquire(&events[i]->lock);
     }
 
-    // re-check pending under lock to close the race between
-    // event_await and acquiring locks here
+    // Something may have become pending since event_await dropped the locks
     for(size_t i = 0; i < count; ++i) {
         if(events[i]->num_pending > 0) {
             events[i]->num_pending -= 1;
@@ -162,10 +161,7 @@ static ssize_t await_until(struct event** restrict events, size_t count, uint64_
         spinlock_release(&events[i]->lock);
     }
 
-    // sched_yield() busy-waits with interrupts enabled to receive its own
-    // wakeup IPI; restore the caller's interrupt state before calling it
-    // rather than after, or that wait deadlocks with interrupts left
-    // disabled on this hart.
+    // sched_yield waits for its own IPI, so interrupts have to be back on first
     restore_interrupts(intr_state);
 
     sched_yield();
@@ -202,10 +198,6 @@ static ssize_t await_until(struct event** restrict events, size_t count, uint64_
 
     thrd->num_events = 0;
 
-    if(thrd->enqueued_by_signal) {
-        return -EINTR;
-    }
-
     if(!triggered) {
         return -ETIMEDOUT;
     }
@@ -237,9 +229,6 @@ size_t event_trigger(struct event* restrict evnt, bool linger_pending)
 
     if(evnt->num_listeners == 0) {
         if(linger_pending) {
-            // There isn't a listener for the event
-            // but in case there might be one later
-            // the event lingers around in the queue
             evnt->num_pending += 1;
         }
 
