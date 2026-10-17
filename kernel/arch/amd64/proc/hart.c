@@ -3,18 +3,23 @@
 #include <arch/ireq.h>
 #include <limine.h>
 #include <vex/assert.h>
+#include <vex/atomic.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/ireq.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
+#include <vex/panic.h>
 #include <vex/thread.h>
 
-static unsigned panic_ipi_vector = 0;
+LIMINE_REQUEST static volatile struct limine_mp_request mp_request = {
+    .id = LIMINE_MP_REQUEST_ID,
+    .revision = 0,
+};
 
-// Stands in for a thread until the harts are set up, so
-// this_thread() reads memory of ours and this_hart() is nullptr
-static struct thread boot_thread;
+static unsigned panic_ipi_vector = 0;
+static struct limine_mp_info* mp_infos[MAX_HARTS];
+static struct thread boot_thread; // this_thread returns this before true threading initializes
 
 static void panic_halt_handler(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
 {
@@ -28,19 +33,39 @@ static void panic_halt_handler(unsigned number, const struct hart_context* restr
     }
 }
 
-void hart_setup_1(struct hart_local* restrict hart, unsigned short index, const struct limine_mp_info* restrict info,
-    const struct limine_mp_response* restrict response)
+static void __noreturn limine_hart_entry(struct limine_mp_info* restrict info)
 {
-    hart->index = index;
-    hart->flags = HART_FLAG_ACTIVE;
-    hart->arch.lapic_id = info->lapic_id;
+    hart_entry((struct hart_local*)(uintptr_t)(info->extra_argument));
+}
 
-    if(info->lapic_id == response->bsp_lapic_id) {
-        hart->flags |= HART_FLAG_BSP;
+void arch_enumerate_harts(void)
+{
+    const struct limine_mp_response* response = mp_request.response;
+
+    if(response == nullptr) {
+        panic("bootloader did not provide multicore information");
+    }
+
+    for(uint64_t i = 0; i < response->cpu_count; ++i) {
+        struct limine_mp_info* info = response->cpus[i];
+        struct hart_local* hart = hart_register(info->lapic_id == response->bsp_lapic_id);
+
+        if(hart) {
+            hart->arch.lapic_id = info->lapic_id;
+            mp_infos[hart->index] = info;
+        }
     }
 }
 
-void hart_setup_2(struct hart_local* restrict hart)
+void arch_start_hart(struct hart_local* restrict hart)
+{
+    struct limine_mp_info* info = mp_infos[hart->index];
+
+    info->extra_argument = (uintptr_t)(hart);
+    atomic_store_n(&info->goto_address, &limine_hart_entry, ATOMIC_RELEASE);
+}
+
+void hart_setup(struct hart_local* restrict hart)
 {
     wrmsr(MSR_GS_BASE, (uintptr_t)(hart->idle_thread));
     wrmsr(MSR_KERNEL_GS_BASE, (uintptr_t)(hart->idle_thread->arch.gs_base));

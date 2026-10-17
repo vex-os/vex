@@ -15,6 +15,15 @@ config SMP
       Bring up and schedule on all harts reported by firmware.
       Without this only the bootstrap hart is used.
 
+config MAX_HARTS
+    int "Maximum number of harts"
+    depends on SMP
+    range 2 4096
+    default 64
+    help
+      Hart state is allocated statically for this many harts;
+      the ones firmware reports past it are left unused
+
 config DEFAULT_INIT
     string "Default init path"
     default "/sbin/init"
