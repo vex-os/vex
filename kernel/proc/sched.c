@@ -478,14 +478,15 @@ void __noreturn sched_terminate(void)
 
 void sched_yield(void)
 {
+    struct thread* thrd = this_thread();
+
     // The switch is a self-IPI, which never
     // arrives with interrupts disabled
     kassert(interrupt_state());
-    kassert(this_thread()->preempt_count == 0);
+    kassert(thrd->preempt_count == 0);
 
     disable_interrupts();
 
-    struct thread* thrd = this_thread();
     struct hart_local* hart = this_hart();
 
     raw_spinlock_acquire(&thrd->yield_await);
@@ -500,7 +501,9 @@ void sched_yield(void)
 
 void preempt_disable(void)
 {
-    this_thread()->preempt_count += 1;
+    struct thread* thrd = this_thread();
+
+    thrd->preempt_count += 1;
 }
 
 void preempt_enable(void)

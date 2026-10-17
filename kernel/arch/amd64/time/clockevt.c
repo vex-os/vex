@@ -14,7 +14,9 @@
 
 static uint32_t timer_count(uint64_t nsec)
 {
-    uint64_t hz = this_hart()->arch.lapic_timer_hz;
+    const struct hart_local* hart = this_hart();
+
+    uint64_t hz = hart->arch.lapic_timer_hz;
 
     if(nsec > UINT64_MAX / hz) {
         return UINT32_MAX;

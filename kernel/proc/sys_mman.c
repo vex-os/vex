@@ -46,7 +46,8 @@ static bool user_range(struct vmspace* restrict vms, uintptr_t start, uintptr_t 
 
 static intptr_t sys_mmap(const uintptr_t* restrict args)
 {
-    struct process* proc = this_thread()->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -100,7 +101,8 @@ static intptr_t sys_mmap(const uintptr_t* restrict args)
 
 static intptr_t sys_munmap(const uintptr_t* restrict args)
 {
-    struct process* proc = this_thread()->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -117,7 +119,8 @@ static intptr_t sys_munmap(const uintptr_t* restrict args)
 
 static intptr_t sys_mprotect(const uintptr_t* restrict args)
 {
-    struct process* proc = this_thread()->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;

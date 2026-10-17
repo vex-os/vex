@@ -5,7 +5,7 @@
 #include <vex/types.h>
 #include <vex/vprot.h>
 
-static_assert((PAGEMAP_SIZE * sizeof(pmentry_type)) == PAGE_SIZE);
+static_assert(PAGE_SIZE == (PAGEMAP_SIZE * sizeof(pmentry_type)));
 
 extern struct pagemap sys_pmap;
 
