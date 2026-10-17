@@ -292,7 +292,7 @@ struct limine_mp_info;
 
 typedef void (*limine_goto_address)(struct limine_mp_info *);
 
-#if defined (__x86_64__) || defined (__i386__)
+#if defined (__x86_64__) || defined (__i386__) || defined(_M_X64) || defined(_M_AMD64) || defined(_M_IX86)
 
 #define LIMINE_MP_RESPONSE_X86_64_X2APIC (1 << 0)
 
@@ -312,7 +312,7 @@ struct limine_mp_response {
     LIMINE_PTR(struct limine_mp_info **) cpus;
 };
 
-#elif defined (__aarch64__)
+#elif defined (__aarch64__) || defined(_M_ARM64)
 
 struct limine_mp_info {
     uint32_t processor_id;
@@ -660,6 +660,23 @@ struct limine_tsc_frequency_request {
     uint64_t id[4];
     uint64_t revision;
     LIMINE_PTR(struct limine_tsc_frequency_response *) response;
+};
+
+/* Entropy */
+
+#define LIMINE_ENTROPY_REQUEST_ID { LIMINE_COMMON_MAGIC, 0x65ea80255d5682c5, 0x9117240723f493eb }
+
+struct limine_entropy_response {
+    uint64_t revision;
+    uint64_t value_count;
+    LIMINE_PTR(uint64_t *) values;
+};
+
+struct limine_entropy_request {
+    uint64_t id[4];
+    uint64_t revision;
+    LIMINE_PTR(struct limine_entropy_response *) response;
+    uint64_t value_count;
 };
 
 #ifdef __cplusplus

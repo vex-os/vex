@@ -14,11 +14,8 @@
 #define UACPI_REV_VALUE 2
 #define UACPI_OS_VALUE "Microsoft Windows NT"
 
-#define MAKE_PREDEFINED(c0, c1, c2, c3)          \
-    {                                            \
-        .name.text = { c0, c1, c2, c3 },         \
-        .flags = UACPI_NAMESPACE_NODE_PREDEFINED \
-    }
+#define MAKE_PREDEFINED(c0, c1, c2, c3) \
+    { .name.text = { c0, c1, c2, c3 } }
 
 static uacpi_namespace_node
 predefined_namespaces[UACPI_PREDEFINED_NAMESPACE_MAX + 1] = {
@@ -149,7 +146,7 @@ static void free_namespace_node(uacpi_handle handle)
         return;
     }
 
-    node->flags = UACPI_NAMESPACE_NODE_PREDEFINED;
+    node->flags = 0;
     node->object = UACPI_NULL;
     node->parent = UACPI_NULL;
     node->child = UACPI_NULL;
@@ -274,7 +271,7 @@ uacpi_namespace_node *uacpi_namespace_get_predefined(
 )
 {
     if (uacpi_unlikely(ns > UACPI_PREDEFINED_NAMESPACE_MAX)) {
-        uacpi_warn("requested invalid predefined namespace %d", ns);
+        uacpi_warn("requested invalid predefined namespace %u", ns);
         return UACPI_NULL;
     }
 
@@ -318,8 +315,15 @@ uacpi_status uacpi_namespace_node_install(
     } else {
         uacpi_namespace_node *prev = parent->child;
 
-        while (prev->next != UACPI_NULL)
+        for (;;) {
+            if (uacpi_unlikely(prev->name.id == node->name.id))
+                return UACPI_STATUS_AML_OBJECT_ALREADY_EXISTS;
+
+            if (prev->next == UACPI_NULL)
+                break;
+
             prev = prev->next;
+        }
 
         prev->next = node;
     }
@@ -345,7 +349,8 @@ uacpi_bool uacpi_namespace_node_is_temporary(uacpi_namespace_node *node)
 
 uacpi_bool uacpi_namespace_node_is_predefined(uacpi_namespace_node *node)
 {
-    return node->flags & UACPI_NAMESPACE_NODE_PREDEFINED;
+    return node >= &predefined_namespaces[0] &&
+           node <= &predefined_namespaces[UACPI_PREDEFINED_NAMESPACE_MAX];
 }
 
 uacpi_status uacpi_namespace_node_uninstall(uacpi_namespace_node *node)
@@ -959,23 +964,14 @@ uacpi_status uacpi_namespace_for_each_child(
     );
 }
 
-uacpi_status uacpi_namespace_node_next_typed(
+uacpi_status uacpi_namespace_node_next_typed_unlocked(
     uacpi_namespace_node *parent, uacpi_namespace_node **iter,
     uacpi_object_type_bits type_mask
 )
 {
-    uacpi_status ret;
+    uacpi_status ret = UACPI_STATUS_OK;
     uacpi_bool is_one_of;
     uacpi_namespace_node *node;
-
-    UACPI_ENSURE_INIT_LEVEL_AT_LEAST(UACPI_INIT_LEVEL_SUBSYSTEM_INITIALIZED);
-
-    if (uacpi_unlikely(parent == UACPI_NULL && *iter == UACPI_NULL))
-        return UACPI_STATUS_INVALID_ARGUMENT;
-
-    ret = uacpi_namespace_read_lock();
-    if (uacpi_unlikely_error(ret))
-        return ret;
 
     node = *iter;
     if (node == UACPI_NULL)
@@ -996,12 +992,33 @@ uacpi_status uacpi_namespace_node_next_typed(
             break;
     }
 
-    uacpi_namespace_read_unlock();
     if (node == UACPI_NULL)
         return UACPI_STATUS_NOT_FOUND;
 
     if (uacpi_likely_success(ret))
         *iter = node;
+    return ret;
+}
+
+uacpi_status uacpi_namespace_node_next_typed(
+    uacpi_namespace_node *parent, uacpi_namespace_node **iter,
+    uacpi_object_type_bits type_mask
+)
+{
+    uacpi_status ret;
+
+    UACPI_ENSURE_INIT_LEVEL_AT_LEAST(UACPI_INIT_LEVEL_SUBSYSTEM_INITIALIZED);
+
+    if (uacpi_unlikely(parent == UACPI_NULL && *iter == UACPI_NULL))
+        return UACPI_STATUS_INVALID_ARGUMENT;
+
+    ret = uacpi_namespace_read_lock();
+    if (uacpi_unlikely_error(ret))
+        return ret;
+
+    ret = uacpi_namespace_node_next_typed_unlocked(parent, iter, type_mask);
+
+    uacpi_namespace_read_unlock();
     return ret;
 }
 

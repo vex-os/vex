@@ -22,6 +22,6 @@ fi
 
 rm -f "${1}" || exit 1
 
-${downloader} "${1}" "${2}" || exit 1
+exec ${downloader} "${1}" "${2}" || exit 1
 
 exit 0

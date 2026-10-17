@@ -114,6 +114,10 @@ void uacpi_read_buffer_field(
     const uacpi_buffer_field *field, void *dst
 )
 {
+    // There's nothing to read from a buffer field that's empty
+    if (uacpi_unlikely(field->bit_length == 0))
+        return;
+
     if (!(field->bit_index & 7)) {
         uacpi_u8 *src = field->backing->data;
         uacpi_size count;
@@ -150,6 +154,10 @@ void uacpi_write_buffer_field(
     const void *src, uacpi_size size
 )
 {
+    // There's nothing to write to a buffer field that's empty
+    if (uacpi_unlikely(field->bit_length == 0))
+        return;
+
     if (!(field->bit_index & 7)) {
         uacpi_u8 *dst, last_byte, tail_shift;
         uacpi_size count;
@@ -175,6 +183,94 @@ void uacpi_write_buffer_field(
     do_write_misaligned_buffer_field(field, src, size);
 }
 
+static uacpi_bool field_unit_needs_global_lock(uacpi_field_unit *field)
+{
+    if (field->lock_rule)
+        return UACPI_TRUE;
+
+    /*
+     * The global lock must be acquired before the opregion lock, however,
+     * the subfields of an index/bank field are only accessed once the
+     * opregion lock is already held, so their lock rules have to be
+     * considered upfront to keep the ordering consistent.
+     */
+    switch (field->kind) {
+    case UACPI_FIELD_UNIT_KIND_INDEX:
+        return field_unit_needs_global_lock(field->index) ||
+               field_unit_needs_global_lock(field->data);
+    case UACPI_FIELD_UNIT_KIND_BANK:
+        return field_unit_needs_global_lock(field->bank_selection);
+    default:
+        return UACPI_FALSE;
+    }
+}
+
+/*
+ * Both the global lock and the opregion lock are held for the duration of
+ * an entire field transaction (that is, across every hardware access it
+ * decomposes into) instead of individual data accesses:
+ * - The global lock protects fields shared with firmware (e.g. SMM), which
+ *   expects multi-datum accesses and read-modify-writes to be atomic.
+ * - The opregion lock makes the index/bank selection register writes atomic
+ *   with respect to the data accesses that rely on them, which could
+ *   otherwise interleave with IO done by other threads, as every other lock
+ *   is dropped around address space handler invocations.
+ */
+static uacpi_status lock_field_unit_transaction(uacpi_field_unit *field)
+{
+    uacpi_status ret;
+
+    /*
+     * The namespace is unlocked more than once before we're done: while we
+     * wait for the locks below, and around every invocation of the address
+     * space handler. This makes it possible for someone else to get rid of
+     * the field in the meantime, e.g. by overwriting it via CopyObject. All
+     * of the references that our caller has to it are gone if that happens,
+     * so take one that is ours alone.
+     */
+    uacpi_shareable_ref(field);
+
+    if (field_unit_needs_global_lock(field)) {
+        ret = uacpi_acquire_aml_mutex(
+            g_uacpi_rt_ctx.global_lock_mutex, 0xFFFF
+        );
+        if (uacpi_unlikely_error(ret))
+            goto out_unref;
+    }
+
+    ret = uacpi_upgrade_to_opregion_lock();
+    if (uacpi_unlikely_error(ret)) {
+        if (field_unit_needs_global_lock(field))
+            uacpi_release_aml_mutex(g_uacpi_rt_ctx.global_lock_mutex);
+
+        goto out_unref;
+    }
+
+    return ret;
+
+out_unref:
+    uacpi_field_unit_unref(field);
+    return ret;
+}
+
+static void unlock_field_unit_transaction(uacpi_field_unit *field)
+{
+    uacpi_release_opregion_lock();
+
+    if (field_unit_needs_global_lock(field))
+        uacpi_release_aml_mutex(g_uacpi_rt_ctx.global_lock_mutex);
+
+    uacpi_field_unit_unref(field);
+}
+
+static uacpi_bool field_fits(uacpi_field_unit *field, uacpi_u64 value)
+{
+    if (field->bit_length >= 64)
+        return UACPI_TRUE;
+
+    return value < ((uacpi_u64)1 << field->bit_length);
+}
+
 static uacpi_status access_field_unit(
     uacpi_field_unit *field, uacpi_u32 offset, uacpi_region_op op,
     union uacpi_opregion_io_data data
@@ -182,16 +278,18 @@ static uacpi_status access_field_unit(
 {
     uacpi_status ret = UACPI_STATUS_OK;
 
-    if (field->lock_rule) {
-        ret = uacpi_acquire_aml_mutex(
-            g_uacpi_rt_ctx.global_lock_mutex, 0xFFFF
-        );
-        if (uacpi_unlikely_error(ret))
-            return ret;
-    }
-
     switch (field->kind) {
     case UACPI_FIELD_UNIT_KIND_BANK:
+        if (uacpi_unlikely(!field_fits(field->bank_selection,
+                                       field->bank_value))) {
+            uacpi_error(
+                "bank value 0x%"UACPI_PRIX64" doesn't fit in the %u-bit "
+                "bank register", UACPI_FMT64(field->bank_value),
+                field->bank_selection->bit_length
+            );
+            return UACPI_STATUS_AML_OUT_OF_BOUNDS_INDEX;
+        }
+
         ret = uacpi_write_field_unit(
             field->bank_selection, &field->bank_value, sizeof(field->bank_value),
             UACPI_NULL
@@ -200,32 +298,35 @@ static uacpi_status access_field_unit(
     case UACPI_FIELD_UNIT_KIND_NORMAL:
         break;
     case UACPI_FIELD_UNIT_KIND_INDEX:
+        if (uacpi_unlikely(!field_fits(field->index, offset))) {
+            uacpi_error(
+                "offset 0x%X doesn't fit in the %u-bit index register",
+                offset, field->index->bit_length
+            );
+            return UACPI_STATUS_AML_OUT_OF_BOUNDS_INDEX;
+        }
+
         ret = uacpi_write_field_unit(
             field->index, &offset, sizeof(offset),
             UACPI_NULL
         );
         if (uacpi_unlikely_error(ret))
-            goto out;
+            return ret;
 
         switch (op) {
         case UACPI_REGION_OP_READ:
-            ret = uacpi_read_field_unit(
+            return uacpi_read_field_unit(
                 field->data, data.integer, field->access_width_bytes,
                 UACPI_NULL
             );
-            break;
         case UACPI_REGION_OP_WRITE:
-            ret = uacpi_write_field_unit(
+            return uacpi_write_field_unit(
                 field->data, data.integer, field->access_width_bytes,
                 UACPI_NULL
             );
-            break;
         default:
-            ret = UACPI_STATUS_INVALID_ARGUMENT;
-            break;
+            return UACPI_STATUS_INVALID_ARGUMENT;
         }
-
-        goto out;
 
     default:
         uacpi_error("invalid field unit kind %d", field->kind);
@@ -233,14 +334,9 @@ static uacpi_status access_field_unit(
     }
 
     if (uacpi_unlikely_error(ret))
-        goto out;
+        return ret;
 
-    ret = uacpi_dispatch_opregion_io(field, offset, op, data);
-
-out:
-    if (field->lock_rule)
-        uacpi_release_aml_mutex(g_uacpi_rt_ctx.global_lock_mutex);
-    return ret;
+    return uacpi_dispatch_opregion_io(field, offset, op, data);
 }
 
 #define SERIAL_HEADER_SIZE 2
@@ -397,6 +493,8 @@ do_wtr:
 
     if (wtr_response != UACPI_NULL)
         *wtr_response = wtr_buffer;
+    else
+        uacpi_free(wtr_buffer.data, wtr_buffer.length);
 
 out_handled:
     *did_handle = UACPI_TRUE;
@@ -470,12 +568,22 @@ uacpi_status uacpi_read_field_unit(
     data_view.data = dst;
     data_view.length = size;
 
+    ret = lock_field_unit_transaction(field);
+    if (uacpi_unlikely_error(ret))
+        return ret;
+
     ret = handle_special_field(
         field, data_view, UACPI_REGION_OP_READ,
         wtr_response, &did_handle
     );
     if (did_handle)
-        return ret;
+        goto out;
+
+    // There's nothing to read from a field that the AML declared as empty
+    if (uacpi_unlikely(field->bit_length == 0)) {
+        uacpi_memzero(dst, size);
+        goto out;
+    }
 
     field_byte_length = uacpi_round_up_bits_to_bytes(field->bit_length);
 
@@ -497,17 +605,21 @@ uacpi_status uacpi_read_field_unit(
             data
         );
         if (uacpi_unlikely_error(ret))
-            return ret;
+            goto out;
 
         uacpi_memcpy_zerout(dst, &out, size, field_byte_length);
         if (size >= field_byte_length)
             cut_misaligned_tail(dst, field_byte_length - 1, field->bit_length);
 
-        return UACPI_STATUS_OK;
+        goto out;
     }
 
     // Slow case
-    return do_read_misaligned_field_unit(field, dst, size);
+    ret = do_read_misaligned_field_unit(field, dst, size);
+
+out:
+    unlock_field_unit_transaction(field);
+    return ret;
 }
 
 static uacpi_status write_generic_field_unit(
@@ -581,26 +693,65 @@ static uacpi_status write_generic_field_unit(
     return UACPI_STATUS_OK;
 }
 
-uacpi_status uacpi_write_field_unit(
+static uacpi_status write_field_unit(
     uacpi_field_unit *field, const void *src, uacpi_size size,
-    uacpi_data_view *wtr_response
+    uacpi_size chunk_size, uacpi_data_view *wtr_response
 )
 {
     uacpi_status ret;
     uacpi_bool did_handle;
     uacpi_data_view data_view = { 0 };
+    const uacpi_u8 *bytes = src;
+    uacpi_size offset;
 
     data_view.const_data = src;
     data_view.length = size;
+
+    ret = lock_field_unit_transaction(field);
+    if (uacpi_unlikely_error(ret))
+        return ret;
 
     ret = handle_special_field(
         field, data_view, UACPI_REGION_OP_WRITE,
         wtr_response, &did_handle
     );
     if (did_handle)
-        return ret;
+        goto out;
 
-    return write_generic_field_unit(field, src, size);
+    // There's nothing to write to a field that the AML declared as empty
+    if (uacpi_unlikely(field->bit_length == 0))
+        goto out;
+
+    for (offset = 0; offset < size; offset += chunk_size) {
+        ret = write_generic_field_unit(
+            field, bytes + offset, UACPI_MIN(chunk_size, size - offset)
+        );
+        if (uacpi_unlikely_error(ret))
+            break;
+    }
+
+out:
+    unlock_field_unit_transaction(field);
+    return ret;
+}
+
+uacpi_status uacpi_write_field_unit(
+    uacpi_field_unit *field, const void *src, uacpi_size size,
+    uacpi_data_view *wtr_response
+)
+{
+    return write_field_unit(field, src, size, size, wtr_response);
+}
+
+uacpi_status uacpi_write_field_unit_in_chunks(
+    uacpi_field_unit *field, const void *src, uacpi_size size,
+    uacpi_data_view *wtr_response
+)
+{
+    return write_field_unit(
+        field, src, size, uacpi_round_up_bits_to_bytes(field->bit_length),
+        wtr_response
+    );
 }
 
 uacpi_status uacpi_field_unit_get_read_type(

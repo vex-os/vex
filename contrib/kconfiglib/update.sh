@@ -31,7 +31,7 @@ cleanup() {
 
 trap cleanup EXIT
 
-${SHELL} ../download.sh ${temp_file} ${archive_url} || exit 1
+sh ../download.sh ${temp_file} ${archive_url} || exit 1
 
 tar -xzf ${temp_file} -C ${temp_dir} || exit 1
 
