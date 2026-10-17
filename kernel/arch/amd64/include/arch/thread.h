@@ -12,6 +12,7 @@ struct arch_thread {
     void* fs_base;
     uint64_t cr3;
     void* kernel_stack;
+    void* fpu_state; // nullptr for kernel threads
 };
 
 static __always_inline __nodiscard struct thread* this_thread(void)
