@@ -1,0 +1,251 @@
+#include <vex/assert.h>
+#include <vex/blk_device.h>
+#include <vex/errno.h>
+#include <vex/event.h>
+#include <vex/hart.h>
+#include <vex/hhdm.h>
+#include <vex/page.h>
+#include <vex/pdma.h>
+#include <vex/pmap.h>
+#include <vex/string.h>
+
+#define BLK_MAX_SEGMENTS 32 // Most segments blk_read and blk_write put in one request
+
+static void finish(struct blk_request* restrict req, int status)
+{
+    req->status = status;
+    req->done(req);
+}
+
+static bool request_valid(const struct blk_device* restrict device, const struct blk_request* restrict req)
+{
+    if(req->op == BLK_REQ_FLUSH) {
+        return req->length == 0 && req->num_segments == 0;
+    }
+
+    if(req->op != BLK_REQ_READ && req->op != BLK_REQ_WRITE) {
+        return false;
+    }
+
+    if(req->length == 0 || req->length % device->sector_size || req->length > device->max_transfer) {
+        return false;
+    }
+
+    if(req->num_segments == 0 || req->num_segments > device->max_segments) {
+        return false;
+    }
+
+    size_t count = req->length / device->sector_size;
+
+    if(req->lba >= device->sector_count || count > device->sector_count - req->lba) {
+        return false;
+    }
+
+    size_t total = 0;
+
+    for(size_t i = 0; i < req->num_segments; ++i) {
+        const struct blk_segment* segment = &req->segments[i];
+
+        if(segment->length == 0 || ((segment->phys | segment->length) & device->dma_align)) {
+            return false;
+        }
+
+        if(segment->phys > device->dma_limit || segment->length - 1 > device->dma_limit - segment->phys) {
+            return false;
+        }
+
+        total += segment->length;
+    }
+
+    return total == req->length;
+}
+
+static void wake_waiter(struct blk_request* restrict req)
+{
+    event_trigger(req->ctxdata, true);
+}
+
+static bool map_segments(const struct blk_device* restrict device, const uint8_t* restrict buffer, size_t length,
+    struct blk_segment* restrict segments, size_t* restrict num_segments)
+{
+    size_t count = 0;
+
+    while(length > 0) {
+        uintptr_t virt = (uintptr_t)(buffer);
+        uintptr_t phys = pmap_resolve_address(&sys_pmap, virt);
+        size_t piece = PAGE_SIZE - (virt % PAGE_SIZE);
+
+        if(piece > length) {
+            piece = length;
+        }
+
+        if(phys == 0 || ((phys | piece) & device->dma_align) || phys > device->dma_limit || piece - 1 > device->dma_limit - phys) {
+            return false;
+        }
+
+        if(count && segments[count - 1].phys + segments[count - 1].length == phys) {
+            segments[count - 1].length += piece;
+        }
+        else {
+            if(count >= device->max_segments || count >= BLK_MAX_SEGMENTS) {
+                return false;
+            }
+
+            segments[count].phys = phys;
+            segments[count].length = piece;
+            count += 1;
+        }
+
+        buffer += piece;
+        length -= piece;
+    }
+
+    *num_segments = count;
+
+    return true;
+}
+
+static int transfer(const struct blk_device* restrict device, unsigned op, uintptr_t lba, size_t count, uint8_t* restrict buffer)
+{
+    if(0 == (device->flags & BLK_FLAG_PRESENT)) {
+        return -ENODEV;
+    }
+
+    size_t sector_size = device->sector_size;
+
+    if(lba >= device->sector_count || count > device->sector_count - lba) {
+        return -EINVAL;
+    }
+
+    size_t max_segments = BLK_MAX_SEGMENTS;
+
+    if(device->max_segments < BLK_MAX_SEGMENTS) {
+        max_segments = device->max_segments;
+    }
+
+    if(max_segments == 0) {
+        return -EIO;
+    }
+
+    size_t max_bytes = (max_segments - 1) * PAGE_SIZE;
+
+    if(max_segments == 1 || max_bytes > device->max_transfer) {
+        max_bytes = device->max_transfer;
+    }
+
+    size_t max_sectors = max_bytes / sector_size;
+
+    if(max_sectors == 0) {
+        return -EIO;
+    }
+
+    uintptr_t bounce_phys = 0;
+    size_t bounce_pages = 0;
+    int retval = 0;
+
+    while(count > 0 && retval == 0) {
+        size_t chunk = count < max_sectors ? count : max_sectors;
+        size_t bytes = chunk * sector_size;
+
+        struct blk_segment segments[BLK_MAX_SEGMENTS];
+        struct blk_request req = {
+            .op = op,
+            .lba = lba,
+            .length = bytes,
+            .segments = segments,
+        };
+
+        bool direct = map_segments(device, buffer, bytes, segments, &req.num_segments);
+
+        if(!direct) {
+            if(bounce_phys == 0) {
+                bounce_pages = (max_sectors * sector_size + PAGE_SIZE - 1) / PAGE_SIZE;
+                bounce_phys = pdma_alloc_phys(bounce_pages);
+
+                if(bounce_phys == 0) {
+                    return -ENOMEM;
+                }
+            }
+
+            segments[0].phys = bounce_phys;
+            segments[0].length = bytes;
+            req.num_segments = 1;
+
+            if(op == BLK_REQ_WRITE) {
+                memcpy(phys_to_virt(bounce_phys), buffer, bytes);
+            }
+        }
+
+        retval = blk_submit_wait(device, &req);
+
+        if(retval == 0 && !direct && op == BLK_REQ_READ) {
+            memcpy(buffer, phys_to_virt(bounce_phys), bytes);
+        }
+
+        buffer += bytes;
+        lba += chunk;
+        count -= chunk;
+    }
+
+    if(bounce_phys) {
+        pdma_free_phys(bounce_phys, bounce_pages);
+    }
+
+    return retval;
+}
+
+void blk_submit(const struct blk_device* restrict device, struct blk_request* restrict req)
+{
+    if(0 == (device->flags & BLK_FLAG_PRESENT)) {
+        finish(req, -ENODEV);
+        return;
+    }
+
+    if(!request_valid(device, req)) {
+        finish(req, -EINVAL);
+        return;
+    }
+
+    device->ops->submit(device, req);
+}
+
+int blk_submit_wait(const struct blk_device* restrict device, struct blk_request* restrict req)
+{
+    struct event done;
+    struct event* evnt = &done;
+
+    event_init(&done);
+
+    req->done = &wake_waiter;
+    req->ctxdata = &done;
+
+    blk_submit(device, req);
+
+    if(event_await(&evnt, 1) < 0) {
+        kassert(interrupt_state());
+
+        while(event_await_blocking(&evnt, 1) < 0) {
+            // empty: keep waiting
+        }
+    }
+
+    event_deinit(&done);
+
+    return req->status;
+}
+
+int blk_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+{
+    return transfer(device, BLK_REQ_READ, lba, count, buffer);
+}
+
+int blk_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
+{
+    return transfer(device, BLK_REQ_WRITE, lba, count, (uint8_t*)(buffer));
+}
+
+int blk_flush(const struct blk_device* restrict device)
+{
+    struct blk_request req = { .op = BLK_REQ_FLUSH };
+    return blk_submit_wait(device, &req);
+}

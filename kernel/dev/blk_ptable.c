@@ -22,29 +22,15 @@ struct blk_disk_state {
 static struct blk_ptable* ptable_head = nullptr;
 static struct blk_disk_state* disk_state_head = nullptr;
 
-static int part_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+static void part_submit(const struct blk_device* restrict device, struct blk_request* restrict req)
 {
     const struct blk_part_device* part = (const struct blk_part_device*)(device);
 
-    if(lba > part->lba_count || count > part->lba_count - lba)
-        return -EINVAL;
-    return blk_read(part->root, part->lba_start + lba, count, buffer);
-}
+    if(req->op != BLK_REQ_FLUSH) {
+        req->lba += part->lba_start;
+    }
 
-static int part_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
-{
-    const struct blk_part_device* part = (const struct blk_part_device*)(device);
-
-    if(lba > part->lba_count || count > part->lba_count - lba)
-        return -EINVAL;
-    return blk_write(part->root, part->lba_start + lba, count, buffer);
-}
-
-static int part_flush(const struct blk_device* restrict device)
-{
-    const struct blk_part_device* part = (const struct blk_part_device*)(device);
-
-    return blk_flush(part->root);
+    blk_submit(part->root, req);
 }
 
 static void part_release(const struct blk_device* restrict device)
@@ -56,9 +42,7 @@ static void part_release(const struct blk_device* restrict device)
 }
 
 static const struct blk_device_ops part_ops = {
-    .read = &part_read,
-    .write = &part_write,
-    .flush = &part_flush,
+    .submit = &part_submit,
     .release = &part_release,
 };
 
@@ -135,6 +119,10 @@ static void probe_device(const struct blk_device* restrict device)
             part->base.ops = &part_ops;
             part->base.sector_count = info.lba_count;
             part->base.sector_size = device->sector_size;
+            part->base.max_transfer = device->max_transfer;
+            part->base.max_segments = device->max_segments;
+            part->base.dma_limit = device->dma_limit;
+            part->base.dma_align = device->dma_align;
             part->base.flags = BLK_FLAG_PARTITION | (device->flags & BLK_FLAG_PRESENT);
             part->base.ctxdata = nullptr;
 
