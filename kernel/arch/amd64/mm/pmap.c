@@ -1,6 +1,6 @@
-#include <arch/amd64.cpuid.h>
 #include <limine.h>
 #include <vex/assert.h>
+#include <vex/cpucaps.h>
 #include <vex/errno.h>
 #include <vex/hhdm.h>
 #include <vex/page.h>
@@ -34,20 +34,8 @@ unsigned pmap_detect_levels(void)
 
 unsigned pmap_detect_leaf_levels(void)
 {
-    uint32_t eax, ebx, ecx, edx;
-
-    cpuid(0x80000000, 0, &eax, &ebx, &ecx, &edx);
-
-    if(eax < 0x80000001) {
-        return 2;
-    }
-
-    cpuid(0x80000001, 0, &eax, &ebx, &ecx, &edx);
-
-    if(edx & CPUID_80000001_EDX_PDPE1GB) {
+    if(cpu_has(CPU_FEATURE_PAGE_1G))
         return 3;
-    }
-
     return 2;
 }
 

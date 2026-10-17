@@ -1,6 +1,7 @@
 #pragma once
 
 #include <arch/hart.h>
+#include <vex/cpucaps.h>
 
 #ifdef CONFIG_SMP
 #define MAX_HARTS ((unsigned)(CONFIG_MAX_HARTS))
@@ -12,6 +13,12 @@
 #define HART_FLAG_ACTIVE  0x0002
 #define HART_FLAG_PRESENT 0x0004
 #define HART_FLAG_ONLINE  0x0008
+
+enum {
+    HART_BRINGUP_WAIT,
+    HART_BRINGUP_GO,
+    HART_BRINGUP_PARK,
+};
 
 struct thread;
 
@@ -25,6 +32,9 @@ struct hart_local {
 
     bool tlb_online;
     uint64_t tlb_flushed;
+
+    struct cpucaps caps;
+    unsigned char bringup;
 
     struct arch_hart arch;
 };
@@ -42,4 +52,4 @@ static __always_inline __nodiscard struct hart_local* boot_hart(void)
 struct hart_local* this_hart(void) __nodiscard;
 
 struct hart_local* hart_register(bool is_boot);
-void hart_entry(struct hart_local* restrict hart) __noreturn;
+void hart_park(struct hart_local* restrict hart) __noreturn;

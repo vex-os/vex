@@ -1,4 +1,5 @@
 #include <vex/atomic.h>
+#include <vex/cpucaps.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
@@ -12,6 +13,8 @@ struct hart_local harts[MAX_HARTS];
 unsigned long num_harts = 1U;
 
 static unsigned long ignored_harts = 0U;
+static unsigned long usable_harts = 1U;
+static volatile unsigned long probed_harts = 0U;
 static volatile unsigned long ready_harts = 0U;
 
 static void bring_online(struct hart_local* restrict hart)
@@ -25,6 +28,19 @@ static void bring_online(struct hart_local* restrict hart)
     hart->flags |= HART_FLAG_ONLINE;
 
     atomic_fetch_add(&ready_harts, 1, ATOMIC_RELEASE);
+}
+
+static void __noreturn run_idle(struct hart_local* restrict hart)
+{
+    pmap_switch(&sys_pmap);
+
+    bring_online(hart);
+
+    enable_interrupts();
+
+    for(;;) {
+        hart_stop();
+    }
 }
 
 struct hart_local* this_hart(void)
@@ -61,20 +77,29 @@ struct hart_local* hart_register(bool is_boot)
     return hart;
 }
 
-void hart_entry(struct hart_local* restrict hart)
+void hart_park(struct hart_local* restrict hart)
 {
-    pmap_switch(&sys_pmap);
+    arch_cpucaps_probe(&hart->caps);
 
-    bring_online(hart);
+    atomic_fetch_add(&probed_harts, 1, ATOMIC_RELEASE);
 
-    enable_interrupts();
+    unsigned char bringup;
+
+    while(HART_BRINGUP_WAIT == (bringup = atomic_load_n(&hart->bringup, ATOMIC_ACQUIRE))) {
+        hart_relax();
+    }
+
+    if(bringup == HART_BRINGUP_GO) {
+        run_idle(hart);
+    }
 
     for(;;) {
+        disable_interrupts();
         hart_stop();
     }
 }
 
-static void init_hart_structs(void)
+static void init_harts(void)
 {
     arch_enumerate_harts();
 
@@ -89,6 +114,31 @@ static void init_hart_structs(void)
         pr_inform("hart: SMP is disabled, %lu harts left unused", ignored_harts);
 #endif
     }
+
+    struct hart_local* bsp = boot_hart();
+
+    arch_cpucaps_probe(&bsp->caps);
+
+    for(unsigned long i = 1U; i < num_harts; ++i) {
+        arch_start_hart(&harts[i]);
+    }
+
+    while(atomic_load_n(&probed_harts, ATOMIC_ACQUIRE) < num_harts - 1U) {
+        hart_relax();
+    }
+
+    cpucaps_init(&bsp->caps);
+
+    for(unsigned long i = 1U; i < num_harts; ++i) {
+        if(cpucaps_merge(&harts[i].caps, harts[i].index)) {
+            usable_harts += 1U;
+        }
+        else {
+            atomic_store_n(&harts[i].bringup, HART_BRINGUP_PARK, ATOMIC_RELEASE);
+        }
+    }
+
+    cpucaps_commit();
 }
 
 static void init_hart_boot(void)
@@ -96,15 +146,17 @@ static void init_hart_boot(void)
     bring_online(boot_hart());
 
     for(unsigned long i = 1U; i < num_harts; ++i) {
-        arch_start_hart(&harts[i]);
+        if(harts[i].bringup == HART_BRINGUP_WAIT) {
+            atomic_store_n(&harts[i].bringup, HART_BRINGUP_GO, ATOMIC_RELEASE);
+        }
     }
 
-    while(atomic_load_n(&ready_harts, ATOMIC_ACQUIRE) < num_harts) {
+    while(atomic_load_n(&ready_harts, ATOMIC_ACQUIRE) < usable_harts) {
         hart_spin();
     }
 
-    pr_verbose("%lu harts online", num_harts);
+    pr_verbose("%lu of %lu harts online", usable_harts, num_harts);
 }
 
-initcall_bsp_multicore(init_hart_structs, INIT_EARLY);
+initcall_bsp_arch(init_harts, INIT_FIRST);
 initcall_bsp_multicore(init_hart_boot, INIT_LAST);
