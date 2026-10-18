@@ -131,6 +131,7 @@ void pslab_free_virt(void* restrict virtaddr)
         struct pframe* pf = pframe_of(virt_to_phys(virtaddr));
         kassert(pf->flags & PFRAME_PSLAB);
         kassert(pf->refcount == 1);
+        kassert(pf->mappings == nullptr);
         pf->refcount = 0;
 
         head_ptr = virtaddr;

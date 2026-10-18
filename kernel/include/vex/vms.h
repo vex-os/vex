@@ -19,7 +19,7 @@ struct vm_region {
 struct vmspace {
     struct vm_region* regions;
     struct pagemap* pmap;
-    struct mutex lock; // Covers regions and the user half of pmap
+    struct mutex lock;
 };
 
 struct vmspace* vms_create(void) __nodiscard;

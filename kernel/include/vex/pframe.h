@@ -12,6 +12,7 @@
 #define PFRAME_DIRTY_SHIFT 24 // Bits 24-31: dirty sectors of a file cache page, the first one lowest
 
 struct fcache;
+struct rmap_entry;
 
 struct pframe {
     uint32_t refcount;
@@ -20,6 +21,7 @@ struct pframe {
     uint64_t index;          // Page index within the owner
     struct pframe* lru_prev; // Under the file cache LRU lock
     struct pframe* lru_next;
+    struct rmap_entry* mappings; // Under the rmap lock of the frame
 };
 
 struct pframe* pframe_of(uintptr_t phys) __nodiscard;
