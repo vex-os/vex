@@ -12,10 +12,12 @@
 #include <vex/panic.h>
 #include <vex/pframe.h>
 #include <vex/pslab.h>
+#include <vex/rmap.h>
 #include <vex/sched.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/thread.h>
+#include <vex/tlb.h>
 #include <vex/vnode.h>
 
 #define GATHER_BATCH 16
@@ -203,7 +205,20 @@ static void remove_page(struct fcache* restrict cache, struct pframe* restrict p
     pf->owner = nullptr;
     pf->index = 0;
 
-    pslab_free_phys(pframe_phys(pf));
+    size_t mappings = rmap_unmap_all(pf);
+
+    if(mappings) {
+        tlb_shootdown();
+
+        for(size_t i = 0; i < mappings; ++i) {
+            bool last = pframe_decref(pf);
+            kassert(!last); // The cache still holds its own
+        }
+    }
+
+    if(pframe_decref(pf)) {
+        pslab_free_phys(pframe_phys(pf));
+    }
 }
 
 static bool sector_size_valid(const struct blk_device* restrict device)
