@@ -54,7 +54,7 @@ static intptr_t sys_unlinkat(const uintptr_t* restrict args)
         return retval;
     }
 
-    retval = vnode_access(parent, cred, W_OK | X_OK);
+    retval = vnode_may_delete(parent, name, cred);
 
     if(retval == 0) {
         retval = vnode_unlink(parent, name, flags & AT_REMOVEDIR);
@@ -141,7 +141,7 @@ static int resolve_rename_parent(int dirfd, const char* restrict path, const str
         return retval;
     }
 
-    retval = vnode_access(*out_parent, cred, W_OK | X_OK);
+    retval = vnode_may_delete(*out_parent, *out_name, cred);
 
     if(retval < 0) {
         vnode_decref(*out_parent);

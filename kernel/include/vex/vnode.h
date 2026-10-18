@@ -22,7 +22,7 @@ enum {
 #define VATTR_SIZE 0x0008U
 
 struct vattr {
-    unsigned mask; // VATTR_* fields to change, the others are ignored
+    unsigned mask; // VATTR; fields to change, the others are ignored
     mode_t mode;
     uid_t uid;
     gid_t gid;
@@ -86,5 +86,6 @@ int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out);
 int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr);
 int vnode_chmod(struct vnode* restrict node, const struct credentials* restrict cred, mode_t mode);
 int vnode_chown(struct vnode* restrict node, const struct credentials* restrict cred, uid_t uid, gid_t gid);
+int vnode_may_delete(struct vnode* restrict dir, const char* restrict name, const struct credentials* restrict cred) __nodiscard;
 int vnode_access(struct vnode* restrict node, const struct credentials* restrict cred, unsigned mask) __nodiscard;
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, uintptr_t argument);

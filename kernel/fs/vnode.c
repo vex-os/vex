@@ -729,6 +729,54 @@ int vnode_access(struct vnode* restrict node, const struct credentials* restrict
     return 0;
 }
 
+int vnode_may_delete(struct vnode* restrict dir, const char* restrict name, const struct credentials* restrict cred)
+{
+    kassert(dir);
+    kassert(name);
+    kassert(cred);
+
+    int retval = vnode_access(dir, cred, W_OK | X_OK);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct k_stat dir_st;
+    retval = vnode_stat(dir, &dir_st);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    // In a sticky directory such as /tmp, write access
+    // alone lets nobody remove what others put there
+    if(0 == (dir_st.st_mode & S_ISVTX) || cred->euid == dir_st.st_uid || cred_capable(cred, CAP_FOWNER)) {
+        return 0;
+    }
+
+    struct vnode* victim;
+
+    // Nothing there to protect; the operation itself reports a missing name
+    if(vnode_lookup(dir, name, &victim) < 0) {
+        return 0;
+    }
+
+    struct k_stat victim_st;
+    retval = vnode_stat(victim, &victim_st);
+
+    vnode_decref(victim);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(cred->euid != victim_st.st_uid) {
+        return -EPERM;
+    }
+
+    return 0;
+}
+
 ssize_t vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz)
 {
     kassert(node);
