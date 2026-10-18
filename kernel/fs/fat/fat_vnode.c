@@ -1054,6 +1054,17 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
     return retval;
 }
 
+static int fat_vnode_map_page(struct vnode* restrict node, uint64_t index, struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot)
+{
+    struct fat_vnode_context* context = node->ctxdata;
+
+    mutex_acquire(fs_lock(node));
+    int retval = fcache_map_page(node, &fat_bmap, index, context->size_bytes, pmap, virt, vprot);
+    mutex_release(fs_lock(node));
+
+    return retval;
+}
+
 static int fat_vnode_fsync(struct vnode* restrict node)
 {
     struct fat_vnode_context* context = node->ctxdata;
@@ -1092,4 +1103,5 @@ const struct vnode_ops fat_vnode_ops = {
     .stat = &fat_vnode_stat,
     .setattr = &fat_vnode_setattr,
     .fsync = &fat_vnode_fsync,
+    .map_page = &fat_vnode_map_page,
 };

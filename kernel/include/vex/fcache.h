@@ -5,6 +5,7 @@
 #include <vex/radix.h>
 #include <vex/types.h>
 
+struct pagemap;
 struct vfs;
 struct vnode;
 
@@ -32,6 +33,8 @@ void fcache_deinit(struct fcache* restrict cache);
 
 ssize_t fcache_read(struct vnode* restrict node, fcache_bmap_type bmap, void* restrict buffer, size_t sz, off_t offset, off_t size);
 ssize_t fcache_write(struct vnode* restrict node, fcache_bmap_type bmap, const void* restrict buffer, size_t sz, off_t offset, off_t size);
+int fcache_map_page(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t index, off_t size, struct pagemap* restrict pmap,
+    uintptr_t virt, unsigned vprot);
 int fcache_writeback(struct vnode* restrict node, fcache_bmap_type bmap, off_t size);
 void fcache_truncate(struct vnode* restrict node, off_t size);
 void fcache_forget(struct vnode* restrict node, uint64_t offset, uint64_t length);

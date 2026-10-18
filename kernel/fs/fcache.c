@@ -664,6 +664,54 @@ ssize_t fcache_write(struct vnode* restrict node, fcache_bmap_type bmap, const v
     return done;
 }
 
+int fcache_map_page(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t index, off_t size, struct pagemap* restrict pmap,
+    uintptr_t virt, unsigned vprot)
+{
+    if(!sector_size_valid(node->fs->device)) {
+        return -EINVAL;
+    }
+
+    if(size <= 0 || index > (uint64_t)(size - 1) / PAGE_SIZE) {
+        return -ENXIO;
+    }
+
+    struct fcache* cache = &node->pages;
+
+    mutex_acquire(&cache->lock);
+
+    struct pframe* pf = get_page(cache, index);
+
+    if(pf == nullptr) {
+        mutex_release(&cache->lock);
+        return -ENOMEM;
+    }
+
+    if(0 == (pf->flags & PFRAME_UPTODATE)) {
+        int retval = fill_page(node, bmap, pf, size);
+
+        if(retval < 0) {
+            remove_page(cache, pf);
+            mutex_release(&cache->lock);
+            return retval;
+        }
+    }
+
+    pf->flags |= PFRAME_ACCESSED;
+    pframe_incref(pf);
+
+    // Mapped under the cache lock, so a truncation either finds the mapping or comes before it
+    int retval = rmap_map(pmap, virt, pframe_phys(pf), vprot);
+
+    if(retval < 0) {
+        bool last = pframe_decref(pf);
+        kassert(!last); // The cache still holds its own
+    }
+
+    mutex_release(&cache->lock);
+
+    return retval;
+}
+
 int fcache_writeback(struct vnode* restrict node, fcache_bmap_type bmap, off_t size)
 {
     struct fcache* cache = &node->pages;

@@ -771,6 +771,17 @@ static ssize_t echfs_vnode_write(struct vnode* restrict node, const void* restri
     return retval;
 }
 
+static int echfs_vnode_map_page(struct vnode* restrict node, uint64_t index, struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot)
+{
+    struct echfs_vnode_context* ctx = node->ctxdata;
+
+    mutex_acquire(fs_lock(node));
+    int retval = fcache_map_page(node, &echfs_bmap, index, ctx->size, pmap, virt, vprot);
+    mutex_release(fs_lock(node));
+
+    return retval;
+}
+
 static int echfs_vnode_fsync(struct vnode* restrict node)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
@@ -809,4 +820,5 @@ const struct vnode_ops echfs_vnode_ops = {
     .stat = &echfs_vnode_stat,
     .setattr = &echfs_vnode_setattr,
     .fsync = &echfs_vnode_fsync,
+    .map_page = &echfs_vnode_map_page,
 };

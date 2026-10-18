@@ -102,7 +102,7 @@ static int map_segment(struct vmspace* restrict vms, const struct elf64_phdr* re
     }
 
     if(map_start < seg_end) {
-        int retval = vms_map_anon(vms, map_start, seg_end, vprot);
+        int retval = vms_map(vms, map_start, seg_end, vprot, nullptr);
 
         if(retval < 0) {
             return retval;
@@ -392,7 +392,7 @@ static int elf64_setup(struct vmspace* restrict vms, struct file* restrict fp, c
         }
     }
 
-    retval = vms_map_anon(vms, ELF64_STACK_TOP - ELF64_STACK_SIZE, ELF64_STACK_TOP, VPROT_RW);
+    retval = vms_map(vms, ELF64_STACK_TOP - ELF64_STACK_SIZE, ELF64_STACK_TOP, VPROT_RW, nullptr);
 
     if(retval < 0) {
         goto error;

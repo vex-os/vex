@@ -5,15 +5,25 @@
 #include <vex/types.h>
 
 struct pagemap;
+struct vnode;
 
 #define VMS_MMAP_TOP UINT64_C(0x0000600000000000) // Placement without a fixed address searches down from here
 #define VMS_MMAP_MIN UINT64_C(0x0000000000010000) // Keeps null pointer dereferences faulting
+
+struct vm_backing {
+    struct vnode* node;
+    uint64_t pgoff; // File page at the start of the range
+    bool shared;
+};
 
 struct vm_region {
     struct vm_region* next; // Sorted by start
     uintptr_t start;        // Page aligned, inclusive
     uintptr_t end;          // Page aligned, exclusive
     unsigned vprot;         // Without VPROT_USER, which every user page has
+    struct vnode* node;     // Holds a reference; nullptr for anonymous memory
+    uint64_t pgoff;
+    bool shared;
 };
 
 struct vmspace {
@@ -25,9 +35,11 @@ struct vmspace {
 struct vmspace* vms_create(void) __nodiscard;
 void vms_release(struct vmspace* restrict vms);
 
-int vms_map_anon(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot);
-int vms_map_anon_replace(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot);
-int vms_map_anon_any(struct vmspace* restrict vms, size_t size, unsigned vprot, uintptr_t* restrict out);
+int vms_map(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot, const struct vm_backing* restrict backing);
+int vms_map_replace(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot,
+    const struct vm_backing* restrict backing);
+int vms_map_any(struct vmspace* restrict vms, size_t size, unsigned vprot, const struct vm_backing* restrict backing,
+    uintptr_t* restrict out);
 int vms_unmap(struct vmspace* restrict vms, uintptr_t start, uintptr_t end);
 int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot);
 int vms_unmap_all(struct vmspace* restrict vms);

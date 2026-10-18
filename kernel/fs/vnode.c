@@ -825,3 +825,14 @@ int vnode_fsync(struct vnode* restrict node)
 
     return node->ops->fsync(node);
 }
+
+int vnode_map_page(struct vnode* restrict node, uint64_t index, struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot)
+{
+    kassert(node);
+
+    if(node->ops->map_page == nullptr) {
+        return -ENODEV;
+    }
+
+    return node->ops->map_page(node, index, pmap, virt, vprot);
+}

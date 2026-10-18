@@ -30,6 +30,7 @@ struct vattr {
     off_t size;
 };
 
+struct pagemap;
 struct vnode;
 struct vnode_ops {
     void (*release)(struct vnode* restrict node);
@@ -49,6 +50,7 @@ struct vnode_ops {
     int (*stat)(struct vnode* restrict node, struct k_stat* restrict out);
     int (*setattr)(struct vnode* restrict node, const struct vattr* restrict attr);
     int (*fsync)(struct vnode* restrict node);
+    int (*map_page)(struct vnode* restrict node, uint64_t index, struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot);
 };
 
 struct blk_device;
@@ -93,3 +95,4 @@ int vnode_may_delete(struct vnode* restrict dir, const char* restrict name, cons
 int vnode_access(struct vnode* restrict node, const struct credentials* restrict cred, unsigned mask) __nodiscard;
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, uintptr_t argument);
 int vnode_fsync(struct vnode* restrict node);
+int vnode_map_page(struct vnode* restrict node, uint64_t index, struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot);
