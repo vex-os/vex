@@ -354,7 +354,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     uintptr_t first_cluster = 0;
 
     if(type == VNODE_DIRECTORY) {
-        first_cluster = fat_cluster_alloc_zeroed(fs);
+        first_cluster = fat_cluster_alloc_dir(fs);
 
         if(first_cluster == UINTPTR_MAX) {
             return -ENOSPC;

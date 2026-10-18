@@ -1,7 +1,8 @@
-#include <vex/bitmap.h>
 #include <vex/blk_device.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
+#include <vex/page.h>
+#include <vex/pcache.h>
 #include <vex/string.h>
 
 #include "fat.h"
@@ -11,50 +12,104 @@
 #define FAT32_EOC  UINT32_C(0x0FFFFFF8)
 #define FAT32_MASK UINT32_C(0x0FFFFFFF)
 
-static void mark_entry_dirty(struct fat_vfs_context* restrict context, uintptr_t cluster)
+#define SCAN_BYTES 1024 // Table bytes read at a time when looking for free clusters
+
+static const uint8_t zeroes[PAGE_SIZE];
+
+static size_t table_bytes(const struct fat_vfs_context* restrict context)
 {
-    size_t offset;
-    size_t size;
-
-    if(context->filesystem_type == FAT_TYPE_12) {
-        offset = cluster + (cluster >> 1);
-        size = sizeof(uint16_t);
-    }
-    else if(context->filesystem_type == FAT_TYPE_16) {
-        offset = cluster * sizeof(uint16_t);
-        size = sizeof(uint16_t);
-    }
-    else {
-        offset = cluster * sizeof(uint32_t);
-        size = sizeof(uint32_t);
-    }
-
-    bitmap_range_set(context->dirty_sectors, offset / context->sector_size, (offset + size - 1) / context->sector_size);
+    return context->table_size_s * context->sector_size;
 }
 
-static uint16_t fat12_get(const struct fat_vfs_context* restrict context, uintptr_t cluster)
+static uint64_t table_offset(const struct fat_vfs_context* restrict context, unsigned table, size_t offset)
 {
-    size_t offset = cluster + (cluster >> 1);
+    return (context->table_start + table * context->table_size_s) * context->sector_size + offset;
+}
+
+static bool table_load(const struct fat_vfs_context* restrict context, size_t offset, void* restrict buffer, size_t size)
+{
+    if(offset + size > table_bytes(context)) {
+        return false;
+    }
+
+    return 0 == pcache_meta_read(context->meta, table_offset(context, 0, offset), buffer, size);
+}
+
+static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
+{
+    if(context->filesystem_type != FAT_TYPE_32 || context->fsinfo_lba == 0) {
+        return;
+    }
+
+    struct fat_fsinfo_fat32 info;
+    uint64_t offset = context->fsinfo_lba * context->sector_size;
+
+    if(pcache_meta_read(context->meta, offset, &info, sizeof(info)) < 0) {
+        return;
+    }
+
+    bool fsinfo_valid = true;
+    fsinfo_valid = fsinfo_valid && le32toh(info.lead_signature) == UINT32_C(0x41615252);
+    fsinfo_valid = fsinfo_valid && le32toh(info.struct_signature) == UINT32_C(0x61417272);
+    fsinfo_valid = fsinfo_valid && le32toh(info.trail_signature) == UINT32_C(0xAA550000);
+
+    if(fsinfo_valid) {
+        info.free_count = htole32(UINT32_C(0xFFFFFFFF));
+        info.next_free = htole32(UINT32_C(0xFFFFFFFF));
+
+        pcache_meta_write(context->meta, offset, &info, sizeof(info));
+    }
+}
+
+static void table_store(struct fat_vfs_context* restrict context, size_t offset, const void* restrict buffer, size_t size)
+{
+    if(offset + size > table_bytes(context)) {
+        return;
+    }
+
+    if(!context->fsinfo_invalidated) {
+        invalidate_fsinfo(context);
+
+        context->fsinfo_invalidated = true;
+    }
+
+    for(unsigned i = 0; i < context->num_tables; ++i) {
+        pcache_meta_write(context->meta, table_offset(context, i, offset), buffer, size);
+    }
+}
+
+static size_t fat12_offset(uintptr_t cluster)
+{
+    return cluster + (cluster >> 1);
+}
+
+static bool fat12_get(const struct fat_vfs_context* restrict context, uintptr_t cluster, uint16_t* restrict out)
+{
     uint16_t data;
 
-    memcpy(&data, context->cache + offset, sizeof(uint16_t));
+    if(!table_load(context, fat12_offset(cluster), &data, sizeof(data))) {
+        return false;
+    }
 
     data = le16toh(data);
 
     if(cluster & 1) {
-        return data >> 4;
+        *out = data >> 4;
     }
     else {
-        return data & UINT16_C(0x0FFF);
+        *out = data & UINT16_C(0x0FFF);
     }
+
+    return true;
 }
 
 static void fat12_set(struct fat_vfs_context* restrict context, uintptr_t cluster, uint16_t value)
 {
-    size_t offset = cluster + (cluster >> 1);
     uint16_t data;
 
-    memcpy(&data, context->cache + offset, sizeof(uint16_t));
+    if(!table_load(context, fat12_offset(cluster), &data, sizeof(data))) {
+        return;
+    }
 
     data = le16toh(data);
 
@@ -67,76 +122,127 @@ static void fat12_set(struct fat_vfs_context* restrict context, uintptr_t cluste
 
     data = htole16(data);
 
-    memcpy(context->cache + offset, &data, sizeof(uint16_t));
+    table_store(context, fat12_offset(cluster), &data, sizeof(data));
 }
 
-static uintptr_t cluster_next_raw(const struct fat_vfs_context* restrict context, uintptr_t cluster)
+static uint32_t entry_get(const struct fat_vfs_context* restrict context, uintptr_t cluster)
 {
     if(context->filesystem_type == FAT_TYPE_12) {
-        size_t offset = cluster + (cluster >> 1);
+        uint16_t data12;
 
-        if(offset + sizeof(uint16_t) > context->cache_size) {
-            return UINTPTR_MAX;
-        }
-
-        uint16_t data16;
-        memcpy(&data16, context->cache + offset, sizeof(uint16_t));
-        data16 = le16toh(data16);
-
-        if(cluster & 1) {
-            data16 >>= 4;
-        }
-        else {
-            data16 &= 0x0FFF;
+        if(!fat12_get(context, cluster, &data12)) {
+            return UINT32_MAX;
         }
 
-        if(data16 >= FAT12_EOC) {
-            return UINTPTR_MAX;
-        }
-        else {
-            return data16;
-        }
+        return data12 >= FAT12_EOC ? FAT32_EOC : data12;
     }
 
     if(context->filesystem_type == FAT_TYPE_16) {
-        size_t offset = cluster * sizeof(uint16_t);
+        uint16_t data16;
 
-        if(offset + sizeof(uint16_t) > context->cache_size) {
-            return UINTPTR_MAX;
+        if(!table_load(context, cluster * sizeof(uint16_t), &data16, sizeof(data16))) {
+            return UINT32_MAX;
         }
 
-        uint16_t data16;
-        memcpy(&data16, context->cache + offset, sizeof(uint16_t));
         data16 = le16toh(data16);
 
-        if(data16 >= FAT16_EOC) {
-            return UINTPTR_MAX;
-        }
-        else {
-            return data16;
-        }
+        return data16 >= FAT16_EOC ? FAT32_EOC : data16;
     }
 
-    if(context->filesystem_type == FAT_TYPE_32) {
-        size_t offset = cluster * sizeof(uint32_t);
+    uint32_t data32;
 
-        if(offset + sizeof(uint32_t) > context->cache_size) {
-            return UINTPTR_MAX;
-        }
+    if(!table_load(context, cluster * sizeof(uint32_t), &data32, sizeof(data32))) {
+        return UINT32_MAX;
+    }
 
+    return le32toh(data32) & FAT32_MASK;
+}
+
+static void entry_set(struct fat_vfs_context* restrict context, uintptr_t cluster, uint32_t value)
+{
+    if(context->filesystem_type == FAT_TYPE_12) {
+        fat12_set(context, cluster, value);
+    }
+    else if(context->filesystem_type == FAT_TYPE_16) {
+        uint16_t data16 = htole16(value);
+        table_store(context, cluster * sizeof(uint16_t), &data16, sizeof(data16));
+    }
+    else if(context->filesystem_type == FAT_TYPE_32) {
         uint32_t data32;
-        memcpy(&data32, context->cache + offset, sizeof(uint32_t));
-        data32 = le32toh(data32) & FAT32_MASK;
 
-        if(data32 >= FAT32_EOC) {
-            return UINTPTR_MAX;
+        if(!table_load(context, cluster * sizeof(uint32_t), &data32, sizeof(data32))) {
+            return;
         }
-        else {
-            return data32;
+
+        data32 = (data32 & htole32(~FAT32_MASK)) | htole32(value & FAT32_MASK);
+
+        table_store(context, cluster * sizeof(uint32_t), &data32, sizeof(data32));
+    }
+}
+
+static size_t find_free(const struct fat_vfs_context* restrict context, uintptr_t first, size_t count, bool stop, size_t* restrict found)
+{
+    if(context->filesystem_type == FAT_TYPE_12) {
+        size_t num_free = 0;
+
+        for(size_t i = 0; i < count; ++i) {
+            if(entry_get(context, first + i) == 0) {
+                if(stop) {
+                    *found = first + i;
+                    return 1;
+                }
+
+                num_free += 1;
+            }
+        }
+
+        return num_free;
+    }
+
+    size_t entry_size = context->filesystem_type == FAT_TYPE_16 ? sizeof(uint16_t) : sizeof(uint32_t);
+    size_t per_batch = SCAN_BYTES / entry_size;
+    uint8_t batch[SCAN_BYTES];
+    size_t num_free = 0;
+
+    for(size_t done = 0; done < count; done += per_batch) {
+        size_t n = count - done;
+
+        if(n > per_batch) {
+            n = per_batch;
+        }
+
+        if(!table_load(context, (first + done) * entry_size, batch, n * entry_size)) {
+            break;
+        }
+
+        for(size_t i = 0; i < n; ++i) {
+            uint32_t value;
+
+            if(entry_size == sizeof(uint16_t)) {
+                uint16_t data16;
+                memcpy(&data16, batch + i * entry_size, sizeof(data16));
+                value = le16toh(data16);
+            }
+            else {
+                uint32_t data32;
+                memcpy(&data32, batch + i * entry_size, sizeof(data32));
+                value = le32toh(data32) & FAT32_MASK;
+            }
+
+            if(value != 0) {
+                continue;
+            }
+
+            if(stop) {
+                *found = first + done + i;
+                return 1;
+            }
+
+            num_free += 1;
         }
     }
 
-    return UINTPTR_MAX;
+    return num_free;
 }
 
 uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintptr_t cluster)
@@ -145,11 +251,11 @@ uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintp
         return UINTPTR_MAX;
     }
 
-    uintptr_t next = cluster_next_raw(context, cluster);
+    uint32_t next = entry_get(context, cluster);
 
     // A link to a reserved or nonexistent cluster is a broken chain; it
     // ends here rather than letting the caller walk off the volume
-    if(!fat_cluster_valid(context, next)) {
+    if(next >= FAT32_EOC || !fat_cluster_valid(context, next)) {
         return UINTPTR_MAX;
     }
 
@@ -160,108 +266,23 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
 {
     // The tables are often larger than the volume needs; entries past
     // the last data cluster don't describe anything that can be allocated
-    size_t limit = context->cluster_count + 2;
+    uintptr_t limit = context->cluster_count + 2;
+    uintptr_t hint = context->next_free_hint;
 
-    if(context->filesystem_type == FAT_TYPE_12) {
-        size_t count = (context->cache_size * 2) / 3;
-
-        if(count > limit) {
-            count = limit;
-        }
-        uintptr_t hint = context->next_free_hint;
-
-        for(size_t pass = 0; pass < 2; pass += 1) {
-            size_t start, end;
-
-            if(pass == 0) {
-                start = hint;
-                end = count;
-            }
-            else {
-                start = 2;
-                end = hint;
-            }
-
-            for(size_t i = start; i < end; ++i) {
-                if(0 == fat12_get(context, i)) {
-                    fat12_set(context, i, 0x0FFF);
-                    context->next_free_hint = i + 1;
-                    mark_entry_dirty(context, i);
-                    return i;
-                }
-            }
-        }
-    }
-    else if(context->filesystem_type == FAT_TYPE_16) {
-        size_t count = context->cache_size / sizeof(uint16_t);
-
-        if(count > limit) {
-            count = limit;
-        }
-        uintptr_t hint = context->next_free_hint;
-
-        for(size_t pass = 0; pass < 2; pass += 1) {
-            size_t start, end;
-
-            if(pass == 0) {
-                start = hint;
-                end = count;
-            }
-            else {
-                start = 2;
-                end = hint;
-            }
-
-            for(size_t i = start; i < end; ++i) {
-                uint16_t data16;
-                memcpy(&data16, context->cache + i * sizeof(uint16_t), sizeof(uint16_t));
-
-                if(0 == le16toh(data16)) {
-                    data16 = htole16(0xFFFF);
-                    memcpy(context->cache + i * sizeof(uint16_t), &data16, sizeof(uint16_t));
-                    context->next_free_hint = i + 1;
-                    mark_entry_dirty(context, i);
-                    return i;
-                }
-            }
-        }
-    }
-    else if(context->filesystem_type == FAT_TYPE_32) {
-        size_t count = context->cache_size / sizeof(uint32_t);
-
-        if(count > limit) {
-            count = limit;
-        }
-        uintptr_t hint = context->next_free_hint;
-
-        for(size_t pass = 0; pass < 2; pass += 1) {
-            size_t start, end;
-
-            if(pass == 0) {
-                start = hint;
-                end = count;
-            }
-            else {
-                start = 2;
-                end = hint;
-            }
-
-            for(size_t i = start; i < end; ++i) {
-                uint32_t data32;
-                memcpy(&data32, context->cache + i * sizeof(uint32_t), sizeof(uint32_t));
-
-                if(0 == (le32toh(data32) & FAT32_MASK)) {
-                    data32 = htole32(FAT32_MASK);
-                    memcpy(context->cache + i * sizeof(uint32_t), &data32, sizeof(uint32_t));
-                    context->next_free_hint = i + 1;
-                    mark_entry_dirty(context, i);
-                    return i;
-                }
-            }
-        }
+    if(hint < 2 || hint >= limit) {
+        hint = 2;
     }
 
-    return UINTPTR_MAX;
+    size_t found;
+
+    if(find_free(context, hint, limit - hint, true, &found) == 0 && find_free(context, 2, hint - 2, true, &found) == 0) {
+        return UINTPTR_MAX;
+    }
+
+    fat_cluster_end(context, found);
+    context->next_free_hint = found + 1;
+
+    return found;
 }
 
 void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluster, uintptr_t next)
@@ -270,21 +291,7 @@ void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluste
         return;
     }
 
-    if(context->filesystem_type == FAT_TYPE_12) {
-        fat12_set(context, cluster, next);
-    }
-    else if(context->filesystem_type == FAT_TYPE_16) {
-        uint16_t data16 = htole16(next);
-        memcpy(context->cache + cluster * sizeof(uint16_t), &data16, sizeof(uint16_t));
-    }
-    else if(context->filesystem_type == FAT_TYPE_32) {
-        uint32_t data32;
-        memcpy(&data32, context->cache + cluster * sizeof(uint32_t), sizeof(uint32_t));
-        data32 = (data32 & htole32(~FAT32_MASK)) | htole32(next & FAT32_MASK);
-        memcpy(context->cache + cluster * sizeof(uint32_t), &data32, sizeof(uint32_t));
-    }
-
-    mark_entry_dirty(context, cluster);
+    entry_set(context, cluster, next);
 }
 
 void fat_cluster_end(struct fat_vfs_context* restrict context, uintptr_t cluster)
@@ -306,25 +313,13 @@ void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluste
         return;
     }
 
-    if(context->filesystem_type == FAT_TYPE_12) {
-        fat12_set(context, cluster, 0);
-    }
-    else if(context->filesystem_type == FAT_TYPE_16) {
-        uint16_t zero16 = 0;
-        memcpy(context->cache + cluster * sizeof(uint16_t), &zero16, sizeof(uint16_t));
-    }
-    else if(context->filesystem_type == FAT_TYPE_32) {
-        uint32_t data32;
-        memcpy(&data32, context->cache + cluster * sizeof(uint32_t), sizeof(uint32_t));
-        data32 &= htole32(~FAT32_MASK);
-        memcpy(context->cache + cluster * sizeof(uint32_t), &data32, sizeof(uint32_t));
-    }
+    entry_set(context, cluster, 0);
+
+    pcache_forget(context->meta, fat_cluster_lba(context, cluster) * context->sector_size, context->cluster_size_b);
 
     if(cluster < context->next_free_hint) {
         context->next_free_hint = cluster;
     }
-
-    mark_entry_dirty(context, cluster);
 }
 
 uintptr_t fat_cluster_alloc_zeroed(struct fat_vfs_context* restrict context)
@@ -336,15 +331,53 @@ uintptr_t fat_cluster_alloc_zeroed(struct fat_vfs_context* restrict context)
     }
 
     uintptr_t lba = fat_cluster_lba(context, cluster);
+    size_t per_write = PAGE_SIZE / context->sector_size;
 
-    memset(context->bounce, 0, context->sector_size);
+    for(size_t s = 0; s < context->cluster_size_s; s += per_write) {
+        size_t count = context->cluster_size_s - s;
 
-    for(size_t s = 0; s < context->cluster_size_s; ++s) {
-        if(blk_write(context->device, lba + s, 1, context->bounce) < 0) {
+        if(count > per_write) {
+            count = per_write;
+        }
+
+        if(blk_write(context->device, lba + s, count, zeroes) < 0) {
             fat_cluster_free(context, cluster);
             return UINTPTR_MAX;
         }
     }
 
     return cluster;
+}
+
+uintptr_t fat_cluster_alloc_dir(struct fat_vfs_context* restrict context)
+{
+    uintptr_t cluster = fat_cluster_alloc(context);
+
+    if(cluster == UINTPTR_MAX) {
+        return UINTPTR_MAX;
+    }
+
+    uint64_t offset = fat_cluster_lba(context, cluster) * context->sector_size;
+
+    for(size_t done = 0; done < context->cluster_size_b; done += PAGE_SIZE) {
+        size_t count = context->cluster_size_b - done;
+
+        if(count > PAGE_SIZE) {
+            count = PAGE_SIZE;
+        }
+
+        if(pcache_meta_write(context->meta, offset + done, zeroes, count) < 0) {
+            fat_cluster_free(context, cluster);
+            return UINTPTR_MAX;
+        }
+    }
+
+    return cluster;
+}
+
+size_t fat_cluster_count_free(const struct fat_vfs_context* restrict context)
+{
+    size_t unused;
+
+    return find_free(context, 2, context->cluster_count, false, &unused);
 }

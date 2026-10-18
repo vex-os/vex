@@ -4,11 +4,12 @@
 #include <vex/ctype.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
+#include <vex/pcache.h>
 #include <vex/string.h>
 
 #include "fat.h"
 
-static int read_entry(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, union fat_entry* restrict entry)
+static int entry_offset(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, uint64_t* restrict out)
 {
     size_t entries_per_sector = context->sector_size / sizeof(union fat_entry);
     uintptr_t lba;
@@ -39,58 +40,34 @@ static int read_entry(const struct fat_vfs_context* restrict context, uintptr_t 
         lba = sector + fat_cluster_lba(context, cluster);
     }
 
-    int retval = blk_read(context->device, lba, 1, context->bounce);
+    *out = lba * context->sector_size + sizeof(union fat_entry) * (offset % entries_per_sector);
+
+    return 0;
+}
+
+static int read_entry(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, union fat_entry* restrict entry)
+{
+    uint64_t position;
+    int retval = entry_offset(context, cluster, offset, &position);
 
     if(retval < 0) {
         return retval;
     }
 
-    memcpy(entry, context->bounce + sizeof(union fat_entry) * (offset % entries_per_sector), sizeof(union fat_entry));
-
-    return 0;
+    return pcache_meta_read(context->meta, position, entry, sizeof(union fat_entry));
 }
 
 static int write_entry(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
     const union fat_entry* restrict entry)
 {
-    size_t entries_per_sector = context->sector_size / sizeof(union fat_entry);
-    uintptr_t lba;
-
-    if(cluster == 0) {
-        size_t sector = offset / entries_per_sector;
-
-        if(sector >= context->rootdir_sectors) {
-            return -ENOENT;
-        }
-
-        lba = context->data_start - context->rootdir_sectors + sector;
-    }
-    else {
-        size_t entries_per_cluster = context->cluster_size_b / sizeof(union fat_entry);
-        size_t cluster_idx = offset / entries_per_cluster;
-        size_t entry_idx = offset % entries_per_cluster;
-        size_t sector = entry_idx / entries_per_sector;
-
-        for(size_t i = 0; i < cluster_idx; ++i) {
-            cluster = fat_cluster_next(context, cluster);
-
-            if(cluster == UINTPTR_MAX) {
-                return -ENOENT;
-            }
-        }
-
-        lba = sector + fat_cluster_lba(context, cluster);
-    }
-
-    int retval = blk_read(context->device, lba, 1, context->bounce);
+    uint64_t position;
+    int retval = entry_offset(context, cluster, offset, &position);
 
     if(retval < 0) {
         return retval;
     }
 
-    memcpy(context->bounce + sizeof(union fat_entry) * (offset % entries_per_sector), entry, sizeof(union fat_entry));
-
-    return blk_write(context->device, lba, 1, context->bounce);
+    return pcache_meta_write(context->meta, position, entry, sizeof(union fat_entry));
 }
 
 static uint8_t ldir_checksum(const struct fat_dir_entry* restrict entry)
@@ -381,23 +358,10 @@ int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster
                 tail = next;
             }
 
-            uintptr_t new_cluster = fat_cluster_alloc(context);
+            uintptr_t new_cluster = fat_cluster_alloc_dir(context);
 
             if(new_cluster == UINTPTR_MAX) {
                 return -ENOSPC;
-            }
-
-            memset(context->bounce, 0, context->sector_size);
-
-            uintptr_t lba = fat_cluster_lba(context, new_cluster);
-
-            for(size_t s = 0; s < context->cluster_size_s; ++s) {
-                retval = blk_write(context->device, lba + s, 1, context->bounce);
-
-                if(retval < 0) {
-                    fat_cluster_free(context, new_cluster);
-                    return retval;
-                }
             }
 
             fat_cluster_link(context, tail, new_cluster);

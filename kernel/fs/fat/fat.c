@@ -1,4 +1,3 @@
-#include <vex/bitmap.h>
 #include <vex/blk_device.h>
 #include <vex/cmdline.h>
 #include <vex/endian.h>
@@ -6,6 +5,7 @@
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/mount.h>
+#include <vex/pcache.h>
 #include <vex/slab.h>
 #include <vex/stdlib.h>
 #include <vex/string.h>
@@ -14,31 +14,6 @@
 #include "fat.h"
 
 static_assert(sizeof(struct fat_vfs_context) <= (PAGE_SIZE / 2));
-
-static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
-{
-    if(context->filesystem_type != FAT_TYPE_32 || context->fsinfo_lba == 0) {
-        return;
-    }
-
-    if(blk_read(context->device, context->fsinfo_lba, 1, context->bounce)) {
-        return;
-    }
-
-    struct fat_fsinfo_fat32* info = (struct fat_fsinfo_fat32*)(context->bounce);
-
-    bool fsinfo_valid = true;
-    fsinfo_valid = fsinfo_valid && le32toh(info->lead_signature) == UINT32_C(0x41615252);
-    fsinfo_valid = fsinfo_valid && le32toh(info->struct_signature) == UINT32_C(0x61417272);
-    fsinfo_valid = fsinfo_valid && le32toh(info->trail_signature) == UINT32_C(0xAA550000);
-
-    if(fsinfo_valid) {
-        info->free_count = htole32(UINT32_C(0xFFFFFFFF));
-        info->next_free = htole32(UINT32_C(0xFFFFFFFF));
-
-        blk_write(context->device, context->fsinfo_lba, 1, context->bounce);
-    }
-}
 
 static int fat_probe(struct vfs* restrict fs, const struct blk_device* restrict device)
 {
@@ -228,56 +203,21 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         context->fsinfo_lba = 0;
     }
 
-    context->cache_size = fat_size * sector_size;
-    context->cache = kmalloc(context->cache_size);
-
-    if(context->cache == nullptr) {
-        kfree(boot);
-        kfree(context);
-        return -ENOMEM;
-    }
-
-    context->dirty_sectors = kmalloc(bitmap_bytecount(fat_size));
     context->fsinfo_invalidated = false;
-
-    if(context->dirty_sectors == nullptr) {
-        kfree(boot);
-        kfree(context->cache);
-        kfree(context);
-        return -ENOMEM;
-    }
-
     context->next_free_hint = 2;
-
-    context->bounce = kmalloc(context->sector_size);
-
-    if(context->bounce == nullptr) {
-        kfree(boot);
-        kfree(context->dirty_sectors);
-        kfree(context->cache);
-        kfree(context);
-        return -ENOMEM;
-    }
-
-    retval = blk_read(device, context->table_start, fat_size, context->cache);
-
-    if(retval < 0) {
-        kfree(boot);
-        kfree(context->bounce);
-        kfree(context->dirty_sectors);
-        kfree(context->cache);
-        kfree(context);
-        return retval;
-    }
+    context->meta = pcache_meta_create(fs);
 
     kfree(boot);
+
+    if(context->meta == nullptr) {
+        kfree(context);
+        return -ENOMEM;
+    }
 
     struct fat_vnode_context* root_context = slab_alloc(sizeof(struct fat_vnode_context));
 
     if(root_context == nullptr) {
-        kfree(context->bounce);
-        kfree(context->dirty_sectors);
-        kfree(context->cache);
+        pcache_meta_destroy(context->meta);
         kfree(context);
         return -ENOMEM;
     }
@@ -292,9 +232,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     if(root == nullptr) {
         slab_free(root_context);
-        kfree(context->bounce);
-        kfree(context->dirty_sectors);
-        kfree(context->cache);
+        pcache_meta_destroy(context->meta);
         kfree(context);
         return -ENOMEM;
     }
@@ -314,47 +252,8 @@ static int statvfs_locked(struct vfs* restrict fs, struct k_statvfs* restrict ou
 
     memset(out, 0, sizeof(struct k_statvfs));
 
-    size_t free_clusters = 0;
+    size_t free_clusters = fat_cluster_count_free(context);
     size_t total = context->cluster_count;
-
-    if(context->filesystem_type == FAT_TYPE_32) {
-        const uint32_t* fat = (const uint32_t*)(context->cache);
-
-        for(size_t i = 2; i < total + 2; ++i) {
-            if((le32toh(fat[i]) & UINT32_C(0x0FFFFFFF)) == 0) {
-                free_clusters += 1;
-            }
-        }
-    }
-    else if(context->filesystem_type == FAT_TYPE_16) {
-        const uint16_t* fat = (const uint16_t*)(context->cache);
-
-        for(size_t i = 2; i < total + 2; ++i) {
-            if(le16toh(fat[i]) == 0) {
-                free_clusters += 1;
-            }
-        }
-    }
-    else {
-        for(size_t i = 2; i < total + 2; ++i) {
-            size_t byte_off = i + i / 2;
-
-            uint16_t value = UINT16_C(0);
-            value |= context->cache[byte_off];
-            value |= ((uint16_t)context->cache[byte_off + 1] << 8);
-
-            if(i & 1) {
-                value >>= 4;
-            }
-            else {
-                value &= 0x0FFF;
-            }
-
-            if(value == 0) {
-                free_clusters += 1;
-            }
-        }
-    }
 
     out->f_bsize = context->sector_size;
     out->f_frsize = context->cluster_size_b;
@@ -384,17 +283,16 @@ static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
     uintptr_t lba = nodenumber >> 32;
     uintptr_t byte_offset = nodenumber & 0xFFFFFFFF;
 
-    int retval = blk_read(context->device, lba, 1, context->bounce);
+    struct fat_dir_entry raw_entry;
+    int retval = pcache_meta_read(context->meta, lba * context->sector_size + byte_offset, &raw_entry, sizeof(raw_entry));
 
     if(retval < 0) {
         return retval;
     }
 
-    const struct fat_dir_entry* raw_entry = (const struct fat_dir_entry*)(context->bounce + byte_offset);
-
     uintptr_t cluster = 0;
-    cluster |= (uintptr_t)le16toh(raw_entry->first_cluster_hi) << 16;
-    cluster |= (uintptr_t)le16toh(raw_entry->first_cluster_lo);
+    cluster |= (uintptr_t)le16toh(raw_entry.first_cluster_hi) << 16;
+    cluster |= (uintptr_t)le16toh(raw_entry.first_cluster_lo);
 
     struct fat_vnode_context* node_context = slab_alloc(sizeof(struct fat_vnode_context));
 
@@ -427,7 +325,7 @@ static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
 
     node_context->fs_ctx = context;
     node_context->first_cluster = cluster;
-    node_context->size_bytes = le32toh(raw_entry->file_size);
+    node_context->size_bytes = le32toh(raw_entry.file_size);
     node_context->dir_cluster = dir_cluster;
     node_context->dir_offset = dir_offset;
     node_context->cached_cluster = cluster;
@@ -435,7 +333,7 @@ static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
 
     node->ctxdata = node_context;
 
-    if(raw_entry->attribute & FAT_ATTR_DIRECTORY) {
+    if(raw_entry.attribute & FAT_ATTR_DIRECTORY) {
         node->nodetype = VNODE_DIRECTORY;
     }
     else {
@@ -451,55 +349,9 @@ static int fat_unmount(struct vfs* restrict fs)
 
     vnode_decref(fs->root);
 
-    kfree(context->bounce);
-    kfree(context->dirty_sectors);
-    kfree(context->cache);
+    pcache_meta_destroy(context->meta);
     mutex_deinit(&context->lock);
     kfree(context);
-
-    return 0;
-}
-
-static int sync_locked(struct vfs* restrict fs)
-{
-    struct fat_vfs_context* context = fs->ctxdata;
-
-    size_t sector = 0;
-
-    while(sector < context->table_size_s) {
-        if(0 == sector % BITMAP_CHUNK_BITS && 0 == context->dirty_sectors[sector / BITMAP_CHUNK_BITS]) {
-            sector += BITMAP_CHUNK_BITS;
-            continue;
-        }
-
-        if(!bitmap_isset(context->dirty_sectors, sector)) {
-            sector += 1;
-            continue;
-        }
-
-        size_t run_end = sector + 1;
-
-        while(run_end < context->table_size_s && bitmap_isset(context->dirty_sectors, run_end)) {
-            run_end += 1;
-        }
-
-        for(unsigned i = 0; i < context->num_tables; ++i) {
-            uintptr_t lba = context->table_start + i * context->table_size_s + sector;
-            int retval = blk_write(context->device, lba, run_end - sector, context->cache + sector * context->sector_size);
-
-            if(retval < 0) {
-                return retval;
-            }
-        }
-
-        bitmap_range_clear(context->dirty_sectors, sector, run_end - 1);
-        sector = run_end;
-
-        if(!context->fsinfo_invalidated) {
-            invalidate_fsinfo(context);
-            context->fsinfo_invalidated = true;
-        }
-    }
 
     return 0;
 }
@@ -525,10 +377,7 @@ static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
 static int fat_sync(struct vfs* restrict fs)
 {
     struct fat_vfs_context* context = fs->ctxdata;
-    mutex_acquire(&context->lock);
-    int retval = sync_locked(fs);
-    mutex_release(&context->lock);
-    return retval;
+    return vnode_fsync(context->meta);
 }
 
 static const struct vfs_ops fat_vfs_ops = {

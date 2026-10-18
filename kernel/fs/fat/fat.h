@@ -2,7 +2,6 @@
 
 #include <vex/mutex.h>
 
-#include <vex/bitmap.h>
 #include <vex/compiler.h>
 #include <vex/path.h>
 #include <vex/types.h>
@@ -12,6 +11,7 @@
 #define FAT_TYPE_32 32
 
 struct blk_device;
+struct vnode;
 
 struct fat_bootparams {
     uint8_t jmp_boot[3];        // BS_jmpBoot
@@ -146,7 +146,7 @@ struct fat_dirent {
 };
 
 struct fat_vfs_context {
-    struct mutex lock; // Serializes every use of bounce and the table cache, and the page cache calls
+    struct mutex lock; // Serializes changes to the table and directories, and the page cache calls for files
     const struct blk_device* device;
     union fat_extparams extparams;
     unsigned filesystem_type;
@@ -169,14 +169,11 @@ struct fat_vfs_context {
     uintptr_t fsinfo_lba;
     size_t cluster_count;
 
-    uint8_t* cache;
-    size_t cache_size;
-    bitmap_type* dirty_sectors;
     bool fsinfo_invalidated;
 
     uintptr_t next_free_hint;
 
-    uint8_t* bounce;
+    struct vnode* meta;
 };
 
 struct fat_vnode_context {
@@ -199,6 +196,8 @@ void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluste
 uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintptr_t cluster) __nodiscard;
 uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context) __nodiscard;
 uintptr_t fat_cluster_alloc_zeroed(struct fat_vfs_context* restrict context) __nodiscard;
+uintptr_t fat_cluster_alloc_dir(struct fat_vfs_context* restrict context) __nodiscard;
+size_t fat_cluster_count_free(const struct fat_vfs_context* restrict context) __nodiscard;
 
 // Leaves offset one past the short entry it returns
 int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t* restrict offset,
