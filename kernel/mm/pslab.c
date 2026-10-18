@@ -107,7 +107,7 @@ void* pslab_alloc_virt(void)
         return ptr;
     }
 
-    if(pslab_numpages - atomic_load(&pslab_numused, ATOMIC_RELAXED) < RESERVE_PAGES) {
+    if(pslab_free_count() < RESERVE_PAGES) {
         fcache_reclaim(RECLAIM_BATCH);
     }
 
@@ -142,9 +142,9 @@ void pslab_free_virt(void* restrict virtaddr)
     spinlock_release_intr(&pslab_lock, intr_state);
 }
 
-size_t pslab_page_count(void)
+size_t pslab_free_count(void)
 {
-    return pslab_numpages;
+    return pslab_numpages - atomic_load(&pslab_numused, ATOMIC_RELAXED);
 }
 
 static void init_pslab(void)

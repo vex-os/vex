@@ -8,4 +8,4 @@ void* pslab_alloc_virt(void) __nodiscard;
 void pslab_free_phys(uintptr_t physaddr);
 void pslab_free_virt(void* restrict virtaddr);
 
-size_t pslab_page_count(void) __nodiscard;
+size_t pslab_free_count(void) __nodiscard;

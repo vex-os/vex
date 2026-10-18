@@ -29,7 +29,6 @@ static spinlock_type dirty_lock = SPINLOCK_INIT;
 static struct vnode* dirty_head = nullptr;
 
 static size_t dirty_pages = 0;
-static size_t dirty_limit = 0;
 
 static struct event writeback_wakeup;
 static bool writeback_kicked = false;
@@ -409,6 +408,13 @@ static int writeback_locked(struct vnode* restrict node, fcache_bmap_type bmap, 
     return retval;
 }
 
+static bool over_dirty_limit(void)
+{
+    size_t dirtyable_count = pslab_free_count() + atomic_load(&lru_length, ATOMIC_RELAXED);
+    size_t dirtyable_percent = dirtyable_count / 100 * CONFIG_FCACHE_DIRTY_PERCENT;
+    return atomic_load(&dirty_pages, ATOMIC_RELAXED) > dirtyable_percent;
+}
+
 static void kick_writeback(void)
 {
     if(!atomic_exchange(&writeback_kicked, true, ATOMIC_ACQ_REL)) {
@@ -583,6 +589,13 @@ ssize_t fcache_write(struct vnode* restrict node, fcache_bmap_type bmap, const v
 
         struct pframe* pf = get_page(cache, index);
 
+        // Written back, this file's own dirty pages can be reclaimed
+        if(pf == nullptr && cache->num_dirty > 0) {
+            kick_writeback();
+            writeback_locked(node, bmap, size);
+            pf = get_page(cache, index);
+        }
+
         if(pf == nullptr) {
             retval = -ENOMEM;
             break;
@@ -622,7 +635,7 @@ ssize_t fcache_write(struct vnode* restrict node, fcache_bmap_type bmap, const v
 
     // The writer pays for going over the limit with its own pages;
     // it already holds what the filesystem needs for writeback
-    if(atomic_load(&dirty_pages, ATOMIC_RELAXED) > dirty_limit) {
+    if(over_dirty_limit()) {
         kick_writeback();
         writeback_locked(node, bmap, size);
     }
@@ -835,7 +848,8 @@ size_t fcache_reclaim(size_t count)
 
     spinlock_acquire(&lru_lock);
 
-    size_t budget = lru_length;
+    // Twice round, so that a page left with only its second chance is taken
+    size_t budget = 2 * lru_length;
 
     while(freed < count && budget > 0 && lru_head) {
         struct pframe* pf = lru_head;
@@ -889,8 +903,6 @@ size_t fcache_reclaim(size_t count)
 
 static void init_fcache(void)
 {
-    dirty_limit = pslab_page_count() / 100 * CONFIG_FCACHE_DIRTY_PERCENT;
-
     event_init(&writeback_wakeup);
 
     struct thread* writeback = create_thread_kern(&writeback_thread, nullptr);
