@@ -72,8 +72,7 @@ struct echfs_vfs_context {
 
     uint64_t dir_entries;
 
-    uint8_t* bounce;
-    struct mutex lock; // Serializes every use of bounce, fat and dir_table
+    struct mutex lock; // Serializes every use of fat and dir_table, and the page cache calls
 };
 
 struct echfs_vnode_context {

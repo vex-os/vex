@@ -99,19 +99,11 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     context->data_start = data_start;
     context->dir_entries = dir_size * block_size / sizeof(struct echfs_dirent);
 
-    context->bounce = kmalloc(sector_size);
-
-    if(context->bounce == nullptr) {
-        kfree(context);
-        return -ENOMEM;
-    }
-
     size_t fat_bytes = fat_size * block_size;
 
     context->fat = kmalloc(fat_bytes);
 
     if(context->fat == nullptr) {
-        kfree(context->bounce);
         kfree(context);
         return -ENOMEM;
     }
@@ -120,7 +112,6 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 
     if(retval < 0) {
         kfree(context->fat);
-        kfree(context->bounce);
         kfree(context);
         return retval;
     }
@@ -131,7 +122,6 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 
     if(context->dir_table == nullptr) {
         kfree(context->fat);
-        kfree(context->bounce);
         kfree(context);
         return -ENOMEM;
     }
@@ -141,7 +131,6 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     if(retval < 0) {
         kfree(context->dir_table);
         kfree(context->fat);
-        kfree(context->bounce);
         kfree(context);
         return retval;
     }
@@ -154,7 +143,6 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
         kfree(context->fat_dirty);
         kfree(context->dir_table);
         kfree(context->fat);
-        kfree(context->bounce);
         kfree(context);
         return -ENOMEM;
     }
@@ -166,7 +154,6 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
         kfree(context->fat_dirty);
         kfree(context->dir_table);
         kfree(context->fat);
-        kfree(context->bounce);
         kfree(context);
         return -ENOMEM;
     }
@@ -186,7 +173,6 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
         kfree(context->fat_dirty);
         kfree(context->dir_table);
         kfree(context->fat);
-        kfree(context->bounce);
         kfree(context);
         return -ENOMEM;
     }
@@ -279,7 +265,6 @@ static int echfs_unmount(struct vfs* restrict fs)
     kfree(context->fat_dirty);
     kfree(context->dir_table);
     kfree(context->fat);
-    kfree(context->bounce);
     mutex_deinit(&context->lock);
     kfree(context);
 

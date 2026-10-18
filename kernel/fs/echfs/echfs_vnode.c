@@ -1,6 +1,7 @@
 #include <vex/blk_device.h>
 #include <vex/dirent.h>
 #include <vex/errno.h>
+#include <vex/pcache.h>
 #include <vex/pslab.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
@@ -353,132 +354,21 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
     return echfs_dirent_write(fs, old_index, &entry);
 }
 
-static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
-{
-    struct echfs_vnode_context* ctx = node->ctxdata;
-    struct echfs_vfs_context* fs = ctx->fs_ctx;
-
-    if(offset >= ctx->size) {
-        return 0;
-    }
-
-    size_t remaining = sz;
-
-    if(offset + sz > ctx->size) {
-        remaining = ctx->size - offset;
-    }
-
-    uint64_t block_index = offset / fs->block_size;
-    uintptr_t block;
-
-    if(block_index >= ctx->cached_block_idx) {
-        block = ctx->cached_block;
-
-        for(uint64_t i = ctx->cached_block_idx; i < block_index; ++i) {
-            block = echfs_block_next(fs, block);
-
-            if(block == UINTPTR_MAX) {
-                return -EIO;
-            }
-        }
-    }
-    else {
-        block = ctx->start_block;
-
-        for(uint64_t i = 0; i < block_index; ++i) {
-            block = echfs_block_next(fs, block);
-
-            if(block == UINTPTR_MAX) {
-                return -EIO;
-            }
-        }
-    }
-
-    ctx->cached_block_idx = block_index;
-    ctx->cached_block = block;
-
-    size_t offset_in_block = offset % fs->block_size;
-    size_t sector_size = fs->device->sector_size;
-    size_t done = 0;
-
-    while(remaining > 0 && block != UINTPTR_MAX) {
-        size_t sector_index = offset_in_block / sector_size;
-        size_t offset_in_sector = offset_in_block % sector_size;
-
-        while(remaining > 0 && sector_index < fs->sectors_per_block) {
-            uintptr_t lba = echfs_block_lba(fs, block) + sector_index;
-
-            if(offset_in_sector == 0 && remaining >= sector_size) {
-                size_t full_sectors = remaining / sector_size;
-                size_t avail = fs->sectors_per_block - sector_index;
-
-                if(full_sectors > avail) {
-                    full_sectors = avail;
-                }
-
-                int retval = blk_read(fs->device, lba, full_sectors, (uint8_t*)buffer + done);
-
-                if(retval < 0) {
-                    if(done > 0)
-                        return done;
-                    return retval;
-                }
-
-                size_t bytes = full_sectors * sector_size;
-
-                done += bytes;
-                remaining -= bytes;
-                sector_index += full_sectors;
-            }
-            else {
-                int retval = blk_read(fs->device, lba, 1, fs->bounce);
-
-                if(retval < 0) {
-                    if(done > 0)
-                        return done;
-                    return retval;
-                }
-
-                size_t chunk = sector_size - offset_in_sector;
-
-                if(chunk > remaining) {
-                    chunk = remaining;
-                }
-
-                memcpy((uint8_t*)buffer + done, fs->bounce + offset_in_sector, chunk);
-
-                done += chunk;
-                remaining -= chunk;
-                offset_in_sector = 0;
-                sector_index += 1;
-            }
-        }
-
-        offset_in_block = 0;
-        block_index += 1;
-        block = echfs_block_next(fs, block);
-        ctx->cached_block_idx = block_index;
-        ctx->cached_block = block;
-    }
-
-    return done;
-}
-
-static ssize_t write_span_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static int chain_block(struct vnode* restrict node, uint64_t block_index, bool create, uintptr_t* restrict out)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
 
     if(ctx->start_block == ECHFS_TABLE_EOC) {
+        if(!create) {
+            return -EIO;
+        }
+
         uintptr_t new_block = echfs_block_alloc(fs);
 
         if(new_block == UINTPTR_MAX) {
             return -ENOSPC;
         }
-
-        ctx->start_block = new_block;
-        ctx->cached_block = new_block;
-        ctx->cached_block_idx = 0;
 
         // An unlinked file's entry may
         // belong to another file by now
@@ -488,165 +378,108 @@ static ssize_t write_span_locked(struct vnode* restrict node, const void* restri
 
             if(retval < 0) {
                 echfs_block_free(fs, new_block);
-                ctx->start_block = ECHFS_TABLE_EOC;
                 return retval;
             }
 
             entry.start_block = new_block;
             echfs_dirent_write(fs, ctx->dir_entry, &entry);
         }
+
+        ctx->start_block = new_block;
+        ctx->cached_block = new_block;
+        ctx->cached_block_idx = 0;
     }
 
-    uint64_t block_index = offset / fs->block_size;
-    uintptr_t block;
+    if(ctx->start_block >= fs->total_blocks) {
+        return -EIO;
+    }
 
-    if(block_index >= ctx->cached_block_idx) {
+    uintptr_t block = ctx->start_block;
+    uint64_t index = 0;
+
+    if(block_index >= ctx->cached_block_idx && ctx->cached_block < fs->total_blocks) {
         block = ctx->cached_block;
-
-        for(uint64_t i = ctx->cached_block_idx; i < block_index; ++i) {
-            uintptr_t next = echfs_block_next(fs, block);
-
-            if(next == UINTPTR_MAX) {
-                next = echfs_block_alloc(fs);
-
-                if(next == UINTPTR_MAX) {
-                    return -ENOSPC;
-                }
-
-                echfs_block_link(fs, block, next);
-            }
-
-            block = next;
-        }
-    }
-    else {
-        block = ctx->start_block;
-
-        for(uint64_t i = 0; i < block_index; ++i) {
-            uintptr_t next = echfs_block_next(fs, block);
-            if(next == UINTPTR_MAX) {
-                next = echfs_block_alloc(fs);
-
-                if(next == UINTPTR_MAX) {
-                    return -ENOSPC;
-                }
-
-                echfs_block_link(fs, block, next);
-            }
-
-            block = next;
-        }
+        index = ctx->cached_block_idx;
     }
 
-    ctx->cached_block_idx = block_index;
+    while(index < block_index) {
+        uintptr_t next = echfs_block_next(fs, block);
+
+        if(next == UINTPTR_MAX) {
+            if(!create) {
+                return -EIO;
+            }
+
+            next = echfs_block_alloc(fs);
+
+            if(next == UINTPTR_MAX) {
+                return -ENOSPC;
+            }
+
+            echfs_block_link(fs, block, next);
+        }
+
+        block = next;
+        index += 1;
+    }
+
     ctx->cached_block = block;
+    ctx->cached_block_idx = block_index;
 
-    size_t offset_in_block = offset % fs->block_size;
-    size_t sector_size = fs->device->sector_size;
-    size_t remaining = sz;
-    size_t done = 0;
+    *out = block;
 
-    while(remaining > 0) {
-        size_t sector_index = offset_in_block / sector_size;
-        size_t offset_in_sector = offset_in_block % sector_size;
+    return 0;
+}
 
-        while(remaining > 0 && sector_index < fs->sectors_per_block) {
-            uintptr_t lba = echfs_block_lba(fs, block) + sector_index;
+static int echfs_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct pcache_extent* restrict out)
+{
+    struct echfs_vnode_context* ctx = node->ctxdata;
+    struct echfs_vfs_context* fs = ctx->fs_ctx;
 
-            if(offset_in_sector == 0 && remaining >= sector_size) {
-                size_t full_sectors = remaining / sector_size;
-                size_t avail = fs->sectors_per_block - sector_index;
+    uint64_t in_block = sector % fs->sectors_per_block;
+    uintptr_t block;
+    int retval = chain_block(node, sector / fs->sectors_per_block, create, &block);
 
-                if(full_sectors > avail) {
-                    full_sectors = avail;
-                }
-
-                int retval = blk_write(fs->device, lba, full_sectors, (const uint8_t*)buffer + done);
-
-                if(retval < 0) {
-                    if(done > 0)
-                        return done;
-                    return retval;
-                }
-
-                size_t bytes = full_sectors * sector_size;
-
-                done += bytes;
-                remaining -= bytes;
-                sector_index += full_sectors;
-            }
-            else {
-                size_t chunk = sector_size - offset_in_sector;
-
-                if(chunk > remaining) {
-                    chunk = remaining;
-                }
-
-                int retval;
-
-                if(offset_in_sector > 0 || chunk < sector_size) {
-                    retval = blk_read(fs->device, lba, 1, fs->bounce);
-
-                    if(retval < 0) {
-                        if(done > 0)
-                            return done;
-                        return retval;
-                    }
-                }
-
-                memcpy(fs->bounce + offset_in_sector, (const uint8_t*)buffer + done, chunk);
-
-                retval = blk_write(fs->device, lba, 1, fs->bounce);
-
-                if(retval < 0) {
-                    if(done > 0)
-                        return done;
-                    return retval;
-                }
-
-                done += chunk;
-                remaining -= chunk;
-                offset_in_sector = 0;
-                sector_index += 1;
-            }
-        }
-
-        if(remaining > 0) {
-            uintptr_t next = echfs_block_next(fs, block);
-
-            if(next == UINTPTR_MAX) {
-                next = echfs_block_alloc(fs);
-
-                if(next == UINTPTR_MAX) {
-                    if(done > 0)
-                        return done;
-                    return -ENOSPC;
-                }
-
-                echfs_block_link(fs, block, next);
-            }
-
-            block = next;
-            block_index += 1;
-            offset_in_block = 0;
-            ctx->cached_block_idx = block_index;
-            ctx->cached_block = block;
-        }
+    if(retval < 0) {
+        return retval;
     }
 
-    if(offset + sz > ctx->size) {
-        ctx->size = offset + sz;
+    out->lba = echfs_block_lba(fs, block) + in_block;
+    out->count = fs->sectors_per_block - in_block;
+    out->mapped = true;
 
-        struct echfs_dirent entry;
+    return 0;
+}
 
-        if(!ctx->unlinked && 0 == echfs_dirent_read(fs, ctx->dir_entry, &entry)) {
-            entry.file_size = ctx->size;
+static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
+{
+    struct echfs_vnode_context* ctx = node->ctxdata;
 
-            echfs_dirent_write(fs, ctx->dir_entry, &entry);
-        }
+    return pcache_read(node, &echfs_bmap, buffer, sz, offset, ctx->size);
+}
+
+static ssize_t write_span_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+{
+    struct echfs_vnode_context* ctx = node->ctxdata;
+    struct echfs_vfs_context* fs = ctx->fs_ctx;
+
+    ssize_t written = pcache_write(node, &echfs_bmap, buffer, sz, offset, ctx->size);
+
+    if(written <= 0 || (uint64_t)(offset + written) <= ctx->size) {
+        return written;
     }
 
-    return done;
+    ctx->size = offset + written;
+
+    struct echfs_dirent entry;
+
+    if(!ctx->unlinked && 0 == echfs_dirent_read(fs, ctx->dir_entry, &entry)) {
+        entry.file_size = ctx->size;
+
+        echfs_dirent_write(fs, ctx->dir_entry, &entry);
+    }
+
+    return written;
 }
 
 static int zero_fill_locked(struct vnode* restrict node, off_t from, off_t to)
@@ -704,6 +537,10 @@ static int shrink_locked(struct vnode* restrict node, uint64_t size)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
+
+    // Dirty pages past the new end must not
+    // reach blocks that are freed below
+    pcache_truncate(node, size);
 
     uint64_t keep = (size + fs->block_size - 1) / fs->block_size;
 
@@ -918,6 +755,16 @@ static ssize_t echfs_vnode_write(struct vnode* restrict node, const void* restri
     return retval;
 }
 
+static int echfs_vnode_fsync(struct vnode* restrict node)
+{
+    struct echfs_vnode_context* ctx = node->ctxdata;
+
+    mutex_acquire(fs_lock(node));
+    int retval = pcache_writeback(node, &echfs_bmap, ctx->size);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
 static int echfs_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
 {
     mutex_acquire(fs_lock(node));
@@ -945,4 +792,5 @@ const struct vnode_ops echfs_vnode_ops = {
     .write = &echfs_vnode_write,
     .stat = &echfs_vnode_stat,
     .setattr = &echfs_vnode_setattr,
+    .fsync = &echfs_vnode_fsync,
 };
