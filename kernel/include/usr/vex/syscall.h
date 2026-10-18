@@ -48,5 +48,7 @@
 #define __k_SYS_FTRUNCATE 45
 #define __k_SYS_FCHMODAT  46
 #define __k_SYS_FCHOWNAT  47
+#define __k_SYS_CAPGET    48
+#define __k_SYS_CAPSET    49
 
 #endif /* USR_VEX_SYSCALL_H */

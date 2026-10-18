@@ -76,16 +76,21 @@ static struct credentials* exec_cred(const struct credentials* restrict cred, co
         return nullptr;
     }
 
-    if(st->st_mode & S_ISUID) {
+    bool setuid = st->st_mode & S_ISUID;
+    bool setgid = (st->st_mode & S_ISGID) && (st->st_mode & S_IXGRP);
+
+    if(setuid) {
         copy->euid = st->st_uid;
     }
 
-    if((st->st_mode & S_ISGID) && (st->st_mode & S_IXGRP)) {
+    if(setgid) {
         copy->egid = st->st_gid;
     }
 
     copy->suid = copy->euid;
     copy->sgid = copy->egid;
+
+    cred_exec_caps(copy, setuid || setgid);
 
     return copy;
 }

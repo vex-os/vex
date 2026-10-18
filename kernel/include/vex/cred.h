@@ -1,15 +1,8 @@
 #pragma once
 
+#include <vex/capability.h>
 #include <vex/compiler.h>
 #include <vex/types.h>
-
-#define CAP_DAC_OVERRIDE UINT64_C(0x0000000000000001) // Bypass file permission checks
-#define CAP_MOUNT        UINT64_C(0x0000000000000002)
-#define CAP_SETUID       UINT64_C(0x0000000000000004)
-#define CAP_SETGID       UINT64_C(0x0000000000000008)
-#define CAP_CHOWN        UINT64_C(0x0000000000000010)
-#define CAP_FOWNER       UINT64_C(0x0000000000000020) // Act as the owner of any file
-#define CAP_FSETID       UINT64_C(0x0000000000000040) // Keep setuid and setgid bits that changes would clear
 
 struct credentials {
     unsigned refcount;
@@ -21,6 +14,12 @@ struct credentials {
     gid_t gid;
     gid_t egid;
     gid_t sgid;
+
+    uint64_t cap_effective;
+    uint64_t cap_permitted;
+    uint64_t cap_ambient;
+    uint64_t cap_bounding;
+    unsigned cap_flags;
 
     size_t ngroups;
     gid_t groups[];
@@ -34,7 +33,9 @@ struct credentials* cred_copy_ids(const struct credentials* restrict cred, size_
 void cred_incref(struct credentials* restrict cred);
 void cred_decref(struct credentials* restrict cred);
 
-bool cred_capable(const struct credentials* restrict cred, uint64_t cap) __nodiscard;
+bool cred_capable(const struct credentials* restrict cred, unsigned cap) __nodiscard;
+int cred_setcaps(struct credentials* restrict cred, const struct k_caps* restrict caps) __nodiscard;
+void cred_exec_caps(struct credentials* restrict cred, bool privileged);
 bool cred_in_group(const struct credentials* restrict cred, gid_t gid) __nodiscard;
 
 int cred_setresuid(struct credentials* restrict cred, uid_t ruid, uid_t euid, uid_t suid) __nodiscard;

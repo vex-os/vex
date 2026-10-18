@@ -51,6 +51,8 @@
 #define SYS_FTRUNCATE __k_SYS_FTRUNCATE
 #define SYS_FCHMODAT  __k_SYS_FCHMODAT
 #define SYS_FCHOWNAT  __k_SYS_FCHOWNAT
+#define SYS_CAPGET    __k_SYS_CAPGET
+#define SYS_CAPSET    __k_SYS_CAPSET
 
 struct file;
 struct hart_context;

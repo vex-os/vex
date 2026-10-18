@@ -191,6 +191,71 @@ static intptr_t sys_setgroups(const uintptr_t* restrict args)
     return retval;
 }
 
+static intptr_t sys_capget(const uintptr_t* restrict args)
+{
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    const struct credentials* cred = thrd->cred;
+
+    struct k_caps caps = {
+        .effective = cred->cap_effective,
+        .permitted = cred->cap_permitted,
+        .ambient = cred->cap_ambient,
+        .bounding = cred->cap_bounding,
+        .flags = cred->cap_flags,
+    };
+
+    ssize_t copied = user_copyout(args[0], &caps, sizeof(caps));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    return 0;
+}
+
+static intptr_t sys_capset(const uintptr_t* restrict args)
+{
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    struct k_caps caps;
+    ssize_t copied = user_copyin(&caps, args[0], sizeof(caps));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    mutex_acquire(&proc->cred_lock);
+
+    struct credentials* cred = cred_copy(proc->cred);
+    int retval = -ENOMEM;
+
+    if(cred) {
+        retval = cred_setcaps(cred, &caps);
+    }
+
+    if(retval == 0) {
+        process_set_cred(proc, cred);
+    }
+    else if(cred) {
+        cred_decref(cred);
+    }
+
+    mutex_release(&proc->cred_lock);
+
+    return retval;
+}
+
 static intptr_t sys_getumask(const uintptr_t* restrict args)
 {
     struct thread* thrd = this_thread();
@@ -221,5 +286,7 @@ define_syscall(sys_setresuid, SYS_SETRESUID);
 define_syscall(sys_setresgid, SYS_SETRESGID);
 define_syscall(sys_getgroups, SYS_GETGROUPS);
 define_syscall(sys_setgroups, SYS_SETGROUPS);
+define_syscall(sys_capget, SYS_CAPGET);
+define_syscall(sys_capset, SYS_CAPSET);
 define_syscall(sys_getumask, SYS_GETUMASK);
 define_syscall(sys_setumask, SYS_SETUMASK);
