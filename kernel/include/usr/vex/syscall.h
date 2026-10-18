@@ -50,5 +50,6 @@
 #define __k_SYS_FCHOWNAT  47
 #define __k_SYS_CAPGET    48
 #define __k_SYS_CAPSET    49
+#define __k_SYS_FSYNC     50
 
 #endif /* USR_VEX_SYSCALL_H */

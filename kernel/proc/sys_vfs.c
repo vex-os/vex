@@ -147,6 +147,25 @@ static intptr_t sys_syncfs(const uintptr_t* restrict args)
     return syscall_with_fd(args, &syncfs_file);
 }
 
+static intptr_t fsync_file(struct file* restrict fp, const uintptr_t* restrict args)
+{
+    struct vnode* node = fp->node;
+    struct vfs* fs = node->fs;
+
+    int retval = vnode_fsync(node);
+
+    if(retval < 0 || fs == nullptr || fs->ops->sync == nullptr) {
+        return retval;
+    }
+
+    return fs->ops->sync(fs);
+}
+
+static intptr_t sys_fsync(const uintptr_t* restrict args)
+{
+    return syscall_with_fd(args, &fsync_file);
+}
+
 static intptr_t statvfs_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
     struct vfs* fs = fp->node->fs;
@@ -180,4 +199,5 @@ define_syscall(sys_mount, SYS_MOUNT);
 define_syscall(sys_umount, SYS_UMOUNT);
 define_syscall(sys_sync, SYS_SYNC);
 define_syscall(sys_syncfs, SYS_SYNCFS);
+define_syscall(sys_fsync, SYS_FSYNC);
 define_syscall(sys_statvfs, SYS_STATVFS);
