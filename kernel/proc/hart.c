@@ -47,7 +47,7 @@ struct hart_local* this_hart(void)
 {
     struct thread* thrd = this_thread();
 
-    return thrd->hart;
+    return thrd->last_hart;
 }
 
 struct hart_local* hart_register(bool is_boot)

@@ -8,6 +8,7 @@
 struct event;
 struct process;
 struct hart_local;
+struct runqueue;
 
 enum {
     THREAD_RUNNABLE,
@@ -29,15 +30,17 @@ struct thread {
     void* entry_scratch;
 
     unsigned long tid;
-    unsigned short state;
+    unsigned short state; // Under sched_lock
 
-    struct hart_context* syscall_ctx; // The frame of the system call in progress, for fork and exec
+    struct hart_context* syscall_ctx;
 
-    spinlock_type hart_lock;
+    spinlock_type sched_lock;
+    spinlock_type hart_lock; // Held while the thread is on a hart
     spinlock_type yield_await;
-    struct hart_local* hart;
-    struct hart_local* pinned_hart; // Set before the first enqueue; nullptr runs on any hart
+    struct hart_local* last_hart;  // The hart this thread runs on or last to be running on
+    struct hart_local* bound_hart; // The hart this thread MUST run on, nullptr otherwise
 
+    struct runqueue* rq;
     struct thread* rq_next;
     struct thread* rq_prev;
 
@@ -51,7 +54,7 @@ struct thread {
 
     uint64_t timeslice;
     unsigned preempt_count; // Spinlocks held, the thread is not preempted while nonzero
-    bool need_resched;      // A tick arrived while preempt_count was nonzero
+    bool need_resched;
 
     struct process* proc;
     struct thread* tnext;

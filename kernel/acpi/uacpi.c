@@ -512,7 +512,7 @@ static void init_acpi_work(void)
 
     // GPE work has to run on the boot CPU,
     // some firmware has SMI handlers that assume it
-    worker->pinned_hart = boot_hart();
+    worker->bound_hart = boot_hart();
 
     sched_enqueue(worker);
 }

@@ -1,5 +1,3 @@
-# Built as a part of the kernel with the kernel's flags,
-# this only lists what to build, see README.vex
 uacpi_includes = include_directories('include')
 
 uacpi_sources = files(

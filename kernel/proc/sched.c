@@ -20,68 +20,118 @@
 #include <vex/thread.h>
 #include <vex/vms.h>
 
+#define SCHED_TIMESLICE_NS (1000 * UINT64_C(CONFIG_SCHED_TIMESLICE))
+
 static_assert(sizeof(struct thread) <= SLAB_MAX_SIZE);
 
-#define SCHED_TIMESLICE (UINT64_C(CONFIG_SCHED_TIMESLICE) * 1000) // In nanoseconds
+struct runqueue {
+    spinlock_type lock;
+    struct thread* head;
+    struct thread* tail;
+    unsigned long num_queued; // Read without the lock by idle harts and thieves
+};
 
-// Holds RUNNABLE threads only; the lock also covers every thread's state
-static spinlock_type sched_lock = SPINLOCK_INIT;
-static struct thread* rq_head;
-static struct thread* rq_tail;
-
+static struct runqueue runqueues[MAX_HARTS];
 static unsigned sched_ireq_number;
-
-// Threads waiting with a deadline, soonest first; taken
-// inside event locks and outside sched_lock
 static spinlock_type sleep_lock = SPINLOCK_INIT;
 static struct thread* sleep_head;
 
-static void rq_push_nolock(struct thread* restrict thrd)
+static void rq_push_nolock(struct runqueue* restrict rq, struct thread* restrict thrd)
 {
+    thrd->rq = rq;
     thrd->rq_next = nullptr;
-    thrd->rq_prev = rq_tail;
+    thrd->rq_prev = rq->tail;
 
-    if(rq_tail) {
-        rq_tail->rq_next = thrd;
+    if(rq->tail) {
+        rq->tail->rq_next = thrd;
     }
     else {
-        rq_head = thrd;
+        rq->head = thrd;
     }
 
-    rq_tail = thrd;
+    rq->tail = thrd;
+
+    atomic_fetch_add(&rq->num_queued, 1, ATOMIC_SEQ_CST);
 }
 
-static void rq_remove_nolock(struct thread* restrict thrd)
+static void rq_remove_nolock(struct runqueue* restrict rq, struct thread* restrict thrd)
 {
     if(thrd->rq_prev) {
         thrd->rq_prev->rq_next = thrd->rq_next;
     }
     else {
-        rq_head = thrd->rq_next;
+        rq->head = thrd->rq_next;
     }
 
     if(thrd->rq_next) {
         thrd->rq_next->rq_prev = thrd->rq_prev;
     }
     else {
-        rq_tail = thrd->rq_prev;
+        rq->tail = thrd->rq_prev;
     }
 
+    thrd->rq = nullptr;
     thrd->rq_next = nullptr;
     thrd->rq_prev = nullptr;
+
+    atomic_fetch_sub(&rq->num_queued, 1, ATOMIC_RELAXED);
 }
 
-// A thread woken up before it got off its
-// hart is still locked by that hart and is skipped
-static struct thread* rq_take_nolock(struct hart_local* restrict hart)
+static void rq_unlink(struct thread* restrict thrd)
 {
-    for(struct thread* thrd = rq_head; thrd; thrd = thrd->rq_next) {
-        if(thrd->pinned_hart && thrd->pinned_hart != hart) {
+    struct runqueue* rq = thrd->rq;
+
+    raw_spinlock_acquire(&rq->lock);
+    rq_remove_nolock(rq, thrd);
+    raw_spinlock_release(&rq->lock);
+}
+
+static struct thread* rq_take_nolock(struct runqueue* restrict rq, struct hart_local* restrict hart)
+{
+    for(struct thread* thrd = rq->head; thrd; thrd = thrd->rq_next) {
+        if(thrd->bound_hart && thrd->bound_hart != hart) {
             continue;
         }
 
-        if(raw_spinlock_try_acquire(&thrd->hart_lock)) {
-            rq_remove_nolock(thrd);
+        if(!raw_spinlock_try_acquire(&thrd->hart_lock)) {
+            continue;
+        }
+
+        if(!raw_spinlock_try_acquire(&thrd->sched_lock)) {
+            raw_spinlock_release(&thrd->hart_lock);
+            continue;
+        }
+
+        rq_remove_nolock(rq, thrd);
+        thrd->state = THREAD_RUNNING;
+
+        raw_spinlock_release(&thrd->sched_lock);
+
+        return thrd;
+    }
+
+    return nullptr;
+}
+
+static struct thread* rq_steal(struct hart_local* restrict hart)
+{
+    for(unsigned long i = 1; i < num_harts; ++i) {
+        struct hart_local* victim = &harts[(hart->index + i) % num_harts];
+        struct runqueue* rq = &runqueues[victim->index];
+
+        if(0 == atomic_load_n(&rq->num_queued, ATOMIC_RELAXED)) {
+            continue;
+        }
+
+        if(!raw_spinlock_try_acquire(&rq->lock)) {
+            continue;
+        }
+
+        struct thread* thrd = rq_take_nolock(rq, hart);
+
+        raw_spinlock_release(&rq->lock);
+
+        if(thrd) {
             return thrd;
         }
     }
@@ -91,18 +141,55 @@ static struct thread* rq_take_nolock(struct hart_local* restrict hart)
 
 static __always_inline __nodiscard bool hart_is_idle(const struct hart_local* restrict hart)
 {
-    unsigned short flags = atomic_load_n(&hart->flags, ATOMIC_RELAXED);
+    unsigned short flags = atomic_load_n(&hart->flags, ATOMIC_SEQ_CST);
 
     return HART_FLAG_ONLINE == (flags & (HART_FLAG_ONLINE | HART_FLAG_ACTIVE));
 }
 
-static void kick_idle_hart(const struct thread* restrict thrd)
+static struct hart_local* choose_hart(const struct thread* restrict thrd)
 {
-    if(thrd->pinned_hart) {
-        if(hart_is_idle(thrd->pinned_hart)) {
-            hart_ipi(thrd->pinned_hart, sched_ireq_number);
+    if(thrd->bound_hart) {
+        return thrd->bound_hart;
+    }
+
+    struct hart_local* last = atomic_load(&thrd->last_hart, ATOMIC_RELAXED);
+
+    if(last) {
+        if(SPINLOCK_LOCK == atomic_load(&thrd->hart_lock, ATOMIC_ACQUIRE)) {
+            return last;
         }
 
+        if(hart_is_idle(last)) {
+            return last;
+        }
+    }
+
+    for(unsigned long i = 0; i < num_harts; ++i) {
+        struct hart_local* hart = &harts[i];
+
+        if(hart_is_idle(hart)) {
+            return hart;
+        }
+    }
+
+    // TODO: balance queues between busy harts on the tick,
+    // behind a Kconfig option; until then a busy hart's queue
+    // only drains into harts that run out of their own work
+    if(last) {
+        return last;
+    }
+
+    return this_hart();
+}
+
+static void kick_hart(struct hart_local* restrict target, const struct thread* restrict thrd)
+{
+    if(hart_is_idle(target)) {
+        hart_ipi(target, sched_ireq_number);
+        return;
+    }
+
+    if(thrd->bound_hart) {
         return;
     }
 
@@ -179,17 +266,22 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
 
     curr->need_resched = false;
 
-    raw_spinlock_acquire(&sched_lock);
+    struct runqueue* rq = &runqueues[hart->index];
 
-    struct thread* next = rq_take_nolock(hart);
+    if(curr != hart->idle_thread) {
+        raw_spinlock_release(&curr->yield_await);
+        raw_spinlock_acquire(&curr->sched_lock);
+    }
+
+    raw_spinlock_acquire(&rq->lock);
+
+    struct thread* next = rq_take_nolock(rq, hart);
 
     // The handler runs on curr's stack, so curr
     // may only be handed over once sched_enter is off it
     spinlock_type* curr_hart_lock = nullptr;
 
     if(curr != hart->idle_thread) {
-        raw_spinlock_release(&curr->yield_await);
-
         if(curr->state == THREAD_DEAD) {
             hart->dead_thread = curr;
         }
@@ -197,11 +289,13 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
             // Nothing else to run: keep going, even
             // if curr was woken up while blocking
             if(curr->state == THREAD_RUNNABLE) {
-                rq_remove_nolock(curr);
+                kassert(curr->rq == rq);
+                rq_remove_nolock(rq, curr);
                 curr->state = THREAD_RUNNING;
             }
 
-            raw_spinlock_release(&sched_lock);
+            raw_spinlock_release(&rq->lock);
+            raw_spinlock_release(&curr->sched_lock);
             clockevt_oneshot(sched_ireq_number, curr->timeslice);
             return;
         }
@@ -211,29 +305,34 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
 
             if(curr->state == THREAD_RUNNING) {
                 curr->state = THREAD_RUNNABLE;
-                rq_push_nolock(curr);
+                rq_push_nolock(rq, curr);
             }
 
             curr_hart_lock = &curr->hart_lock;
         }
     }
 
-    if(next) {
-        next->state = THREAD_RUNNING;
+    raw_spinlock_release(&rq->lock);
+
+    if(curr != hart->idle_thread) {
+        raw_spinlock_release(&curr->sched_lock);
     }
 
-    raw_spinlock_release(&sched_lock);
+    // Only a hart that would otherwise idle steals
+    if(next == nullptr) {
+        next = rq_steal(hart);
+    }
 
     if(next == nullptr) {
-        hart->flags &= ~HART_FLAG_ACTIVE;
+        atomic_fetch_and(&hart->flags, (unsigned short)(~HART_FLAG_ACTIVE), ATOMIC_SEQ_CST);
         hart->curr_thread = hart->idle_thread;
         arch_thread_ctx_load(hart->idle_thread);
-        clockevt_oneshot(sched_ireq_number, SCHED_TIMESLICE);
+        clockevt_oneshot(sched_ireq_number, SCHED_TIMESLICE_NS);
         sched_enter(&hart->idle_thread->ctx, curr_hart_lock);
     }
 
-    hart->flags |= HART_FLAG_ACTIVE;
-    next->hart = hart;
+    atomic_fetch_or(&hart->flags, HART_FLAG_ACTIVE, ATOMIC_SEQ_CST);
+    atomic_store(&next->last_hart, hart, ATOMIC_RELAXED);
     hart->curr_thread = next;
 
     arch_thread_ctx_load(next);
@@ -244,7 +343,16 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
 
 static void sched_idle(void* restrict arg)
 {
+    struct hart_local* hart = this_hart();
+    struct runqueue* rq = &runqueues[hart->index];
+
     for(;;) {
+        disable_interrupts();
+
+        if(atomic_load_n(&rq->num_queued, ATOMIC_SEQ_CST)) {
+            hart_ipi(hart, sched_ireq_number);
+        }
+
         enable_interrupts();
         hart_stop();
     }
@@ -267,14 +375,17 @@ static struct thread* alloc_thread_user(struct process* restrict proc)
 
     thrd->self = thrd;
     thrd->state = THREAD_BLOCKED;
-    thrd->timeslice = SCHED_TIMESLICE;
+    thrd->timeslice = SCHED_TIMESLICE_NS;
     thrd->proc = proc;
+    thrd->rq = nullptr;
     thrd->rq_next = nullptr;
     thrd->rq_prev = nullptr;
     thrd->preempt_count = 0;
     thrd->need_resched = false;
-    thrd->pinned_hart = nullptr;
+    thrd->last_hart = nullptr;
+    thrd->bound_hart = nullptr;
     thrd->wake_next = nullptr;
+    thrd->sched_lock = SPINLOCK_INIT;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
     thrd->kstack_top = kstack_top;
@@ -317,14 +428,17 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
 
     thrd->self = thrd;
     thrd->state = THREAD_BLOCKED;
-    thrd->timeslice = SCHED_TIMESLICE;
+    thrd->timeslice = SCHED_TIMESLICE_NS;
     thrd->proc = nullptr;
+    thrd->rq = nullptr;
     thrd->rq_next = nullptr;
     thrd->rq_prev = nullptr;
     thrd->preempt_count = 0;
     thrd->need_resched = false;
-    thrd->pinned_hart = nullptr;
+    thrd->last_hart = nullptr;
+    thrd->bound_hart = nullptr;
     thrd->wake_next = nullptr;
+    thrd->sched_lock = SPINLOCK_INIT;
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
     thrd->kstack_top = kstack_top;
@@ -386,34 +500,40 @@ struct thread* create_thread_user_enq(struct process* restrict proc, uintptr_t e
 
 void sched_enqueue(struct thread* restrict thrd)
 {
-    bool intr_state = spinlock_acquire_intr(&sched_lock);
+    bool intr_state = spinlock_acquire_intr(&thrd->sched_lock);
 
     if(thrd->state != THREAD_BLOCKED) {
-        spinlock_release_intr(&sched_lock, intr_state);
+        spinlock_release_intr(&thrd->sched_lock, intr_state);
         return;
     }
 
+    struct hart_local* target = choose_hart(thrd);
+    struct runqueue* rq = &runqueues[target->index];
+
+    raw_spinlock_acquire(&rq->lock);
+
     thrd->state = THREAD_RUNNABLE;
-    rq_push_nolock(thrd);
+    rq_push_nolock(rq, thrd);
 
-    spinlock_release_intr(&sched_lock, intr_state);
+    raw_spinlock_release(&rq->lock);
+    spinlock_release_intr(&thrd->sched_lock, intr_state);
 
-    kick_idle_hart(thrd);
+    kick_hart(target, thrd);
 }
 
 void sched_dequeue(struct thread* restrict thrd)
 {
-    bool intr_state = spinlock_acquire_intr(&sched_lock);
+    bool intr_state = spinlock_acquire_intr(&thrd->sched_lock);
 
     if(thrd->state == THREAD_RUNNABLE) {
-        rq_remove_nolock(thrd);
+        rq_unlink(thrd);
     }
 
     if(thrd->state != THREAD_DEAD) {
         thrd->state = THREAD_BLOCKED;
     }
 
-    spinlock_release_intr(&sched_lock, intr_state);
+    spinlock_release_intr(&thrd->sched_lock, intr_state);
 }
 
 void sched_wake_at(struct thread* restrict thrd, uint64_t deadline)
@@ -454,15 +574,15 @@ void __noreturn sched_terminate(void)
 
     struct thread* thrd = this_thread();
 
-    raw_spinlock_acquire(&sched_lock);
+    raw_spinlock_acquire(&thrd->sched_lock);
 
     if(thrd->state == THREAD_RUNNABLE) {
-        rq_remove_nolock(thrd);
+        rq_unlink(thrd);
     }
 
     thrd->state = THREAD_DEAD;
 
-    raw_spinlock_release(&sched_lock);
+    raw_spinlock_release(&thrd->sched_lock);
 
     struct hart_local* hart = this_hart();
     hart_ipi(hart, sched_ireq_number);
@@ -541,7 +661,7 @@ static void sched_init(void)
             unreachable();
         }
 
-        harts[i].idle_thread->hart = &harts[i];
+        harts[i].idle_thread->last_hart = &harts[i];
         harts[i].curr_thread = harts[i].idle_thread;
     }
 }
