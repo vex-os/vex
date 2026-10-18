@@ -162,7 +162,13 @@ static intptr_t statvfs_file(struct file* restrict fp, const uintptr_t* restrict
         return retval;
     }
 
-    return user_copyout(args[1], &st, sizeof(st));
+    ssize_t copied = user_copyout(args[1], &st, sizeof(st));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    return 0;
 }
 
 static intptr_t sys_statvfs(const uintptr_t* restrict args)

@@ -185,7 +185,13 @@ static intptr_t fstat_file(struct file* restrict fp, const uintptr_t* restrict a
         return retval;
     }
 
-    return user_copyout(args[1], &st, sizeof(st));
+    ssize_t copied = user_copyout(args[1], &st, sizeof(st));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    return 0;
 }
 
 static intptr_t sys_fstat(const uintptr_t* restrict args)
@@ -249,7 +255,13 @@ static intptr_t sys_fstatat(const uintptr_t* restrict args)
         return retval;
     }
 
-    return user_copyout(args[2], &st, sizeof(st));
+    copied = user_copyout(args[2], &st, sizeof(st));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    return 0;
 }
 
 static intptr_t sys_dup(const uintptr_t* restrict args)
