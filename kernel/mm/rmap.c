@@ -14,6 +14,7 @@
 
 static_assert(sizeof(struct rmap_entry) <= SLAB_MAX_SIZE);
 
+// Taken with interrupts off, as the scheduler's interrupt releases address spaces
 static spinlock_type locks[NUM_LOCKS];
 
 static spinlock_type* frame_lock(uintptr_t phys)
@@ -49,7 +50,7 @@ int rmap_map(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, unsi
     struct pframe* pf = pframe_of(phys);
     spinlock_type* lock = frame_lock(phys);
 
-    spinlock_acquire(lock);
+    bool intr_state = spinlock_acquire_intr(lock);
 
     int retval = pmap_map(pmap, virt, phys, vprot);
 
@@ -58,7 +59,7 @@ int rmap_map(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, unsi
         pf->mappings = entry;
     }
 
-    spinlock_release(lock);
+    spinlock_release_intr(lock, intr_state);
 
     if(retval < 0) {
         slab_free(entry);
@@ -78,7 +79,7 @@ uintptr_t rmap_unmap(struct pagemap* restrict pmap, uintptr_t virt)
     struct pframe* pf = pframe_of(phys);
     spinlock_type* lock = frame_lock(phys);
 
-    spinlock_acquire(lock);
+    bool intr_state = spinlock_acquire_intr(lock);
 
     struct rmap_entry* entry = unlink_entry(pf, pmap, virt);
 
@@ -87,7 +88,7 @@ uintptr_t rmap_unmap(struct pagemap* restrict pmap, uintptr_t virt)
         kassert(retval == 0);
     }
 
-    spinlock_release(lock);
+    spinlock_release_intr(lock, intr_state);
 
     if(entry == nullptr) {
         return 0;
@@ -104,7 +105,7 @@ int rmap_replace(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t old_ph
     struct pframe* new_pf = pframe_of(new_phys);
     spinlock_type* lock = frame_lock(old_phys);
 
-    spinlock_acquire(lock);
+    bool intr_state = spinlock_acquire_intr(lock);
 
     struct rmap_entry* entry = unlink_entry(old_pf, pmap, virt);
 
@@ -119,7 +120,7 @@ int rmap_replace(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t old_ph
         new_pf->mappings = entry;
     }
 
-    spinlock_release(lock);
+    spinlock_release_intr(lock, intr_state);
 
     if(entry == nullptr) {
         return -EAGAIN;
@@ -139,7 +140,7 @@ uintptr_t rmap_pin(struct pagemap* restrict pmap, uintptr_t virt, bool* restrict
     struct pframe* pf = pframe_of(phys);
     spinlock_type* lock = frame_lock(phys);
 
-    spinlock_acquire(lock);
+    bool intr_state = spinlock_acquire_intr(lock);
 
     bool mapped = phys == page_align(pmap_resolve_address(pmap, virt));
 
@@ -151,7 +152,7 @@ uintptr_t rmap_pin(struct pagemap* restrict pmap, uintptr_t virt, bool* restrict
         pframe_incref(pf);
     }
 
-    spinlock_release(lock);
+    spinlock_release_intr(lock, intr_state);
 
     if(!mapped) {
         return 0;
@@ -164,7 +165,7 @@ size_t rmap_unmap_all(struct pframe* restrict pf)
 {
     spinlock_type* lock = frame_lock(pframe_phys(pf));
 
-    spinlock_acquire(lock);
+    bool intr_state = spinlock_acquire_intr(lock);
 
     struct rmap_entry* entries = pf->mappings;
     pf->mappings = nullptr;
@@ -177,7 +178,7 @@ size_t rmap_unmap_all(struct pframe* restrict pf)
         count += 1;
     }
 
-    spinlock_release(lock);
+    spinlock_release_intr(lock, intr_state);
 
     while(entries) {
         struct rmap_entry* next = entries->next;
