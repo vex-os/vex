@@ -5,6 +5,7 @@
 #include <vex/spinlock.h>
 #include <vex/types.h>
 
+struct credentials;
 struct event;
 struct process;
 struct hart_local;
@@ -57,6 +58,7 @@ struct thread {
     bool need_resched;
 
     struct process* proc;
+    struct credentials* cred;
     struct thread* tnext;
     struct thread* tprev;
 

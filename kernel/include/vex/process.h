@@ -3,6 +3,7 @@
 #include <vex/cred.h>
 #include <vex/event.h>
 #include <vex/limits.h>
+#include <vex/mutex.h>
 #include <vex/spinlock.h>
 
 struct file;
@@ -15,23 +16,18 @@ struct process {
     pid_t ppid;
     int exit_code;
 
-    // Held by the process table until process_destroy
-    // by each thread until it is reaped and by each
-    // process_locate caller until process_decref
     unsigned refcount;
 
     bool zombie;
     bool collected;
 
-    spinlock_type lock; // Taken with interrupts disabled: the scheduler unlinks reaped threads
+    spinlock_type lock;
 
     struct vmspace* vms;
 
     struct thread* threads;
     unsigned long num_threads;
 
-    // Linked under the parent's lock; orphans
-    // move to init/PID1 when their parent dies
     struct process* children;
     struct process* cnext;
     struct process* cprev;
@@ -41,7 +37,8 @@ struct process {
     struct event evnt;
     struct event child_exited;
 
-    struct credentials cred;
+    struct credentials* cred;
+    struct mutex cred_lock;
     mode_t umask;
 
     struct vnode* cwd;
@@ -62,7 +59,8 @@ void process_thread_reaped(struct process* proc, struct thread* thrd);
 bool process_claim(struct process* proc) __nodiscard;
 void process_destroy(struct process* proc);
 
-struct credentials process_get_cred(struct process* proc) __nodiscard;
+struct credentials* process_get_cred(struct process* proc) __nodiscard;
+void process_set_cred(struct process* proc, struct credentials* cred);
 
 struct vnode* process_get_cwd(struct process* proc) __nodiscard;
 void process_set_cwd(struct process* proc, struct vnode* node);

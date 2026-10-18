@@ -32,11 +32,11 @@ static intptr_t sys_openat(const uintptr_t* restrict args)
         return retval;
     }
 
-    struct credentials cred = process_get_cred(proc);
+    const struct credentials* cred = thread->cred;
     mode_t umask = atomic_load_n(&proc->umask, ATOMIC_RELAXED);
 
     struct file* fp;
-    retval = file_open(stem, path, args[2], args[3] & ~umask, &cred, &fp);
+    retval = file_open(stem, path, args[2], args[3] & ~umask, cred, &fp);
 
     if(stem) {
         vnode_decref(stem);
@@ -228,14 +228,14 @@ static intptr_t sys_fstatat(const uintptr_t* restrict args)
         return retval;
     }
 
-    struct credentials cred = process_get_cred(proc);
+    const struct credentials* cred = thread->cred;
     struct vnode* node;
 
     if(flags & AT_SYMLINK_NOFOLLOW) {
-        retval = path_resolve_at(stem, path, PATH_NOFOLLOW, &cred, &node);
+        retval = path_resolve_at(stem, path, PATH_NOFOLLOW, cred, &node);
     }
     else {
-        retval = path_resolve_at(stem, path, 0, &cred, &node);
+        retval = path_resolve_at(stem, path, 0, cred, &node);
     }
 
     if(stem) {

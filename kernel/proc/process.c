@@ -1,3 +1,4 @@
+#include <vex/assert.h>
 #include <vex/atomic.h>
 #include <vex/errno.h>
 #include <vex/event.h>
@@ -181,6 +182,7 @@ struct process* process_create(struct process* restrict parent)
     proc->fd_lock = SPINLOCK_INIT;
     event_init(&proc->evnt);
     event_init(&proc->child_exited);
+    mutex_init(&proc->cred_lock);
 
     if(parent) {
         proc->cred = process_get_cred(parent);
@@ -188,7 +190,8 @@ struct process* process_create(struct process* restrict parent)
         proc->cwd = process_get_cwd(parent);
     }
     else {
-        proc->cred = sys_cred;
+        proc->cred = &sys_cred;
+        cred_incref(&sys_cred);
         proc->umask = S_IWGRP | S_IWOTH;
         proc->cwd = nullptr;
     }
@@ -198,6 +201,7 @@ struct process* process_create(struct process* restrict parent)
     }
 
     if(proc->cwd == nullptr) {
+        cred_decref(proc->cred);
         vms_release(proc->vms);
         slab_free(proc);
         return nullptr;
@@ -263,6 +267,8 @@ void process_decref(struct process* proc)
             vms_release(proc->vms); // Never got as far as running a thread
         }
 
+        cred_decref(proc->cred);
+        mutex_deinit(&proc->cred_lock);
         event_deinit(&proc->evnt);
         event_deinit(&proc->child_exited);
         slab_free(proc);
@@ -382,12 +388,30 @@ void process_destroy(struct process* proc)
     process_decref(proc);
 }
 
-struct credentials process_get_cred(struct process* proc)
+struct credentials* process_get_cred(struct process* proc)
 {
     bool intr_state = spinlock_acquire_intr(&proc->lock);
-    struct credentials cred = proc->cred;
+
+    struct credentials* cred = proc->cred;
+    cred_incref(cred);
+
     spinlock_release_intr(&proc->lock, intr_state);
+
     return cred;
+}
+
+void process_set_cred(struct process* proc, struct credentials* cred)
+{
+    kassert(mutex_held(&proc->cred_lock));
+
+    bool intr_state = spinlock_acquire_intr(&proc->lock);
+
+    struct credentials* old_cred = proc->cred;
+    atomic_store(&proc->cred, cred, ATOMIC_RELEASE);
+
+    spinlock_release_intr(&proc->lock, intr_state);
+
+    cred_decref(old_cred);
 }
 
 struct vnode* process_get_cwd(struct process* proc)

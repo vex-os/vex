@@ -227,6 +227,7 @@ static void reap_thread(struct thread* restrict thrd)
         process_thread_reaped(thrd->proc, thrd);
     }
 
+    cred_decref(thrd->cred);
     kstack_free(thrd->kstack_top);
     kfree(thrd->events);
     slab_free(thrd);
@@ -377,6 +378,7 @@ static struct thread* alloc_thread_user(struct process* restrict proc)
     thrd->state = THREAD_BLOCKED;
     thrd->timeslice = SCHED_TIMESLICE_NS;
     thrd->proc = proc;
+    thrd->cred = process_get_cred(proc);
     thrd->rq = nullptr;
     thrd->rq_next = nullptr;
     thrd->rq_prev = nullptr;
@@ -430,6 +432,7 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
     thrd->state = THREAD_BLOCKED;
     thrd->timeslice = SCHED_TIMESLICE_NS;
     thrd->proc = nullptr;
+    thrd->cred = &sys_cred;
     thrd->rq = nullptr;
     thrd->rq_next = nullptr;
     thrd->rq_prev = nullptr;
@@ -442,6 +445,8 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
     thrd->hart_lock = SPINLOCK_INIT;
     thrd->yield_await = SPINLOCK_INIT;
     thrd->kstack_top = kstack_top;
+
+    cred_incref(&sys_cred);
 
     arch_thread_setup_kern(thrd, entry, arg, kstack_top);
 

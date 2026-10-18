@@ -1,4 +1,6 @@
 #include <vex/assert.h>
+#include <vex/atomic.h>
+#include <vex/cred.h>
 #include <vex/errno.h>
 #include <vex/file.h>
 #include <vex/hart.h>
@@ -15,6 +17,21 @@
 static struct syscall* syscall_table;
 static size_t syscall_table_size;
 
+// Another thread of the process may have swapped
+// its cred since this one last entered the kernel
+static void catch_up_cred(struct thread* restrict thrd)
+{
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr || atomic_load_n(&proc->cred, ATOMIC_ACQUIRE) == thrd->cred) {
+        return;
+    }
+
+    struct credentials* old_cred = thrd->cred;
+    thrd->cred = process_get_cred(proc);
+    cred_decref(old_cred);
+}
+
 void dispatch_syscall(struct hart_context* restrict regs)
 {
     if(regs->syscall_number >= syscall_table_size) {
@@ -29,6 +46,8 @@ void dispatch_syscall(struct hart_context* restrict regs)
 
     struct thread* thrd = this_thread();
     thrd->syscall_ctx = regs;
+
+    catch_up_cred(thrd);
 
     uintptr_t args[6];
     args[0] = regs->syscall_arg_1;

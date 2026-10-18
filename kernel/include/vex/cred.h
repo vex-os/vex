@@ -9,6 +9,8 @@
 #define CAP_SETGID       UINT64_C(0x0000000000000008)
 
 struct credentials {
+    unsigned refcount;
+
     uid_t uid;
     uid_t euid;
     uid_t suid;
@@ -16,9 +18,16 @@ struct credentials {
     gid_t gid;
     gid_t egid;
     gid_t sgid;
+
+    size_t ngroups;
+    gid_t groups[];
 };
 
-extern const struct credentials sys_cred;
+extern struct credentials sys_cred;
+
+struct credentials* cred_copy(const struct credentials* restrict cred) __nodiscard;
+void cred_incref(struct credentials* restrict cred);
+void cred_decref(struct credentials* restrict cred);
 
 bool cred_capable(const struct credentials* restrict cred, uint64_t cap) __nodiscard;
 

@@ -1,12 +1,32 @@
 #include <vex/assert.h>
+#include <vex/atomic.h>
 #include <vex/cred.h>
 #include <vex/errno.h>
+#include <vex/kmalloc.h>
+#include <vex/slab.h>
+#include <vex/string.h>
 
 #define ID_UNCHANGED (-1)
 
 static_assert(sizeof(uid_t) == sizeof(gid_t));
 
-const struct credentials sys_cred = { 0 };
+struct credentials sys_cred = { .refcount = 1 }; // Never deallocated, ever
+
+static __always_inline __nodiscard size_t cred_size(size_t ngroups)
+{
+    return sizeof(struct credentials) + ngroups * sizeof(gid_t);
+}
+
+static struct credentials* cred_alloc(size_t ngroups)
+{
+    size_t size = cred_size(ngroups);
+
+    if(size <= SLAB_MAX_SIZE) {
+        return slab_alloc(size);
+    }
+
+    return kmalloc(size);
+}
 
 static int check_id(int32_t wanted, int32_t r, int32_t e, int32_t s, bool capable)
 {
@@ -40,6 +60,45 @@ static void apply_id(int32_t* restrict id, int32_t wanted)
 {
     if(wanted != ID_UNCHANGED) {
         *id = wanted;
+    }
+}
+
+struct credentials* cred_copy(const struct credentials* restrict cred)
+{
+    kassert(cred);
+
+    struct credentials* copy = cred_alloc(cred->ngroups);
+
+    if(copy == nullptr) {
+        return nullptr;
+    }
+
+    memcpy(copy, cred, cred_size(cred->ngroups));
+    copy->refcount = 1;
+
+    return copy;
+}
+
+void cred_incref(struct credentials* restrict cred)
+{
+    kassert(cred);
+
+    atomic_fetch_add(&cred->refcount, 1, ATOMIC_RELAXED);
+}
+
+void cred_decref(struct credentials* restrict cred)
+{
+    kassert(cred);
+
+    if(1 == atomic_fetch_sub(&cred->refcount, 1, ATOMIC_ACQ_REL)) {
+        kassert(cred != &sys_cred);
+
+        if(cred_size(cred->ngroups) <= SLAB_MAX_SIZE) {
+            slab_free(cred);
+        }
+        else {
+            kfree(cred);
+        }
     }
 }
 

@@ -35,9 +35,9 @@ static intptr_t sys_getresuid(const uintptr_t* restrict args)
         return -ENOSYS;
     }
 
-    struct credentials cred = process_get_cred(proc);
+    const struct credentials* cred = thrd->cred;
 
-    return copyout_res(args, cred.uid, cred.euid, cred.suid);
+    return copyout_res(args, cred->uid, cred->euid, cred->suid);
 }
 
 static intptr_t sys_getresgid(const uintptr_t* restrict args)
@@ -49,9 +49,9 @@ static intptr_t sys_getresgid(const uintptr_t* restrict args)
         return -ENOSYS;
     }
 
-    struct credentials cred = process_get_cred(proc);
+    const struct credentials* cred = thrd->cred;
 
-    return copyout_res(args, cred.gid, cred.egid, cred.sgid);
+    return copyout_res(args, cred->gid, cred->egid, cred->sgid);
 }
 
 static intptr_t sys_setresuid(const uintptr_t* restrict args)
@@ -63,9 +63,23 @@ static intptr_t sys_setresuid(const uintptr_t* restrict args)
         return -ENOSYS;
     }
 
-    bool intr_state = spinlock_acquire_intr(&proc->lock);
-    int retval = cred_setresuid(&proc->cred, args[0], args[1], args[2]);
-    spinlock_release_intr(&proc->lock, intr_state);
+    mutex_acquire(&proc->cred_lock);
+
+    struct credentials* cred = cred_copy(proc->cred);
+    int retval = -ENOMEM;
+
+    if(cred) {
+        retval = cred_setresuid(cred, args[0], args[1], args[2]);
+    }
+
+    if(retval == 0) {
+        process_set_cred(proc, cred);
+    }
+    else if(cred) {
+        cred_decref(cred);
+    }
+
+    mutex_release(&proc->cred_lock);
 
     return retval;
 }
@@ -79,9 +93,23 @@ static intptr_t sys_setresgid(const uintptr_t* restrict args)
         return -ENOSYS;
     }
 
-    bool intr_state = spinlock_acquire_intr(&proc->lock);
-    int retval = cred_setresgid(&proc->cred, args[0], args[1], args[2]);
-    spinlock_release_intr(&proc->lock, intr_state);
+    mutex_acquire(&proc->cred_lock);
+
+    struct credentials* cred = cred_copy(proc->cred);
+    int retval = -ENOMEM;
+
+    if(cred) {
+        retval = cred_setresgid(cred, args[0], args[1], args[2]);
+    }
+
+    if(retval == 0) {
+        process_set_cred(proc, cred);
+    }
+    else if(cred) {
+        cred_decref(cred);
+    }
+
+    mutex_release(&proc->cred_lock);
 
     return retval;
 }

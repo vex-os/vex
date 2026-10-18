@@ -68,6 +68,31 @@ static int copy_strings(uintptr_t user_array, const char** restrict out, char** 
     return 0;
 }
 
+static int update_exec_cred(struct process* restrict proc)
+{
+    mutex_acquire(&proc->cred_lock);
+
+    const struct credentials* cur = proc->cred;
+    int retval = 0;
+
+    if(cur->suid != cur->euid || cur->sgid != cur->egid) {
+        struct credentials* cred = cred_copy(cur);
+
+        if(cred) {
+            cred->suid = cred->euid;
+            cred->sgid = cred->egid;
+            process_set_cred(proc, cred);
+        }
+        else {
+            retval = -ENOMEM;
+        }
+    }
+
+    mutex_release(&proc->cred_lock);
+
+    return retval;
+}
+
 static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, char* restrict strings, const uintptr_t* restrict args)
 {
     ssize_t copied = user_copyin_str(path, args[0], PATH_SIZE);
@@ -98,10 +123,10 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
     }
 
     struct process* proc = thrd->proc;
-    struct credentials cred = process_get_cred(proc);
+    const struct credentials* cred = thrd->cred;
 
     struct file* fp;
-    retval = file_open(stem, path, O_RDONLY, 0, &cred, &fp);
+    retval = file_open(stem, path, O_RDONLY, 0, cred, &fp);
 
     if(stem) {
         vnode_decref(stem);
@@ -111,7 +136,7 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
         return retval;
     }
 
-    retval = vnode_access(fp->node, &cred, X_OK);
+    retval = vnode_access(fp->node, cred, X_OK);
 
     if(retval < 0) {
         file_close(fp);
@@ -132,6 +157,10 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
 
     file_close(fp);
 
+    if(retval == 0) {
+        retval = update_exec_cred(proc);
+    }
+
     if(retval < 0) {
         vms_release(vms);
         return retval;
@@ -141,11 +170,6 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
 
     proc->vms = vms;
     arch_thread_exec(thrd, vms, entry.address, entry.ustack);
-
-    bool intr_state = spinlock_acquire_intr(&proc->lock);
-    proc->cred.suid = proc->cred.euid;
-    proc->cred.sgid = proc->cred.egid;
-    spinlock_release_intr(&proc->lock, intr_state);
 
     vms_release(old_vms);
 

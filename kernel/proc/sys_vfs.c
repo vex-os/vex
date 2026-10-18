@@ -19,9 +19,9 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
         return -ENOSYS;
     }
 
-    struct credentials cred = process_get_cred(proc);
+    const struct credentials* cred = thread->cred;
 
-    if(!cred_capable(&cred, CAP_MOUNT)) {
+    if(!cred_capable(cred, CAP_MOUNT)) {
         return -EPERM;
     }
 
@@ -71,7 +71,7 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
             }
 
             struct vnode* source_node;
-            retval = path_resolve_at(stem, source, 0, &cred, &source_node);
+            retval = path_resolve_at(stem, source, 0, cred, &source_node);
 
             if(stem) {
                 vnode_decref(stem);
@@ -110,9 +110,9 @@ static intptr_t sys_umount(const uintptr_t* restrict args)
         return -ENOSYS;
     }
 
-    struct credentials cred = process_get_cred(proc);
+    const struct credentials* cred = thread->cred;
 
-    if(!cred_capable(&cred, CAP_MOUNT)) {
+    if(!cred_capable(cred, CAP_MOUNT)) {
         return -EPERM;
     }
 

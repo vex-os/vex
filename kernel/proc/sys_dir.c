@@ -40,11 +40,11 @@ static intptr_t sys_unlinkat(const uintptr_t* restrict args)
         return retval;
     }
 
-    struct credentials cred = process_get_cred(proc);
+    const struct credentials* cred = thread->cred;
 
     const char* name;
     struct vnode* parent;
-    retval = path_resolve_parent_at(stem, path, &cred, &parent, &name);
+    retval = path_resolve_parent_at(stem, path, cred, &parent, &name);
 
     if(stem) {
         vnode_decref(stem);
@@ -54,7 +54,7 @@ static intptr_t sys_unlinkat(const uintptr_t* restrict args)
         return retval;
     }
 
-    retval = vnode_access(parent, &cred, W_OK | X_OK);
+    retval = vnode_access(parent, cred, W_OK | X_OK);
 
     if(retval == 0) {
         retval = vnode_unlink(parent, name, flags & AT_REMOVEDIR);
@@ -88,12 +88,12 @@ static intptr_t sys_mkdirat(const uintptr_t* restrict args)
         return retval;
     }
 
-    struct credentials cred = process_get_cred(proc);
+    const struct credentials* cred = thread->cred;
     mode_t umask = atomic_load_n(&proc->umask, ATOMIC_RELAXED);
 
     const char* name;
     struct vnode* parent;
-    retval = path_resolve_parent_at(stem, path, &cred, &parent, &name);
+    retval = path_resolve_parent_at(stem, path, cred, &parent, &name);
 
     if(stem) {
         vnode_decref(stem);
@@ -104,10 +104,10 @@ static intptr_t sys_mkdirat(const uintptr_t* restrict args)
     }
 
     struct vnode* created;
-    retval = vnode_access(parent, &cred, W_OK | X_OK);
+    retval = vnode_access(parent, cred, W_OK | X_OK);
 
     if(retval == 0) {
-        retval = vnode_create(parent, name, VNODE_DIRECTORY, args[2] & ~umask, &cred, &created);
+        retval = vnode_create(parent, name, VNODE_DIRECTORY, args[2] & ~umask, cred, &created);
     }
 
     vnode_decref(parent);
@@ -174,11 +174,11 @@ static intptr_t sys_renameat(const uintptr_t* restrict args)
         return copied;
     }
 
-    struct credentials cred = process_get_cred(proc);
+    const struct credentials* cred = thread->cred;
 
     const char* oldname;
     struct vnode* olddir;
-    int retval = resolve_rename_parent(args[0], oldpath, &cred, &olddir, &oldname);
+    int retval = resolve_rename_parent(args[0], oldpath, cred, &olddir, &oldname);
 
     if(retval < 0) {
         return retval;
@@ -186,7 +186,7 @@ static intptr_t sys_renameat(const uintptr_t* restrict args)
 
     const char* newname;
     struct vnode* newdir;
-    retval = resolve_rename_parent(args[2], newpath, &cred, &newdir, &newname);
+    retval = resolve_rename_parent(args[2], newpath, cred, &newdir, &newname);
 
     if(retval < 0) {
         vnode_decref(olddir);
@@ -258,10 +258,10 @@ static intptr_t sys_chdir(const uintptr_t* restrict args)
         return retval;
     }
 
-    struct credentials cred = process_get_cred(proc);
+    const struct credentials* cred = thread->cred;
 
     struct vnode* node;
-    retval = path_resolve_at(stem, path, 0, &cred, &node);
+    retval = path_resolve_at(stem, path, 0, cred, &node);
 
     if(stem) {
         vnode_decref(stem);
@@ -276,7 +276,7 @@ static intptr_t sys_chdir(const uintptr_t* restrict args)
         return -ENOTDIR;
     }
 
-    retval = vnode_access(node, &cred, X_OK);
+    retval = vnode_access(node, cred, X_OK);
 
     if(retval < 0) {
         vnode_decref(node);
@@ -312,8 +312,8 @@ static intptr_t sys_fchdir(const uintptr_t* restrict args)
         return retval;
     }
 
-    struct credentials cred = process_get_cred(proc);
-    retval = vnode_access(node, &cred, X_OK);
+    const struct credentials* cred = thread->cred;
+    retval = vnode_access(node, cred, X_OK);
 
     if(retval < 0) {
         vnode_decref(node);
