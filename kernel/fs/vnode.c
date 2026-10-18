@@ -607,6 +607,89 @@ int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr
     return retval;
 }
 
+int vnode_chmod(struct vnode* restrict node, const struct credentials* restrict cred, mode_t mode)
+{
+    kassert(node);
+    kassert(cred);
+
+    struct k_stat st;
+    int retval = vnode_stat(node, &st);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(cred->euid != st.st_uid && !cred_capable(cred, CAP_FOWNER)) {
+        return -EPERM;
+    }
+
+    struct vattr attr = { .mask = VATTR_MODE, .mode = mode & (S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO) };
+
+    // Otherwise anyone could hand out a group they are not in
+    if(!cred_in_group(cred, st.st_gid) && !cred_capable(cred, CAP_FSETID)) {
+        attr.mode &= ~S_ISGID;
+    }
+
+    return vnode_setattr(node, &attr);
+}
+
+int vnode_chown(struct vnode* restrict node, const struct credentials* restrict cred, uid_t uid, gid_t gid)
+{
+    kassert(node);
+    kassert(cred);
+
+    if(uid < -1 || gid < -1) {
+        return -EINVAL;
+    }
+
+    struct k_stat st;
+    int retval = vnode_stat(node, &st);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct vattr attr = { 0 };
+
+    if(uid != -1 && uid != st.st_uid) {
+        attr.mask |= VATTR_UID;
+        attr.uid = uid;
+    }
+
+    if(gid != -1 && gid != st.st_gid) {
+        attr.mask |= VATTR_GID;
+        attr.gid = gid;
+    }
+
+    if(!cred_capable(cred, CAP_CHOWN)) {
+        // The owner may only move the file
+        // into another group of its own
+        if(attr.mask & VATTR_UID) {
+            return -EPERM;
+        }
+
+        if((attr.mask & VATTR_GID) && (cred->euid != st.st_uid || !cred_in_group(cred, gid))) {
+            return -EPERM;
+        }
+    }
+
+    if(attr.mask == 0) {
+        return 0;
+    }
+
+    // A program must not keep running as an owner it no longer has
+    if((st.st_mode & S_IFMT) != S_IFDIR && (st.st_mode & (S_ISUID | S_ISGID))) {
+        attr.mask |= VATTR_MODE;
+        attr.mode = st.st_mode & ~(S_IFMT | S_ISUID);
+
+        if(st.st_mode & S_IXGRP) {
+            attr.mode &= ~S_ISGID;
+        }
+    }
+
+    return vnode_setattr(node, &attr);
+}
+
 int vnode_access(struct vnode* restrict node, const struct credentials* restrict cred, unsigned mask)
 {
     kassert(node);

@@ -105,6 +105,60 @@ int syscall_dirfd(int dirfd, const char* restrict path, struct vnode** restrict 
     return 0;
 }
 
+int syscall_resolve_at(int dirfd, const char* restrict path, unsigned flags, struct vnode** restrict out)
+{
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    if(path[0] == 0 && 0 == (flags & AT_EMPTY_PATH)) {
+        return -ENOENT;
+    }
+
+    if(path[0] == 0) {
+        if(dirfd == AT_FDCWD) {
+            *out = process_get_cwd(proc);
+            return *out ? 0 : -ENOENT;
+        }
+
+        struct file* fp = dereference_fd(proc, dirfd);
+
+        if(fp == nullptr) {
+            return -EBADF;
+        }
+
+        *out = fp->node;
+        vnode_incref(*out);
+        file_close(fp);
+
+        return 0;
+    }
+
+    struct vnode* stem;
+    int retval = syscall_dirfd(dirfd, path, &stem);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    unsigned path_flags = 0;
+
+    if(flags & AT_SYMLINK_NOFOLLOW) {
+        path_flags |= PATH_NOFOLLOW;
+    }
+
+    retval = path_resolve_at(stem, path, path_flags, thrd->cred, out);
+
+    if(stem) {
+        vnode_decref(stem);
+    }
+
+    return retval;
+}
+
 intptr_t syscall_with_fd(const uintptr_t* restrict args, intptr_t (*op)(struct file* restrict fp, const uintptr_t* restrict args))
 {
     struct thread* thrd = this_thread();

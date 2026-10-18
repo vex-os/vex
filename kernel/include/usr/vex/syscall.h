@@ -46,5 +46,7 @@
 #define __k_SYS_GETGROUPS 43
 #define __k_SYS_SETGROUPS 44
 #define __k_SYS_FTRUNCATE 45
+#define __k_SYS_FCHMODAT  46
+#define __k_SYS_FCHOWNAT  47
 
 #endif /* USR_VEX_SYSCALL_H */

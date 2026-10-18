@@ -185,6 +185,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     context->filesystem_type = filesystem_type;
 
     context->param_readonly = cmdline_contains(params, "readonly") || cmdline_contains(params, "ro");
+    context->param_quiet = cmdline_contains(params, "quiet");
 
     const char* uid_string = cmdline_argument(params, "uid");
     const char* gid_string = cmdline_argument(params, "gid");

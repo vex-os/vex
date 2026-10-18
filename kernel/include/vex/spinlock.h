@@ -10,6 +10,7 @@ typedef uintptr_t spinlock_type;
 #define SPINLOCK_FREE ((spinlock_type)(0))
 #define SPINLOCK_LOCK ((spinlock_type)(1))
 
+// https://files.catbox.moe/7j9kqv.gif
 static __always_inline void raw_spinlock_acquire(spinlock_type* restrict lock)
 {
     spinlock_type expected;

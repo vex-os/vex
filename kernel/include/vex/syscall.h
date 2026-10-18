@@ -49,6 +49,8 @@
 #define SYS_GETGROUPS __k_SYS_GETGROUPS
 #define SYS_SETGROUPS __k_SYS_SETGROUPS
 #define SYS_FTRUNCATE __k_SYS_FTRUNCATE
+#define SYS_FCHMODAT  __k_SYS_FCHMODAT
+#define SYS_FCHOWNAT  __k_SYS_FCHOWNAT
 
 struct file;
 struct hart_context;
@@ -74,3 +76,4 @@ void dispatch_syscall(struct hart_context* restrict regs);
 
 intptr_t syscall_with_fd(const uintptr_t* restrict args, intptr_t (*op)(struct file* restrict fp, const uintptr_t* restrict args));
 int syscall_dirfd(int dirfd, const char* restrict path, struct vnode** restrict out) __nodiscard;
+int syscall_resolve_at(int dirfd, const char* restrict path, unsigned flags, struct vnode** restrict out) __nodiscard;

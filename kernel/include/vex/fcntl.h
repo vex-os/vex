@@ -17,3 +17,4 @@
 #define AT_FDCWD            __k_AT_FDCWD
 #define AT_SYMLINK_NOFOLLOW __k_AT_SYMLINK_NOFOLLOW
 #define AT_REMOVEDIR        __k_AT_REMOVEDIR
+#define AT_EMPTY_PATH       __k_AT_EMPTY_PATH

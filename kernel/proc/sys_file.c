@@ -220,7 +220,7 @@ static intptr_t sys_fstatat(const uintptr_t* restrict args)
 
     unsigned flags = args[3];
 
-    if(flags & ~AT_SYMLINK_NOFOLLOW) {
+    if(flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)) {
         return -EINVAL;
     }
 
@@ -231,26 +231,8 @@ static intptr_t sys_fstatat(const uintptr_t* restrict args)
         return copied;
     }
 
-    struct vnode* stem;
-    int retval = syscall_dirfd(args[0], path, &stem);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    const struct credentials* cred = thread->cred;
     struct vnode* node;
-
-    if(flags & AT_SYMLINK_NOFOLLOW) {
-        retval = path_resolve_at(stem, path, PATH_NOFOLLOW, cred, &node);
-    }
-    else {
-        retval = path_resolve_at(stem, path, 0, cred, &node);
-    }
-
-    if(stem) {
-        vnode_decref(stem);
-    }
+    int retval = syscall_resolve_at(args[0], path, flags, &node);
 
     if(retval < 0) {
         return retval;
@@ -272,6 +254,78 @@ static intptr_t sys_fstatat(const uintptr_t* restrict args)
     }
 
     return 0;
+}
+
+static intptr_t sys_fchmodat(const uintptr_t* restrict args)
+{
+    struct thread* thread = this_thread();
+    struct process* proc = thread->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    unsigned flags = args[3];
+
+    if(flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)) {
+        return -EINVAL;
+    }
+
+    char path[PATH_SIZE];
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    struct vnode* node;
+    int retval = syscall_resolve_at(args[0], path, flags, &node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = vnode_chmod(node, thread->cred, args[2]);
+
+    vnode_decref(node);
+
+    return retval;
+}
+
+static intptr_t sys_fchownat(const uintptr_t* restrict args)
+{
+    struct thread* thread = this_thread();
+    struct process* proc = thread->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    unsigned flags = args[4];
+
+    if(flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)) {
+        return -EINVAL;
+    }
+
+    char path[PATH_SIZE];
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    struct vnode* node;
+    int retval = syscall_resolve_at(args[0], path, flags, &node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = vnode_chown(node, thread->cred, args[2], args[3]);
+
+    vnode_decref(node);
+
+    return retval;
 }
 
 static intptr_t sys_dup(const uintptr_t* restrict args)
@@ -320,6 +374,8 @@ define_syscall(sys_close, SYS_CLOSE);
 define_syscall(sys_read, SYS_READ);
 define_syscall(sys_write, SYS_WRITE);
 define_syscall(sys_ftruncate, SYS_FTRUNCATE);
+define_syscall(sys_fchmodat, SYS_FCHMODAT);
+define_syscall(sys_fchownat, SYS_FCHOWNAT);
 define_syscall(sys_seek, SYS_SEEK);
 define_syscall(sys_fstat, SYS_FSTAT);
 define_syscall(sys_fstatat, SYS_FSTATAT);

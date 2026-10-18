@@ -751,12 +751,58 @@ static int shrink_locked(struct vnode* restrict node, uint64_t size)
     return echfs_dirent_write(fs, ctx->dir_entry, &entry);
 }
 
+static int set_owner_locked(struct vnode* restrict node, const struct vattr* restrict attr)
+{
+    struct echfs_vnode_context* ctx = node->ctxdata;
+    struct echfs_vfs_context* fs = ctx->fs_ctx;
+
+    // The root has no entry to keep them in, and the
+    // entry of an unlinked file may be another one's now
+    if(ctx->dir_entry == UINT64_MAX) {
+        return -EPERM;
+    }
+
+    if(ctx->unlinked) {
+        return -ENOENT;
+    }
+
+    // Owner fields on disk are 16 bits wide
+    if(((attr->mask & VATTR_UID) && attr->uid > UINT16_MAX) || ((attr->mask & VATTR_GID) && attr->gid > UINT16_MAX)) {
+        return -EINVAL;
+    }
+
+    struct echfs_dirent entry;
+    int retval = echfs_dirent_read(fs, ctx->dir_entry, &entry);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(attr->mask & VATTR_MODE) {
+        entry.permissions = attr->mode & ~S_IFMT;
+    }
+
+    if(attr->mask & VATTR_UID) {
+        entry.owner_uid = attr->uid;
+    }
+
+    if(attr->mask & VATTR_GID) {
+        entry.owner_gid = attr->gid;
+    }
+
+    return echfs_dirent_write(fs, ctx->dir_entry, &entry);
+}
+
 static int setattr_locked(struct vnode* restrict node, const struct vattr* restrict attr)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
 
     if(attr->mask & (VATTR_MODE | VATTR_UID | VATTR_GID)) {
-        return -EPERM;
+        int retval = set_owner_locked(node, attr);
+
+        if(retval < 0) {
+            return retval;
+        }
     }
 
     if(0 == (attr->mask & VATTR_SIZE) || (uint64_t)attr->size == ctx->size) {

@@ -7,6 +7,9 @@
 #define CAP_MOUNT        UINT64_C(0x0000000000000002)
 #define CAP_SETUID       UINT64_C(0x0000000000000004)
 #define CAP_SETGID       UINT64_C(0x0000000000000008)
+#define CAP_CHOWN        UINT64_C(0x0000000000000010)
+#define CAP_FOWNER       UINT64_C(0x0000000000000020) // Act as the owner of any file
+#define CAP_FSETID       UINT64_C(0x0000000000000040) // Keep setuid and setgid bits that changes would clear
 
 struct credentials {
     unsigned refcount;

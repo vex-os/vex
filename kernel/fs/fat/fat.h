@@ -154,6 +154,7 @@ struct fat_vfs_context {
     gid_t param_gid;
     uid_t param_uid;
     bool param_readonly;
+    bool param_quiet;
 
     uintptr_t table_start;
     uintptr_t data_start;

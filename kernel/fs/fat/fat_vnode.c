@@ -1089,8 +1089,9 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
 
-    // FAT has nowhere to keep a mode or an owner
-    if(attr->mask & (VATTR_MODE | VATTR_UID | VATTR_GID)) {
+    // FAT has nowhere to keep a mode or an owner; with quiet,
+    // the change is dropped instead of failing, as with vfat on Linux
+    if((attr->mask & (VATTR_MODE | VATTR_UID | VATTR_GID)) && !fs->param_quiet) {
         return -EPERM;
     }
 
