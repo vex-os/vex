@@ -5,9 +5,9 @@
 #include <vex/dirent.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
+#include <vex/fcache.h>
 #include <vex/kprintf.h>
 #include <vex/mount.h>
-#include <vex/pcache.h>
 #include <vex/pslab.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
@@ -752,7 +752,7 @@ static int chain_cluster(struct vnode* restrict node, size_t cluster_index, bool
     return 0;
 }
 
-static int fat_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct pcache_extent* restrict out)
+static int fat_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct fcache_extent* restrict out)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
@@ -780,7 +780,7 @@ static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, s
 {
     struct fat_vnode_context* context = node->ctxdata;
 
-    return pcache_read(node, &fat_bmap, buffer, sz, offset, context->size_bytes);
+    return fcache_read(node, &fat_bmap, buffer, sz, offset, context->size_bytes);
 }
 
 static ssize_t write_span_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
@@ -797,7 +797,7 @@ static ssize_t write_span_locked(struct vnode* restrict node, const void* restri
         return -EFBIG;
     }
 
-    ssize_t written = pcache_write(node, &fat_bmap, buffer, sz, offset, context->size_bytes);
+    ssize_t written = fcache_write(node, &fat_bmap, buffer, sz, offset, context->size_bytes);
 
     if(written <= 0 || offset + written <= (off_t)(context->size_bytes)) {
         return written;
@@ -875,7 +875,7 @@ static int shrink_locked(struct vnode* restrict node, size_t size)
 
     // Dirty pages past the new end must not
     // reach clusters that are freed below
-    pcache_truncate(node, size);
+    fcache_truncate(node, size);
 
     size_t keep = (size + fs->cluster_size_b - 1) / fs->cluster_size_b;
 
@@ -1059,7 +1059,7 @@ static int fat_vnode_fsync(struct vnode* restrict node)
     struct fat_vnode_context* context = node->ctxdata;
 
     mutex_acquire(fs_lock(node));
-    int retval = pcache_writeback(node, &fat_bmap, context->size_bytes);
+    int retval = fcache_writeback(node, &fat_bmap, context->size_bytes);
     mutex_release(fs_lock(node));
     return retval;
 }

@@ -1,7 +1,7 @@
 #include <vex/blk_device.h>
 #include <vex/dirent.h>
 #include <vex/errno.h>
-#include <vex/pcache.h>
+#include <vex/fcache.h>
 #include <vex/pslab.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
@@ -442,7 +442,7 @@ static int chain_block(struct vnode* restrict node, uint64_t block_index, bool c
     return 0;
 }
 
-static int echfs_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct pcache_extent* restrict out)
+static int echfs_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct fcache_extent* restrict out)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
@@ -466,7 +466,7 @@ static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, s
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
 
-    return pcache_read(node, &echfs_bmap, buffer, sz, offset, ctx->size);
+    return fcache_read(node, &echfs_bmap, buffer, sz, offset, ctx->size);
 }
 
 static ssize_t write_span_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
@@ -474,7 +474,7 @@ static ssize_t write_span_locked(struct vnode* restrict node, const void* restri
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
 
-    ssize_t written = pcache_write(node, &echfs_bmap, buffer, sz, offset, ctx->size);
+    ssize_t written = fcache_write(node, &echfs_bmap, buffer, sz, offset, ctx->size);
 
     if(written <= 0 || (uint64_t)(offset + written) <= ctx->size) {
         return written;
@@ -551,7 +551,7 @@ static int shrink_locked(struct vnode* restrict node, uint64_t size)
 
     // Dirty pages past the new end must not
     // reach blocks that are freed below
-    pcache_truncate(node, size);
+    fcache_truncate(node, size);
 
     uint64_t keep = (size + fs->block_size - 1) / fs->block_size;
 
@@ -776,7 +776,7 @@ static int echfs_vnode_fsync(struct vnode* restrict node)
     struct echfs_vnode_context* ctx = node->ctxdata;
 
     mutex_acquire(fs_lock(node));
-    int retval = pcache_writeback(node, &echfs_bmap, ctx->size);
+    int retval = fcache_writeback(node, &echfs_bmap, ctx->size);
     mutex_release(fs_lock(node));
     return retval;
 }

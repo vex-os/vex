@@ -67,8 +67,8 @@ struct echfs_vfs_context {
     uint64_t dir_entries;
     uint64_t next_free_hint;
 
-    struct vnode* meta;
-    struct mutex lock; // Serializes changes to the table and the directory, and the page cache calls for files
+    struct vnode* devnode;
+    struct mutex lock; // Serializes changes to the table and the directory, and the file cache calls for files
 };
 
 struct echfs_vnode_context {

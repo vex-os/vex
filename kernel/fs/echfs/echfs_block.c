@@ -1,5 +1,5 @@
 #include <vex/errno.h>
-#include <vex/pcache.h>
+#include <vex/fcache.h>
 
 #include "echfs.h"
 
@@ -12,7 +12,7 @@ static uint64_t entry_offset(const struct echfs_vfs_context* restrict context, u
 
 static void set_entry(struct echfs_vfs_context* restrict context, uintptr_t block, uint64_t value)
 {
-    pcache_meta_write(context->meta, entry_offset(context, block), &value, sizeof(value));
+    fcache_dev_write(context->devnode, entry_offset(context, block), &value, sizeof(value));
 }
 
 // An entry that can't be read looks reserved, which ends any chain through it
@@ -20,7 +20,7 @@ uint64_t echfs_block_entry(const struct echfs_vfs_context* restrict context, uin
 {
     uint64_t value;
 
-    if(block >= context->total_blocks || pcache_meta_read(context->meta, entry_offset(context, block), &value, sizeof(value)) < 0) {
+    if(block >= context->total_blocks || fcache_dev_read(context->devnode, entry_offset(context, block), &value, sizeof(value)) < 0) {
         return ECHFS_TABLE_RESERVED;
     }
 
@@ -58,7 +58,7 @@ uintptr_t echfs_block_alloc(struct echfs_vfs_context* restrict context)
                 count = end - block;
             }
 
-            if(pcache_meta_read(context->meta, entry_offset(context, block), batch, count * sizeof(uint64_t)) < 0) {
+            if(fcache_dev_read(context->devnode, entry_offset(context, block), batch, count * sizeof(uint64_t)) < 0) {
                 return UINTPTR_MAX;
             }
 

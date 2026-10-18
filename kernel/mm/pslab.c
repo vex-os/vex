@@ -1,18 +1,18 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
+#include <vex/fcache.h>
 #include <vex/hhdm.h>
 #include <vex/hrsize.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 #include <vex/memmap.h>
 #include <vex/page.h>
-#include <vex/pcache.h>
 #include <vex/pdma.h>
 #include <vex/pframe.h>
 #include <vex/pslab.h>
 #include <vex/spinlock.h>
 
-#define RECLAIM_BATCH 32 // Pages freed from the page cache at a time
+#define RECLAIM_BATCH 32 // Pages freed from the file cache at a time
 #define RESERVE_PAGES 64 // Kept free for callers that hold a spinlock and can't reclaim
 
 static void** pslab_list = nullptr;
@@ -100,7 +100,7 @@ void* pslab_alloc_virt(void)
     void* ptr = take_page();
 
     if(ptr == nullptr) {
-        if(pcache_reclaim(RECLAIM_BATCH)) {
+        if(fcache_reclaim(RECLAIM_BATCH)) {
             ptr = take_page();
         }
 
@@ -108,7 +108,7 @@ void* pslab_alloc_virt(void)
     }
 
     if(pslab_numpages - atomic_load(&pslab_numused, ATOMIC_RELAXED) < RESERVE_PAGES) {
-        pcache_reclaim(RECLAIM_BATCH);
+        fcache_reclaim(RECLAIM_BATCH);
     }
 
     return ptr;

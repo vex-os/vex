@@ -29,7 +29,7 @@ static struct vnode* alloc_internal(struct vfs* restrict fs, ino_t nodenumber, c
     result->ops = ops;
     result->nodenumber = nodenumber;
 
-    pcache_init(&result->pcache);
+    fcache_init(&result->pages);
 
     atomic_store(&result->refcount, 1, ATOMIC_RELAXED);
 
@@ -313,7 +313,7 @@ struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict op
     result->nodetype = nodetype;
     result->ctxdata = ctxdata;
 
-    pcache_init(&result->pcache);
+    fcache_init(&result->pages);
 
     atomic_store(&result->refcount, 1, ATOMIC_RELAXED);
 
@@ -352,7 +352,7 @@ void vnode_destroy(struct vnode* restrict node)
         atomic_fetch_sub(&node->fs->orphans, 1, ATOMIC_RELEASE);
     }
 
-    pcache_deinit(&node->pcache);
+    fcache_deinit(&node->pages);
 
     if(node->ops->release)
         node->ops->release(node);

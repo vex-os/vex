@@ -2,10 +2,10 @@
 #include <vex/cmdline.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
+#include <vex/fcache.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/mount.h>
-#include <vex/pcache.h>
 #include <vex/slab.h>
 #include <vex/stdlib.h>
 #include <vex/string.h>
@@ -205,11 +205,11 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     context->fsinfo_invalidated = false;
     context->next_free_hint = 2;
-    context->meta = pcache_meta_create(fs);
+    context->devnode = fcache_dev_create(fs);
 
     kfree(boot);
 
-    if(context->meta == nullptr) {
+    if(context->devnode == nullptr) {
         kfree(context);
         return -ENOMEM;
     }
@@ -217,7 +217,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     struct fat_vnode_context* root_context = slab_alloc(sizeof(struct fat_vnode_context));
 
     if(root_context == nullptr) {
-        pcache_meta_destroy(context->meta);
+        fcache_dev_destroy(context->devnode);
         kfree(context);
         return -ENOMEM;
     }
@@ -232,7 +232,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     if(root == nullptr) {
         slab_free(root_context);
-        pcache_meta_destroy(context->meta);
+        fcache_dev_destroy(context->devnode);
         kfree(context);
         return -ENOMEM;
     }
@@ -284,7 +284,7 @@ static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
     uintptr_t byte_offset = nodenumber & 0xFFFFFFFF;
 
     struct fat_dir_entry raw_entry;
-    int retval = pcache_meta_read(context->meta, lba * context->sector_size + byte_offset, &raw_entry, sizeof(raw_entry));
+    int retval = fcache_dev_read(context->devnode, lba * context->sector_size + byte_offset, &raw_entry, sizeof(raw_entry));
 
     if(retval < 0) {
         return retval;
@@ -349,7 +349,7 @@ static int fat_unmount(struct vfs* restrict fs)
 
     vnode_decref(fs->root);
 
-    pcache_meta_destroy(context->meta);
+    fcache_dev_destroy(context->devnode);
     mutex_deinit(&context->lock);
     kfree(context);
 
@@ -377,7 +377,7 @@ static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
 static int fat_sync(struct vfs* restrict fs)
 {
     struct fat_vfs_context* context = fs->ctxdata;
-    return vnode_fsync(context->meta);
+    return vnode_fsync(context->devnode);
 }
 
 static const struct vfs_ops fat_vfs_ops = {

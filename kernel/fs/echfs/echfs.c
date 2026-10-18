@@ -1,10 +1,10 @@
 #include <vex/blk_device.h>
 #include <vex/cmdline.h>
 #include <vex/errno.h>
+#include <vex/fcache.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/mount.h>
-#include <vex/pcache.h>
 #include <vex/slab.h>
 #include <vex/string.h>
 #include <vex/vnode.h>
@@ -100,9 +100,9 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     context->dir_entries = dir_size * block_size / sizeof(struct echfs_dirent);
 
     context->next_free_hint = data_start;
-    context->meta = pcache_meta_create(fs);
+    context->devnode = fcache_dev_create(fs);
 
-    if(context->meta == nullptr) {
+    if(context->devnode == nullptr) {
         kfree(context);
         return -ENOMEM;
     }
@@ -110,7 +110,7 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     struct echfs_vnode_context* root_ctx = slab_alloc(sizeof(struct echfs_vnode_context));
 
     if(root_ctx == nullptr) {
-        pcache_meta_destroy(context->meta);
+        fcache_dev_destroy(context->devnode);
         kfree(context);
         return -ENOMEM;
     }
@@ -126,7 +126,7 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 
     if(root == nullptr) {
         slab_free(root_ctx);
-        pcache_meta_destroy(context->meta);
+        fcache_dev_destroy(context->devnode);
         kfree(context);
         return -ENOMEM;
     }
@@ -220,7 +220,7 @@ static int echfs_unmount(struct vfs* restrict fs)
 
     vnode_decref(fs->root);
 
-    pcache_meta_destroy(context->meta);
+    fcache_dev_destroy(context->devnode);
     mutex_deinit(&context->lock);
     kfree(context);
 
@@ -248,7 +248,7 @@ static int echfs_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
 static int echfs_sync(struct vfs* restrict fs)
 {
     struct echfs_vfs_context* context = fs->ctxdata;
-    return vnode_fsync(context->meta);
+    return vnode_fsync(context->devnode);
 }
 
 static const struct vfs_ops echfs_vfs_ops = {

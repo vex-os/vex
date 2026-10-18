@@ -1,5 +1,5 @@
 #include <vex/errno.h>
-#include <vex/pcache.h>
+#include <vex/fcache.h>
 #include <vex/string.h>
 
 #include "echfs.h"
@@ -48,7 +48,7 @@ int echfs_dirent_read(const struct echfs_vfs_context* restrict context, uint64_t
         return -EINVAL;
     }
 
-    return pcache_meta_read(context->meta, dirent_offset(context, index), out, sizeof(struct echfs_dirent));
+    return fcache_dev_read(context->devnode, dirent_offset(context, index), out, sizeof(struct echfs_dirent));
 }
 
 int echfs_dirent_write(struct echfs_vfs_context* restrict context, uint64_t index, const struct echfs_dirent* restrict entry)
@@ -57,7 +57,7 @@ int echfs_dirent_write(struct echfs_vfs_context* restrict context, uint64_t inde
         return -EINVAL;
     }
 
-    return pcache_meta_write(context->meta, dirent_offset(context, index), entry, sizeof(struct echfs_dirent));
+    return fcache_dev_write(context->devnode, dirent_offset(context, index), entry, sizeof(struct echfs_dirent));
 }
 
 int echfs_dirent_alloc(struct echfs_vfs_context* restrict context, uint64_t* restrict out_index)

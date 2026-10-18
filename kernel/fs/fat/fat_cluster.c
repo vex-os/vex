@@ -1,8 +1,8 @@
 #include <vex/blk_device.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
+#include <vex/fcache.h>
 #include <vex/page.h>
-#include <vex/pcache.h>
 #include <vex/string.h>
 
 #include "fat.h"
@@ -32,7 +32,7 @@ static bool table_load(const struct fat_vfs_context* restrict context, size_t of
         return false;
     }
 
-    return 0 == pcache_meta_read(context->meta, table_offset(context, 0, offset), buffer, size);
+    return 0 == fcache_dev_read(context->devnode, table_offset(context, 0, offset), buffer, size);
 }
 
 static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
@@ -44,7 +44,7 @@ static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
     struct fat_fsinfo_fat32 info;
     uint64_t offset = context->fsinfo_lba * context->sector_size;
 
-    if(pcache_meta_read(context->meta, offset, &info, sizeof(info)) < 0) {
+    if(fcache_dev_read(context->devnode, offset, &info, sizeof(info)) < 0) {
         return;
     }
 
@@ -57,7 +57,7 @@ static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
         info.free_count = htole32(UINT32_C(0xFFFFFFFF));
         info.next_free = htole32(UINT32_C(0xFFFFFFFF));
 
-        pcache_meta_write(context->meta, offset, &info, sizeof(info));
+        fcache_dev_write(context->devnode, offset, &info, sizeof(info));
     }
 }
 
@@ -74,7 +74,7 @@ static void table_store(struct fat_vfs_context* restrict context, size_t offset,
     }
 
     for(unsigned i = 0; i < context->num_tables; ++i) {
-        pcache_meta_write(context->meta, table_offset(context, i, offset), buffer, size);
+        fcache_dev_write(context->devnode, table_offset(context, i, offset), buffer, size);
     }
 }
 
@@ -315,7 +315,7 @@ void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluste
 
     entry_set(context, cluster, 0);
 
-    pcache_forget(context->meta, fat_cluster_lba(context, cluster) * context->sector_size, context->cluster_size_b);
+    fcache_forget(context->devnode, fat_cluster_lba(context, cluster) * context->sector_size, context->cluster_size_b);
 
     if(cluster < context->next_free_hint) {
         context->next_free_hint = cluster;
@@ -366,7 +366,7 @@ uintptr_t fat_cluster_alloc_dir(struct fat_vfs_context* restrict context)
             count = PAGE_SIZE;
         }
 
-        if(pcache_meta_write(context->meta, offset + done, zeroes, count) < 0) {
+        if(fcache_dev_write(context->devnode, offset + done, zeroes, count) < 0) {
             fat_cluster_free(context, cluster);
             return UINTPTR_MAX;
         }

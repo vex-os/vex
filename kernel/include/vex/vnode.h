@@ -4,7 +4,7 @@
 #include <vex/cred.h>
 #include <vex/dirent.h>
 #include <vex/errno.h>
-#include <vex/pcache.h>
+#include <vex/fcache.h>
 #include <vex/spinlock.h>
 #include <vex/stat.h>
 #include <vex/types.h>
@@ -65,7 +65,7 @@ struct vnode {
     ino_t nodenumber;
     struct vcache* cache_entry;
     const struct blk_device* blkdev;
-    struct pcache pcache;
+    struct fcache pages;
     void* ctxdata;
 };
 

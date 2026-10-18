@@ -3,13 +3,13 @@
 #include <vex/blk_device.h>
 #include <vex/errno.h>
 #include <vex/event.h>
+#include <vex/fcache.h>
 #include <vex/hart.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/mount.h>
 #include <vex/page.h>
 #include <vex/panic.h>
-#include <vex/pcache.h>
 #include <vex/pframe.h>
 #include <vex/pslab.h>
 #include <vex/sched.h>
@@ -94,7 +94,7 @@ static size_t valid_bytes(uint64_t index, off_t size)
 
 static void queue_dirty(struct vnode* restrict node)
 {
-    struct pcache* cache = &node->pcache;
+    struct fcache* cache = &node->pages;
 
     spinlock_acquire(&dirty_lock);
 
@@ -110,7 +110,7 @@ static void queue_dirty(struct vnode* restrict node)
 
 static void mark_dirty(struct vnode* restrict node, struct pframe* restrict pf, unsigned sectors)
 {
-    struct pcache* cache = &node->pcache;
+    struct fcache* cache = &node->pages;
 
     pf->flags |= sectors << PFRAME_DIRTY_SHIFT;
 
@@ -125,7 +125,7 @@ static void mark_dirty(struct vnode* restrict node, struct pframe* restrict pf, 
     queue_dirty(node);
 }
 
-static void mark_clean(struct pcache* restrict cache, struct pframe* restrict pf)
+static void mark_clean(struct fcache* restrict cache, struct pframe* restrict pf)
 {
     if(0 == (pf->flags & PFRAME_DIRTY)) {
         return;
@@ -136,7 +136,7 @@ static void mark_clean(struct pcache* restrict cache, struct pframe* restrict pf
     atomic_fetch_sub(&dirty_pages, 1, ATOMIC_RELAXED);
 }
 
-static struct pframe* add_page(struct pcache* restrict cache, uint64_t index, uintptr_t phys)
+static struct pframe* add_page(struct fcache* restrict cache, uint64_t index, uintptr_t phys)
 {
     memset(phys_to_virt(phys), 0, PAGE_SIZE);
 
@@ -145,7 +145,7 @@ static struct pframe* add_page(struct pcache* restrict cache, uint64_t index, ui
     pf->index = index;
     pf->flags |= PFRAME_CACHE;
 
-    if(radix_insert(&cache->pages, index, pf) < 0) {
+    if(radix_insert(&cache->tree, index, pf) < 0) {
         pf->flags &= ~PFRAME_CACHE;
         pf->owner = nullptr;
         pslab_free_phys(phys);
@@ -161,9 +161,9 @@ static struct pframe* add_page(struct pcache* restrict cache, uint64_t index, ui
     return pf;
 }
 
-static struct pframe* get_page(struct pcache* restrict cache, uint64_t index)
+static struct pframe* get_page(struct fcache* restrict cache, uint64_t index)
 {
-    struct pframe* pf = radix_lookup(&cache->pages, index);
+    struct pframe* pf = radix_lookup(&cache->tree, index);
 
     if(pf) {
         return pf;
@@ -177,7 +177,7 @@ static struct pframe* get_page(struct pcache* restrict cache, uint64_t index)
         return nullptr;
     }
 
-    pf = radix_lookup(&cache->pages, index);
+    pf = radix_lookup(&cache->tree, index);
 
     if(pf) {
         pslab_free_phys(phys);
@@ -187,7 +187,7 @@ static struct pframe* get_page(struct pcache* restrict cache, uint64_t index)
     return add_page(cache, index, phys);
 }
 
-static void remove_page(struct pcache* restrict cache, struct pframe* restrict pf)
+static void remove_page(struct fcache* restrict cache, struct pframe* restrict pf)
 {
     spinlock_acquire(&lru_lock);
     lru_unlink(pf);
@@ -195,7 +195,7 @@ static void remove_page(struct pcache* restrict cache, struct pframe* restrict p
 
     mark_clean(cache, pf);
 
-    struct pframe* removed = radix_remove(&cache->pages, pf->index);
+    struct pframe* removed = radix_remove(&cache->tree, pf->index);
     kassert(removed == pf);
 
     cache->num_pages -= 1;
@@ -221,7 +221,7 @@ static unsigned sector_span(struct vnode* restrict node, size_t in_page, size_t 
     return ((2U << last) - 1) & ~((1U << first) - 1);
 }
 
-static int fill_page(struct vnode* restrict node, pcache_bmap_type bmap, struct pframe* restrict pf, off_t size)
+static int fill_page(struct vnode* restrict node, fcache_bmap_type bmap, struct pframe* restrict pf, off_t size)
 {
     const struct blk_device* device = node->fs->device;
     size_t sector_size = device->sector_size;
@@ -234,7 +234,7 @@ static int fill_page(struct vnode* restrict node, pcache_bmap_type bmap, struct 
     memset(data, 0, PAGE_SIZE);
 
     for(size_t i = 0; i < num_sectors;) {
-        struct pcache_extent extent;
+        struct fcache_extent extent;
         int retval = bmap(node, first + i, false, &extent);
 
         if(retval < 0) {
@@ -270,14 +270,14 @@ static int fill_page(struct vnode* restrict node, pcache_bmap_type bmap, struct 
     return 0;
 }
 
-static int allocate_span(struct vnode* restrict node, pcache_bmap_type bmap, uint64_t pos, size_t length)
+static int allocate_span(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t pos, size_t length)
 {
     size_t sector_size = node->fs->device->sector_size;
     uint64_t sector = pos / sector_size;
     uint64_t end = (pos + length + sector_size - 1) / sector_size;
 
     while(sector < end) {
-        struct pcache_extent extent;
+        struct fcache_extent extent;
         int retval = bmap(node, sector, true, &extent);
 
         if(retval < 0) {
@@ -294,12 +294,12 @@ static int allocate_span(struct vnode* restrict node, pcache_bmap_type bmap, uin
     return 0;
 }
 
-static int write_run(struct vnode* restrict node, pcache_bmap_type bmap, uint64_t sector, size_t count, const uint8_t* restrict data)
+static int write_run(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t sector, size_t count, const uint8_t* restrict data)
 {
     const struct blk_device* device = node->fs->device;
 
     while(count > 0) {
-        struct pcache_extent extent;
+        struct fcache_extent extent;
         int retval = bmap(node, sector, false, &extent);
 
         if(retval < 0) {
@@ -317,7 +317,7 @@ static int write_run(struct vnode* restrict node, pcache_bmap_type bmap, uint64_
         }
 
         // A hole stays a hole; the sectors
-        // written to were allocated by pcache_write
+        // written to were allocated by fcache_write
         if(extent.mapped) {
             retval = blk_write(device, extent.lba, chunk, data);
 
@@ -334,7 +334,7 @@ static int write_run(struct vnode* restrict node, pcache_bmap_type bmap, uint64_
     return 0;
 }
 
-static int write_page(struct vnode* restrict node, pcache_bmap_type bmap, struct pframe* restrict pf, off_t size)
+static int write_page(struct vnode* restrict node, fcache_bmap_type bmap, struct pframe* restrict pf, off_t size)
 {
     size_t sector_size = node->fs->device->sector_size;
     const uint8_t* data = page_data(pf);
@@ -368,9 +368,9 @@ static int write_page(struct vnode* restrict node, pcache_bmap_type bmap, struct
     return 0;
 }
 
-static int writeback_locked(struct vnode* restrict node, pcache_bmap_type bmap, off_t size)
+static int writeback_locked(struct vnode* restrict node, fcache_bmap_type bmap, off_t size)
 {
-    struct pcache* cache = &node->pcache;
+    struct fcache* cache = &node->pages;
     int retval = 0;
 
     void* batch[GATHER_BATCH];
@@ -378,7 +378,7 @@ static int writeback_locked(struct vnode* restrict node, pcache_bmap_type bmap, 
     uint64_t start = 0;
     size_t count;
 
-    while(cache->num_dirty > 0 && (count = radix_gather(&cache->pages, start, batch, indices, GATHER_BATCH)) > 0) {
+    while(cache->num_dirty > 0 && (count = radix_gather(&cache->tree, start, batch, indices, GATHER_BATCH)) > 0) {
         for(size_t i = 0; i < count; ++i) {
             struct pframe* pf = batch[i];
 
@@ -420,7 +420,7 @@ static void __noreturn writeback_thread(void* restrict arg)
 {
     for(;;) {
         struct event* wakeup = &writeback_wakeup;
-        event_await_timeout(&wakeup, 1, UINT64_C(1000000) * CONFIG_PCACHE_WRITEBACK_MSEC);
+        event_await_timeout(&wakeup, 1, UINT64_C(1000000) * CONFIG_FCACHE_WRITEBACK_MSEC);
 
         atomic_store(&writeback_kicked, false, ATOMIC_RELEASE);
 
@@ -428,7 +428,7 @@ static void __noreturn writeback_thread(void* restrict arg)
     }
 }
 
-static int meta_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct pcache_extent* restrict out)
+static int dev_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct fcache_extent* restrict out)
 {
     const struct blk_device* device = node->fs->device;
 
@@ -443,32 +443,32 @@ static int meta_bmap(struct vnode* restrict node, uint64_t sector, bool create, 
     return 0;
 }
 
-static off_t meta_size(const struct vnode* restrict node)
+static off_t dev_size(const struct vnode* restrict node)
 {
     const struct blk_device* device = node->fs->device;
     return device->sector_count * device->sector_size;
 }
 
-static int meta_fsync(struct vnode* restrict node)
+static int dev_fsync(struct vnode* restrict node)
 {
-    return pcache_writeback(node, &meta_bmap, meta_size(node));
+    return fcache_writeback(node, &dev_bmap, dev_size(node));
 }
 
-static const struct vnode_ops meta_ops = {
-    .fsync = &meta_fsync,
+static const struct vnode_ops dev_ops = {
+    .fsync = &dev_fsync,
 };
 
-void pcache_init(struct pcache* restrict cache)
+void fcache_init(struct fcache* restrict cache)
 {
     mutex_init(&cache->lock);
-    radix_init(&cache->pages);
+    radix_init(&cache->tree);
     cache->num_pages = 0;
     cache->num_dirty = 0;
     cache->queued = false;
     cache->dirty_next = nullptr;
 }
 
-void pcache_deinit(struct pcache* restrict cache)
+void fcache_deinit(struct fcache* restrict cache)
 {
     kassert(!cache->queued);
 
@@ -477,7 +477,7 @@ void pcache_deinit(struct pcache* restrict cache)
     void* batch[GATHER_BATCH];
     size_t count;
 
-    while((count = radix_gather(&cache->pages, 0, batch, nullptr, GATHER_BATCH)) > 0) {
+    while((count = radix_gather(&cache->tree, 0, batch, nullptr, GATHER_BATCH)) > 0) {
         for(size_t i = 0; i < count; ++i) {
             remove_page(cache, batch[i]);
         }
@@ -485,11 +485,11 @@ void pcache_deinit(struct pcache* restrict cache)
 
     mutex_release(&cache->lock);
 
-    radix_deinit(&cache->pages);
+    radix_deinit(&cache->tree);
     mutex_deinit(&cache->lock);
 }
 
-ssize_t pcache_read(struct vnode* restrict node, pcache_bmap_type bmap, void* restrict buffer, size_t sz, off_t offset, off_t size)
+ssize_t fcache_read(struct vnode* restrict node, fcache_bmap_type bmap, void* restrict buffer, size_t sz, off_t offset, off_t size)
 {
     if(offset < 0) {
         return -EINVAL;
@@ -507,7 +507,7 @@ ssize_t pcache_read(struct vnode* restrict node, pcache_bmap_type bmap, void* re
         sz = size - offset;
     }
 
-    struct pcache* cache = &node->pcache;
+    struct fcache* cache = &node->pages;
     size_t done = 0;
     int retval = 0;
 
@@ -555,7 +555,7 @@ ssize_t pcache_read(struct vnode* restrict node, pcache_bmap_type bmap, void* re
     return done;
 }
 
-ssize_t pcache_write(struct vnode* restrict node, pcache_bmap_type bmap, const void* restrict buffer, size_t sz, off_t offset, off_t size)
+ssize_t fcache_write(struct vnode* restrict node, fcache_bmap_type bmap, const void* restrict buffer, size_t sz, off_t offset, off_t size)
 {
     if(offset < 0) {
         return -EINVAL;
@@ -565,7 +565,7 @@ ssize_t pcache_write(struct vnode* restrict node, pcache_bmap_type bmap, const v
         return -EINVAL;
     }
 
-    struct pcache* cache = &node->pcache;
+    struct fcache* cache = &node->pages;
     size_t done = 0;
     int retval = 0;
 
@@ -636,9 +636,9 @@ ssize_t pcache_write(struct vnode* restrict node, pcache_bmap_type bmap, const v
     return done;
 }
 
-int pcache_writeback(struct vnode* restrict node, pcache_bmap_type bmap, off_t size)
+int fcache_writeback(struct vnode* restrict node, fcache_bmap_type bmap, off_t size)
 {
-    struct pcache* cache = &node->pcache;
+    struct fcache* cache = &node->pages;
 
     mutex_acquire(&cache->lock);
     int retval = writeback_locked(node, bmap, size);
@@ -647,9 +647,9 @@ int pcache_writeback(struct vnode* restrict node, pcache_bmap_type bmap, off_t s
     return retval;
 }
 
-void pcache_truncate(struct vnode* restrict node, off_t size)
+void fcache_truncate(struct vnode* restrict node, off_t size)
 {
-    struct pcache* cache = &node->pcache;
+    struct fcache* cache = &node->pages;
     uint64_t keep = ((uint64_t)(size) + PAGE_SIZE - 1) / PAGE_SIZE;
 
     mutex_acquire(&cache->lock);
@@ -657,7 +657,7 @@ void pcache_truncate(struct vnode* restrict node, off_t size)
     void* batch[GATHER_BATCH];
     size_t count;
 
-    while((count = radix_gather(&cache->pages, keep, batch, nullptr, GATHER_BATCH)) > 0) {
+    while((count = radix_gather(&cache->tree, keep, batch, nullptr, GATHER_BATCH)) > 0) {
         for(size_t i = 0; i < count; ++i) {
             remove_page(cache, batch[i]);
         }
@@ -668,7 +668,7 @@ void pcache_truncate(struct vnode* restrict node, off_t size)
     size_t tail = size % PAGE_SIZE;
 
     if(tail) {
-        struct pframe* pf = radix_lookup(&cache->pages, size / PAGE_SIZE);
+        struct pframe* pf = radix_lookup(&cache->tree, size / PAGE_SIZE);
 
         if(pf) {
             memset((uint8_t*)(page_data(pf)) + tail, 0, PAGE_SIZE - tail);
@@ -678,9 +678,9 @@ void pcache_truncate(struct vnode* restrict node, off_t size)
     mutex_release(&cache->lock);
 }
 
-void pcache_forget(struct vnode* restrict node, uint64_t offset, uint64_t length)
+void fcache_forget(struct vnode* restrict node, uint64_t offset, uint64_t length)
 {
-    struct pcache* cache = &node->pcache;
+    struct fcache* cache = &node->pages;
     uint64_t end = offset + length;
 
     mutex_acquire(&cache->lock);
@@ -693,7 +693,7 @@ void pcache_forget(struct vnode* restrict node, uint64_t offset, uint64_t length
             chunk = end - pos;
         }
 
-        struct pframe* pf = radix_lookup(&cache->pages, pos / PAGE_SIZE);
+        struct pframe* pf = radix_lookup(&cache->tree, pos / PAGE_SIZE);
 
         if(pf) {
             pf->flags &= ~(sector_span(node, in_page, chunk) << PFRAME_DIRTY_SHIFT);
@@ -709,13 +709,13 @@ void pcache_forget(struct vnode* restrict node, uint64_t offset, uint64_t length
     mutex_release(&cache->lock);
 }
 
-int pcache_sync(struct vfs* restrict fs)
+int fcache_sync(struct vfs* restrict fs)
 {
     size_t pending = 0;
 
     spinlock_acquire(&dirty_lock);
 
-    for(struct vnode* node = dirty_head; node; node = node->pcache.dirty_next) {
+    for(struct vnode* node = dirty_head; node; node = node->pages.dirty_next) {
         if(fs == nullptr || node->fs == fs) {
             pending += 1;
         }
@@ -732,13 +732,13 @@ int pcache_sync(struct vfs* restrict fs)
 
         spinlock_acquire(&dirty_lock);
 
-        for(struct vnode** prev = &dirty_head; *prev; prev = &(*prev)->pcache.dirty_next) {
+        for(struct vnode** prev = &dirty_head; *prev; prev = &(*prev)->pages.dirty_next) {
             struct vnode* node = *prev;
 
             if(fs == nullptr || node->fs == fs) {
-                *prev = node->pcache.dirty_next;
-                node->pcache.dirty_next = nullptr;
-                node->pcache.queued = false;
+                *prev = node->pages.dirty_next;
+                node->pages.dirty_next = nullptr;
+                node->pages.queued = false;
                 picked = node;
                 break;
             }
@@ -763,30 +763,30 @@ int pcache_sync(struct vfs* restrict fs)
     return retval;
 }
 
-struct vnode* pcache_meta_create(struct vfs* restrict fs)
+struct vnode* fcache_dev_create(struct vfs* restrict fs)
 {
-    struct vnode* meta = vnode_alloc(VNODE_BLOCK_DEV, &meta_ops, nullptr);
+    struct vnode* devnode = vnode_alloc(VNODE_BLOCK_DEV, &dev_ops, nullptr);
 
-    if(meta) {
-        meta->fs = fs;
+    if(devnode) {
+        devnode->fs = fs;
     }
 
-    return meta;
+    return devnode;
 }
 
-void pcache_meta_destroy(struct vnode* restrict meta)
+void fcache_dev_destroy(struct vnode* restrict devnode)
 {
-    vnode_fsync(meta);
+    vnode_fsync(devnode);
 
     bool queued = false;
 
     spinlock_acquire(&dirty_lock);
 
-    for(struct vnode** prev = &dirty_head; *prev; prev = &(*prev)->pcache.dirty_next) {
-        if(*prev == meta) {
-            *prev = meta->pcache.dirty_next;
-            meta->pcache.dirty_next = nullptr;
-            meta->pcache.queued = false;
+    for(struct vnode** prev = &dirty_head; *prev; prev = &(*prev)->pages.dirty_next) {
+        if(*prev == devnode) {
+            *prev = devnode->pages.dirty_next;
+            devnode->pages.dirty_next = nullptr;
+            devnode->pages.queued = false;
             queued = true;
             break;
         }
@@ -795,15 +795,15 @@ void pcache_meta_destroy(struct vnode* restrict meta)
     spinlock_release(&dirty_lock);
 
     if(queued) {
-        vnode_decref(meta);
+        vnode_decref(devnode);
     }
 
-    vnode_decref(meta);
+    vnode_decref(devnode);
 }
 
-int pcache_meta_read(struct vnode* restrict meta, uint64_t offset, void* restrict buffer, size_t sz)
+int fcache_dev_read(struct vnode* restrict devnode, uint64_t offset, void* restrict buffer, size_t sz)
 {
-    ssize_t done = pcache_read(meta, &meta_bmap, buffer, sz, offset, meta_size(meta));
+    ssize_t done = fcache_read(devnode, &dev_bmap, buffer, sz, offset, dev_size(devnode));
 
     if(done < 0) {
         return done;
@@ -812,9 +812,9 @@ int pcache_meta_read(struct vnode* restrict meta, uint64_t offset, void* restric
     return (size_t)(done) == sz ? 0 : -EIO;
 }
 
-int pcache_meta_write(struct vnode* restrict meta, uint64_t offset, const void* restrict buffer, size_t sz)
+int fcache_dev_write(struct vnode* restrict devnode, uint64_t offset, const void* restrict buffer, size_t sz)
 {
-    ssize_t done = pcache_write(meta, &meta_bmap, buffer, sz, offset, meta_size(meta));
+    ssize_t done = fcache_write(devnode, &dev_bmap, buffer, sz, offset, dev_size(devnode));
 
     if(done < 0) {
         return done;
@@ -823,7 +823,7 @@ int pcache_meta_write(struct vnode* restrict meta, uint64_t offset, const void* 
     return (size_t)(done) == sz ? 0 : -EIO;
 }
 
-size_t pcache_reclaim(size_t count)
+size_t fcache_reclaim(size_t count)
 {
     struct thread* thrd = this_thread();
 
@@ -839,7 +839,7 @@ size_t pcache_reclaim(size_t count)
 
     while(freed < count && budget > 0 && lru_head) {
         struct pframe* pf = lru_head;
-        struct pcache* cache = pf->owner;
+        struct fcache* cache = pf->owner;
 
         budget -= 1;
 
@@ -865,7 +865,7 @@ size_t pcache_reclaim(size_t count)
 
         spinlock_release(&lru_lock);
 
-        struct pframe* removed = radix_remove(&cache->pages, pf->index);
+        struct pframe* removed = radix_remove(&cache->tree, pf->index);
         kassert(removed == pf);
 
         cache->num_pages -= 1;
@@ -887,19 +887,19 @@ size_t pcache_reclaim(size_t count)
     return freed;
 }
 
-static void init_pcache(void)
+static void init_fcache(void)
 {
-    dirty_limit = pslab_page_count() / 100 * CONFIG_PCACHE_DIRTY_PERCENT;
+    dirty_limit = pslab_page_count() / 100 * CONFIG_FCACHE_DIRTY_PERCENT;
 
     event_init(&writeback_wakeup);
 
     struct thread* writeback = create_thread_kern(&writeback_thread, nullptr);
 
     if(writeback == nullptr) {
-        panic("pcache: out of memory");
+        panic("fcache: out of memory");
     }
 
     sched_enqueue(writeback);
 }
 
-initcall_bsp_vfs(init_pcache, INIT_FIRST);
+initcall_bsp_vfs(init_fcache, INIT_FIRST);

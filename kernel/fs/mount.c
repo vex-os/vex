@@ -2,12 +2,12 @@
 #include <vex/atomic.h>
 #include <vex/blk_device.h>
 #include <vex/cmdline.h>
+#include <vex/fcache.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/mount.h>
 #include <vex/mutex.h>
 #include <vex/path.h>
-#include <vex/pcache.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -105,7 +105,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
     fs->ops = driver->ops;
 
     // The driver reads its metadata
-    // through the page cache while mounting
+    // through the file cache while mounting
     fs->device = device;
 
     int retval = driver->ops->mount(fs, device, &cmdl);
@@ -297,7 +297,7 @@ int vfs_unmount(const char* restrict path)
     spinlock_release(&mounts_lock);
 
     // Vnodes queued for writeback are referenced by the queue
-    int retval = pcache_sync(fs);
+    int retval = fcache_sync(fs);
 
     if(retval == 0 && (atomic_load(&fs->orphans, ATOMIC_ACQUIRE) || vcache_in_use(fs, is_root ? 2 : 1))) {
         retval = -EBUSY;
@@ -366,7 +366,7 @@ int vfs_unmount(const char* restrict path)
 
 int vfs_sync_fs(struct vfs* restrict fs)
 {
-    int retval = pcache_sync(fs);
+    int retval = fcache_sync(fs);
 
     if(fs->ops->sync == nullptr) {
         return retval < 0 ? retval : -ENOSYS;

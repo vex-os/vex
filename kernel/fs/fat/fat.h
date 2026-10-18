@@ -146,7 +146,7 @@ struct fat_dirent {
 };
 
 struct fat_vfs_context {
-    struct mutex lock; // Serializes changes to the table and directories, and the page cache calls for files
+    struct mutex lock; // Serializes changes to the table and directories, and the file cache calls for files
     const struct blk_device* device;
     union fat_extparams extparams;
     unsigned filesystem_type;
@@ -173,7 +173,7 @@ struct fat_vfs_context {
 
     uintptr_t next_free_hint;
 
-    struct vnode* meta;
+    struct vnode* devnode;
 };
 
 struct fat_vnode_context {

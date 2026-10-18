@@ -4,7 +4,7 @@
 #include <vex/ctype.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
-#include <vex/pcache.h>
+#include <vex/fcache.h>
 #include <vex/string.h>
 
 #include "fat.h"
@@ -54,7 +54,7 @@ static int read_entry(const struct fat_vfs_context* restrict context, uintptr_t 
         return retval;
     }
 
-    return pcache_meta_read(context->meta, position, entry, sizeof(union fat_entry));
+    return fcache_dev_read(context->devnode, position, entry, sizeof(union fat_entry));
 }
 
 static int write_entry(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
@@ -67,7 +67,7 @@ static int write_entry(const struct fat_vfs_context* restrict context, uintptr_t
         return retval;
     }
 
-    return pcache_meta_write(context->meta, position, entry, sizeof(union fat_entry));
+    return fcache_dev_write(context->devnode, position, entry, sizeof(union fat_entry));
 }
 
 static uint8_t ldir_checksum(const struct fat_dir_entry* restrict entry)
