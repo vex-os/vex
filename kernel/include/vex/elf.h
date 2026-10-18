@@ -567,6 +567,7 @@ struct elf64_rela {
 #define AT_GID          13 // Real gid
 #define AT_EGID         14 // Effective gid
 #define AT_CLKTCK       17 // Frequency of times()
+#define AT_SECURE       23 // Set when effective ids differ from real ones
 #define AT_SYSINFO      32
 #define AT_SYSINFO_EHDR 33
 

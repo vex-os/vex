@@ -68,29 +68,26 @@ static int copy_strings(uintptr_t user_array, const char** restrict out, char** 
     return 0;
 }
 
-static int update_exec_cred(struct process* restrict proc)
+static struct credentials* exec_cred(const struct credentials* restrict cred, const struct k_stat* restrict st)
 {
-    mutex_acquire(&proc->cred_lock);
+    struct credentials* copy = cred_copy(cred);
 
-    const struct credentials* cur = proc->cred;
-    int retval = 0;
-
-    if(cur->suid != cur->euid || cur->sgid != cur->egid) {
-        struct credentials* cred = cred_copy(cur);
-
-        if(cred) {
-            cred->suid = cred->euid;
-            cred->sgid = cred->egid;
-            process_set_cred(proc, cred);
-        }
-        else {
-            retval = -ENOMEM;
-        }
+    if(copy == nullptr) {
+        return nullptr;
     }
 
-    mutex_release(&proc->cred_lock);
+    if(st->st_mode & S_ISUID) {
+        copy->euid = st->st_uid;
+    }
 
-    return retval;
+    if((st->st_mode & S_ISGID) && (st->st_mode & S_IXGRP)) {
+        copy->egid = st->st_gid;
+    }
+
+    copy->suid = copy->euid;
+    copy->sgid = copy->egid;
+
+    return copy;
 }
 
 static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, char* restrict strings, const uintptr_t* restrict args)
@@ -115,31 +112,37 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
         return retval;
     }
 
-    struct vnode* stem;
-    retval = syscall_dirfd(AT_FDCWD, path, &stem);
-
-    if(retval < 0) {
-        return retval;
-    }
-
     struct process* proc = thrd->proc;
     const struct credentials* cred = thrd->cred;
 
-    struct file* fp;
-    retval = file_open(stem, path, O_RDONLY, 0, cred, &fp);
-
-    if(stem) {
-        vnode_decref(stem);
-    }
+    struct vnode* node;
+    retval = syscall_resolve_at(AT_FDCWD, path, 0, &node);
 
     if(retval < 0) {
         return retval;
     }
 
-    retval = vnode_access(fp->node, cred, X_OK);
+    if(node->nodetype != VNODE_FILE) {
+        vnode_decref(node);
+        return -EACCES;
+    }
+
+    struct k_stat st;
+    retval = vnode_access(node, cred, X_OK);
+
+    if(retval == 0) {
+        retval = vnode_stat(node, &st);
+    }
 
     if(retval < 0) {
-        file_close(fp);
+        vnode_decref(node);
+        return retval;
+    }
+
+    struct file* fp;
+    retval = file_open_node(node, O_RDONLY, &fp);
+
+    if(retval < 0) {
         return retval;
     }
 
@@ -152,14 +155,28 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
         return -ENOMEM;
     }
 
-    struct entry_point entry;
-    retval = load_binary(vms, fp, argv, envp, &entry);
+    mutex_acquire(&proc->cred_lock);
 
-    file_close(fp);
+    struct credentials* new_cred = exec_cred(proc->cred, &st);
+    struct entry_point entry;
+
+    if(new_cred) {
+        retval = load_binary(vms, fp, argv, envp, new_cred, &entry);
+    }
+    else {
+        retval = -ENOMEM;
+    }
 
     if(retval == 0) {
-        retval = update_exec_cred(proc);
+        process_set_cred(proc, new_cred);
     }
+    else if(new_cred) {
+        cred_decref(new_cred);
+    }
+
+    mutex_release(&proc->cred_lock);
+
+    file_close(fp);
 
     if(retval < 0) {
         vms_release(vms);

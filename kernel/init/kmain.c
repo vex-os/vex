@@ -83,7 +83,7 @@ static void spawn_init(void)
     const char* envp[] = { nullptr };
 
     struct entry_point entry;
-    retval = load_binary(proc->vms, fp, argv, envp, &entry);
+    retval = load_binary(proc->vms, fp, argv, envp, &sys_cred, &entry);
 
     file_close(fp);
 

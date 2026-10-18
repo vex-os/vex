@@ -64,7 +64,7 @@ int remove_binfmt(struct binfmt* restrict fmt)
 }
 
 int load_binary(struct vmspace* restrict vms, struct file* restrict fp, const char** restrict argv, const char** restrict envp,
-    struct entry_point* restrict out)
+    const struct credentials* restrict cred, struct entry_point* restrict out)
 {
     uint8_t header[256];
     ssize_t read = file_read(fp, header, sizeof(header));
@@ -87,7 +87,7 @@ int load_binary(struct vmspace* restrict vms, struct file* restrict fp, const ch
                 return retval;
             }
 
-            return it->ops->setup(vms, fp, argv, envp, out);
+            return it->ops->setup(vms, fp, argv, envp, cred, out);
         }
     }
 

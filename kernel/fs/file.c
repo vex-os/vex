@@ -24,6 +24,50 @@ static unsigned access_for(unsigned flags)
     return mask;
 }
 
+int file_open_node(struct vnode* restrict node, unsigned flags, struct file** restrict out)
+{
+    if(node->nodetype == VNODE_DIRECTORY && (flags & (O_WRONLY | O_TRUNC))) {
+        vnode_decref(node);
+        return -EISDIR;
+    }
+
+    int retval = vnode_open(node, flags);
+
+    if(retval < 0 && retval != -ENOSYS) {
+        vnode_decref(node);
+        return retval;
+    }
+
+    if((flags & O_TRUNC) && node->nodetype == VNODE_FILE) {
+        struct vattr attr = { .mask = VATTR_SIZE, .size = 0 };
+        retval = vnode_setattr(node, &attr);
+
+        if(retval < 0) {
+            vnode_close(node);
+            vnode_decref(node);
+            return retval;
+        }
+    }
+
+    struct file* fp = slab_alloc(sizeof(struct file));
+
+    if(fp == nullptr) {
+        vnode_close(node);
+        vnode_decref(node);
+        return -ENOMEM;
+    }
+
+    fp->node = node;
+    fp->flags = flags;
+    fp->offset = 0;
+
+    atomic_store(&fp->refcount, 1, ATOMIC_RELAXED);
+
+    *out = fp;
+
+    return 0;
+}
+
 int file_open(struct vnode* restrict stem, const char* restrict path, unsigned flags, mode_t mode, const struct credentials* restrict cred,
     struct file** restrict out)
 {
@@ -77,46 +121,7 @@ int file_open(struct vnode* restrict stem, const char* restrict path, unsigned f
         }
     }
 
-    if(node->nodetype == VNODE_DIRECTORY && (flags & (O_WRONLY | O_TRUNC))) {
-        vnode_decref(node);
-        return -EISDIR;
-    }
-
-    retval = vnode_open(node, flags);
-
-    if(retval < 0 && retval != -ENOSYS) {
-        vnode_decref(node);
-        return retval;
-    }
-
-    if((flags & O_TRUNC) && node->nodetype == VNODE_FILE) {
-        struct vattr attr = { .mask = VATTR_SIZE, .size = 0 };
-        retval = vnode_setattr(node, &attr);
-
-        if(retval < 0) {
-            vnode_close(node);
-            vnode_decref(node);
-            return retval;
-        }
-    }
-
-    struct file* fp = slab_alloc(sizeof(struct file));
-
-    if(fp == nullptr) {
-        vnode_close(node);
-        vnode_decref(node);
-        return -ENOMEM;
-    }
-
-    fp->node = node;
-    fp->flags = flags;
-    fp->offset = 0;
-
-    atomic_store(&fp->refcount, 1, ATOMIC_RELAXED);
-
-    *out = fp;
-
-    return 0;
+    return file_open_node(node, flags, out);
 }
 
 struct file* file_dupe(struct file* restrict fp)

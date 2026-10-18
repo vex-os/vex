@@ -1,4 +1,5 @@
 #include <vex/binfmt.h>
+#include <vex/cred.h>
 #include <vex/elf.h>
 #include <vex/errno.h>
 #include <vex/file.h>
@@ -172,7 +173,7 @@ static __always_inline bool ustack_reserve(uint8_t** restrict kva, uintptr_t* re
 }
 
 static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t avail, const char** restrict argv,
-    const char** restrict envp, const struct elf64_ehdr* restrict ehdr, uintptr_t phdr_uva)
+    const char** restrict envp, const struct credentials* restrict cred, const struct elf64_ehdr* restrict ehdr, uintptr_t phdr_uva)
 {
     int argc = 0;
 
@@ -229,6 +230,11 @@ static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t 
         { AT_PHNUM, ehdr->e_phnum },
         { AT_ENTRY, ehdr->e_entry },
         { AT_PAGESZ, PAGE_SIZE },
+        { AT_UID, cred->uid },
+        { AT_EUID, cred->euid },
+        { AT_GID, cred->gid },
+        { AT_EGID, cred->egid },
+        { AT_SECURE, cred->uid != cred->euid || cred->gid != cred->egid }, // Tells libc not to trust the environment
         { AT_NULL, 0 },
     };
 
@@ -300,7 +306,7 @@ static int elf64_probe(struct file* restrict fp, const uint8_t* restrict header,
 }
 
 static int elf64_setup(struct vmspace* restrict vms, struct file* restrict fp, const char** restrict argv, const char** restrict envp,
-    struct entry_point* restrict out)
+    const struct credentials* restrict cred, struct entry_point* restrict out)
 {
     struct elf64_ehdr ehdr;
 
@@ -318,7 +324,8 @@ static int elf64_setup(struct vmspace* restrict vms, struct file* restrict fp, c
 
     uintptr_t user_end = pmap_user_end(vms->pmap);
 
-    // A kernel or non-canonical entry point faults in kernel mode on the way to user mode
+    // A kernel or non-canonical entry point
+    // faults in kernel mode on the way to user mode
     if(ehdr.e_entry >= user_end) {
         return -ENOEXEC;
     }
@@ -401,7 +408,7 @@ static int elf64_setup(struct vmspace* restrict vms, struct file* restrict fp, c
 
     uint8_t* args_top_kva = (uint8_t*)(phys_to_virt(args_phys)) + PAGE_SIZE;
 
-    uintptr_t entry_rsp = build_ustack(args_top_kva, ELF64_STACK_TOP, PAGE_SIZE, argv, envp, &ehdr, phdr_uva);
+    uintptr_t entry_rsp = build_ustack(args_top_kva, ELF64_STACK_TOP, PAGE_SIZE, argv, envp, cred, &ehdr, phdr_uva);
 
     if(entry_rsp == 0) {
         retval = -E2BIG;
