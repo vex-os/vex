@@ -9,6 +9,8 @@
 #define PFRAME_DIRTY    0x0008
 #define PFRAME_ACCESSED 0x0010 // Used since reclaim last looked at it
 
+#define PFRAME_DIRTY_SHIFT 24 // Bits 24-31: dirty sectors of a page cache page, the first one lowest
+
 struct pcache;
 
 struct pframe {

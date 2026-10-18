@@ -104,6 +104,10 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
 
     fs->ops = driver->ops;
 
+    // The driver reads its metadata
+    // through the page cache while mounting
+    fs->device = device;
+
     int retval = driver->ops->mount(fs, device, &cmdl);
 
     const char* device_name;
@@ -192,8 +196,6 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
     mounts_head = entry;
 
     spinlock_release(&mounts_lock);
-
-    fs->device = device;
 
     if(device) {
         blk_device_incref(device);
