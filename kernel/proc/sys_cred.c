@@ -114,6 +114,83 @@ static intptr_t sys_setresgid(const uintptr_t* restrict args)
     return retval;
 }
 
+static intptr_t sys_getgroups(const uintptr_t* restrict args)
+{
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    const struct credentials* cred = thrd->cred;
+    size_t size = args[0];
+
+    if(size == 0) {
+        return cred->ngroups;
+    }
+
+    if(size < cred->ngroups) {
+        return -EINVAL;
+    }
+
+    ssize_t copied = user_copyout(args[1], cred->groups, cred->ngroups * sizeof(gid_t));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    return cred->ngroups;
+}
+
+static intptr_t sys_setgroups(const uintptr_t* restrict args)
+{
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    size_t size = args[0];
+
+    if(size > atomic_load_n(&cred_ngroups_max, ATOMIC_RELAXED)) {
+        return -EINVAL;
+    }
+
+    mutex_acquire(&proc->cred_lock);
+
+    if(!cred_capable(proc->cred, CAP_SETGID)) {
+        mutex_release(&proc->cred_lock);
+        return -EPERM;
+    }
+
+    struct credentials* cred = cred_copy_ids(proc->cred, size);
+    int retval = -ENOMEM;
+
+    if(cred) {
+        ssize_t copied = user_copyin(cred->groups, args[1], size * sizeof(gid_t));
+
+        if(copied < 0) {
+            retval = copied;
+        }
+        else {
+            retval = cred_sort_groups(cred);
+        }
+    }
+
+    if(retval == 0) {
+        process_set_cred(proc, cred);
+    }
+    else if(cred) {
+        cred_decref(cred);
+    }
+
+    mutex_release(&proc->cred_lock);
+
+    return retval;
+}
+
 static intptr_t sys_getumask(const uintptr_t* restrict args)
 {
     struct thread* thrd = this_thread();
@@ -142,5 +219,7 @@ define_syscall(sys_getresuid, SYS_GETRESUID);
 define_syscall(sys_getresgid, SYS_GETRESGID);
 define_syscall(sys_setresuid, SYS_SETRESUID);
 define_syscall(sys_setresgid, SYS_SETRESGID);
+define_syscall(sys_getgroups, SYS_GETGROUPS);
+define_syscall(sys_setgroups, SYS_SETGROUPS);
 define_syscall(sys_getumask, SYS_GETUMASK);
 define_syscall(sys_setumask, SYS_SETUMASK);

@@ -57,3 +57,5 @@ unsigned long long strtoull(const char* restrict nptr, const char** restrict end
 intmax_t strtoimax(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
 uintmax_t strtoumax(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
 size_t strtousize(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+
+void sort(void* base, size_t count, size_t size, int (*cmp)(const void*, const void*)); // Not stable

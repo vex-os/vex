@@ -4,13 +4,15 @@
 #include <vex/errno.h>
 #include <vex/kmalloc.h>
 #include <vex/slab.h>
+#include <vex/stdlib.h>
 #include <vex/string.h>
 
 #define ID_UNCHANGED (-1)
 
 static_assert(sizeof(uid_t) == sizeof(gid_t));
 
-struct credentials sys_cred = { .refcount = 1 }; // Never deallocated, ever
+struct credentials sys_cred = { .refcount = 1 };
+size_t cred_ngroups_max = CONFIG_NGROUPS_MAX;
 
 static __always_inline __nodiscard size_t cred_size(size_t ngroups)
 {
@@ -26,6 +28,22 @@ static struct credentials* cred_alloc(size_t ngroups)
     }
 
     return kmalloc(size);
+}
+
+static int compare_gids(const void* a, const void* b)
+{
+    gid_t gid_a = *(const gid_t*)a;
+    gid_t gid_b = *(const gid_t*)b;
+
+    if(gid_a < gid_b) {
+        return -1;
+    }
+
+    if(gid_a > gid_b) {
+        return 1;
+    }
+
+    return 0;
 }
 
 static int check_id(int32_t wanted, int32_t r, int32_t e, int32_t s, bool capable)
@@ -67,14 +85,28 @@ struct credentials* cred_copy(const struct credentials* restrict cred)
 {
     kassert(cred);
 
-    struct credentials* copy = cred_alloc(cred->ngroups);
+    struct credentials* copy = cred_copy_ids(cred, cred->ngroups);
+
+    if(copy) {
+        memcpy(copy->groups, cred->groups, cred->ngroups * sizeof(gid_t));
+    }
+
+    return copy;
+}
+
+struct credentials* cred_copy_ids(const struct credentials* restrict cred, size_t ngroups)
+{
+    kassert(cred);
+
+    struct credentials* copy = cred_alloc(ngroups);
 
     if(copy == nullptr) {
         return nullptr;
     }
 
-    memcpy(copy, cred, cred_size(cred->ngroups));
+    memcpy(copy, cred, sizeof(struct credentials));
     copy->refcount = 1;
+    copy->ngroups = ngroups;
 
     return copy;
 }
@@ -111,6 +143,35 @@ bool cred_capable(const struct credentials* restrict cred, uint64_t cap)
     return cred->euid == 0;
 }
 
+bool cred_in_group(const struct credentials* restrict cred, gid_t gid)
+{
+    kassert(cred);
+
+    if(cred->egid == gid) {
+        return true;
+    }
+
+    size_t low = 0;
+    size_t high = cred->ngroups;
+
+    while(low < high) {
+        size_t mid = low + (high - low) / 2;
+
+        if(cred->groups[mid] == gid) {
+            return true;
+        }
+
+        if(cred->groups[mid] < gid) {
+            low = mid + 1;
+        }
+        else {
+            high = mid;
+        }
+    }
+
+    return false;
+}
+
 int cred_setresuid(struct credentials* restrict cred, uid_t ruid, uid_t euid, uid_t suid)
 {
     kassert(cred);
@@ -143,6 +204,21 @@ int cred_setresgid(struct credentials* restrict cred, gid_t rgid, gid_t egid, gi
     apply_id(&cred->gid, rgid);
     apply_id(&cred->egid, egid);
     apply_id(&cred->sgid, sgid);
+
+    return 0;
+}
+
+int cred_sort_groups(struct credentials* restrict cred)
+{
+    kassert(cred);
+
+    for(size_t i = 0; i < cred->ngroups; ++i) {
+        if(cred->groups[i] < 0) {
+            return -EINVAL;
+        }
+    }
+
+    sort(cred->groups, cred->ngroups, sizeof(gid_t), &compare_gids);
 
     return 0;
 }

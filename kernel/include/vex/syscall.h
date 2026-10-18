@@ -46,6 +46,8 @@
 #define SYS_SETRESGID __k_SYS_SETRESGID
 #define SYS_GETUMASK  __k_SYS_GETUMASK
 #define SYS_SETUMASK  __k_SYS_SETUMASK
+#define SYS_GETGROUPS __k_SYS_GETGROUPS
+#define SYS_SETGROUPS __k_SYS_SETGROUPS
 
 struct file;
 struct hart_context;

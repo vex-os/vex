@@ -604,7 +604,7 @@ int vnode_access(struct vnode* restrict node, const struct credentials* restrict
     if(cred->euid == st.st_uid) {
         granted = (st.st_mode >> 6) & 7;
     }
-    else if(cred->egid == st.st_gid) {
+    else if(cred_in_group(cred, st.st_gid)) {
         granted = (st.st_mode >> 3) & 7;
     }
     else {

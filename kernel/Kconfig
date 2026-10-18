@@ -60,6 +60,14 @@ config MAX_FDS
     range 16 1048576
     default 1024
 
+config NGROUPS_MAX
+    int "Maximum supplementary groups per process"
+    range 0 65536
+    default 64
+    help
+      Starting limit for setgroups. The list lives inside the credentials
+      object, so a long one moves it from the slab allocator to the heap
+
 config SCHED_TIMESLICE
     int "Scheduler timeslice in microseconds"
     range 100 1000000

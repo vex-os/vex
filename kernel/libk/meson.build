@@ -3,6 +3,7 @@ kernel_sources += files(
     'ctype.c',
     'format.c',
     'hrsize.c',
+    'sort.c',
     'sprintf.c',
     'stdlib.c',
     'string.c',
