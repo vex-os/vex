@@ -97,8 +97,10 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
         return retval;
     }
 
+    struct process* proc = thrd->proc;
+
     struct file* fp;
-    retval = file_open(stem, path, O_RDONLY, &fp);
+    retval = file_open(stem, path, O_RDONLY, 0, &proc->cred, &fp);
 
     if(stem) {
         vnode_decref(stem);
@@ -127,7 +129,6 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
         return retval;
     }
 
-    struct process* proc = thrd->proc;
     struct vmspace* old_vms = proc->vms;
 
     proc->vms = vms;

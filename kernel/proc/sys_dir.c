@@ -53,6 +53,13 @@ static intptr_t sys_unlinkat(const uintptr_t* restrict args)
 
 static intptr_t sys_mkdirat(const uintptr_t* restrict args)
 {
+    struct thread* thread = this_thread();
+    struct process* proc = thread->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
     char path[PATH_SIZE];
     ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
 
@@ -80,7 +87,7 @@ static intptr_t sys_mkdirat(const uintptr_t* restrict args)
     }
 
     struct vnode* created;
-    retval = vnode_create(parent, name, VNODE_DIRECTORY, &created);
+    retval = vnode_create(parent, name, VNODE_DIRECTORY, args[2] & ~proc->umask, &proc->cred, &created);
 
     vnode_decref(parent);
 

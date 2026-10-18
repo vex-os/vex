@@ -1,5 +1,6 @@
 kernel_sources += files(
     'cpucaps.c',
+    'cred.c',
     'event.c',
     'hart.c',
     'mutex.c',

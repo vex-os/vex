@@ -7,7 +7,8 @@
 #include <vex/string.h>
 #include <vex/vnode.h>
 
-int file_open(struct vnode* restrict stem, const char* restrict path, unsigned flags, struct file** restrict out)
+int file_open(struct vnode* restrict stem, const char* restrict path, unsigned flags, mode_t mode, const struct cred* restrict cred,
+    struct file** restrict out)
 {
     if(path == nullptr) {
         return -EINVAL;
@@ -26,7 +27,7 @@ int file_open(struct vnode* restrict stem, const char* restrict path, unsigned f
             return retval;
         }
 
-        retval = vnode_create(parent, filename, VNODE_FILE, &node);
+        retval = vnode_create(parent, filename, VNODE_FILE, mode, cred, &node);
 
         vnode_decref(parent);
 

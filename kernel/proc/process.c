@@ -183,9 +183,13 @@ struct process* process_create(struct process* restrict parent)
     event_init(&proc->child_exited);
 
     if(parent) {
+        proc->cred = parent->cred;
+        proc->umask = parent->umask;
         proc->cwd = process_get_cwd(parent);
     }
     else {
+        proc->cred = sys_cred;
+        proc->umask = S_IWGRP | S_IWOTH;
         proc->cwd = nullptr;
     }
 

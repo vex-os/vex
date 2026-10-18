@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vex/cred.h>
 #include <vex/event.h>
 #include <vex/limits.h>
 #include <vex/spinlock.h>
@@ -39,6 +40,9 @@ struct process {
 
     struct event evnt;
     struct event child_exited;
+
+    struct cred cred;
+    mode_t umask;
 
     struct vnode* cwd; // Under lock, so another thread's chdir can't drop it mid-use
 

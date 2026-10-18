@@ -32,7 +32,7 @@ static intptr_t sys_openat(const uintptr_t* restrict args)
     }
 
     struct file* fp;
-    retval = file_open(stem, path, args[2], &fp);
+    retval = file_open(stem, path, args[2], args[3] & ~proc->umask, &proc->cred, &fp);
 
     if(stem) {
         vnode_decref(stem);

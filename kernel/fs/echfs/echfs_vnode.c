@@ -116,7 +116,8 @@ static uint64_t alloc_dir_id(const struct echfs_vfs_context* restrict context)
     return max_id + 1;
 }
 
-static int create_locked(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
+static int create_locked(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
+    const struct cred* restrict cred, struct vnode** restrict out)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
@@ -148,6 +149,10 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     }
 
     kstrncpy(entry.name, name, sizeof(entry.name));
+
+    entry.permissions = mode;
+    entry.owner_uid = cred->euid;
+    entry.owner_gid = cred->egid;
 
     uint64_t start_block;
 
@@ -700,10 +705,11 @@ static int echfs_vnode_iterate(struct vnode* restrict node, struct k_dirent* res
     return retval;
 }
 
-static int echfs_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
+static int echfs_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
+    const struct cred* restrict cred, struct vnode** restrict out)
 {
     mutex_acquire(fs_lock(node));
-    int retval = create_locked(node, name, type, out);
+    int retval = create_locked(node, name, type, mode, cred, out);
     mutex_release(fs_lock(node));
     return retval;
 }

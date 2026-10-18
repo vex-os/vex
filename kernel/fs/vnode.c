@@ -89,14 +89,15 @@ static int lookup_crossed(struct vnode* restrict node, const char* restrict name
     return 0;
 }
 
-static int create_crossed(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
+static int create_crossed(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
+    const struct cred* restrict cred, struct vnode** restrict out)
 {
     if(node->ops->create == nullptr) {
         return -ENOSYS;
     }
 
     struct vnode* created;
-    int retval = node->ops->create(node, name, type, &created);
+    int retval = node->ops->create(node, name, type, mode, cred, &created);
 
     if(retval < 0) {
         return retval;
@@ -396,9 +397,11 @@ int vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, si
     return retval;
 }
 
-int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
+int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode, const struct cred* restrict cred,
+    struct vnode** restrict out)
 {
     kassert(node);
+    kassert(cred);
 
     struct vnode* target;
     int retval = vfs_cross_mount(node, &target);
@@ -407,7 +410,7 @@ int vnode_create(struct vnode* restrict node, const char* restrict name, unsigne
         return retval;
     }
 
-    retval = create_crossed(target, name, type, out);
+    retval = create_crossed(target, name, type, mode & ~S_IFMT, cred, out);
 
     vnode_decref(target);
 
