@@ -16,7 +16,7 @@ struct file {
     off_t offset;
 };
 
-int file_open(struct vnode* restrict stem, const char* restrict path, unsigned flags, mode_t mode, const struct cred* restrict cred,
+int file_open(struct vnode* restrict stem, const char* restrict path, unsigned flags, mode_t mode, const struct credentials* restrict cred,
     struct file** restrict out) __nodiscard;
 struct file* file_dupe(struct file* restrict fp) __nodiscard;
 void file_close(struct file* restrict fp);

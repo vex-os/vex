@@ -7,7 +7,7 @@
 #include <vex/string.h>
 #include <vex/vnode.h>
 
-int file_open(struct vnode* restrict stem, const char* restrict path, unsigned flags, mode_t mode, const struct cred* restrict cred,
+int file_open(struct vnode* restrict stem, const char* restrict path, unsigned flags, mode_t mode, const struct credentials* restrict cred,
     struct file** restrict out)
 {
     if(path == nullptr) {

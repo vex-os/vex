@@ -1,3 +1,4 @@
+#include <vex/atomic.h>
 #include <vex/errno.h>
 #include <vex/file.h>
 #include <vex/path.h>
@@ -31,8 +32,11 @@ static intptr_t sys_openat(const uintptr_t* restrict args)
         return retval;
     }
 
+    struct credentials cred = process_get_cred(proc);
+    mode_t umask = atomic_load_n(&proc->umask, ATOMIC_RELAXED);
+
     struct file* fp;
-    retval = file_open(stem, path, args[2], args[3] & ~proc->umask, &proc->cred, &fp);
+    retval = file_open(stem, path, args[2], args[3] & ~umask, &cred, &fp);
 
     if(stem) {
         vnode_decref(stem);

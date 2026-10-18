@@ -117,7 +117,7 @@ static uint64_t alloc_dir_id(const struct echfs_vfs_context* restrict context)
 }
 
 static int create_locked(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
-    const struct cred* restrict cred, struct vnode** restrict out)
+    const struct credentials* restrict cred, struct vnode** restrict out)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
@@ -706,7 +706,7 @@ static int echfs_vnode_iterate(struct vnode* restrict node, struct k_dirent* res
 }
 
 static int echfs_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
-    const struct cred* restrict cred, struct vnode** restrict out)
+    const struct credentials* restrict cred, struct vnode** restrict out)
 {
     mutex_acquire(fs_lock(node));
     int retval = create_locked(node, name, type, mode, cred, out);

@@ -183,8 +183,8 @@ struct process* process_create(struct process* restrict parent)
     event_init(&proc->child_exited);
 
     if(parent) {
-        proc->cred = parent->cred;
-        proc->umask = parent->umask;
+        proc->cred = process_get_cred(parent);
+        proc->umask = atomic_load_n(&parent->umask, ATOMIC_RELAXED);
         proc->cwd = process_get_cwd(parent);
     }
     else {
@@ -380,6 +380,14 @@ void process_destroy(struct process* proc)
     release_files(proc);
 
     process_decref(proc);
+}
+
+struct credentials process_get_cred(struct process* proc)
+{
+    bool intr_state = spinlock_acquire_intr(&proc->lock);
+    struct credentials cred = proc->cred;
+    spinlock_release_intr(&proc->lock, intr_state);
+    return cred;
 }
 
 struct vnode* process_get_cwd(struct process* proc)

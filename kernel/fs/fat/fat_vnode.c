@@ -1051,7 +1051,7 @@ static int fat_vnode_rename(struct vnode* olddir, const char* oldname, struct vn
 }
 
 static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
-    const struct cred* restrict cred, struct vnode** restrict out)
+    const struct credentials* restrict cred, struct vnode** restrict out)
 {
     mutex_acquire(fs_lock(node));
     int retval = create_locked(node, name, type, out);

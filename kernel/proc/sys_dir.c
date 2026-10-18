@@ -1,3 +1,4 @@
+#include <vex/atomic.h>
 #include <vex/dirent.h>
 #include <vex/errno.h>
 #include <vex/fcntl.h>
@@ -86,8 +87,11 @@ static intptr_t sys_mkdirat(const uintptr_t* restrict args)
         return retval;
     }
 
+    struct credentials cred = process_get_cred(proc);
+    mode_t umask = atomic_load_n(&proc->umask, ATOMIC_RELAXED);
+
     struct vnode* created;
-    retval = vnode_create(parent, name, VNODE_DIRECTORY, args[2] & ~proc->umask, &proc->cred, &created);
+    retval = vnode_create(parent, name, VNODE_DIRECTORY, args[2] & ~umask, &cred, &created);
 
     vnode_decref(parent);
 

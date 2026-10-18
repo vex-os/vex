@@ -90,7 +90,7 @@ static int lookup_crossed(struct vnode* restrict node, const char* restrict name
 }
 
 static int create_crossed(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
-    const struct cred* restrict cred, struct vnode** restrict out)
+    const struct credentials* restrict cred, struct vnode** restrict out)
 {
     if(node->ops->create == nullptr) {
         return -ENOSYS;
@@ -397,8 +397,8 @@ int vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, si
     return retval;
 }
 
-int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode, const struct cred* restrict cred,
-    struct vnode** restrict out)
+int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
+    const struct credentials* restrict cred, struct vnode** restrict out)
 {
     kassert(node);
     kassert(cred);

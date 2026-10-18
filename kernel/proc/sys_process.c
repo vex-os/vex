@@ -98,9 +98,10 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
     }
 
     struct process* proc = thrd->proc;
+    struct credentials cred = process_get_cred(proc);
 
     struct file* fp;
-    retval = file_open(stem, path, O_RDONLY, 0, &proc->cred, &fp);
+    retval = file_open(stem, path, O_RDONLY, 0, &cred, &fp);
 
     if(stem) {
         vnode_decref(stem);
@@ -134,8 +135,11 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
     proc->vms = vms;
     arch_thread_exec(thrd, vms, entry.address, entry.ustack);
 
-    // No hart has the old
-    // page tables loaded anymore
+    bool intr_state = spinlock_acquire_intr(&proc->lock);
+    proc->cred.suid = proc->cred.euid;
+    proc->cred.sgid = proc->cred.egid;
+    spinlock_release_intr(&proc->lock, intr_state);
+
     vms_release(old_vms);
 
     return 0;

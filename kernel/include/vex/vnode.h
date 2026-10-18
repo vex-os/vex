@@ -21,8 +21,8 @@ struct vnode_ops {
     void (*release)(struct vnode* restrict node);
     int (*lookup)(struct vnode* restrict node, const char* restrict name, ino_t* restrict out);
     int (*iterate)(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
-    int (*create)(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode, const struct cred* restrict cred,
-        struct vnode** restrict out);
+    int (*create)(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
+        const struct credentials* restrict cred, struct vnode** restrict out);
     int (*unlink)(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target);
     int (*rename)(struct vnode* olddir, const char* oldname, struct vnode* source, struct vnode* newdir, const char* newname,
         struct vnode* victim);
@@ -59,8 +59,8 @@ void vnode_destroy(struct vnode* restrict node);
 
 int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct vnode** restrict out);
 int vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
-int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode, const struct cred* restrict cred,
-    struct vnode** restrict out);
+int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
+    const struct credentials* restrict cred, struct vnode** restrict out);
 int vnode_unlink(struct vnode* restrict node, const char* restrict name, bool directory);
 int vnode_rename(struct vnode* olddir, const char* oldname, struct vnode* newdir, const char* newname);
 int vnode_open(struct vnode* restrict node, unsigned mode);
