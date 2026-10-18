@@ -1,12 +1,12 @@
 #pragma once
 
-#include <vex/bitmap.h>
 #include <vex/compiler.h>
 #include <vex/mutex.h>
 #include <vex/path.h>
 #include <vex/types.h>
 
 struct blk_device;
+struct vnode;
 
 struct echfs_identity {
     uint8_t reserved_1[4];
@@ -64,15 +64,11 @@ struct echfs_vfs_context {
     uint64_t dir_size;
     uint64_t data_start;
 
-    uint64_t* fat;
-    bitmap_type* fat_dirty;
-
-    struct echfs_dirent* dir_table;
-    bitmap_type* dir_dirty;
-
     uint64_t dir_entries;
+    uint64_t next_free_hint;
 
-    struct mutex lock; // Serializes every use of fat and dir_table, and the page cache calls
+    struct vnode* meta;
+    struct mutex lock; // Serializes changes to the table and the directory, and the page cache calls for files
 };
 
 struct echfs_vnode_context {
@@ -87,6 +83,7 @@ struct echfs_vnode_context {
 
 extern const struct vnode_ops echfs_vnode_ops;
 
+uint64_t echfs_block_entry(const struct echfs_vfs_context* restrict context, uintptr_t block) __nodiscard;
 uintptr_t echfs_block_alloc(struct echfs_vfs_context* restrict context) __nodiscard;
 void echfs_block_free(struct echfs_vfs_context* restrict context, uintptr_t block);
 void echfs_block_link(struct echfs_vfs_context* restrict context, uintptr_t block, uintptr_t next);
@@ -97,13 +94,6 @@ int echfs_dirent_find(const struct echfs_vfs_context* restrict context, uint64_t
 int echfs_dirent_read(const struct echfs_vfs_context* restrict context, uint64_t index, struct echfs_dirent* restrict out);
 int echfs_dirent_write(struct echfs_vfs_context* restrict context, uint64_t index, const struct echfs_dirent* restrict entry);
 int echfs_dirent_alloc(struct echfs_vfs_context* restrict context, uint64_t* restrict out_index) __nodiscard;
-
-static __always_inline void echfs_mark_dirty(const struct echfs_vfs_context* restrict context, bitmap_type* restrict dirty, size_t offset,
-    size_t size)
-{
-    size_t sector_size = context->block_size / context->sectors_per_block;
-    bitmap_range_set(dirty, offset / sector_size, (offset + size - 1) / sector_size);
-}
 
 static __always_inline uintptr_t echfs_block_lba(const struct echfs_vfs_context* restrict context, uintptr_t block)
 {

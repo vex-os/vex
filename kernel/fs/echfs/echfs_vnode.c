@@ -17,7 +17,7 @@ static_assert(sizeof(struct echfs_vnode_context) <= (PAGE_SIZE / 2));
 static void free_chain(struct echfs_vfs_context* restrict fs, uint64_t block)
 {
     while(block != ECHFS_TABLE_EOC && block != ECHFS_TABLE_FREE && block < ECHFS_TABLE_RESERVED) {
-        uint64_t next = fs->fat[block];
+        uint64_t next = echfs_block_entry(fs, block);
         echfs_block_free(fs, block);
         block = next;
     }
@@ -59,18 +59,24 @@ static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict
     struct echfs_vfs_context* fs = ctx->fs_ctx;
     size_t visible = 0;
 
-    for(uint64_t i = 0; i < fs->dir_entries; ++i) {
-        const struct echfs_dirent* entry = &fs->dir_table[i];
+    struct echfs_dirent entry;
 
-        if(entry->directory_id == ECHFS_DIR_ID_END) {
+    for(uint64_t i = 0; i < fs->dir_entries; ++i) {
+        int retval = echfs_dirent_read(fs, i, &entry);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        if(entry.directory_id == ECHFS_DIR_ID_END) {
             return -ENOENT;
         }
 
-        if(entry->directory_id == ECHFS_DIR_ID_DELETED) {
+        if(entry.directory_id == ECHFS_DIR_ID_DELETED) {
             continue;
         }
 
-        if(entry->directory_id != ctx->start_block) {
+        if(entry.directory_id != ctx->start_block) {
             continue;
         }
 
@@ -79,7 +85,7 @@ static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict
             continue;
         }
 
-        if(entry->object_type == 1) {
+        if(entry.object_type == 1) {
             out->d_nodetype = VNODE_DIRECTORY;
         }
         else {
@@ -87,7 +93,7 @@ static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict
         }
 
         memset(out->d_name, 0, NAME_SIZE);
-        kstrncpy(out->d_name, entry->name, NAME_SIZE);
+        kstrncpy(out->d_name, entry.name, NAME_SIZE);
 
         return 0;
     }
@@ -98,20 +104,19 @@ static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict
 static uint64_t alloc_dir_id(const struct echfs_vfs_context* restrict context)
 {
     uint64_t max_id = 0;
+    struct echfs_dirent entry;
 
     for(uint64_t i = 0; i < context->dir_entries; ++i) {
-        const struct echfs_dirent* entry = &context->dir_table[i];
-
-        if(entry->directory_id == ECHFS_DIR_ID_END) {
+        if(echfs_dirent_read(context, i, &entry) < 0 || entry.directory_id == ECHFS_DIR_ID_END) {
             break;
         }
 
-        if(entry->directory_id == ECHFS_DIR_ID_DELETED) {
+        if(entry.directory_id == ECHFS_DIR_ID_DELETED) {
             continue;
         }
 
-        if(entry->object_type == 1 && entry->start_block > max_id && entry->start_block < ECHFS_DIR_ID_DELETED) {
-            max_id = entry->start_block;
+        if(entry.object_type == 1 && entry.start_block > max_id && entry.start_block < ECHFS_DIR_ID_DELETED) {
+            max_id = entry.start_block;
         }
     }
 
@@ -204,14 +209,20 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
 
 static int check_empty(const struct echfs_vfs_context* restrict fs, uint64_t dir_id)
 {
-    for(uint64_t i = 0; i < fs->dir_entries; ++i) {
-        const struct echfs_dirent* entry = &fs->dir_table[i];
+    struct echfs_dirent entry;
 
-        if(entry->directory_id == ECHFS_DIR_ID_END) {
+    for(uint64_t i = 0; i < fs->dir_entries; ++i) {
+        int retval = echfs_dirent_read(fs, i, &entry);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        if(entry.directory_id == ECHFS_DIR_ID_END) {
             break;
         }
 
-        if(entry->directory_id == dir_id) {
+        if(entry.directory_id == dir_id) {
             return -ENOTEMPTY;
         }
     }
@@ -669,14 +680,19 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
         out->st_mode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
     }
     else if(!ctx->unlinked) {
-        const struct echfs_dirent* entry = &fs->dir_table[ctx->dir_entry];
+        struct echfs_dirent entry;
+        int retval = echfs_dirent_read(fs, ctx->dir_entry, &entry);
 
-        out->st_uid = entry->owner_uid;
-        out->st_gid = entry->owner_gid;
-        out->st_mode = entry->permissions;
-        out->st_atime = entry->access_time;
-        out->st_mtime = entry->modify_time;
-        out->st_ctime = entry->create_time;
+        if(retval < 0) {
+            return retval;
+        }
+
+        out->st_uid = entry.owner_uid;
+        out->st_gid = entry.owner_gid;
+        out->st_mode = entry.permissions;
+        out->st_atime = entry.access_time;
+        out->st_mtime = entry.modify_time;
+        out->st_ctime = entry.create_time;
     }
 
     if(node->nodetype == VNODE_DIRECTORY) {

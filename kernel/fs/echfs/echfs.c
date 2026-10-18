@@ -1,10 +1,10 @@
-#include <vex/bitmap.h>
 #include <vex/blk_device.h>
 #include <vex/cmdline.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/mount.h>
+#include <vex/pcache.h>
 #include <vex/slab.h>
 #include <vex/string.h>
 #include <vex/vnode.h>
@@ -99,50 +99,10 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     context->data_start = data_start;
     context->dir_entries = dir_size * block_size / sizeof(struct echfs_dirent);
 
-    size_t fat_bytes = fat_size * block_size;
+    context->next_free_hint = data_start;
+    context->meta = pcache_meta_create(fs);
 
-    context->fat = kmalloc(fat_bytes);
-
-    if(context->fat == nullptr) {
-        kfree(context);
-        return -ENOMEM;
-    }
-
-    retval = blk_read(device, fat_start * sectors_per_block, fat_size * sectors_per_block, context->fat);
-
-    if(retval < 0) {
-        kfree(context->fat);
-        kfree(context);
-        return retval;
-    }
-
-    size_t dir_bytes = dir_size * block_size;
-
-    context->dir_table = kmalloc(dir_bytes);
-
-    if(context->dir_table == nullptr) {
-        kfree(context->fat);
-        kfree(context);
-        return -ENOMEM;
-    }
-
-    retval = blk_read(device, dir_start * sectors_per_block, dir_size * sectors_per_block, context->dir_table);
-
-    if(retval < 0) {
-        kfree(context->dir_table);
-        kfree(context->fat);
-        kfree(context);
-        return retval;
-    }
-
-    context->fat_dirty = kmalloc(bitmap_bytecount(fat_size * sectors_per_block));
-    context->dir_dirty = kmalloc(bitmap_bytecount(dir_size * sectors_per_block));
-
-    if(context->fat_dirty == nullptr || context->dir_dirty == nullptr) {
-        kfree(context->dir_dirty);
-        kfree(context->fat_dirty);
-        kfree(context->dir_table);
-        kfree(context->fat);
+    if(context->meta == nullptr) {
         kfree(context);
         return -ENOMEM;
     }
@@ -150,10 +110,7 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     struct echfs_vnode_context* root_ctx = slab_alloc(sizeof(struct echfs_vnode_context));
 
     if(root_ctx == nullptr) {
-        kfree(context->dir_dirty);
-        kfree(context->fat_dirty);
-        kfree(context->dir_table);
-        kfree(context->fat);
+        pcache_meta_destroy(context->meta);
         kfree(context);
         return -ENOMEM;
     }
@@ -169,10 +126,7 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 
     if(root == nullptr) {
         slab_free(root_ctx);
-        kfree(context->dir_dirty);
-        kfree(context->fat_dirty);
-        kfree(context->dir_table);
-        kfree(context->fat);
+        pcache_meta_destroy(context->meta);
         kfree(context);
         return -ENOMEM;
     }
@@ -196,7 +150,7 @@ static int statvfs_locked(struct vfs* restrict fs, struct k_statvfs* restrict ou
     size_t data_blocks = context->total_blocks - context->data_start;
 
     for(uint64_t i = context->data_start; i < context->total_blocks; ++i) {
-        if(context->fat[i] == ECHFS_TABLE_FREE) {
+        if(echfs_block_entry(context, i) == ECHFS_TABLE_FREE) {
             free_blocks += 1;
         }
     }
@@ -224,9 +178,14 @@ static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
         return -ENOENT;
     }
 
-    const struct echfs_dirent* entry = &context->dir_table[index];
+    struct echfs_dirent entry;
+    int retval = echfs_dirent_read(context, index, &entry);
 
-    if(entry->directory_id == ECHFS_DIR_ID_END || entry->directory_id == ECHFS_DIR_ID_DELETED) {
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(entry.directory_id == ECHFS_DIR_ID_END || entry.directory_id == ECHFS_DIR_ID_DELETED) {
         return -ENOENT;
     }
 
@@ -238,14 +197,14 @@ static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
 
     ctx->fs_ctx = context;
     ctx->dir_entry = index;
-    ctx->start_block = entry->start_block;
-    ctx->size = entry->file_size;
-    ctx->cached_block = entry->start_block;
+    ctx->start_block = entry.start_block;
+    ctx->size = entry.file_size;
+    ctx->cached_block = entry.start_block;
     ctx->cached_block_idx = 0;
 
     node->ctxdata = ctx;
 
-    if(entry->object_type == 1) {
+    if(entry.object_type == 1) {
         node->nodetype = VNODE_DIRECTORY;
     }
     else {
@@ -261,66 +220,11 @@ static int echfs_unmount(struct vfs* restrict fs)
 
     vnode_decref(fs->root);
 
-    kfree(context->dir_dirty);
-    kfree(context->fat_dirty);
-    kfree(context->dir_table);
-    kfree(context->fat);
+    pcache_meta_destroy(context->meta);
     mutex_deinit(&context->lock);
     kfree(context);
 
     return 0;
-}
-
-static int write_dirty_locked(struct echfs_vfs_context* restrict context, bitmap_type* restrict dirty, uint64_t start_block,
-    uint64_t num_blocks, const void* restrict buffer)
-{
-    size_t sector_size = context->block_size / context->sectors_per_block;
-    size_t num_sectors = num_blocks * context->sectors_per_block;
-    uintptr_t start_lba = start_block * context->sectors_per_block;
-    size_t sector = 0;
-
-    while(sector < num_sectors) {
-        if(0 == sector % BITMAP_CHUNK_BITS && 0 == dirty[sector / BITMAP_CHUNK_BITS]) {
-            sector += BITMAP_CHUNK_BITS;
-            continue;
-        }
-
-        if(!bitmap_isset(dirty, sector)) {
-            sector += 1;
-            continue;
-        }
-
-        size_t run_end = sector + 1;
-
-        while(run_end < num_sectors && bitmap_isset(dirty, run_end)) {
-            run_end += 1;
-        }
-
-        const uint8_t* data = (const uint8_t*)(buffer) + sector * sector_size;
-        int retval = blk_write(context->device, start_lba + sector, run_end - sector, data);
-
-        if(retval < 0) {
-            return retval;
-        }
-
-        bitmap_range_clear(dirty, sector, run_end - 1);
-        sector = run_end;
-    }
-
-    return 0;
-}
-
-static int sync_locked(struct vfs* restrict fs)
-{
-    struct echfs_vfs_context* context = fs->ctxdata;
-
-    int retval = write_dirty_locked(context, context->fat_dirty, context->fat_start, context->fat_size, context->fat);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    return write_dirty_locked(context, context->dir_dirty, context->dir_start, context->dir_size, context->dir_table);
 }
 
 static int echfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
@@ -344,10 +248,7 @@ static int echfs_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
 static int echfs_sync(struct vfs* restrict fs)
 {
     struct echfs_vfs_context* context = fs->ctxdata;
-    mutex_acquire(&context->lock);
-    int retval = sync_locked(fs);
-    mutex_release(&context->lock);
-    return retval;
+    return vnode_fsync(context->meta);
 }
 
 static const struct vfs_ops echfs_vfs_ops = {
