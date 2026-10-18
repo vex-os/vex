@@ -242,6 +242,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     fs->root = root;
     fs->ctxdata = context;
+    fs->readonly = context->param_readonly;
 
     return 0;
 }

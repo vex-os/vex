@@ -80,6 +80,7 @@ static int split_region(struct vmspace* restrict vms, uintptr_t virt)
     upper->node = region->node;
     upper->pgoff = region->pgoff + (virt - region->start) / PAGE_SIZE;
     upper->shared = region->shared;
+    upper->may_write = region->may_write;
     upper->next = region->next;
 
     if(upper->node) {
@@ -90,6 +91,17 @@ static int split_region(struct vmspace* restrict vms, uintptr_t virt)
     region->next = upper;
 
     return 0;
+}
+
+static bool range_covered(struct vmspace* restrict vms, uintptr_t start, uintptr_t end)
+{
+    uintptr_t covered = start;
+
+    for(struct vm_region* it = find_region(vms, start); it && it->start <= covered && covered < end; it = it->next) {
+        covered = it->end;
+    }
+
+    return covered >= end;
 }
 
 static bool range_valid(struct vmspace* restrict vms, uintptr_t start, uintptr_t end)
@@ -185,11 +197,13 @@ static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned a
     }
 
     for(;;) {
-        if(pmap_resolve_address(vms->pmap, page)) {
-            if(!exclusive || region->shared) {
-                return 0;
-            }
+        bool mapped = pmap_resolve_address(vms->pmap, page);
 
+        if(mapped && !exclusive) {
+            return 0;
+        }
+
+        if(mapped && !region->shared) {
             int retval = unshare_locked(vms, region, page);
 
             if(retval != -EAGAIN) {
@@ -203,17 +217,18 @@ static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned a
             break;
         }
 
-        // A private page starts out as the file's own, and a write copies it on the next pass
+        // A private page starts out as the file's own, and a write copies it on the next pass;
+        // a shared one only becomes writable through a write fault, which marks it dirty
         uint64_t index = region->pgoff + (page - region->start) / PAGE_SIZE;
         unsigned vprot = region->vprot | VPROT_USER;
 
-        if(!region->shared) {
+        if(!region->shared || !exclusive) {
             vprot &= ~VPROT_WRITE;
         }
 
         int retval = vnode_map_page(region->node, index, vms->pmap, page, vprot);
 
-        if(retval < 0) {
+        if(retval < 0 || region->shared) {
             return retval;
         }
     }
@@ -383,11 +398,13 @@ static struct vm_region* alloc_region(uintptr_t start, uintptr_t end, unsigned v
     region->node = nullptr;
     region->pgoff = 0;
     region->shared = false;
+    region->may_write = true;
 
     if(backing && backing->node) {
         region->node = backing->node;
         region->pgoff = backing->pgoff;
         region->shared = backing->shared;
+        region->may_write = backing->may_write;
         vnode_incref(region->node);
     }
 
@@ -535,24 +552,16 @@ int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, un
 
     mutex_acquire(&vms->lock);
 
-    uintptr_t covered = start;
-
-    bool writes_shared = false;
-
-    for(struct vm_region* it = find_region(vms, start); it && it->start <= covered && covered < end; it = it->next) {
-        covered = it->end;
-        writes_shared = writes_shared || (it->shared && (vprot & VPROT_WRITE));
-    }
-
-    if(covered < end) {
+    if(!range_covered(vms, start, end)) {
         mutex_release(&vms->lock);
         return -ENOMEM;
     }
 
-    // Writes to a shared file mapping aren't tracked yet
-    if(writes_shared) {
-        mutex_release(&vms->lock);
-        return -EACCES;
+    for(struct vm_region* it = find_region(vms, start); it && it->start < end; it = it->next) {
+        if((vprot & VPROT_WRITE) && !it->may_write) {
+            mutex_release(&vms->lock);
+            return -EACCES;
+        }
     }
 
     int retval = split_region(vms, start);
@@ -580,7 +589,7 @@ int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, un
 
             unsigned page_vprot = vprot | VPROT_USER;
 
-            if(pframe_shared(pframe_of(phys))) {
+            if(it->shared || pframe_shared(pframe_of(phys))) {
                 page_vprot &= ~VPROT_WRITE;
             }
 
@@ -597,6 +606,59 @@ int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, un
     }
 
     return 0;
+}
+
+int vms_sync(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, bool wait)
+{
+    if(!range_valid(vms, start, end)) {
+        return -EINVAL;
+    }
+
+    mutex_acquire(&vms->lock);
+    bool covered = range_covered(vms, start, end);
+    mutex_release(&vms->lock);
+
+    if(!covered) {
+        return -ENOMEM;
+    }
+
+    int retval = 0;
+    uintptr_t cursor = start;
+
+    // One file at a time, as fsync sleeps on the filesystem
+    while(wait && cursor < end) {
+        struct vnode* node = nullptr;
+
+        mutex_acquire(&vms->lock);
+
+        for(struct vm_region* it = vms->regions; it && it->start < end && node == nullptr; it = it->next) {
+            if(it->end <= cursor) {
+                continue;
+            }
+
+            cursor = it->end;
+
+            if(it->shared) {
+                node = it->node;
+                vnode_incref(node);
+            }
+        }
+
+        mutex_release(&vms->lock);
+
+        if(node == nullptr) {
+            break;
+        }
+
+        int node_retval = vnode_fsync(node);
+        vnode_decref(node);
+
+        if(retval == 0) {
+            retval = node_retval;
+        }
+    }
+
+    return retval;
 }
 
 int vms_unmap_all(struct vmspace* restrict vms)
@@ -623,6 +685,7 @@ int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem)
             .node = it->node,
             .pgoff = it->pgoff,
             .shared = it->shared,
+            .may_write = it->may_write,
         };
 
         struct vm_region* region = alloc_region(it->start, it->end, it->vprot, &backing);

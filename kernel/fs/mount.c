@@ -103,6 +103,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
     }
 
     fs->ops = driver->ops;
+    fs->readonly = false;
 
     // The driver reads its metadata
     // through the file cache while mounting

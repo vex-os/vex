@@ -11,3 +11,7 @@
 #define MAP_PRIVATE   __k_MAP_PRIVATE
 #define MAP_FIXED     __k_MAP_FIXED
 #define MAP_ANONYMOUS __k_MAP_ANONYMOUS
+
+#define MS_ASYNC      __k_MS_ASYNC
+#define MS_INVALIDATE __k_MS_INVALIDATE
+#define MS_SYNC       __k_MS_SYNC

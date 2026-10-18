@@ -136,6 +136,7 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 
     fs->root = root;
     fs->ctxdata = context;
+    fs->readonly = context->param_readonly;
 
     return 0;
 }

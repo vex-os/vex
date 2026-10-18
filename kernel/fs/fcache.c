@@ -19,6 +19,7 @@
 #include <vex/thread.h>
 #include <vex/tlb.h>
 #include <vex/vnode.h>
+#include <vex/vprot.h>
 
 #define GATHER_BATCH 16
 
@@ -400,6 +401,10 @@ static int writeback_locked(struct vnode* restrict node, fcache_bmap_type bmap, 
                 continue;
             }
 
+            if(rmap_protect_all(pf)) {
+                tlb_shootdown();
+            }
+
             int page_retval = write_page(node, bmap, pf, size);
 
             if(page_retval < 0) {
@@ -675,9 +680,20 @@ int fcache_map_page(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t
         return -ENXIO;
     }
 
+    bool write = (bool)(vprot & VPROT_WRITE);
+
+    if(write && node->fs->readonly) {
+        return -EROFS;
+    }
+
     struct fcache* cache = &node->pages;
 
     mutex_acquire(&cache->lock);
+
+    if(write && over_dirty_limit()) {
+        kick_writeback();
+        writeback_locked(node, bmap, size);
+    }
 
     struct pframe* pf = get_page(cache, index);
 
@@ -696,15 +712,33 @@ int fcache_map_page(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t
         }
     }
 
+    if(write) {
+        size_t valid = valid_bytes(index, size);
+        int retval = allocate_span(node, bmap, index * PAGE_SIZE, valid);
+
+        if(retval < 0) {
+            mutex_release(&cache->lock);
+            return retval;
+        }
+
+        mark_dirty(node, pf, sector_span(node, 0, valid));
+    }
+
     pf->flags |= PFRAME_ACCESSED;
-    pframe_incref(pf);
 
-    // Mapped under the cache lock, so a truncation either finds the mapping or comes before it
-    int retval = rmap_map(pmap, virt, pframe_phys(pf), vprot);
+    // Mapped under the cache lock, so a truncation either finds the mapping or comes before it,
+    // and writeback either sees the page dirty or takes write access away before writing it
+    uintptr_t phys = pframe_phys(pf);
+    int retval = rmap_patch(pmap, virt, phys, vprot);
 
-    if(retval < 0) {
-        bool last = pframe_decref(pf);
-        kassert(!last); // The cache still holds its own
+    if(retval == -EAGAIN) {
+        pframe_incref(pf);
+        retval = rmap_map(pmap, virt, phys, vprot);
+
+        if(retval < 0) {
+            bool last = pframe_decref(pf);
+            kassert(!last); // The cache still holds its own
+        }
     }
 
     mutex_release(&cache->lock);

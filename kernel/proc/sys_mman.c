@@ -1,6 +1,7 @@
 #include <vex/errno.h>
 #include <vex/file.h>
 #include <vex/mman.h>
+#include <vex/mount.h>
 #include <vex/page.h>
 #include <vex/pmap.h>
 #include <vex/process.h>
@@ -10,6 +11,7 @@
 
 #define KNOWN_PROT  (PROT_READ | PROT_WRITE | PROT_EXEC)
 #define KNOWN_FLAGS (MAP_SHARED | MAP_PRIVATE | MAP_FIXED | MAP_ANONYMOUS)
+#define KNOWN_SYNC  (MS_ASYNC | MS_INVALIDATE | MS_SYNC)
 
 static unsigned prot_to_vprot(uintptr_t prot)
 {
@@ -118,17 +120,14 @@ static intptr_t sys_mmap(const uintptr_t* restrict args)
         return -EINVAL;
     }
 
-    // Writes through a shared file mapping aren't tracked yet
-    if(sharing == MAP_SHARED && (prot & PROT_WRITE)) {
-        return -ENOSYS;
-    }
-
     struct file* fp = dereference_fd(proc, args[4]);
 
     if(fp == nullptr) {
         return -EBADF;
     }
 
+    bool shared = sharing == MAP_SHARED;
+    bool may_write = !shared || ((fp->flags & O_WRONLY) && !fp->node->fs->readonly);
     intptr_t retval;
 
     if(fp->node->nodetype != VNODE_FILE) {
@@ -137,11 +136,15 @@ static intptr_t sys_mmap(const uintptr_t* restrict args)
     else if(0 == (fp->flags & O_RDONLY)) {
         retval = -EACCES;
     }
+    else if((prot & PROT_WRITE) && !may_write) {
+        retval = fp->node->fs->readonly ? -EROFS : -EACCES;
+    }
     else {
         struct vm_backing backing = {
             .node = fp->node,
             .pgoff = offset / PAGE_SIZE,
-            .shared = sharing == MAP_SHARED,
+            .shared = shared,
+            .may_write = may_write,
         };
 
         retval = place_mapping(proc->vms, addr, length, flags, vprot, &backing);
@@ -188,6 +191,26 @@ static intptr_t sys_mprotect(const uintptr_t* restrict args)
     return vms_protect(proc->vms, args[0], end, prot_to_vprot(args[2]));
 }
 
+static intptr_t sys_msync(const uintptr_t* restrict args)
+{
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    uintptr_t flags = args[2];
+    uintptr_t end;
+
+    if(!user_range(proc->vms, args[0], args[1], &end) || (flags & ~KNOWN_SYNC) || ((flags & MS_ASYNC) && (flags & MS_SYNC))) {
+        return -EINVAL;
+    }
+
+    return vms_sync(proc->vms, args[0], end, 0 != (flags & MS_SYNC));
+}
+
 define_syscall(sys_mmap, SYS_MMAP);
+define_syscall(sys_msync, SYS_MSYNC);
 define_syscall(sys_munmap, SYS_MUNMAP);
 define_syscall(sys_mprotect, SYS_MPROTECT);

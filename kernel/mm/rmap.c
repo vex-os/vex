@@ -129,6 +129,22 @@ int rmap_replace(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t old_ph
     return 0;
 }
 
+int rmap_patch(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, unsigned vprot)
+{
+    spinlock_type* lock = frame_lock(phys);
+    bool intr_state = spinlock_acquire_intr(lock);
+
+    int retval = -EAGAIN;
+
+    if(phys == page_align(pmap_resolve_address(pmap, virt))) {
+        retval = pmap_patch_noflush(pmap, virt, vprot);
+    }
+
+    spinlock_release_intr(lock, intr_state);
+
+    return retval;
+}
+
 uintptr_t rmap_pin(struct pagemap* restrict pmap, uintptr_t virt, bool* restrict sole)
 {
     uintptr_t phys = page_align(pmap_resolve_address(pmap, virt));
@@ -185,6 +201,28 @@ size_t rmap_unmap_all(struct pframe* restrict pf)
         slab_free(entries);
         entries = next;
     }
+
+    return count;
+}
+
+size_t rmap_protect_all(struct pframe* restrict pf)
+{
+    spinlock_type* lock = frame_lock(pframe_phys(pf));
+    bool intr_state = spinlock_acquire_intr(lock);
+
+    size_t count = 0;
+
+    for(struct rmap_entry* it = pf->mappings; it; it = it->next) {
+        unsigned vprot = pmap_resolve_vprot(it->pmap, it->virt);
+
+        if(vprot & VPROT_WRITE) {
+            int retval = pmap_patch_noflush(it->pmap, it->virt, vprot & ~VPROT_WRITE);
+            kassert(retval == 0);
+            count += 1;
+        }
+    }
+
+    spinlock_release_intr(lock, intr_state);
 
     return count;
 }

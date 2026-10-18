@@ -54,6 +54,7 @@
 #define SYS_CAPGET    __k_SYS_CAPGET
 #define SYS_CAPSET    __k_SYS_CAPSET
 #define SYS_FSYNC     __k_SYS_FSYNC
+#define SYS_MSYNC     __k_SYS_MSYNC
 
 struct file;
 struct hart_context;

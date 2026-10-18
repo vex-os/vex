@@ -14,6 +14,7 @@ struct vm_backing {
     struct vnode* node;
     uint64_t pgoff; // File page at the start of the range
     bool shared;
+    bool may_write; // Whether a shared mapping can ever be made writable
 };
 
 struct vm_region {
@@ -24,6 +25,7 @@ struct vm_region {
     struct vnode* node;     // Holds a reference; nullptr for anonymous memory
     uint64_t pgoff;
     bool shared;
+    bool may_write;
 };
 
 struct vmspace {
@@ -41,6 +43,7 @@ int vms_map_replace(struct vmspace* restrict vms, uintptr_t start, uintptr_t end
 int vms_map_any(struct vmspace* restrict vms, size_t size, unsigned vprot, const struct vm_backing* restrict backing,
     uintptr_t* restrict out);
 int vms_unmap(struct vmspace* restrict vms, uintptr_t start, uintptr_t end);
+int vms_sync(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, bool wait);
 int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot);
 int vms_unmap_all(struct vmspace* restrict vms);
 int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem);
