@@ -234,22 +234,24 @@ static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t 
 
     size_t auxv_bytes = sizeof(auxv);
 
+    size_t fixed_size = auxv_bytes;
+    fixed_size += sizeof(uintptr_t) * (envc + 1);
+    fixed_size += sizeof(uintptr_t) * (argc + 1);
+    fixed_size += sizeof(uintptr_t); // argc
+
+    // The padding goes above the vector: libc finds
+    // auxv right after the null that ends envp
+    if((uva - fixed_size) % (2 * sizeof(uintptr_t))) {
+        if(!ustack_reserve(&kva, &uva, low_bound, sizeof(uintptr_t))) {
+            return 0;
+        }
+    }
+
     if(!ustack_reserve(&kva, &uva, low_bound, auxv_bytes)) {
         return 0;
     }
 
     memcpy(kva, auxv, auxv_bytes);
-
-    size_t fixed_size = 0;
-    fixed_size += sizeof(uintptr_t) * (envc + 1);
-    fixed_size += sizeof(uintptr_t) * (argc + 1);
-    fixed_size += sizeof(uintptr_t); // argc
-
-    if((uva - fixed_size) % (2 * sizeof(uintptr_t)) != 0) {
-        if(!ustack_reserve(&kva, &uva, low_bound, sizeof(uintptr_t))) {
-            return 0;
-        }
-    }
 
     if(!ustack_reserve(&kva, &uva, low_bound, sizeof(uintptr_t))) {
         return 0;
