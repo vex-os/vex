@@ -146,7 +146,7 @@ struct fat_dirent {
 };
 
 struct fat_vfs_context {
-    struct mutex lock; // Serializes every use of bounce and the table cache
+    struct mutex lock; // Serializes every use of bounce and the table cache, and the page cache calls
     const struct blk_device* device;
     union fat_extparams extparams;
     unsigned filesystem_type;

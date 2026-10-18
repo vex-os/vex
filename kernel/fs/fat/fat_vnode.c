@@ -7,6 +7,7 @@
 #include <vex/errno.h>
 #include <vex/kprintf.h>
 #include <vex/mount.h>
+#include <vex/pcache.h>
 #include <vex/pslab.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
@@ -672,117 +673,114 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
     return 0;
 }
 
-static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
+static int chain_cluster(struct vnode* restrict node, size_t cluster_index, bool create, uintptr_t* restrict out)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
 
-    if(context->first_cluster != 0 && !fat_cluster_valid(fs, context->first_cluster)) {
+    if(context->first_cluster == 0) {
+        if(!create) {
+            return -EIO;
+        }
+
+        uintptr_t new_cluster = fat_cluster_alloc_zeroed(fs);
+
+        if(new_cluster == UINTPTR_MAX) {
+            return -ENOSPC;
+        }
+
+        // An unlinked file's entry slot
+        // may belong to another file by now
+        if(!context->unlinked) {
+            struct fat_dirent dirent;
+            size_t dir_off = context->dir_offset;
+            int retval = fat_dirent_read(fs, context->dir_cluster, &dir_off, &dirent);
+
+            if(retval < 0) {
+                fat_cluster_free(fs, new_cluster);
+                return retval;
+            }
+
+            dirent.base.first_cluster_hi = htole16(new_cluster >> 16);
+            dirent.base.first_cluster_lo = htole16(new_cluster & 0xFFFF);
+            fat_dirent_update(fs, context->dir_cluster, context->dir_offset, &dirent.base);
+        }
+
+        context->first_cluster = new_cluster;
+        context->cached_cluster = new_cluster;
+        context->cached_cluster_idx = 0;
+    }
+
+    if(!fat_cluster_valid(fs, context->first_cluster)) {
         return -EIO;
     }
 
-    if(offset >= context->size_bytes) {
-        return 0;
-    }
+    uintptr_t cluster = context->first_cluster;
+    size_t index = 0;
 
-    size_t remaining = sz;
-
-    if(offset + sz > context->size_bytes) {
-        remaining = context->size_bytes - offset;
-    }
-
-    size_t cluster_index = offset / fs->cluster_size_b;
-    uintptr_t cluster;
-
-    if(cluster_index >= context->cached_cluster_idx) {
+    if(cluster_index >= context->cached_cluster_idx && fat_cluster_valid(fs, context->cached_cluster)) {
         cluster = context->cached_cluster;
-
-        for(size_t i = context->cached_cluster_idx; i < cluster_index; ++i) {
-            cluster = fat_cluster_next(fs, cluster);
-
-            if(cluster == UINTPTR_MAX) {
-                return -EIO;
-            }
-        }
-    }
-    else {
-        cluster = context->first_cluster;
-
-        for(size_t i = 0; i < cluster_index; ++i) {
-            cluster = fat_cluster_next(fs, cluster);
-
-            if(cluster == UINTPTR_MAX) {
-                return -EIO;
-            }
-        }
+        index = context->cached_cluster_idx;
     }
 
-    context->cached_cluster_idx = cluster_index;
+    while(index < cluster_index) {
+        uintptr_t next = fat_cluster_next(fs, cluster);
+
+        if(next == UINTPTR_MAX) {
+            if(!create) {
+                return -EIO;
+            }
+
+            next = fat_cluster_alloc_zeroed(fs);
+
+            if(next == UINTPTR_MAX) {
+                return -ENOSPC;
+            }
+
+            fat_cluster_link(fs, cluster, next);
+        }
+
+        cluster = next;
+        index += 1;
+    }
+
     context->cached_cluster = cluster;
+    context->cached_cluster_idx = cluster_index;
 
-    size_t offset_in_cluster = offset % fs->cluster_size_b;
-    size_t done = 0;
+    *out = cluster;
 
-    while(remaining > 0 && cluster != UINTPTR_MAX) {
-        size_t sector_index = offset_in_cluster / fs->sector_size;
-        size_t offset_in_sector = offset_in_cluster % fs->sector_size;
+    return 0;
+}
 
-        while(remaining > 0 && sector_index < fs->cluster_size_s) {
-            uintptr_t lba = fat_cluster_lba(fs, cluster) + sector_index;
+static int fat_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct pcache_extent* restrict out)
+{
+    struct fat_vnode_context* context = node->ctxdata;
+    struct fat_vfs_context* fs = context->fs_ctx;
 
-            if(offset_in_sector == 0 && remaining >= fs->sector_size) {
-                size_t full_sectors = remaining / fs->sector_size;
-                size_t avail = fs->cluster_size_s - sector_index;
-
-                if(full_sectors > avail) {
-                    full_sectors = avail;
-                }
-
-                int retval = blk_read(fs->device, lba, full_sectors, (uint8_t*)buffer + done);
-
-                if(retval < 0) {
-                    if(done > 0)
-                        return done;
-                    return retval;
-                }
-
-                size_t bytes = full_sectors * fs->sector_size;
-                done += bytes;
-                remaining -= bytes;
-                sector_index += full_sectors;
-            }
-            else {
-                int retval = blk_read(fs->device, lba, 1, fs->bounce);
-
-                if(retval < 0) {
-                    if(done > 0)
-                        return done;
-                    return retval;
-                }
-
-                size_t chunk = fs->sector_size - offset_in_sector;
-
-                if(chunk > remaining) {
-                    chunk = remaining;
-                }
-
-                memcpy((uint8_t*)buffer + done, fs->bounce + offset_in_sector, chunk);
-
-                done += chunk;
-                remaining -= chunk;
-                offset_in_sector = 0;
-                sector_index += 1;
-            }
-        }
-
-        offset_in_cluster = 0;
-        cluster_index += 1;
-        cluster = fat_cluster_next(fs, cluster);
-        context->cached_cluster_idx = cluster_index;
-        context->cached_cluster = cluster;
+    if(fs->sector_size != fs->device->sector_size) {
+        return -EIO;
     }
 
-    return done;
+    size_t in_cluster = sector % fs->cluster_size_s;
+    uintptr_t cluster;
+    int retval = chain_cluster(node, sector / fs->cluster_size_s, create, &cluster);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    out->lba = fat_cluster_lba(fs, cluster) + in_cluster;
+    out->count = fs->cluster_size_s - in_cluster;
+    out->mapped = true;
+
+    return 0;
+}
+
+static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
+{
+    struct fat_vnode_context* context = node->ctxdata;
+
+    return pcache_read(node, &fat_bmap, buffer, sz, offset, context->size_bytes);
 }
 
 static ssize_t write_span_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
@@ -794,190 +792,29 @@ static ssize_t write_span_locked(struct vnode* restrict node, const void* restri
         return -EROFS;
     }
 
-    if(context->first_cluster != 0 && !fat_cluster_valid(fs, context->first_cluster)) {
-        return -EIO;
+    // A FAT file size is a 32-bit field
+    if(offset < 0 || (uint64_t)(offset) + sz > UINT32_MAX) {
+        return -EFBIG;
     }
 
-    if(context->first_cluster == 0) {
-        uintptr_t new_cluster = fat_cluster_alloc_zeroed(fs);
+    ssize_t written = pcache_write(node, &fat_bmap, buffer, sz, offset, context->size_bytes);
 
-        if(new_cluster == UINTPTR_MAX) {
-            return -ENOSPC;
-        }
-
-        context->first_cluster = new_cluster;
-        context->cached_cluster = new_cluster;
-        context->cached_cluster_idx = 0;
-
-        // An unlinked file's entry slot
-        // may belong to another file by now
-        if(!context->unlinked) {
-            struct fat_dirent dirent;
-            size_t dir_off = context->dir_offset;
-            int retval = fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent);
-
-            if(retval < 0) {
-                fat_cluster_free(fs, new_cluster);
-                context->first_cluster = 0;
-                return retval;
-            }
-
-            dirent.base.first_cluster_hi = htole16(new_cluster >> 16);
-            dirent.base.first_cluster_lo = htole16(new_cluster & 0xFFFF);
-            fat_dirent_update(context->fs_ctx, context->dir_cluster, context->dir_offset, &dirent.base);
-        }
+    if(written <= 0 || offset + written <= (off_t)(context->size_bytes)) {
+        return written;
     }
 
-    size_t cluster_index = offset / fs->cluster_size_b;
-    uintptr_t cluster;
+    context->size_bytes = offset + written;
 
-    if(cluster_index >= context->cached_cluster_idx) {
-        cluster = context->cached_cluster;
+    struct fat_dirent dirent;
+    size_t dir_off = context->dir_offset;
 
-        for(size_t i = context->cached_cluster_idx; i < cluster_index; ++i) {
-            uintptr_t next = fat_cluster_next(fs, cluster);
+    if(!context->unlinked && 0 == fat_dirent_read(fs, context->dir_cluster, &dir_off, &dirent)) {
+        dirent.base.file_size = htole32(context->size_bytes);
 
-            if(next == UINTPTR_MAX) {
-                next = fat_cluster_alloc_zeroed(fs);
-
-                if(next == UINTPTR_MAX) {
-                    return -ENOSPC;
-                }
-
-                fat_cluster_link(fs, cluster, next);
-            }
-
-            cluster = next;
-        }
-    }
-    else {
-        cluster = context->first_cluster;
-
-        for(size_t i = 0; i < cluster_index; ++i) {
-            uintptr_t next = fat_cluster_next(fs, cluster);
-
-            if(next == UINTPTR_MAX) {
-                next = fat_cluster_alloc_zeroed(fs);
-
-                if(next == UINTPTR_MAX) {
-                    return -ENOSPC;
-                }
-
-                fat_cluster_link(fs, cluster, next);
-            }
-
-            cluster = next;
-        }
+        fat_dirent_update(fs, context->dir_cluster, context->dir_offset, &dirent.base);
     }
 
-    context->cached_cluster_idx = cluster_index;
-    context->cached_cluster = cluster;
-
-    size_t offset_in_cluster = offset % fs->cluster_size_b;
-    size_t remaining = sz;
-    size_t done = 0;
-
-    while(remaining > 0) {
-        size_t sector_index = offset_in_cluster / fs->sector_size;
-        size_t offset_in_sector = offset_in_cluster % fs->sector_size;
-
-        while(remaining > 0 && sector_index < fs->cluster_size_s) {
-            uintptr_t lba = fat_cluster_lba(fs, cluster) + sector_index;
-
-            if(offset_in_sector == 0 && remaining >= fs->sector_size) {
-                size_t full_sectors = remaining / fs->sector_size;
-                size_t avail = fs->cluster_size_s - sector_index;
-
-                if(full_sectors > avail) {
-                    full_sectors = avail;
-                }
-
-                int retval = blk_write(fs->device, lba, full_sectors, (const uint8_t*)buffer + done);
-
-                if(retval < 0) {
-                    if(done > 0)
-                        return done;
-                    return retval;
-                }
-
-                size_t bytes = full_sectors * fs->sector_size;
-                done += bytes;
-                remaining -= bytes;
-                sector_index += full_sectors;
-            }
-            else {
-                size_t chunk = fs->sector_size - offset_in_sector;
-
-                if(chunk > remaining) {
-                    chunk = remaining;
-                }
-
-                int retval;
-
-                if(offset_in_sector > 0 || chunk < fs->sector_size) {
-                    retval = blk_read(fs->device, lba, 1, fs->bounce);
-
-                    if(retval < 0) {
-                        if(done > 0)
-                            return done;
-                        return retval;
-                    }
-                }
-
-                memcpy(fs->bounce + offset_in_sector, (const uint8_t*)buffer + done, chunk);
-
-                retval = blk_write(fs->device, lba, 1, fs->bounce);
-
-                if(retval < 0) {
-                    if(done > 0)
-                        return done;
-                    return retval;
-                }
-
-                done += chunk;
-                remaining -= chunk;
-                offset_in_sector = 0;
-                sector_index += 1;
-            }
-        }
-
-        if(remaining > 0) {
-            uintptr_t next = fat_cluster_next(fs, cluster);
-
-            if(next == UINTPTR_MAX) {
-                next = fat_cluster_alloc_zeroed(fs);
-
-                if(next == UINTPTR_MAX) {
-                    if(done > 0)
-                        return done;
-                    return -ENOSPC;
-                }
-
-                fat_cluster_link(fs, cluster, next);
-            }
-
-            cluster = next;
-            cluster_index += 1;
-            offset_in_cluster = 0;
-            context->cached_cluster_idx = cluster_index;
-            context->cached_cluster = cluster;
-        }
-    }
-
-    if(offset + sz > context->size_bytes) {
-        context->size_bytes = offset + sz;
-
-        struct fat_dirent dirent;
-        size_t dir_off = context->dir_offset;
-
-        if(!context->unlinked && 0 == fat_dirent_read(context->fs_ctx, context->dir_cluster, &dir_off, &dirent)) {
-            dirent.base.file_size = htole32(context->size_bytes);
-
-            fat_dirent_update(context->fs_ctx, context->dir_cluster, context->dir_offset, &dirent.base);
-        }
-    }
-
-    return done;
+    return written;
 }
 
 static int zero_fill_locked(struct vnode* restrict node, off_t from, off_t to)
@@ -1035,6 +872,10 @@ static int shrink_locked(struct vnode* restrict node, size_t size)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
+
+    // Dirty pages past the new end must not
+    // reach clusters that are freed below
+    pcache_truncate(node, size);
 
     size_t keep = (size + fs->cluster_size_b - 1) / fs->cluster_size_b;
 
@@ -1213,6 +1054,16 @@ static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict
     return retval;
 }
 
+static int fat_vnode_fsync(struct vnode* restrict node)
+{
+    struct fat_vnode_context* context = node->ctxdata;
+
+    mutex_acquire(fs_lock(node));
+    int retval = pcache_writeback(node, &fat_bmap, context->size_bytes);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
 static int fat_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
 {
     mutex_acquire(fs_lock(node));
@@ -1240,4 +1091,5 @@ const struct vnode_ops fat_vnode_ops = {
     .write = &fat_vnode_write,
     .stat = &fat_vnode_stat,
     .setattr = &fat_vnode_setattr,
+    .fsync = &fat_vnode_fsync,
 };
