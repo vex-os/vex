@@ -2,6 +2,7 @@
 #include <vex/atomic.h>
 #include <vex/limits.h>
 #include <vex/mount.h>
+#include <vex/mutex.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -9,6 +10,8 @@
 #include <vex/vnode.h>
 
 static_assert(sizeof(struct vnode) <= (PAGE_SIZE / 2));
+
+static struct mutex rename_mutex = MUTEX_INIT;
 
 static struct vnode* alloc_internal(struct vfs* restrict fs, ino_t nodenumber, const struct vnode_ops* restrict ops)
 {
@@ -169,6 +172,129 @@ static int unlink_crossed(struct vnode* restrict node, const char* restrict name
     return retval;
 }
 
+static bool is_ancestor(const struct vnode* restrict ancestor, const struct vnode* restrict node)
+{
+    for(const struct vnode* it = node; it; it = it->parent) {
+        if(it == ancestor) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static void set_parent(struct vnode* restrict node, struct vnode* restrict parent)
+{
+    vnode_incref(parent);
+
+    spinlock_acquire(&node->lock);
+    struct vnode* previous = node->parent;
+    node->parent = parent;
+    spinlock_release(&node->lock);
+
+    if(previous) {
+        vnode_decref(previous);
+    }
+}
+
+static int check_rename(struct vnode* restrict source, struct vnode* restrict newdir, struct vnode* restrict victim)
+{
+    if(source->fs_mounted) {
+        return -EBUSY;
+    }
+
+    if(source->nodetype == VNODE_DIRECTORY && is_ancestor(source, newdir)) {
+        return -EINVAL;
+    }
+
+    if(victim == nullptr || victim == source) {
+        return 0;
+    }
+
+    if(victim->fs_mounted) {
+        return -EBUSY;
+    }
+
+    if(source->nodetype == VNODE_DIRECTORY && victim->nodetype != VNODE_DIRECTORY) {
+        return -ENOTDIR;
+    }
+
+    if(source->nodetype != VNODE_DIRECTORY && victim->nodetype == VNODE_DIRECTORY) {
+        return -EISDIR;
+    }
+
+    return 0;
+}
+
+static int rename_crossed(struct vnode* olddir, const char* oldname, struct vnode* newdir, const char* newname)
+{
+    if(olddir->fs != newdir->fs) {
+        return -EXDEV;
+    }
+
+    if(olddir->ops->rename == nullptr) {
+        return -ENOSYS;
+    }
+
+    if(0 == strcmp(oldname, ".") || 0 == strcmp(oldname, "..") || 0 == strcmp(newname, ".") || 0 == strcmp(newname, "..")) {
+        return -EINVAL;
+    }
+
+    if(oldname[0] == 0 || newname[0] == 0) {
+        return -ENOENT;
+    }
+
+    mutex_acquire(&rename_mutex);
+
+    struct vnode* source;
+    int retval = lookup_crossed(olddir, oldname, &source);
+
+    if(retval < 0) {
+        mutex_release(&rename_mutex);
+        return retval;
+    }
+
+    struct vnode* victim = nullptr;
+    retval = lookup_crossed(newdir, newname, &victim);
+
+    if(retval == -ENOENT) {
+        victim = nullptr;
+        retval = 0;
+    }
+
+    if(retval == 0) {
+        retval = check_rename(source, newdir, victim);
+    }
+
+    // Both names already lead to the same file
+    bool same = victim == source;
+
+    // The filesystem has to vcache_remove the victim and vcache_rekey the
+    // source under its own lock, before a lookup can see the new entry
+    if(retval == 0 && !same) {
+        retval = olddir->ops->rename(olddir, oldname, source, newdir, newname, victim);
+    }
+
+    if(retval == 0 && !same && victim) {
+        victim->orphaned = true;
+        atomic_fetch_add(&victim->fs->orphans, 1, ATOMIC_RELAXED);
+    }
+
+    if(retval == 0 && !same && source->nodetype == VNODE_DIRECTORY && olddir != newdir) {
+        set_parent(source, newdir);
+    }
+
+    mutex_release(&rename_mutex);
+
+    if(victim) {
+        vnode_decref(victim);
+    }
+
+    vnode_decref(source);
+
+    return retval;
+}
+
 struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict ops, void* ctxdata)
 {
     kassert(ops);
@@ -302,6 +428,34 @@ int vnode_unlink(struct vnode* restrict node, const char* restrict name, bool di
     retval = unlink_crossed(target, name, directory);
 
     vnode_decref(target);
+
+    return retval;
+}
+
+int vnode_rename(struct vnode* olddir, const char* oldname, struct vnode* newdir, const char* newname)
+{
+    kassert(olddir);
+    kassert(newdir);
+
+    struct vnode* source_dir;
+    int retval = vfs_cross_mount(olddir, &source_dir);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct vnode* target_dir;
+    retval = vfs_cross_mount(newdir, &target_dir);
+
+    if(retval < 0) {
+        vnode_decref(source_dir);
+        return retval;
+    }
+
+    retval = rename_crossed(source_dir, oldname, target_dir, newname);
+
+    vnode_decref(target_dir);
+    vnode_decref(source_dir);
 
     return retval;
 }

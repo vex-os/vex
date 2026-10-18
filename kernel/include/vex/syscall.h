@@ -39,6 +39,7 @@
 #define SYS_FSTATAT  __k_SYS_FSTATAT
 #define SYS_FCHDIR   __k_SYS_FCHDIR
 #define SYS_TCB_SET  __k_SYS_TCB_SET
+#define SYS_RENAMEAT __k_SYS_RENAMEAT
 
 struct file;
 struct hart_context;

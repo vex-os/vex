@@ -93,6 +93,65 @@ static intptr_t sys_mkdirat(const uintptr_t* restrict args)
     return 0;
 }
 
+static int resolve_rename_parent(int dirfd, const char* restrict path, struct vnode** restrict out_parent, const char** restrict out_name)
+{
+    struct vnode* stem;
+    int retval = syscall_dirfd(dirfd, path, &stem);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = path_resolve_parent_at(stem, path, out_parent, out_name);
+
+    if(stem) {
+        vnode_decref(stem);
+    }
+
+    return retval;
+}
+
+static intptr_t sys_renameat(const uintptr_t* restrict args)
+{
+    char oldpath[PATH_SIZE];
+    ssize_t copied = user_copyin_str(oldpath, args[1], sizeof(oldpath));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    char newpath[PATH_SIZE];
+    copied = user_copyin_str(newpath, args[3], sizeof(newpath));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    const char* oldname;
+    struct vnode* olddir;
+    int retval = resolve_rename_parent(args[0], oldpath, &olddir, &oldname);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    const char* newname;
+    struct vnode* newdir;
+    retval = resolve_rename_parent(args[2], newpath, &newdir, &newname);
+
+    if(retval < 0) {
+        vnode_decref(olddir);
+        return retval;
+    }
+
+    retval = vnode_rename(olddir, oldname, newdir, newname);
+
+    vnode_decref(newdir);
+    vnode_decref(olddir);
+
+    return retval;
+}
+
 static intptr_t readdir_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
     struct k_dirent entry;
@@ -202,6 +261,7 @@ static intptr_t sys_fchdir(const uintptr_t* restrict args)
 
 define_syscall(sys_unlinkat, SYS_UNLINKAT);
 define_syscall(sys_mkdirat, SYS_MKDIRAT);
+define_syscall(sys_renameat, SYS_RENAMEAT);
 define_syscall(sys_readdir, SYS_READDIR);
 define_syscall(sys_getcwd, SYS_GETCWD);
 define_syscall(sys_chdir, SYS_CHDIR);

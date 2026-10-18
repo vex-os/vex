@@ -22,6 +22,8 @@ struct vnode_ops {
     int (*iterate)(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
     int (*create)(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
     int (*unlink)(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target);
+    int (*rename)(struct vnode* olddir, const char* oldname, struct vnode* source, struct vnode* newdir, const char* newname,
+        struct vnode* victim);
     int (*open)(struct vnode* restrict node, unsigned mode);
     int (*close)(struct vnode* restrict node);
     ssize_t (*read)(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset);
@@ -57,6 +59,7 @@ int vnode_lookup(struct vnode* restrict node, const char* restrict name, struct 
 int vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index);
 int vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out);
 int vnode_unlink(struct vnode* restrict node, const char* restrict name, bool directory);
+int vnode_rename(struct vnode* olddir, const char* oldname, struct vnode* newdir, const char* newname);
 int vnode_open(struct vnode* restrict node, unsigned mode);
 int vnode_close(struct vnode* restrict node);
 ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset);

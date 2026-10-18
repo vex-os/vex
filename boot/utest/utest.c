@@ -82,6 +82,25 @@ static void printnumber(long number)
     syscall2(__k_SYS_TEST, (long)buffer, i);
 }
 
+static void readback(const char* path)
+{
+    long fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)path, __k_O_RDONLY, 0);
+
+    if(fd < 0) {
+        printnumber(fd);
+        return;
+    }
+
+    char buf[16];
+    long n = syscall3(__k_SYS_READ, fd, (long)buf, sizeof(buf) - 1);
+
+    if(n > 0) {
+        syscall2(__k_SYS_TEST, (long)buf, n);
+    }
+
+    syscall1(__k_SYS_CLOSE, fd);
+}
+
 int main(void)
 {
     struct __k_utsname name;
@@ -145,6 +164,47 @@ int main(void)
     syscall3(__k_SYS_MKDIRAT, __k_AT_FDCWD, (long)"subdir", 0755);
     printnumber(syscall3(__k_SYS_UNLINKAT, __k_AT_FDCWD, (long)"subdir", 0));                // should print -229 (EISDIR)
     printnumber(syscall3(__k_SYS_UNLINKAT, __k_AT_FDCWD, (long)"subdir", __k_AT_REMOVEDIR)); // should print 0
+
+    // renameat moves a file into another directory
+    syscall3(__k_SYS_MKDIRAT, __k_AT_FDCWD, (long)"moved", 0755);
+    printnumber(syscall4(__k_SYS_RENAMEAT, __k_AT_FDCWD, (long)"filename.txt", __k_AT_FDCWD, (long)"moved/renamed.txt")); // should print 0
+    printnumber(syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"filename.txt", __k_O_RDONLY, 0)); // should print -243 (ENOENT)
+    readback("moved/renamed.txt");                                                              // should print the uname dump
+
+    // renameat replaces an existing file, and refuses to move a directory into itself
+    fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"other.txt", __k_O_WRONLY | __k_O_CREAT, 0644);
+    syscall3(__k_SYS_WRITE, fd, (long)"replaced\n", 9);
+    syscall1(__k_SYS_CLOSE, fd);
+    printnumber(syscall4(__k_SYS_RENAMEAT, __k_AT_FDCWD, (long)"other.txt", __k_AT_FDCWD, (long)"moved/renamed.txt")); // should print 0
+    readback("moved/renamed.txt");                                                                           // should print "replaced"
+    printnumber(syscall4(__k_SYS_RENAMEAT, __k_AT_FDCWD, (long)"moved", __k_AT_FDCWD, (long)"moved/inner")); // should print -226 (EINVAL)
+
+    // A moved directory's ".." follows it to its new parent
+    printnumber(syscall4(__k_SYS_RENAMEAT, __k_AT_FDCWD, (long)"moved", __k_AT_FDCWD, (long)"/moved"));            // should print 0
+    printnumber(syscall4(__k_SYS_RENAMEAT, __k_AT_FDCWD, (long)"/moved/../moved", __k_AT_FDCWD, (long)"/moved2")); // should print 0
+    readback("/moved2/renamed.txt"); // should print "replaced"
+
+    // Long names spill the directory past its first cluster
+    static const char* long_names[] = {
+        "/moved2/a-rather-long-file-name-1.txt",
+        "/moved2/a-rather-long-file-name-2.txt",
+        "/moved2/a-rather-long-file-name-3.txt",
+        "/moved2/a-rather-long-file-name-4.txt",
+        "/moved2/a-rather-long-file-name-5.txt",
+        "/moved2/a-rather-long-file-name-6.txt",
+    };
+
+    for(int i = 0; i < 6; ++i) {
+        fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)long_names[i], __k_O_WRONLY | __k_O_CREAT, 0644);
+        syscall3(__k_SYS_WRITE, fd, (long)long_names[i], ustrlen(long_names[i]));
+        syscall1(__k_SYS_CLOSE, fd);
+    }
+
+    readback(long_names[5]); // should print "/moved2/a-rath"
+    printnumber(syscall4(__k_SYS_RENAMEAT, __k_AT_FDCWD, (long)long_names[5], __k_AT_FDCWD, (long)"/moved2/short.txt")); // should print 0
+    readback("/moved2/short.txt");                                                       // should print "/moved2/a-rath"
+    printnumber(syscall3(__k_SYS_UNLINKAT, __k_AT_FDCWD, (long)"/moved2/short.txt", 0)); // should print 0
+    printnumber(syscall3(__k_SYS_UNLINKAT, __k_AT_FDCWD, (long)long_names[4], 0));       // should print 0
 
     return 1337;
 }

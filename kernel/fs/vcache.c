@@ -65,7 +65,7 @@ static void unused_unlink_nolock(struct vcache* restrict entry)
     num_unused -= 1;
 }
 
-static void bucket_unlink_nolock(struct vcache* restrict entry)
+static void bucket_detach_nolock(struct vcache* restrict entry)
 {
     unsigned bucket = hash_bucket(entry->fs, entry->nodenumber);
 
@@ -75,6 +75,11 @@ static void bucket_unlink_nolock(struct vcache* restrict entry)
             break;
         }
     }
+}
+
+static void bucket_unlink_nolock(struct vcache* restrict entry)
+{
+    bucket_detach_nolock(entry);
 
     entry->node->cache_entry = nullptr;
 }
@@ -296,4 +301,27 @@ void vcache_remove(struct vnode* restrict node)
     spinlock_release(&cache_lock);
 
     slab_free(entry);
+}
+
+void vcache_rekey(struct vnode* restrict node, ino_t nodenumber)
+{
+    spinlock_acquire(&cache_lock);
+
+    struct vcache* entry = node->cache_entry;
+
+    if(entry) {
+        kassert(find_nolock(node->fs, nodenumber) == nullptr); // The filesystem removed the previous owner of the key
+
+        bucket_detach_nolock(entry);
+
+        unsigned bucket = hash_bucket(node->fs, nodenumber);
+
+        entry->nodenumber = nodenumber;
+        entry->next = cache[bucket];
+        cache[bucket] = entry;
+    }
+
+    node->nodenumber = nodenumber;
+
+    spinlock_release(&cache_lock);
 }

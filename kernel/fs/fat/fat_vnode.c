@@ -1,9 +1,11 @@
+#include <vex/assert.h>
 #include <vex/bitmap.h>
 #include <vex/blk_device.h>
 #include <vex/ctype.h>
 #include <vex/dirent.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
+#include <vex/kprintf.h>
 #include <vex/mount.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
@@ -17,15 +19,24 @@
 static ino_t fat_nodenumber(const struct fat_vfs_context* restrict fs, uintptr_t dir_cluster, size_t index)
 {
     size_t num_entries = fs->sector_size / sizeof(union fat_entry);
-    uintptr_t entry_sector = index / num_entries;
     uintptr_t entry_offset = index % num_entries * sizeof(union fat_entry);
     uintptr_t lba;
 
     if(dir_cluster == 0) {
-        lba = fs->data_start - fs->rootdir_sectors + entry_sector;
+        lba = fs->data_start - fs->rootdir_sectors + index / num_entries;
     }
     else {
-        lba = entry_sector + fat_cluster_lba(fs, dir_cluster);
+        size_t cluster_entries = fs->cluster_size_b / sizeof(union fat_entry);
+        size_t cluster_idx = index / cluster_entries;
+        uintptr_t cluster = dir_cluster;
+
+        for(size_t i = 0; i < cluster_idx; ++i) {
+            cluster = fat_cluster_next(fs, cluster);
+
+            kassert(cluster < UINTPTR_MAX);
+        }
+
+        lba = fat_cluster_lba(fs, cluster) + index % cluster_entries / num_entries;
     }
 
     ino_t result = 0;
@@ -157,6 +168,76 @@ static void shortname_build(const char* restrict name, unsigned tail_n, uint8_t 
     }
 }
 
+static bool shortname_pick(const struct fat_vfs_context* restrict fs, uintptr_t dir_cluster, const char* restrict name, uint8_t out[11])
+{
+    bitmap_type taken[32] = { 0 };
+    struct fat_dirent taken_dirent;
+    size_t taken_offset = 0;
+
+    static_assert(sizeof(taken) * sizeof(bitmap_type) * CHAR_BIT > 999);
+
+    while(0 == fat_dirent_read(fs, dir_cluster, &taken_offset, &taken_dirent)) {
+        int tilde = -1;
+
+        for(int i = 0; i < 7; ++i) {
+            if(taken_dirent.base.name[i] == '~') {
+                tilde = i;
+                break;
+            }
+        }
+
+        if(tilde < 0) {
+            continue;
+        }
+
+        unsigned n = 0;
+
+        for(int i = tilde + 1; i < 8 && taken_dirent.base.name[i] != ' '; ++i) {
+            uint8_t chr = taken_dirent.base.name[i];
+
+            if(chr < '0' || chr > '9') {
+                n = 0;
+                break;
+            }
+
+            n *= 10;
+            n += chr - '0';
+        }
+
+        if(n >= 1 && n <= 999) {
+            bitmap_set(taken, n);
+        }
+    }
+
+    for(unsigned n = 1; n < 999; ++n) {
+        if(!bitmap_isset(taken, n)) {
+            shortname_build(name, n, out);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+static int find_entry(const struct fat_vfs_context* restrict fs, uintptr_t dir_cluster, const char* restrict name,
+    struct fat_dirent* restrict out, size_t* restrict out_offset)
+{
+    size_t offset = 0;
+
+    for(;;) {
+        int retval = fat_dirent_read(fs, dir_cluster, &offset, out);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        if(0 == strncasecmp(out->full_name, name, NAME_MAX)) {
+            *out_offset = offset - 1;
+            return 0;
+        }
+    }
+}
+
 static void free_chain(struct fat_vfs_context* restrict fs, uintptr_t cluster)
 {
     while(cluster != 0 && cluster != UINTPTR_MAX) {
@@ -185,25 +266,17 @@ static int lookup_locked(struct vnode* restrict node, const char* restrict name,
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_dirent dirent;
-    size_t offset = 0;
+    size_t offset;
 
-    for(;;) {
-        int retval = fat_dirent_read(context->fs_ctx, context->first_cluster, &offset, &dirent);
+    int retval = find_entry(context->fs_ctx, context->first_cluster, name, &dirent, &offset);
 
-        if(retval < 0) {
-            return retval;
-        }
-
-        if(strncasecmp(dirent.full_name, name, NAME_MAX)) {
-            continue;
-        }
-
-        *out = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1);
-
-        return 0;
+    if(retval < 0) {
+        return retval;
     }
 
-    unreachable();
+    *out = fat_nodenumber(context->fs_ctx, context->first_cluster, offset);
+
+    return 0;
 }
 
 static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
@@ -289,55 +362,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     struct fat_dirent dirent;
     memset(&dirent, 0, sizeof(struct fat_dirent));
 
-    bitmap_type taken[32] = { 0 };
-    struct fat_dirent taken_dirent;
-    size_t taken_offset = 0;
-
-    static_assert(sizeof(taken) * sizeof(bitmap_type) * CHAR_BIT > 999);
-
-    while(0 == fat_dirent_read(fs, context->first_cluster, &taken_offset, &taken_dirent)) {
-        int tilde = -1;
-
-        for(int i = 0; i < 7; ++i) {
-            if(taken_dirent.base.name[i] == '~') {
-                tilde = i;
-                break;
-            }
-        }
-
-        if(tilde < 0) {
-            continue;
-        }
-
-        unsigned n = 0;
-
-        for(int i = tilde + 1; i < 8 && taken_dirent.base.name[i] != ' '; ++i) {
-            uint8_t chr = taken_dirent.base.name[i];
-
-            if(chr < '0' || chr > '9') {
-                n = 0;
-                break;
-            }
-
-            n *= 10;
-            n += chr - '0';
-        }
-
-        if(n >= 1 && n <= 999) {
-            bitmap_set(taken, n);
-        }
-    }
-
-    bool found = false;
-
-    for(unsigned n = 1; n < 999 && !found; ++n) {
-        if(!bitmap_isset(taken, n)) {
-            shortname_build(name, n, dirent.base.name);
-            found = true;
-        }
-    }
-
-    if(!found) {
+    if(!shortname_pick(fs, context->first_cluster, name, dirent.base.name)) {
         if(first_cluster)
             fat_cluster_free(fs, first_cluster);
         return -ENOSPC;
@@ -480,29 +505,20 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
     }
 
     struct fat_dirent dirent;
-    size_t offset = 0;
+    size_t entry_offset;
+    int retval = find_entry(fs, context->first_cluster, name, &dirent, &entry_offset);
 
-    for(;;) {
-        int retval = fat_dirent_read(fs, context->first_cluster, &offset, &dirent);
-
-        if(retval < 0) {
-            return retval;
-        }
-
-        if(0 == strncasecmp(dirent.full_name, name, NAME_MAX)) {
-            break;
-        }
+    if(retval < 0) {
+        return retval;
     }
-
-    size_t entry_offset = offset - 1;
 
     // The name was looked up without the lock
     // held, so it may have been replaced since
-    if(entry_offset != target_context->dir_offset) {
+    if(fat_nodenumber(fs, context->first_cluster, entry_offset) != target->nodenumber) {
         return -ENOENT;
     }
 
-    int retval = fat_dirent_remove(fs, context->first_cluster, entry_offset, dirent.num_lfn);
+    retval = fat_dirent_remove(fs, context->first_cluster, entry_offset, dirent.num_lfn);
 
     if(retval < 0) {
         return retval;
@@ -510,6 +526,147 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
 
     target_context->unlinked = true;
     vcache_remove(target);
+
+    return 0;
+}
+
+static int set_dotdot(struct fat_vfs_context* restrict fs, uintptr_t dir_cluster, uintptr_t parent_cluster)
+{
+    struct fat_dirent dotdot;
+    size_t offset = 1;
+    int retval = fat_dirent_read(fs, dir_cluster, &offset, &dotdot);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(offset != 2 || 0 != strcmp(dotdot.full_name, "..")) {
+        return -EIO;
+    }
+
+    // A ".." pointing at the root holds 0 on every
+    // FAT type, even though the FAT32 root has a real cluster
+    if(parent_cluster == fs->root_cluster) {
+        parent_cluster = 0;
+    }
+
+    dotdot.base.first_cluster_hi = htole16(parent_cluster >> 16);
+    dotdot.base.first_cluster_lo = htole16(parent_cluster & 0xFFFF);
+
+    return fat_dirent_update(fs, dir_cluster, 1, &dotdot.base);
+}
+
+static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode* source, struct vnode* newdir, const char* newname,
+    struct vnode* victim)
+{
+    struct fat_vnode_context* old_context = olddir->ctxdata;
+    struct fat_vnode_context* new_context = newdir->ctxdata;
+    struct fat_vnode_context* source_context = source->ctxdata;
+    struct fat_vfs_context* fs = old_context->fs_ctx;
+
+    if(fs->param_readonly) {
+        return -EROFS;
+    }
+
+    struct fat_dirent old_entry;
+    size_t old_offset;
+    int retval = find_entry(fs, old_context->first_cluster, oldname, &old_entry, &old_offset);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    // Both names were looked up without the lock
+    // held, so either may have been replaced since
+    if(fat_nodenumber(fs, old_context->first_cluster, old_offset) != source->nodenumber) {
+        return -ENOENT;
+    }
+
+    struct fat_dirent victim_entry;
+    size_t victim_offset;
+    retval = find_entry(fs, new_context->first_cluster, newname, &victim_entry, &victim_offset);
+
+    if(retval < 0 && retval != -ENOENT) {
+        return retval;
+    }
+
+    if(victim == nullptr && retval == 0) {
+        return -EEXIST;
+    }
+
+    if(victim) {
+        if(retval == -ENOENT || fat_nodenumber(fs, new_context->first_cluster, victim_offset) != victim->nodenumber) {
+            return -ENOENT;
+        }
+
+        if(victim->nodetype == VNODE_DIRECTORY) {
+            struct fat_vnode_context* victim_context = victim->ctxdata;
+            retval = check_empty(fs, victim_context->first_cluster);
+
+            if(retval < 0) {
+                return retval;
+            }
+        }
+    }
+
+    struct fat_dirent entry;
+    memset(&entry, 0, sizeof(struct fat_dirent));
+    memcpy(&entry.base, &old_entry.base, sizeof(struct fat_dir_entry));
+    kstrncpy(entry.full_name, newname, NAME_SIZE);
+
+    if(!shortname_pick(fs, new_context->first_cluster, newname, entry.base.name)) {
+        return -ENOSPC;
+    }
+
+    unsigned num_lfn = strnlen(newname, NAME_SIZE) + 12;
+    num_lfn /= 13;
+
+    size_t slot_offset;
+    retval = fat_dirent_alloc(fs, new_context->first_cluster, num_lfn + 1, &slot_offset);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    size_t new_offset = slot_offset + num_lfn;
+    retval = fat_dirent_write(fs, new_context->first_cluster, new_offset, &entry);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(victim) {
+        retval = fat_dirent_remove(fs, new_context->first_cluster, victim_offset, victim_entry.num_lfn);
+
+        if(retval < 0) {
+            pr_error("fat: rename: removing the replaced entry failed (%d)", retval);
+        }
+    }
+
+    retval = fat_dirent_remove(fs, old_context->first_cluster, old_offset, old_entry.num_lfn);
+
+    if(retval < 0) {
+        pr_error("fat: rename: removing the old entry failed (%d)", retval);
+    }
+
+    if(source->nodetype == VNODE_DIRECTORY && olddir != newdir) {
+        retval = set_dotdot(fs, source_context->first_cluster, new_context->first_cluster);
+
+        if(retval < 0) {
+            pr_error("fat: rename: updating \"..\" failed (%d)", retval);
+        }
+    }
+
+    if(victim) {
+        struct fat_vnode_context* victim_context = victim->ctxdata;
+        victim_context->unlinked = true;
+        vcache_remove(victim);
+    }
+
+    source_context->dir_cluster = new_context->first_cluster;
+    source_context->dir_offset = new_offset;
+
+    vcache_rekey(source, fat_nodenumber(fs, new_context->first_cluster, new_offset));
 
     return 0;
 }
@@ -884,6 +1041,15 @@ static int fat_vnode_unlink(struct vnode* restrict node, const char* restrict na
     return retval;
 }
 
+static int fat_vnode_rename(struct vnode* olddir, const char* oldname, struct vnode* source, struct vnode* newdir, const char* newname,
+    struct vnode* victim)
+{
+    mutex_acquire(fs_lock(olddir));
+    int retval = rename_locked(olddir, oldname, source, newdir, newname, victim);
+    mutex_release(fs_lock(olddir));
+    return retval;
+}
+
 static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
 {
     mutex_acquire(fs_lock(node));
@@ -922,6 +1088,7 @@ const struct vnode_ops fat_vnode_ops = {
     .iterate = &fat_vnode_iterate,
     .create = &fat_vnode_create,
     .unlink = &fat_vnode_unlink,
+    .rename = &fat_vnode_rename,
     .read = &fat_vnode_read,
     .write = &fat_vnode_write,
     .stat = &fat_vnode_stat,

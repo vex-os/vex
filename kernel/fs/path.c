@@ -2,6 +2,7 @@
 #include <vex/mount.h>
 #include <vex/path.h>
 #include <vex/pslab.h>
+#include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/strings.h>
 #include <vex/vnode.h>
@@ -152,15 +153,19 @@ static int resolve_internal(struct vnode* restrict stem, const char* restrict pa
                 else {
                     upper = current;
                 }
-            }
-            else if(current->parent) {
-                upper = current->parent;
+
+                vnode_incref(upper);
             }
             else {
-                upper = current;
+                spinlock_acquire(&current->lock);
+
+                upper = current->parent ? current->parent : current;
+
+                vnode_incref(upper);
+
+                spinlock_release(&current->lock);
             }
 
-            vnode_incref(upper);
             vnode_decref(current);
             current = upper;
             continue;
