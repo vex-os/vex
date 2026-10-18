@@ -52,7 +52,7 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
 - Test a bitmask against zero explicitly: `if(0 == (flags & FLAG))`, not `if(!(flags & FLAG))`.
 - Compare pointers to `nullptr` only for the null case (`if(ptr == nullptr)`); for non-null, use the pointer itself (`if(ptr)`). A call whose result only signals failure can be negated directly: `if(!pmentry_get(table, i, true))`.
 - Don't dereference a call's result in place (`this_hart()->caps`, `pframe_of(phys)->flags`). Put the result in a named local first (`struct hart_local* hart = this_hart();`), then use its fields. `(*prev)->next` in list walks is a plain pointer dereference and is fine.
-- Never use a standalone increment statement (`++x;`, `x++;`). Outside a `for` header, write `x += 1`. Inside a `for` header, a one-letter counter uses `++i`, and a longer name uses `page += 1`.
+- Never use a standalone increment or decrement statement (`++x;`, `x++;`, `--x;`, `x--;`). Outside a `for` header, write `x += 1` or `x -= 1`. Inside a `for` header, a one-letter counter uses `++i` or `--i`, and a longer name uses `page += 1` or `level -= 1`.
 - Within a translation unit, `static` helpers come before the public functions; init functions sit at the end next to their `initcall_*`.
 - Code should document itself through names. Comments are for a non-obvious "why" or an invariant that the code doesn't show, not for restating what it does:
   - Use `//` (`#` in assembly and shell), start with a capital letter, and leave off the trailing period.
