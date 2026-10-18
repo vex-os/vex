@@ -287,6 +287,19 @@ void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluste
     mark_entry_dirty(context, cluster);
 }
 
+void fat_cluster_end(struct fat_vfs_context* restrict context, uintptr_t cluster)
+{
+    if(context->filesystem_type == FAT_TYPE_12) {
+        fat_cluster_link(context, cluster, 0x0FFF);
+    }
+    else if(context->filesystem_type == FAT_TYPE_16) {
+        fat_cluster_link(context, cluster, 0xFFFF);
+    }
+    else if(context->filesystem_type == FAT_TYPE_32) {
+        fat_cluster_link(context, cluster, FAT32_MASK);
+    }
+}
+
 void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluster)
 {
     if(!fat_cluster_valid(context, cluster)) {

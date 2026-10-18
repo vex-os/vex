@@ -16,6 +16,19 @@ enum {
     VNODE_SYM_LINK,
 };
 
+#define VATTR_MODE 0x0001U
+#define VATTR_UID  0x0002U
+#define VATTR_GID  0x0004U
+#define VATTR_SIZE 0x0008U
+
+struct vattr {
+    unsigned mask; // VATTR_* fields to change, the others are ignored
+    mode_t mode;
+    uid_t uid;
+    gid_t gid;
+    off_t size;
+};
+
 struct vnode;
 struct vnode_ops {
     void (*release)(struct vnode* restrict node);
@@ -33,6 +46,7 @@ struct vnode_ops {
     ssize_t (*readlink)(struct vnode* restrict node, char* restrict buf, size_t sz);
     int (*ioctl)(struct vnode* restrict node, uint32_t request, uintptr_t argument);
     int (*stat)(struct vnode* restrict node, struct k_stat* restrict out);
+    int (*setattr)(struct vnode* restrict node, const struct vattr* restrict attr);
 };
 
 struct blk_device;
@@ -69,5 +83,6 @@ ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz
 ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset);
 ssize_t vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz);
 int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out);
+int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr);
 int vnode_access(struct vnode* restrict node, const struct credentials* restrict cred, unsigned mask) __nodiscard;
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, uintptr_t argument);

@@ -192,6 +192,7 @@ struct fat_vnode_context {
 extern const struct vnode_ops fat_vnode_ops;
 
 void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluster, uintptr_t next);
+void fat_cluster_end(struct fat_vfs_context* restrict context, uintptr_t cluster);
 void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluster);
 
 uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintptr_t cluster) __nodiscard;

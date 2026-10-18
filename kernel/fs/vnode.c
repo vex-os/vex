@@ -579,6 +579,34 @@ int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
     return retval;
 }
 
+int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr)
+{
+    kassert(node);
+    kassert(attr);
+
+    if((attr->mask & VATTR_SIZE) && (node->nodetype != VNODE_FILE || attr->size < 0)) {
+        return -EINVAL;
+    }
+
+    struct vnode* target;
+    int retval = vfs_cross_mount(node, &target);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->ops->setattr == nullptr) {
+        retval = -EPERM;
+    }
+    else {
+        retval = target->ops->setattr(target, attr);
+    }
+
+    vnode_decref(target);
+
+    return retval;
+}
+
 int vnode_access(struct vnode* restrict node, const struct credentials* restrict cred, unsigned mask)
 {
     kassert(node);

@@ -1,6 +1,7 @@
 #include <vex/blk_device.h>
 #include <vex/dirent.h>
 #include <vex/errno.h>
+#include <vex/pslab.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
 #include <vex/string.h>
@@ -463,7 +464,7 @@ static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, s
     return done;
 }
 
-static ssize_t write_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t write_span_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
     struct echfs_vfs_context* fs = ctx->fs_ctx;
@@ -648,6 +649,127 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
     return done;
 }
 
+static int zero_fill_locked(struct vnode* restrict node, off_t from, off_t to)
+{
+    void* zeroes = pslab_alloc_virt();
+
+    if(zeroes == nullptr) {
+        return -ENOMEM;
+    }
+
+    memset(zeroes, 0, PAGE_SIZE);
+
+    int retval = 0;
+
+    while(from < to) {
+        size_t chunk = to - from;
+
+        if(chunk > PAGE_SIZE) {
+            chunk = PAGE_SIZE;
+        }
+
+        ssize_t written = write_span_locked(node, zeroes, chunk, from);
+
+        if(written < 0) {
+            retval = written;
+            break;
+        }
+
+        from += written;
+    }
+
+    pslab_free_virt(zeroes);
+
+    return retval;
+}
+
+// Blocks come off the allocator as they were left on disk,
+// so a gap past the end of the file is zeroed out explicitly
+static ssize_t write_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+{
+    struct echfs_vnode_context* ctx = node->ctxdata;
+
+    if((uint64_t)offset > ctx->size) {
+        int retval = zero_fill_locked(node, ctx->size, offset);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
+    return write_span_locked(node, buffer, sz, offset);
+}
+
+static int shrink_locked(struct vnode* restrict node, uint64_t size)
+{
+    struct echfs_vnode_context* ctx = node->ctxdata;
+    struct echfs_vfs_context* fs = ctx->fs_ctx;
+
+    uint64_t keep = (size + fs->block_size - 1) / fs->block_size;
+
+    if(keep == 0) {
+        free_chain(fs, ctx->start_block);
+        ctx->start_block = ECHFS_TABLE_EOC;
+    }
+    else {
+        uintptr_t last = ctx->start_block;
+
+        for(uint64_t i = 1; i < keep; ++i) {
+            last = echfs_block_next(fs, last);
+
+            if(last == UINTPTR_MAX) {
+                return -EIO;
+            }
+        }
+
+        uintptr_t rest = echfs_block_next(fs, last);
+
+        if(rest != UINTPTR_MAX) {
+            echfs_block_link(fs, last, ECHFS_TABLE_EOC);
+            free_chain(fs, rest);
+        }
+    }
+
+    ctx->size = size;
+    ctx->cached_block = ctx->start_block;
+    ctx->cached_block_idx = 0;
+
+    if(ctx->unlinked) {
+        return 0;
+    }
+
+    struct echfs_dirent entry;
+    int retval = echfs_dirent_read(fs, ctx->dir_entry, &entry);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    entry.file_size = size;
+    entry.start_block = ctx->start_block;
+
+    return echfs_dirent_write(fs, ctx->dir_entry, &entry);
+}
+
+static int setattr_locked(struct vnode* restrict node, const struct vattr* restrict attr)
+{
+    struct echfs_vnode_context* ctx = node->ctxdata;
+
+    if(attr->mask & (VATTR_MODE | VATTR_UID | VATTR_GID)) {
+        return -EPERM;
+    }
+
+    if(0 == (attr->mask & VATTR_SIZE) || (uint64_t)attr->size == ctx->size) {
+        return 0;
+    }
+
+    if((uint64_t)attr->size > ctx->size) {
+        return zero_fill_locked(node, ctx->size, attr->size);
+    }
+
+    return shrink_locked(node, attr->size);
+}
+
 static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
@@ -758,6 +880,14 @@ static int echfs_vnode_stat(struct vnode* restrict node, struct k_stat* restrict
     return retval;
 }
 
+static int echfs_vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = setattr_locked(node, attr);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
 const struct vnode_ops echfs_vnode_ops = {
     .release = &echfs_vnode_release,
     .lookup = &echfs_vnode_lookup,
@@ -768,4 +898,5 @@ const struct vnode_ops echfs_vnode_ops = {
     .read = &echfs_vnode_read,
     .write = &echfs_vnode_write,
     .stat = &echfs_vnode_stat,
+    .setattr = &echfs_vnode_setattr,
 };

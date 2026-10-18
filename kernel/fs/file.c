@@ -17,7 +17,7 @@ static unsigned access_for(unsigned flags)
         mask |= R_OK;
     }
 
-    if(flags & O_WRONLY) {
+    if(flags & (O_WRONLY | O_TRUNC)) {
         mask |= W_OK;
     }
 
@@ -77,11 +77,27 @@ int file_open(struct vnode* restrict stem, const char* restrict path, unsigned f
         }
     }
 
+    if(node->nodetype == VNODE_DIRECTORY && (flags & (O_WRONLY | O_TRUNC))) {
+        vnode_decref(node);
+        return -EISDIR;
+    }
+
     retval = vnode_open(node, flags);
 
     if(retval < 0 && retval != -ENOSYS) {
         vnode_decref(node);
         return retval;
+    }
+
+    if((flags & O_TRUNC) && node->nodetype == VNODE_FILE) {
+        struct vattr attr = { .mask = VATTR_SIZE, .size = 0 };
+        retval = vnode_setattr(node, &attr);
+
+        if(retval < 0) {
+            vnode_close(node);
+            vnode_decref(node);
+            return retval;
+        }
     }
 
     struct file* fp = slab_alloc(sizeof(struct file));
@@ -180,6 +196,20 @@ ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t
     }
 
     return result;
+}
+
+int file_truncate(struct file* restrict fp, off_t size)
+{
+    if(fp == nullptr) {
+        return -EINVAL;
+    }
+
+    if(0 == (fp->flags & O_WRONLY)) {
+        return -EBADF;
+    }
+
+    struct vattr attr = { .mask = VATTR_SIZE, .size = size };
+    return vnode_setattr(fp->node, &attr);
 }
 
 int file_seek(struct file* restrict fp, off_t offset, int origin)

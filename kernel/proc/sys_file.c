@@ -176,6 +176,16 @@ static intptr_t sys_seek(const uintptr_t* restrict args)
     return syscall_with_fd(args, &seek_file);
 }
 
+static intptr_t ftruncate_file(struct file* restrict fp, const uintptr_t* restrict args)
+{
+    return file_truncate(fp, args[1]);
+}
+
+static intptr_t sys_ftruncate(const uintptr_t* restrict args)
+{
+    return syscall_with_fd(args, &ftruncate_file);
+}
+
 static intptr_t fstat_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
     struct k_stat st;
@@ -309,6 +319,7 @@ define_syscall(sys_openat, SYS_OPENAT);
 define_syscall(sys_close, SYS_CLOSE);
 define_syscall(sys_read, SYS_READ);
 define_syscall(sys_write, SYS_WRITE);
+define_syscall(sys_ftruncate, SYS_FTRUNCATE);
 define_syscall(sys_seek, SYS_SEEK);
 define_syscall(sys_fstat, SYS_FSTAT);
 define_syscall(sys_fstatat, SYS_FSTATAT);

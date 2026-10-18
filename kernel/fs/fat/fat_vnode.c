@@ -7,6 +7,7 @@
 #include <vex/errno.h>
 #include <vex/kprintf.h>
 #include <vex/mount.h>
+#include <vex/pslab.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
 #include <vex/string.h>
@@ -784,7 +785,7 @@ static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, s
     return done;
 }
 
-static ssize_t write_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t write_span_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
     struct fat_vnode_context* context = node->ctxdata;
     struct fat_vfs_context* fs = context->fs_ctx;
@@ -979,6 +980,140 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
     return done;
 }
 
+static int zero_fill_locked(struct vnode* restrict node, off_t from, off_t to)
+{
+    void* zeroes = pslab_alloc_virt();
+
+    if(zeroes == nullptr) {
+        return -ENOMEM;
+    }
+
+    memset(zeroes, 0, PAGE_SIZE);
+
+    int retval = 0;
+
+    while(from < to) {
+        size_t chunk = to - from;
+
+        if(chunk > PAGE_SIZE) {
+            chunk = PAGE_SIZE;
+        }
+
+        ssize_t written = write_span_locked(node, zeroes, chunk, from);
+
+        if(written < 0) {
+            retval = written;
+            break;
+        }
+
+        from += written;
+    }
+
+    pslab_free_virt(zeroes);
+
+    return retval;
+}
+
+// Bytes past the end of the file may hold stale data
+// in the last cluster, so a gap is zeroed out on disk
+static ssize_t write_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+{
+    struct fat_vnode_context* context = node->ctxdata;
+
+    if(offset > context->size_bytes) {
+        int retval = zero_fill_locked(node, context->size_bytes, offset);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
+    return write_span_locked(node, buffer, sz, offset);
+}
+
+static int shrink_locked(struct vnode* restrict node, size_t size)
+{
+    struct fat_vnode_context* context = node->ctxdata;
+    struct fat_vfs_context* fs = context->fs_ctx;
+
+    size_t keep = (size + fs->cluster_size_b - 1) / fs->cluster_size_b;
+
+    if(keep == 0) {
+        free_chain(fs, context->first_cluster);
+        context->first_cluster = 0;
+    }
+    else {
+        uintptr_t last = context->first_cluster;
+
+        for(size_t i = 1; i < keep; ++i) {
+            last = fat_cluster_next(fs, last);
+
+            if(last == UINTPTR_MAX) {
+                return -EIO;
+            }
+        }
+
+        uintptr_t rest = fat_cluster_next(fs, last);
+
+        if(rest != UINTPTR_MAX) {
+            fat_cluster_end(fs, last);
+            free_chain(fs, rest);
+        }
+    }
+
+    context->size_bytes = size;
+    context->cached_cluster = context->first_cluster;
+    context->cached_cluster_idx = 0;
+
+    if(context->unlinked) {
+        return 0;
+    }
+
+    struct fat_dirent dirent;
+    size_t dir_off = context->dir_offset;
+    int retval = fat_dirent_read(fs, context->dir_cluster, &dir_off, &dirent);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    dirent.base.file_size = htole32(size);
+    dirent.base.first_cluster_hi = htole16(context->first_cluster >> 16);
+    dirent.base.first_cluster_lo = htole16(context->first_cluster & 0xFFFF);
+
+    return fat_dirent_update(fs, context->dir_cluster, context->dir_offset, &dirent.base);
+}
+
+static int setattr_locked(struct vnode* restrict node, const struct vattr* restrict attr)
+{
+    struct fat_vnode_context* context = node->ctxdata;
+    struct fat_vfs_context* fs = context->fs_ctx;
+
+    // FAT has nowhere to keep a mode or an owner
+    if(attr->mask & (VATTR_MODE | VATTR_UID | VATTR_GID)) {
+        return -EPERM;
+    }
+
+    if(0 == (attr->mask & VATTR_SIZE) || (size_t)attr->size == context->size_bytes) {
+        return 0;
+    }
+
+    if(fs->param_readonly) {
+        return -EROFS;
+    }
+
+    // A FAT file size is a 32-bit field
+    if(attr->size > UINT32_MAX) {
+        return -EFBIG;
+    }
+
+    if((size_t)attr->size > context->size_bytes) {
+        return zero_fill_locked(node, context->size_bytes, attr->size);
+    }
+
+    return shrink_locked(node, attr->size);
+}
+
 static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
 {
     struct fat_vnode_context* context = node->ctxdata;
@@ -1085,6 +1220,14 @@ static int fat_vnode_stat(struct vnode* restrict node, struct k_stat* restrict o
     return retval;
 }
 
+static int fat_vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = setattr_locked(node, attr);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
 const struct vnode_ops fat_vnode_ops = {
     .release = &fat_vnode_release,
     .lookup = &fat_vnode_lookup,
@@ -1095,4 +1238,5 @@ const struct vnode_ops fat_vnode_ops = {
     .read = &fat_vnode_read,
     .write = &fat_vnode_write,
     .stat = &fat_vnode_stat,
+    .setattr = &fat_vnode_setattr,
 };

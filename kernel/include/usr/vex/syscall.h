@@ -45,5 +45,6 @@
 #define __k_SYS_SETUMASK  42
 #define __k_SYS_GETGROUPS 43
 #define __k_SYS_SETGROUPS 44
+#define __k_SYS_FTRUNCATE 45
 
 #endif /* USR_VEX_SYSCALL_H */
