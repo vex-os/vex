@@ -111,6 +111,13 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
         return retval;
     }
 
+    retval = vnode_access(fp->node, &cred, X_OK);
+
+    if(retval < 0) {
+        file_close(fp);
+        return retval;
+    }
+
     // Built aside, so a failure leaves
     // the caller running in its old image
     struct vmspace* vms = vms_create();

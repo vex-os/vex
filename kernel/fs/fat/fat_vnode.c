@@ -1001,11 +1001,13 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
         rw_bits |= S_IWUSR | S_IWGRP;
     }
 
+    mode_t perm_bits = rw_bits | S_IXUSR | S_IXGRP | S_IXOTH;
+
     if(node->nodetype == VNODE_DIRECTORY) {
-        out->st_mode = S_IFDIR | rw_bits | S_IXUSR | S_IXGRP | S_IXOTH;
+        out->st_mode = S_IFDIR | perm_bits;
     }
     else {
-        out->st_mode = S_IFREG | rw_bits;
+        out->st_mode = S_IFREG | perm_bits;
     }
 
     return 0;

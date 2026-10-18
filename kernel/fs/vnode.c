@@ -1,5 +1,6 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
+#include <vex/fcntl.h>
 #include <vex/limits.h>
 #include <vex/mount.h>
 #include <vex/mutex.h>
@@ -576,6 +577,45 @@ int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
     vnode_decref(target);
 
     return retval;
+}
+
+int vnode_access(struct vnode* restrict node, const struct credentials* restrict cred, unsigned mask)
+{
+    kassert(node);
+    kassert(cred);
+
+    struct k_stat st;
+    int retval = vnode_stat(node, &st);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(cred_capable(cred, CAP_DAC_OVERRIDE)) {
+        if((mask & X_OK) && (st.st_mode & S_IFMT) != S_IFDIR && 0 == (st.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH))) {
+            return -EACCES;
+        }
+
+        return 0;
+    }
+
+    mode_t granted;
+
+    if(cred->euid == st.st_uid) {
+        granted = (st.st_mode >> 6) & 7;
+    }
+    else if(cred->egid == st.st_gid) {
+        granted = (st.st_mode >> 3) & 7;
+    }
+    else {
+        granted = st.st_mode & 7;
+    }
+
+    if((granted & mask) != mask) {
+        return -EACCES;
+    }
+
+    return 0;
 }
 
 ssize_t vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz)

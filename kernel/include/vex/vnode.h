@@ -69,4 +69,5 @@ ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz
 ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset);
 ssize_t vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz);
 int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out);
+int vnode_access(struct vnode* restrict node, const struct credentials* restrict cred, unsigned mask) __nodiscard;
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, uintptr_t argument);

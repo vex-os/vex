@@ -195,6 +195,13 @@ static intptr_t sys_fstat(const uintptr_t* restrict args)
 
 static intptr_t sys_fstatat(const uintptr_t* restrict args)
 {
+    struct thread* thread = this_thread();
+    struct process* proc = thread->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
     unsigned flags = args[3];
 
     if(flags & ~AT_SYMLINK_NOFOLLOW) {
@@ -215,13 +222,14 @@ static intptr_t sys_fstatat(const uintptr_t* restrict args)
         return retval;
     }
 
+    struct credentials cred = process_get_cred(proc);
     struct vnode* node;
 
     if(flags & AT_SYMLINK_NOFOLLOW) {
-        retval = path_resolve_at(stem, path, PATH_NOFOLLOW, &node);
+        retval = path_resolve_at(stem, path, PATH_NOFOLLOW, &cred, &node);
     }
     else {
-        retval = path_resolve_at(stem, path, 0, &node);
+        retval = path_resolve_at(stem, path, 0, &cred, &node);
     }
 
     if(stem) {

@@ -43,7 +43,7 @@ static void apply_id(int32_t* restrict id, int32_t wanted)
     }
 }
 
-bool cred_capable(const struct credentials* restrict cred, unsigned cap)
+bool cred_capable(const struct credentials* restrict cred, uint64_t cap)
 {
     kassert(cred);
 

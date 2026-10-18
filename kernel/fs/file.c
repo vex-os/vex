@@ -7,6 +7,23 @@
 #include <vex/string.h>
 #include <vex/vnode.h>
 
+// O_RDWR is both bits together, so each one
+// stands for read and write access on its own
+static unsigned access_for(unsigned flags)
+{
+    unsigned mask = 0;
+
+    if(flags & O_RDONLY) {
+        mask |= R_OK;
+    }
+
+    if(flags & O_WRONLY) {
+        mask |= W_OK;
+    }
+
+    return mask;
+}
+
 int file_open(struct vnode* restrict stem, const char* restrict path, unsigned flags, mode_t mode, const struct credentials* restrict cred,
     struct file** restrict out)
 {
@@ -15,24 +32,30 @@ int file_open(struct vnode* restrict stem, const char* restrict path, unsigned f
     }
 
     struct vnode* node;
-    int retval = path_resolve_at(stem, path, 0, &node);
+    int retval = path_resolve_at(stem, path, 0, cred, &node);
+    bool created = false;
 
     if(retval == -ENOENT && (flags & O_CREAT)) {
         const char* filename;
         struct vnode* parent;
 
-        retval = path_resolve_parent_at(stem, path, &parent, &filename);
+        retval = path_resolve_parent_at(stem, path, cred, &parent, &filename);
 
         if(retval < 0) {
             return retval;
         }
 
-        retval = vnode_create(parent, filename, VNODE_FILE, mode, cred, &node);
+        retval = vnode_access(parent, cred, W_OK | X_OK);
+
+        if(retval == 0) {
+            retval = vnode_create(parent, filename, VNODE_FILE, mode, cred, &node);
+            created = retval == 0;
+        }
 
         vnode_decref(parent);
 
         if(retval == -EEXIST) {
-            retval = path_resolve_at(stem, path, 0, &node); // Lost a race with another creator
+            retval = path_resolve_at(stem, path, 0, cred, &node); // Lost a race with another creator
         }
 
         if(retval < 0) {
@@ -41,6 +64,17 @@ int file_open(struct vnode* restrict stem, const char* restrict path, unsigned f
     }
     else if(retval < 0) {
         return retval;
+    }
+
+    // The creator gets the access it asked for
+    // even when the new mode itself denies it
+    if(!created) {
+        retval = vnode_access(node, cred, access_for(flags));
+
+        if(retval < 0) {
+            vnode_decref(node);
+            return retval;
+        }
     }
 
     retval = vnode_open(node, flags);
@@ -101,7 +135,7 @@ ssize_t file_read(struct file* restrict fp, void* restrict buffer, size_t sz)
         return -EINVAL;
     }
 
-    if(0 == (fp->flags & (O_RDONLY | O_RDWR))) {
+    if(0 == (fp->flags & O_RDONLY)) {
         return -EBADF;
     }
 
@@ -120,7 +154,7 @@ ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t
         return -EINVAL;
     }
 
-    if(0 == (fp->flags & (O_WRONLY | O_RDWR))) {
+    if(0 == (fp->flags & O_WRONLY)) {
         return -EBADF;
     }
 

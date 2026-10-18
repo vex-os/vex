@@ -12,6 +12,19 @@
 
 static intptr_t sys_mount(const uintptr_t* restrict args)
 {
+    struct thread* thread = this_thread();
+    struct process* proc = thread->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    struct credentials cred = process_get_cred(proc);
+
+    if(!cred_capable(&cred, CAP_MOUNT)) {
+        return -EPERM;
+    }
+
     char target[PATH_SIZE];
     ssize_t copied = user_copyin_str(target, args[1], sizeof(target));
 
@@ -58,7 +71,7 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
             }
 
             struct vnode* source_node;
-            retval = path_resolve_at(stem, source, 0, &source_node);
+            retval = path_resolve_at(stem, source, 0, &cred, &source_node);
 
             if(stem) {
                 vnode_decref(stem);
@@ -90,6 +103,19 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
 
 static intptr_t sys_umount(const uintptr_t* restrict args)
 {
+    struct thread* thread = this_thread();
+    struct process* proc = thread->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    struct credentials cred = process_get_cred(proc);
+
+    if(!cred_capable(&cred, CAP_MOUNT)) {
+        return -EPERM;
+    }
+
     char path[PATH_SIZE];
     ssize_t copied = user_copyin_str(path, args[0], sizeof(path));
 

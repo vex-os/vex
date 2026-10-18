@@ -133,7 +133,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
     struct vnode* mountpoint = nullptr;
 
     if(path[0] != PATH_SEPARATOR || path[1] != 0) {
-        retval = path_resolve(path, &mountpoint);
+        retval = path_resolve(path, &sys_cred, &mountpoint);
 
         if(retval < 0) {
             vcache_evict(fs);

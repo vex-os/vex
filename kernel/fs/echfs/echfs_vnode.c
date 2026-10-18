@@ -660,7 +660,10 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
     out->st_blksize = fs->block_size;
     out->st_blocks = (ctx->size + fs->device->sector_size - 1) / fs->device->sector_size;
 
-    if(ctx->dir_entry != UINT64_MAX && !ctx->unlinked) {
+    if(ctx->dir_entry == UINT64_MAX) {
+        out->st_mode = S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
+    }
+    else if(!ctx->unlinked) {
         const struct echfs_dirent* entry = &fs->dir_table[ctx->dir_entry];
 
         out->st_uid = entry->owner_uid;

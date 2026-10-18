@@ -9,6 +9,11 @@
 #define O_TRUNC  __k_O_TRUNC
 #define O_APPEND __k_O_APPEND
 
+#define F_OK __k_F_OK
+#define X_OK __k_X_OK
+#define W_OK __k_W_OK
+#define R_OK __k_R_OK
+
 #define AT_FDCWD            __k_AT_FDCWD
 #define AT_SYMLINK_NOFOLLOW __k_AT_SYMLINK_NOFOLLOW
 #define AT_REMOVEDIR        __k_AT_REMOVEDIR
