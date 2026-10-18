@@ -8,6 +8,22 @@ config VCACHE_MAX_UNUSED
       Vnodes that nobody holds stay cached up to this many,
       so looking the same paths up again needs no disk access
 
+config PCACHE_WRITEBACK_MSEC
+    int "Page cache writeback interval (ms)"
+    range 100 600000
+    default 5000
+    help
+      How often dirty file pages and filesystem
+      metadata are written back to disk
+
+config PCACHE_DIRTY_PERCENT
+    int "Dirty page cache limit (percent of memory)"
+    range 1 90
+    default 20
+    help
+      A write that finds more of memory dirty than this
+      writes its own file back before returning
+
 config DEVFS
     bool "Device filesystem"
     default y

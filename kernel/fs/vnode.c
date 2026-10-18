@@ -29,6 +29,8 @@ static struct vnode* alloc_internal(struct vfs* restrict fs, ino_t nodenumber, c
     result->ops = ops;
     result->nodenumber = nodenumber;
 
+    pcache_init(&result->pcache);
+
     atomic_store(&result->refcount, 1, ATOMIC_RELAXED);
 
     return result;
@@ -311,6 +313,8 @@ struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict op
     result->nodetype = nodetype;
     result->ctxdata = ctxdata;
 
+    pcache_init(&result->pcache);
+
     atomic_store(&result->refcount, 1, ATOMIC_RELAXED);
 
     return result;
@@ -347,6 +351,8 @@ void vnode_destroy(struct vnode* restrict node)
     if(node->orphaned) {
         atomic_fetch_sub(&node->fs->orphans, 1, ATOMIC_RELEASE);
     }
+
+    pcache_deinit(&node->pcache);
 
     if(node->ops->release)
         node->ops->release(node);
@@ -807,4 +813,15 @@ int vnode_ioctl(struct vnode* restrict node, uint32_t request, uintptr_t argumen
     vnode_decref(target);
 
     return retval;
+}
+
+int vnode_fsync(struct vnode* restrict node)
+{
+    kassert(node);
+
+    if(node->ops->fsync == nullptr) {
+        return 0;
+    }
+
+    return node->ops->fsync(node);
 }

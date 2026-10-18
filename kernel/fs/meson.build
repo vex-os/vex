@@ -2,6 +2,7 @@ kernel_sources += files(
     'file.c',
     'mount.c',
     'path.c',
+    'pcache.c',
     'vcache.c',
     'vnode.c',
 )

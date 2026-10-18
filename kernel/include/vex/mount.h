@@ -46,6 +46,7 @@ int remove_vfs_driver(struct vfs_driver* restrict driver);
 int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params);
 int vfs_unmount(const char* restrict path);
 
+int vfs_sync_fs(struct vfs* restrict fs);
 int vfs_sync_all(void);
 int vfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out);
 
@@ -53,12 +54,3 @@ struct vnode* vfs_get_root(void);
 struct vnode* vfs_get_mountpoint(struct vfs* restrict fs);
 struct vfs* vfs_get_fs(struct vnode* restrict node);
 int vfs_cross_mount(struct vnode* restrict node, struct vnode** restrict out);
-
-static __always_inline int vfs_sync_fs(struct vfs* restrict fs)
-{
-    if(fs->ops->sync == nullptr) {
-        return -ENOSYS;
-    }
-
-    return fs->ops->sync(fs);
-}

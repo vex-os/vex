@@ -7,6 +7,7 @@
 #include <vex/mount.h>
 #include <vex/mutex.h>
 #include <vex/path.h>
+#include <vex/pcache.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -293,12 +294,14 @@ int vfs_unmount(const char* restrict path)
     fs->unmounting = true;
     spinlock_release(&mounts_lock);
 
-    int retval = 0;
+    // Vnodes queued for writeback are referenced by the queue
+    int retval = pcache_sync(fs);
 
-    if(atomic_load(&fs->orphans, ATOMIC_ACQUIRE) || vcache_in_use(fs, is_root ? 2 : 1)) {
+    if(retval == 0 && (atomic_load(&fs->orphans, ATOMIC_ACQUIRE) || vcache_in_use(fs, is_root ? 2 : 1))) {
         retval = -EBUSY;
     }
-    else {
+
+    if(retval == 0) {
         retval = vfs_sync_fs(fs);
 
         if(retval == -ENOSYS) {
@@ -357,6 +360,19 @@ int vfs_unmount(const char* restrict path)
     mutex_release(&mounts_mutex);
 
     return 0;
+}
+
+int vfs_sync_fs(struct vfs* restrict fs)
+{
+    int retval = pcache_sync(fs);
+
+    if(fs->ops->sync == nullptr) {
+        return retval < 0 ? retval : -ENOSYS;
+    }
+
+    int fs_retval = fs->ops->sync(fs);
+
+    return retval < 0 ? retval : fs_retval;
 }
 
 int vfs_sync_all(void)

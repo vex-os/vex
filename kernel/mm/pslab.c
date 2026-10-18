@@ -1,14 +1,19 @@
 #include <vex/assert.h>
+#include <vex/atomic.h>
 #include <vex/hhdm.h>
 #include <vex/hrsize.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 #include <vex/memmap.h>
 #include <vex/page.h>
+#include <vex/pcache.h>
 #include <vex/pdma.h>
 #include <vex/pframe.h>
 #include <vex/pslab.h>
 #include <vex/spinlock.h>
+
+#define RECLAIM_BATCH 32 // Pages freed from the page cache at a time
+#define RESERVE_PAGES 64 // Kept free for callers that hold a spinlock and can't reclaim
 
 static void** pslab_list = nullptr;
 static size_t pslab_numpages = 0U;
@@ -57,15 +62,7 @@ static void pslab_add_usable(uintptr_t start, size_t length)
     }
 }
 
-uintptr_t pslab_alloc_phys(void)
-{
-    void* ptr = pslab_alloc_virt();
-    if(ptr == nullptr)
-        return 0U;
-    return virt_to_phys(ptr);
-}
-
-void* pslab_alloc_virt(void)
+static void* take_page(void)
 {
     void** head_ptr;
 
@@ -88,6 +85,33 @@ void* pslab_alloc_virt(void)
     spinlock_release_intr(&pslab_lock, intr_state);
 
     return nullptr;
+}
+
+uintptr_t pslab_alloc_phys(void)
+{
+    void* ptr = pslab_alloc_virt();
+    if(ptr == nullptr)
+        return 0U;
+    return virt_to_phys(ptr);
+}
+
+void* pslab_alloc_virt(void)
+{
+    void* ptr = take_page();
+
+    if(ptr == nullptr) {
+        if(pcache_reclaim(RECLAIM_BATCH)) {
+            ptr = take_page();
+        }
+
+        return ptr;
+    }
+
+    if(pslab_numpages - atomic_load(&pslab_numused, ATOMIC_RELAXED) < RESERVE_PAGES) {
+        pcache_reclaim(RECLAIM_BATCH);
+    }
+
+    return ptr;
 }
 
 void pslab_free_phys(uintptr_t physaddr)
@@ -116,6 +140,11 @@ void pslab_free_virt(void* restrict virtaddr)
     }
 
     spinlock_release_intr(&pslab_lock, intr_state);
+}
+
+size_t pslab_page_count(void)
+{
+    return pslab_numpages;
 }
 
 static void init_pslab(void)

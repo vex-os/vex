@@ -52,6 +52,11 @@ static void __noreturn init_watchdog(void* restrict arg)
 
     event_await_blocking(&evnt, 1);
 
+    // FIXME: lets the disk image be inspected with mtools or
+    // echfs-utils after a test init exits and the VM is killed;
+    // drop it once there is a clean shutdown that syncs filesystems
+    vfs_sync_all();
+
     panic("kmain: init process died");
     unreachable();
 }

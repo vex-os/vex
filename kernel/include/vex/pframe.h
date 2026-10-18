@@ -3,11 +3,21 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-#define PFRAME_PSLAB 0x0001 // Managed by pslab
+#define PFRAME_PSLAB    0x0001 // Managed by pslab
+#define PFRAME_CACHE    0x0002 // Owned by a page cache, owner and index are valid
+#define PFRAME_UPTODATE 0x0004 // Holds the file contents, zeroes past the end of file
+#define PFRAME_DIRTY    0x0008
+#define PFRAME_ACCESSED 0x0010 // Used since reclaim last looked at it
+
+struct pcache;
 
 struct pframe {
     uint32_t refcount;
-    uint32_t flags;
+    uint32_t flags;          // PFRAME; the page cache bits are under owner->lock
+    struct pcache* owner;    // Under owner->lock
+    uint64_t index;          // Page index within the owner
+    struct pframe* lru_prev; // Under the page cache LRU lock
+    struct pframe* lru_next;
 };
 
 struct pframe* pframe_of(uintptr_t phys) __nodiscard;

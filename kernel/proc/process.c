@@ -284,11 +284,6 @@ void process_exit(struct process* proc, int exit_code)
     // A zombie must not keep filesystems
     // busy until it is waited for
     release_files(proc);
-
-    // FIXME: lets the disk image be inspected with mtools
-    // or echfs-utils after a test program exits and the VM is killed;
-    // drop it once there is a clean shutdown that syncs filesystems
-    vfs_sync_all();
 }
 
 void process_thread_reaped(struct process* proc, struct thread* thrd)

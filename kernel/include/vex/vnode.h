@@ -4,6 +4,7 @@
 #include <vex/cred.h>
 #include <vex/dirent.h>
 #include <vex/errno.h>
+#include <vex/pcache.h>
 #include <vex/spinlock.h>
 #include <vex/stat.h>
 #include <vex/types.h>
@@ -47,6 +48,7 @@ struct vnode_ops {
     int (*ioctl)(struct vnode* restrict node, uint32_t request, uintptr_t argument);
     int (*stat)(struct vnode* restrict node, struct k_stat* restrict out);
     int (*setattr)(struct vnode* restrict node, const struct vattr* restrict attr);
+    int (*fsync)(struct vnode* restrict node);
 };
 
 struct blk_device;
@@ -63,6 +65,7 @@ struct vnode {
     ino_t nodenumber;
     struct vcache* cache_entry;
     const struct blk_device* blkdev;
+    struct pcache pcache;
     void* ctxdata;
 };
 
@@ -89,3 +92,4 @@ int vnode_chown(struct vnode* restrict node, const struct credentials* restrict 
 int vnode_may_delete(struct vnode* restrict dir, const char* restrict name, const struct credentials* restrict cred) __nodiscard;
 int vnode_access(struct vnode* restrict node, const struct credentials* restrict cred, unsigned mask) __nodiscard;
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, uintptr_t argument);
+int vnode_fsync(struct vnode* restrict node);
