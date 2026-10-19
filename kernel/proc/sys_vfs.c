@@ -133,13 +133,25 @@ static intptr_t sys_sync(const uintptr_t* restrict args)
 
 static intptr_t syncfs_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
-    struct vfs* fs = fp->node->fs;
+    struct vnode* node;
+    int retval = vfs_cross_mount(fp->node, &node);
 
-    if(fs == nullptr) {
-        return -EINVAL;
+    if(retval < 0) {
+        return retval;
     }
 
-    return vfs_sync_fs(fs);
+    struct vfs* fs = node->fs;
+
+    if(fs == nullptr) {
+        retval = -EINVAL;
+    }
+    else {
+        retval = vfs_sync_fs(fs);
+    }
+
+    vnode_decref(node);
+
+    return retval;
 }
 
 static intptr_t sys_syncfs(const uintptr_t* restrict args)
@@ -149,16 +161,24 @@ static intptr_t sys_syncfs(const uintptr_t* restrict args)
 
 static intptr_t fsync_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
-    struct vnode* node = fp->node;
-    struct vfs* fs = node->fs;
+    struct vnode* node;
+    int retval = vfs_cross_mount(fp->node, &node);
 
-    int retval = vnode_fsync(node);
-
-    if(retval < 0 || fs == nullptr || fs->ops->sync == nullptr) {
+    if(retval < 0) {
         return retval;
     }
 
-    return fs->ops->sync(fs);
+    struct vfs* fs = node->fs;
+
+    retval = vnode_fsync(node);
+
+    if(retval == 0 && fs && fs->ops->sync) {
+        retval = fs->ops->sync(fs);
+    }
+
+    vnode_decref(node);
+
+    return retval;
 }
 
 static intptr_t sys_fsync(const uintptr_t* restrict args)
@@ -168,14 +188,24 @@ static intptr_t sys_fsync(const uintptr_t* restrict args)
 
 static intptr_t statvfs_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
-    struct vfs* fs = fp->node->fs;
+    struct vnode* node;
+    int retval = vfs_cross_mount(fp->node, &node);
 
-    if(fs == nullptr) {
-        return -EINVAL;
+    if(retval < 0) {
+        return retval;
     }
 
+    struct vfs* fs = node->fs;
     struct k_statvfs st;
-    int retval = vfs_statvfs(fs, &st);
+
+    if(fs == nullptr) {
+        retval = -EINVAL;
+    }
+    else {
+        retval = vfs_statvfs(fs, &st);
+    }
+
+    vnode_decref(node);
 
     if(retval < 0) {
         return retval;
