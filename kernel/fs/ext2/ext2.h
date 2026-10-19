@@ -387,6 +387,7 @@ void ext2_block_free(struct ext2_vfs_context* restrict context, uint32_t block);
 uint32_t ext2_inode_alloc(struct ext2_vfs_context* restrict context, uint32_t parent_ino, bool directory) __nodiscard;
 void ext2_inode_free(struct ext2_vfs_context* restrict context, uint32_t ino, bool directory);
 
+int ext2_inode_offset(const struct ext2_vfs_context* restrict context, uint32_t ino, uint64_t* restrict out);
 int ext2_inode_read(struct ext2_vfs_context* restrict context, uint32_t ino, struct ext2_inode* restrict out);
 int ext2_inode_clear(struct ext2_vfs_context* restrict context, uint32_t ino);
 int ext2_inode_nodetype(uint16_t mode, unsigned* restrict out);
@@ -399,6 +400,10 @@ int ext2_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct 
 int ext2_truncate_blocks(struct vnode* restrict node, uint64_t size);
 
 void ext2_xattr_release(struct ext2_vfs_context* restrict context, uint32_t block);
+ssize_t ext2_xattr_get(struct vnode* restrict node, const char* restrict name, void* restrict value, size_t size);
+ssize_t ext2_xattr_list(struct vnode* restrict node, char* restrict list, size_t size);
+int ext2_xattr_set(struct vnode* restrict node, const char* restrict name, const void* restrict value, size_t size, unsigned flags);
+int ext2_xattr_remove(struct vnode* restrict node, const char* restrict name);
 
 int ext2_dirent_read(struct vnode* restrict dir, uint64_t* restrict offset, struct ext2_dirent* restrict out);
 int ext2_dirent_find(struct vnode* restrict dir, const char* restrict name, struct ext2_dirent* restrict out);

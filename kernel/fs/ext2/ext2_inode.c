@@ -7,21 +7,6 @@
 
 #include "ext2.h"
 
-static int inode_offset(const struct ext2_vfs_context* restrict context, uint32_t ino, uint64_t* restrict out)
-{
-    if(ino == 0 || ino > le32toh(context->super.s_inodes_count)) {
-        return -EINVAL;
-    }
-
-    uint32_t group = (ino - 1) / context->inodes_per_group;
-    uint32_t index = (ino - 1) % context->inodes_per_group;
-    const struct ext2_group_desc* desc = &context->groups[group];
-
-    *out = ext2_block_offset(context, le32toh(desc->bg_inode_table)) + (uint64_t)index * context->inode_size;
-
-    return 0;
-}
-
 static bool data_block_valid(const struct ext2_vfs_context* restrict context, uint32_t block)
 {
     return block >= context->first_data_block && block < le32toh(context->super.s_blocks_count);
@@ -297,10 +282,25 @@ static int trim_table(struct ext2_vfs_context* restrict context, struct ext2_ino
     return retval;
 }
 
+int ext2_inode_offset(const struct ext2_vfs_context* restrict context, uint32_t ino, uint64_t* restrict out)
+{
+    if(ino == 0 || ino > le32toh(context->super.s_inodes_count)) {
+        return -EINVAL;
+    }
+
+    uint32_t group = (ino - 1) / context->inodes_per_group;
+    uint32_t index = (ino - 1) % context->inodes_per_group;
+    const struct ext2_group_desc* desc = &context->groups[group];
+
+    *out = ext2_block_offset(context, le32toh(desc->bg_inode_table)) + (uint64_t)index * context->inode_size;
+
+    return 0;
+}
+
 int ext2_inode_read(struct ext2_vfs_context* restrict context, uint32_t ino, struct ext2_inode* restrict out)
 {
     uint64_t offset;
-    int retval = inode_offset(context, ino, &offset);
+    int retval = ext2_inode_offset(context, ino, &offset);
 
     if(retval < 0) {
         return retval;
@@ -314,7 +314,7 @@ int ext2_inode_clear(struct ext2_vfs_context* restrict context, uint32_t ino)
     static const uint8_t zeros[EXT2_GOOD_OLD_INODE_SIZE] = { 0 };
 
     uint64_t offset;
-    int retval = inode_offset(context, ino, &offset);
+    int retval = ext2_inode_offset(context, ino, &offset);
 
     for(size_t done = 0; retval == 0 && done < context->inode_size; done += sizeof(zeros)) {
         retval = fcache_dev_write(context->devnode, offset + done, zeros, sizeof(zeros));
@@ -346,7 +346,7 @@ int ext2_inode_nodetype(uint16_t mode, unsigned* restrict out)
 int ext2_inode_write(struct ext2_vfs_context* restrict context, uint32_t ino, const struct ext2_inode* restrict inode)
 {
     uint64_t offset;
-    int retval = inode_offset(context, ino, &offset);
+    int retval = ext2_inode_offset(context, ino, &offset);
 
     if(retval < 0) {
         return retval;

@@ -1063,6 +1063,55 @@ static int ext2_vnode_map_page(struct vnode* restrict node, uint64_t index, stru
     return retval;
 }
 
+static ssize_t ext2_vnode_getxattr(struct vnode* restrict node, const char* restrict name, void* restrict value, size_t size)
+{
+    mutex_acquire(fs_lock(node));
+    ssize_t retval = ext2_xattr_get(node, name, value, size);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static int ext2_vnode_setxattr(struct vnode* restrict node, const char* restrict name, const void* restrict value, size_t size,
+    unsigned flags)
+{
+    mutex_acquire(fs_lock(node));
+
+    int retval = ext2_xattr_set(node, name, value, size, flags);
+
+    if(retval == 0) {
+        touch_locked(node, false);
+        retval = write_inode_locked(node);
+    }
+
+    mutex_release(fs_lock(node));
+
+    return retval;
+}
+
+static ssize_t ext2_vnode_listxattr(struct vnode* restrict node, char* restrict list, size_t size)
+{
+    mutex_acquire(fs_lock(node));
+    ssize_t retval = ext2_xattr_list(node, list, size);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static int ext2_vnode_removexattr(struct vnode* restrict node, const char* restrict name)
+{
+    mutex_acquire(fs_lock(node));
+
+    int retval = ext2_xattr_remove(node, name);
+
+    if(retval == 0) {
+        touch_locked(node, false);
+        retval = write_inode_locked(node);
+    }
+
+    mutex_release(fs_lock(node));
+
+    return retval;
+}
+
 const struct vnode_ops ext2_vnode_ops = {
     .release = &ext2_vnode_release,
     .lookup = &ext2_vnode_lookup,
@@ -1079,4 +1128,8 @@ const struct vnode_ops ext2_vnode_ops = {
     .setattr = &ext2_vnode_setattr,
     .fsync = &ext2_vnode_fsync,
     .map_page = &ext2_vnode_map_page,
+    .getxattr = &ext2_vnode_getxattr,
+    .setxattr = &ext2_vnode_setxattr,
+    .listxattr = &ext2_vnode_listxattr,
+    .removexattr = &ext2_vnode_removexattr,
 };
