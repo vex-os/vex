@@ -17,10 +17,12 @@ enum {
     VNODE_SYM_LINK,
 };
 
-#define VATTR_MODE 0x0001U
-#define VATTR_UID  0x0002U
-#define VATTR_GID  0x0004U
-#define VATTR_SIZE 0x0008U
+#define VATTR_MODE  0x0001U
+#define VATTR_UID   0x0002U
+#define VATTR_GID   0x0004U
+#define VATTR_SIZE  0x0008U
+#define VATTR_ATIME 0x0010U
+#define VATTR_MTIME 0x0020U
 
 struct vattr {
     unsigned mask; // VATTR; fields to change, the others are ignored
@@ -28,6 +30,8 @@ struct vattr {
     uid_t uid;
     gid_t gid;
     off_t size;
+    time_t atime;
+    time_t mtime;
 };
 
 struct pagemap;
@@ -41,6 +45,9 @@ struct vnode_ops {
     int (*unlink)(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target);
     int (*rename)(struct vnode* olddir, const char* oldname, struct vnode* source, struct vnode* newdir, const char* newname,
         struct vnode* victim);
+    int (*link)(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target);
+    int (*symlink)(struct vnode* restrict node, const char* restrict name, const char* restrict target,
+        const struct credentials* restrict cred, struct vnode** restrict out);
     int (*open)(struct vnode* restrict node, unsigned mode);
     int (*close)(struct vnode* restrict node);
     ssize_t (*read)(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset);
@@ -82,6 +89,9 @@ int vnode_create(struct vnode* restrict node, const char* restrict name, unsigne
     const struct credentials* restrict cred, struct vnode** restrict out);
 int vnode_unlink(struct vnode* restrict node, const char* restrict name, bool directory);
 int vnode_rename(struct vnode* olddir, const char* oldname, struct vnode* newdir, const char* newname);
+int vnode_link(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target);
+int vnode_symlink(struct vnode* restrict node, const char* restrict name, const char* restrict target,
+    const struct credentials* restrict cred, struct vnode** restrict out);
 int vnode_open(struct vnode* restrict node, unsigned mode);
 int vnode_close(struct vnode* restrict node);
 ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset);
@@ -91,6 +101,7 @@ int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out);
 int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr);
 int vnode_chmod(struct vnode* restrict node, const struct credentials* restrict cred, mode_t mode);
 int vnode_chown(struct vnode* restrict node, const struct credentials* restrict cred, uid_t uid, gid_t gid);
+int vnode_utimes(struct vnode* restrict node, const struct credentials* restrict cred, const struct k_timespec* restrict times);
 int vnode_may_delete(struct vnode* restrict dir, const char* restrict name, const struct credentials* restrict cred) __nodiscard;
 int vnode_access(struct vnode* restrict node, const struct credentials* restrict cred, unsigned mask) __nodiscard;
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, uintptr_t argument);

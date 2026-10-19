@@ -9,6 +9,7 @@
 #include <vex/string.h>
 #include <vex/vcache.h>
 #include <vex/vnode.h>
+#include <vex/wallclock.h>
 
 static_assert(sizeof(struct vnode) <= SLAB_MAX_SIZE);
 
@@ -92,6 +93,83 @@ static int lookup_crossed(struct vnode* restrict node, const char* restrict name
     return 0;
 }
 
+static int cache_created(struct vnode* restrict node, struct vnode* restrict created, struct vnode** restrict out)
+{
+    if(created->nodetype == VNODE_DIRECTORY) {
+        created->parent = node;
+        vnode_incref(node);
+    }
+
+    struct vnode* cached_now = vcache_get_or_insert(created);
+
+    if(cached_now != created) {
+        vnode_destroy(created);
+
+        if(cached_now == nullptr) {
+            return -ENOMEM;
+        }
+    }
+
+    *out = cached_now;
+
+    return 0;
+}
+
+static int check_new_name(struct vnode* restrict node, const char* restrict name)
+{
+    if(node->fs->readonly) {
+        return -EROFS;
+    }
+
+    if(0 == strcmp(name, ".") || 0 == strcmp(name, "..")) {
+        return -EEXIST;
+    }
+
+    return 0;
+}
+
+static int link_crossed(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+{
+    if(target->fs != node->fs) {
+        return -EXDEV;
+    }
+
+    if(target->nodetype == VNODE_DIRECTORY || node->ops->link == nullptr) {
+        return -EPERM;
+    }
+
+    int retval = check_new_name(node, name);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    return node->ops->link(node, name, target);
+}
+
+static int symlink_crossed(struct vnode* restrict node, const char* restrict name, const char* restrict target,
+    const struct credentials* restrict cred, struct vnode** restrict out)
+{
+    if(node->ops->symlink == nullptr) {
+        return -EPERM;
+    }
+
+    int retval = check_new_name(node, name);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct vnode* created;
+    retval = node->ops->symlink(node, name, target, cred, &created);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    return cache_created(node, created, out);
+}
+
 static int create_crossed(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
     const struct credentials* restrict cred, struct vnode** restrict out)
 {
@@ -110,26 +188,7 @@ static int create_crossed(struct vnode* restrict node, const char* restrict name
         return retval;
     }
 
-    if(created->nodetype == VNODE_DIRECTORY) {
-        created->parent = node;
-        vnode_incref(node);
-    }
-
-    // Cached like a looked-up node, so a later
-    // lookup of the same name finds this vnode
-    struct vnode* cached_now = vcache_get_or_insert(created);
-
-    if(cached_now != created) {
-        vnode_destroy(created);
-
-        if(cached_now == nullptr) {
-            return -ENOMEM;
-        }
-    }
-
-    *out = cached_now;
-
-    return 0;
+    return cache_created(node, created, out);
 }
 
 static int unlink_crossed(struct vnode* restrict node, const char* restrict name, bool directory)
@@ -482,6 +541,49 @@ int vnode_rename(struct vnode* olddir, const char* oldname, struct vnode* newdir
     return retval;
 }
 
+int vnode_link(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+{
+    kassert(node);
+    kassert(target);
+
+    struct vnode* crossed;
+    int retval = vfs_cross_mount(node, &crossed);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = link_crossed(crossed, name, target);
+
+    vnode_decref(crossed);
+
+    return retval;
+}
+
+int vnode_symlink(struct vnode* restrict node, const char* restrict name, const char* restrict target,
+    const struct credentials* restrict cred, struct vnode** restrict out)
+{
+    kassert(node);
+    kassert(cred);
+
+    if(target[0] == 0) {
+        return -ENOENT;
+    }
+
+    struct vnode* crossed;
+    int retval = vfs_cross_mount(node, &crossed);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = symlink_crossed(crossed, name, target, cred, out);
+
+    vnode_decref(crossed);
+
+    return retval;
+}
+
 int vnode_open(struct vnode* restrict node, unsigned mode)
 {
     kassert(node);
@@ -748,6 +850,91 @@ int vnode_access(struct vnode* restrict node, const struct credentials* restrict
     }
 
     return 0;
+}
+
+static bool time_valid(const struct k_timespec* restrict time)
+{
+    if(time->tv_nsec == UTIME_NOW || time->tv_nsec == UTIME_OMIT) {
+        return true;
+    }
+
+    return time->tv_nsec >= 0 && time->tv_nsec < 1000000000;
+}
+
+static bool time_set(const struct k_timespec* restrict time, time_t* restrict out)
+{
+    if(time->tv_nsec == UTIME_OMIT) {
+        return false;
+    }
+
+    if(time->tv_nsec == UTIME_NOW) {
+        *out = wallclock_now();
+    }
+    else {
+        *out = time->tv_sec;
+    }
+
+    return true;
+}
+
+int vnode_utimes(struct vnode* restrict node, const struct credentials* restrict cred, const struct k_timespec* restrict times)
+{
+    kassert(node);
+    kassert(cred);
+
+    static const struct k_timespec both_now[2] = {
+        { .tv_nsec = UTIME_NOW },
+        { .tv_nsec = UTIME_NOW },
+    };
+
+    if(times == nullptr) {
+        times = both_now;
+    }
+
+    if(!time_valid(&times[0]) || !time_valid(&times[1])) {
+        return -EINVAL;
+    }
+
+    struct vattr attr = { 0 };
+
+    if(time_set(&times[0], &attr.atime)) {
+        attr.mask |= VATTR_ATIME;
+    }
+
+    if(time_set(&times[1], &attr.mtime)) {
+        attr.mask |= VATTR_MTIME;
+    }
+
+    if(attr.mask == 0) {
+        return 0;
+    }
+
+    struct k_stat st;
+    int retval = vnode_stat(node, &st);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    // Anyone who may write the file may touch it, but
+    // only its owner may set the times to something else
+    if(cred->euid != st.st_uid && !cred_capable(cred, CAP_FOWNER)) {
+        bool now_only = times[0].tv_nsec != UTIME_OMIT || times[1].tv_nsec != UTIME_OMIT;
+        now_only = now_only && (times[0].tv_nsec == UTIME_NOW || times[0].tv_nsec == UTIME_OMIT);
+        now_only = now_only && (times[1].tv_nsec == UTIME_NOW || times[1].tv_nsec == UTIME_OMIT);
+
+        if(!now_only) {
+            return -EPERM;
+        }
+
+        retval = vnode_access(node, cred, W_OK);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
+    return vnode_setattr(node, &attr);
 }
 
 int vnode_may_delete(struct vnode* restrict dir, const char* restrict name, const struct credentials* restrict cred)
