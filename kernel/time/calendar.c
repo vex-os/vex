@@ -36,7 +36,7 @@ void calendar_from_time(time_t time, struct calendar_time* restrict out)
     int64_t month_from_march = (5 * day_of_year + 2) / 153;
 
     out->day = (unsigned)(day_of_year - (153 * month_from_march + 2) / 5 + 1);
-    out->year = year_of_era + era * 400;
+    out->year = (long long)(year_of_era + era * 400);
 
     if(month_from_march < 10) {
         out->month = (unsigned)(month_from_march + 3);
@@ -49,7 +49,7 @@ void calendar_from_time(time_t time, struct calendar_time* restrict out)
 
 time_t calendar_to_time(const struct calendar_time* restrict calendar)
 {
-    int64_t year = calendar->year;
+    int64_t year = (int64_t)(calendar->year);
     int64_t month_from_march = (int64_t)(calendar->month) + 9;
 
     if(calendar->month > 2) {
