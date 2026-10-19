@@ -268,10 +268,6 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
     struct ext2_vnode_context* ctx = node->ctxdata;
     size_t block_size = ctx->fs_ctx->block_size;
 
-    if(node->fs->readonly) {
-        return -EROFS;
-    }
-
     if(offset < 0) {
         return -EINVAL;
     }
@@ -340,10 +336,6 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
     struct ext2_vnode_context* ctx = node->ctxdata;
     struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
     struct ext2_inode* inode = &ctx->inode;
-
-    if(node->fs->readonly) {
-        return -EROFS;
-    }
 
     if(attr->mask & (VATTR_UID | VATTR_GID)) {
         uid_t uid = ext2_inode_uid(fs_ctx, inode);
@@ -454,10 +446,6 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     bool directory = type == VNODE_DIRECTORY;
 
     *out = nullptr;
-
-    if(node->fs->readonly) {
-        return -EROFS;
-    }
 
     if(node->nodetype != VNODE_DIRECTORY) {
         return -ENOTDIR;
@@ -609,10 +597,6 @@ static int drop_entry_target_locked(struct vnode* restrict target)
 
 static int unlink_locked(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
 {
-    if(node->fs->readonly) {
-        return -EROFS;
-    }
-
     struct ext2_dirent entry;
     int retval = find_entry_locked(node, name, target, &entry);
 
@@ -639,10 +623,6 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
 static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode* source, struct vnode* newdir, const char* newname,
     struct vnode* victim)
 {
-    if(olddir->fs->readonly) {
-        return -EROFS;
-    }
-
     if(strlen(newname) > EXT2_NAME_LEN) {
         return -ENAMETOOLONG;
     }

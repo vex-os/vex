@@ -99,6 +99,10 @@ static int create_crossed(struct vnode* restrict node, const char* restrict name
         return -ENOSYS;
     }
 
+    if(node->fs->readonly) {
+        return -EROFS;
+    }
+
     struct vnode* created;
     int retval = node->ops->create(node, name, type, mode, cred, &created);
 
@@ -132,6 +136,10 @@ static int unlink_crossed(struct vnode* restrict node, const char* restrict name
 {
     if(node->ops->unlink == nullptr) {
         return -ENOSYS;
+    }
+
+    if(node->fs->readonly) {
+        return -EROFS;
     }
 
     if(0 == strcmp(name, ".") || 0 == strcmp(name, "..")) {
@@ -238,6 +246,10 @@ static int rename_crossed(struct vnode* olddir, const char* oldname, struct vnod
 
     if(olddir->ops->rename == nullptr) {
         return -ENOSYS;
+    }
+
+    if(olddir->fs->readonly) {
+        return -EROFS;
     }
 
     if(0 == strcmp(oldname, ".") || 0 == strcmp(oldname, "..") || 0 == strcmp(newname, ".") || 0 == strcmp(newname, "..")) {
@@ -601,7 +613,10 @@ int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr
         return retval;
     }
 
-    if(target->ops->setattr == nullptr) {
+    if(target->fs->readonly) {
+        retval = -EROFS;
+    }
+    else if(target->ops->setattr == nullptr) {
         retval = -EPERM;
     }
     else {

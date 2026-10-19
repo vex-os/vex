@@ -1,6 +1,7 @@
 #include <vex/atomic.h>
 #include <vex/fcntl.h>
 #include <vex/file.h>
+#include <vex/mount.h>
 #include <vex/path.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
@@ -29,6 +30,12 @@ int file_open_node(struct vnode* restrict node, unsigned flags, struct file** re
     if(node->nodetype == VNODE_DIRECTORY && (flags & (O_WRONLY | O_TRUNC))) {
         vnode_decref(node);
         return -EISDIR;
+    }
+
+    // Device nodes stay writable, the device isn't the filesystem they live on
+    if(node->nodetype == VNODE_FILE && (flags & (O_WRONLY | O_TRUNC)) && node->fs->readonly) {
+        vnode_decref(node);
+        return -EROFS;
     }
 
     int retval = vnode_open(node, flags);
