@@ -15,6 +15,7 @@
 #include <vex/strings.h>
 #include <vex/vcache.h>
 #include <vex/vnode.h>
+#include <vex/wallclock.h>
 
 #include "fat.h"
 
@@ -249,6 +250,82 @@ static void free_chain(struct fat_vfs_context* restrict fs, uintptr_t cluster)
     }
 }
 
+static bool has_entry(const struct vnode* restrict node)
+{
+    const struct fat_vnode_context* context = node->ctxdata;
+
+    if(node->nodetype == VNODE_DIRECTORY && context->first_cluster == context->fs_ctx->root_cluster) {
+        return false;
+    }
+
+    return !context->unlinked;
+}
+
+static void stamp_new_entry(struct fat_dir_entry* restrict entry, const struct k_timespec* restrict now)
+{
+    struct fat_timestamp stamp;
+    fat_time_pack(now, &stamp);
+
+    entry->create_date = stamp.date;
+    entry->create_time = stamp.time;
+    entry->create_time_tenth = stamp.tenth;
+    entry->write_date = stamp.date;
+    entry->write_time = stamp.time;
+    entry->access_date = stamp.date;
+}
+
+static int update_entry_locked(struct vnode* restrict node, const struct k_timespec* restrict atime,
+    const struct k_timespec* restrict mtime)
+{
+    struct fat_vnode_context* context = node->ctxdata;
+    struct fat_vfs_context* fs = context->fs_ctx;
+
+    if(!has_entry(node)) {
+        return 0;
+    }
+
+    struct fat_dirent dirent;
+    size_t dir_off = context->dir_offset;
+    int retval = fat_dirent_read(fs, context->dir_cluster, &dir_off, &dirent);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct fat_dir_entry entry = dirent.base;
+    struct fat_timestamp stamp;
+
+    if(node->nodetype == VNODE_FILE) {
+        entry.file_size = htole32(context->size_bytes);
+    }
+
+    if(atime) {
+        fat_time_pack(atime, &stamp);
+        entry.access_date = stamp.date;
+    }
+
+    if(mtime) {
+        fat_time_pack(mtime, &stamp);
+        entry.write_date = stamp.date;
+        entry.write_time = stamp.time;
+    }
+
+    if(0 == memcmp(&entry, &dirent.base, sizeof(entry))) {
+        return 0;
+    }
+
+    return fat_dirent_update(fs, context->dir_cluster, context->dir_offset, &entry);
+}
+
+static void touch_dir_locked(struct vnode* restrict dir, const struct k_timespec* restrict now)
+{
+    int retval = update_entry_locked(dir, nullptr, now);
+
+    if(retval < 0) {
+        pr_error("fat: updating a directory's times failed: %s", strerror(retval));
+    }
+}
+
 static void fat_vnode_release(struct vnode* restrict node)
 {
     struct fat_vnode_context* context = node->ctxdata;
@@ -383,6 +460,10 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     dirent.base.first_cluster_lo = htole16(first_cluster & 0xFFFF);
     dirent.base.file_size = 0;
 
+    struct k_timespec now;
+    wallclock_get(&now);
+    stamp_new_entry(&dirent.base, &now);
+
     retval = fat_dirent_write(fs, context->first_cluster, slot_offset + num_lfn, &dirent);
 
     if(retval < 0) {
@@ -396,6 +477,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
         memset(&dot_entry, 0, sizeof(union fat_entry));
 
         dot_entry.dir.attribute = FAT_ATTR_DIRECTORY;
+        stamp_new_entry(&dot_entry.dir, &now);
         dot_entry.dir.first_cluster_hi = htole16(first_cluster >> 16);
         dot_entry.dir.first_cluster_lo = htole16(first_cluster & 0xFFFF);
 
@@ -458,6 +540,8 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     vnode->nodenumber = fat_nodenumber(fs, context->first_cluster, slot_offset + num_lfn);
 
     *out = vnode;
+
+    touch_dir_locked(node, &now);
 
     return 0;
 }
@@ -528,6 +612,10 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
 
     target_context->unlinked = true;
     vcache_remove(target);
+
+    struct k_timespec now;
+    wallclock_get(&now);
+    touch_dir_locked(node, &now);
 
     return 0;
 }
@@ -670,6 +758,14 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
 
     vcache_rekey(source, fat_nodenumber(fs, new_context->first_cluster, new_offset));
 
+    struct k_timespec now;
+    wallclock_get(&now);
+    touch_dir_locked(olddir, &now);
+
+    if(newdir != olddir) {
+        touch_dir_locked(newdir, &now);
+    }
+
     return 0;
 }
 
@@ -799,20 +895,17 @@ static ssize_t write_span_locked(struct vnode* restrict node, const void* restri
 
     ssize_t written = fcache_write(node, &fat_bmap, buffer, sz, offset, context->size_bytes);
 
-    if(written <= 0 || offset + written <= (off_t)(context->size_bytes)) {
+    if(written <= 0) {
         return written;
     }
 
-    context->size_bytes = offset + written;
-
-    struct fat_dirent dirent;
-    size_t dir_off = context->dir_offset;
-
-    if(!context->unlinked && 0 == fat_dirent_read(fs, context->dir_cluster, &dir_off, &dirent)) {
-        dirent.base.file_size = htole32(context->size_bytes);
-
-        fat_dirent_update(fs, context->dir_cluster, context->dir_offset, &dirent.base);
+    if(offset + written > (off_t)(context->size_bytes)) {
+        context->size_bytes = offset + written;
     }
+
+    struct k_timespec now;
+    wallclock_get(&now);
+    update_entry_locked(node, nullptr, &now);
 
     return written;
 }
@@ -925,6 +1018,21 @@ static int shrink_locked(struct vnode* restrict node, size_t size)
     return fat_dirent_update(fs, context->dir_cluster, context->dir_offset, &dirent.base);
 }
 
+static int resize_locked(struct vnode* restrict node, off_t size)
+{
+    struct fat_vnode_context* context = node->ctxdata;
+
+    if(size > UINT32_MAX) {
+        return -EFBIG; // A FAT file size is a 32-bit field
+    }
+
+    if((size_t)(size) > context->size_bytes) {
+        return zero_fill_locked(node, context->size_bytes, size);
+    }
+
+    return shrink_locked(node, size);
+}
+
 static int setattr_locked(struct vnode* restrict node, const struct vattr* restrict attr)
 {
     struct fat_vnode_context* context = node->ctxdata;
@@ -936,7 +1044,7 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
         return -EPERM;
     }
 
-    if(0 == (attr->mask & VATTR_SIZE) || (size_t)attr->size == context->size_bytes) {
+    if(0 == (attr->mask & (VATTR_SIZE | VATTR_ATIME | VATTR_MTIME))) {
         return 0;
     }
 
@@ -944,16 +1052,27 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
         return -EROFS;
     }
 
-    // A FAT file size is a 32-bit field
-    if(attr->size > UINT32_MAX) {
-        return -EFBIG;
+    if((attr->mask & VATTR_SIZE) && (size_t)attr->size != context->size_bytes) {
+        int retval = resize_locked(node, attr->size);
+
+        if(retval < 0) {
+            return retval;
+        }
     }
 
-    if((size_t)attr->size > context->size_bytes) {
-        return zero_fill_locked(node, context->size_bytes, attr->size);
+    // FAT keeps no change time, so VATTR_CTIME has nowhere to go
+    const struct k_timespec* atime = nullptr;
+    const struct k_timespec* mtime = nullptr;
+
+    if(attr->mask & VATTR_ATIME) {
+        atime = &attr->atime;
     }
 
-    return shrink_locked(node, attr->size);
+    if(attr->mask & VATTR_MTIME) {
+        mtime = &attr->mtime;
+    }
+
+    return update_entry_locked(node, atime, mtime);
 }
 
 static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
@@ -986,6 +1105,28 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
     else {
         out->st_mode = S_IFREG | perm_bits;
     }
+
+    if(!has_entry(node)) {
+        return 0;
+    }
+
+    struct fat_dirent dirent;
+    size_t dir_off = context->dir_offset;
+    int retval = fat_dirent_read(fs, context->dir_cluster, &dir_off, &dirent);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct fat_timestamp written = { .date = dirent.base.write_date, .time = dirent.base.write_time };
+    struct fat_timestamp accessed = { .date = dirent.base.access_date };
+
+    fat_time_unpack(&written, &out->st_mtim);
+    fat_time_unpack(&accessed, &out->st_atim);
+
+    // FAT keeps no change time; vfat on
+    // Linux reports the mtime for it too
+    out->st_ctim = out->st_mtim;
 
     return 0;
 }

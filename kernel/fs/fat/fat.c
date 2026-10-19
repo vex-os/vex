@@ -222,6 +222,8 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         return -ENOMEM;
     }
 
+    memset(root_context, 0, sizeof(struct fat_vnode_context));
+
     root_context->fs_ctx = context;
     root_context->first_cluster = context->root_cluster;
     root_context->size_bytes = 0;

@@ -4,6 +4,7 @@
 
 #include <vex/compiler.h>
 #include <vex/path.h>
+#include <vex/time.h>
 #include <vex/types.h>
 
 #define FAT_TYPE_12 12
@@ -116,6 +117,12 @@ struct fat_dir_entry {
     uint32_t file_size;        // DIR_FileSize
 } __packed;
 
+struct fat_timestamp {
+    uint16_t date; // Years since 1980, month and day
+    uint16_t time; // Hours, minutes and seconds halved
+    uint8_t tenth; // The odd second and its hundredths, 0 to 199
+};
+
 #define FAT_LFN_MAX_SEGMENTS 20
 
 struct fat_ldir_entry {
@@ -208,6 +215,9 @@ int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t 
     const struct fat_dir_entry* restrict entry);
 int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset);
 int fat_dirent_remove(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, unsigned num_lfn);
+
+void fat_time_pack(const struct k_timespec* restrict time, struct fat_timestamp* restrict out);
+void fat_time_unpack(const struct fat_timestamp* restrict stamp, struct k_timespec* restrict out);
 
 // Clusters 0 and 1 are reserved, data clusters are numbered from 2
 static __always_inline bool fat_cluster_valid(const struct fat_vfs_context* restrict context, uintptr_t cluster)
