@@ -248,6 +248,8 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
     proc->vms = vms;
     arch_thread_exec(thrd, vms, entry.address, entry.ustack);
     sighand_exec(proc->sighand);
+    thrd->sig_altstack = 0;
+    thrd->sig_altstack_size = 0;
 
     vms_release(old_vms);
 
@@ -293,6 +295,8 @@ static intptr_t sys_fork(const uintptr_t* restrict args)
     pid_t pid = child->pid;
 
     child_thread->sig_blocked = thrd->sig_blocked;
+    child_thread->sig_altstack = thrd->sig_altstack;
+    child_thread->sig_altstack_size = thrd->sig_altstack_size;
 
     sched_enqueue(child_thread);
 

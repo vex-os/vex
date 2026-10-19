@@ -66,5 +66,6 @@
 #define __k_SYS_SIGPROCMASK   63
 #define __k_SYS_SIGPENDING    64
 #define __k_SYS_SIGRETURN     65
+#define __k_SYS_SIGALTSTACK   66
 
 #endif /* USR_VEX_SYSCALL_H */

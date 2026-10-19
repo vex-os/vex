@@ -78,10 +78,21 @@ int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restric
         return -EFAULT;
     }
 
-    uintptr_t fpu_user = align_floor(ctx->amd64_rsp - RED_ZONE - fpu_state_size, FPU_STATE_ALIGN);
+    bool on_altstack = signal_on_altstack(thrd, ctx->amd64_rsp);
+
+    // The red zone belongs to the interrupted code, and an alternate stack has none to keep
+    uintptr_t top = ctx->amd64_rsp - RED_ZONE;
+    uintptr_t bottom = 0;
+
+    if((action->sa_flags & SA_ONSTACK) && thrd->sig_altstack_size && !on_altstack) {
+        top = thrd->sig_altstack + thrd->sig_altstack_size;
+        bottom = thrd->sig_altstack;
+    }
+
+    uintptr_t fpu_user = align_floor(top - fpu_state_size, FPU_STATE_ALIGN);
     uintptr_t sp = align_floor(fpu_user - sizeof(struct sigframe), 16) - sizeof(uint64_t); // As if call pushed restorer
 
-    if(sp >= ctx->amd64_rsp || ctx->amd64_rsp > user_end) {
+    if(top > user_end || ctx->amd64_rsp > user_end || sp >= top || sp < bottom) {
         return -EFAULT;
     }
 
@@ -96,6 +107,14 @@ int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restric
     struct sigframe frame = {};
     frame.restorer = restorer;
     frame.uc.uc_flags = UC_FPU;
+    frame.uc.uc_stack.ss_sp = (void*)(thrd->sig_altstack);
+    frame.uc.uc_stack.ss_size = thrd->sig_altstack_size;
+    frame.uc.uc_stack.ss_flags = on_altstack ? SS_ONSTACK : 0;
+
+    if(thrd->sig_altstack_size == 0) {
+        frame.uc.uc_stack.ss_flags = SS_DISABLE;
+    }
+
     frame.uc.uc_sigmask = old_mask;
     frame.uc.uc_mcontext.mc_fpu_state = (void*)(fpu_user);
     frame.uc.uc_mcontext.mc_fpu_size = fpu_state_size;

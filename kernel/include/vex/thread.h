@@ -68,7 +68,8 @@ struct thread {
     sigset_t sig_blocked;
     sigset_t sig_pending;
     struct sigqueue* sig_queue;
-
+    uintptr_t sig_altstack;
+    uint32_t sig_altstack_size;
     void* kstack_top;
 
     struct arch_thread arch;

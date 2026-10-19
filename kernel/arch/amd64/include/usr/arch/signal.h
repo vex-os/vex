@@ -3,6 +3,9 @@
 
 #include <vex/types.h>
 
+#define __k_MINSIGSTKSZ 8192
+#define __k_SIGSTKSZ    16384
+
 struct __k_mcontext {
     __k_uint64_t mc_rax;
     __k_uint64_t mc_rbx;

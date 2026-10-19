@@ -398,6 +398,13 @@ sigset_t signal_pending(struct thread* restrict thrd)
     return pending;
 }
 
+bool signal_on_altstack(const struct thread* restrict thrd, uintptr_t sp)
+{
+    uintptr_t base = thrd->sig_altstack;
+
+    return thrd->sig_altstack_size && sp > base && sp - base <= thrd->sig_altstack_size;
+}
+
 void signal_flush(struct sigqueue* restrict queue)
 {
     while(queue) {

@@ -130,6 +130,9 @@ struct __k_stack {
     __k_uint32_t ss_reserved;
 };
 
+#define __k_SS_ONSTACK 0x0001
+#define __k_SS_DISABLE 0x0002
+
 #define __k_UC_FPU 0x0001 /* uc_mcontext points at the FPU state saved with it */
 
 struct __k_ucontext {

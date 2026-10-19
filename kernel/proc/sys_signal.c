@@ -199,8 +199,80 @@ static intptr_t sys_sigreturn(const uintptr_t* restrict args)
     return ctx->syscall_retval;
 }
 
+static intptr_t sys_sigaltstack(const uintptr_t* restrict args)
+{
+    uintptr_t user_ss = args[0];
+    uintptr_t user_old = args[1];
+
+    struct thread* thrd = this_thread();
+
+    if(thrd->proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    struct hart_context* ctx = thrd->syscall_ctx;
+    bool on_altstack = signal_on_altstack(thrd, ctx->syscall_sp);
+
+    struct k_stack old = {
+        .ss_sp = (void*)(thrd->sig_altstack),
+        .ss_size = thrd->sig_altstack_size,
+        .ss_flags = on_altstack ? SS_ONSTACK : 0,
+    };
+
+    if(thrd->sig_altstack_size == 0) {
+        old.ss_flags = SS_DISABLE;
+    }
+
+    if(user_ss) {
+        struct k_stack ss;
+        ssize_t copied = user_copyin(&ss, user_ss, sizeof(ss));
+
+        if(copied < 0) {
+            return copied;
+        }
+
+        if(on_altstack) {
+            return -EPERM;
+        }
+
+        if(ss.ss_flags & ~SS_DISABLE) {
+            return -EINVAL;
+        }
+
+        if(ss.ss_flags & SS_DISABLE) {
+            thrd->sig_altstack = 0;
+            thrd->sig_altstack_size = 0;
+        }
+        else {
+            uintptr_t base = (uintptr_t)(ss.ss_sp);
+
+            if(ss.ss_size < MINSIGSTKSZ || ss.ss_size > UINT32_MAX) {
+                return -ENOMEM;
+            }
+
+            if(base + ss.ss_size < base) {
+                return -EINVAL;
+            }
+
+            thrd->sig_altstack = base;
+            thrd->sig_altstack_size = ss.ss_size;
+        }
+    }
+
+    if(user_old) {
+        ssize_t copied = user_copyout(user_old, &old, sizeof(old));
+
+        if(copied < 0) {
+            return copied;
+        }
+    }
+
+    return 0;
+}
+
 define_syscall(sys_kill, SYS_KILL);
 define_syscall(sys_sigaction, SYS_SIGACTION);
 define_syscall(sys_sigprocmask, SYS_SIGPROCMASK);
 define_syscall(sys_sigpending, SYS_SIGPENDING);
 define_syscall(sys_sigreturn, SYS_SIGRETURN);
+define_syscall(sys_sigaltstack, SYS_SIGALTSTACK);

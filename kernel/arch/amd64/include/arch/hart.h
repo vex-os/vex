@@ -36,6 +36,7 @@ static_assert(184 == sizeof(struct hart_context));
 static_assert(152 == offsetof(struct hart_context, amd64_cs));
 
 #define syscall_pc     amd64_rip
+#define syscall_sp     amd64_rsp
 #define syscall_arg_1  amd64_rdi
 #define syscall_arg_2  amd64_rsi
 #define syscall_arg_3  amd64_rdx
