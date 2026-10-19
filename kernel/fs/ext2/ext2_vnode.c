@@ -390,15 +390,23 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
         inode->i_mode = htole16((mode & S_IFMT) | (attr->mode & ~S_IFMT));
     }
 
-    if(attr->mask & (VATTR_UID | VATTR_GID | VATTR_MODE | VATTR_SIZE)) {
+    if(attr->mask) {
         touch_locked(node, attr->mask & VATTR_SIZE);
+    }
+
+    if(attr->mask & VATTR_ATIME) {
+        inode->i_atime = htole32((uint32_t)(attr->atime));
+    }
+
+    if(attr->mask & VATTR_MTIME) {
+        inode->i_mtime = htole32((uint32_t)(attr->mtime));
     }
 
     if(attr->mask & VATTR_SIZE) {
         return resize_locked(node, attr->size);
     }
 
-    if(attr->mask & (VATTR_UID | VATTR_GID | VATTR_MODE)) {
+    if(attr->mask) {
         return write_inode_locked(node);
     }
 
@@ -462,8 +470,89 @@ static void destroy_inode_locked(struct vnode* restrict node)
     ext2_inode_free(fs_ctx, ino, node->nodetype == VNODE_DIRECTORY);
 }
 
+static int write_link_target_locked(struct vnode* restrict node, const char* restrict target)
+{
+    struct ext2_vnode_context* ctx = node->ctxdata;
+    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
+    size_t length = strlen(target);
+    int retval = 0;
+
+    if(length < sizeof(ctx->inode.i_block)) {
+        memcpy(ctx->inode.i_block, target, length);
+    }
+    else {
+        ssize_t written = fcache_write(node, &ext2_bmap, target, length, 0, 0);
+
+        if(written < 0) {
+            retval = written;
+        }
+        else if((size_t)(written) != length) {
+            retval = -EIO;
+        }
+    }
+
+    if(retval == 0) {
+        retval = ext2_inode_set_size(fs_ctx, &ctx->inode, length);
+    }
+
+    if(retval == 0) {
+        retval = write_inode_locked(node);
+    }
+
+    return retval;
+}
+
+static bool link_target_fits(const struct vnode* restrict node, const char* restrict target)
+{
+    const struct ext2_vnode_context* ctx = node->ctxdata;
+
+    return strlen(target) < ctx->fs_ctx->block_size;
+}
+
+static int link_locked(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+{
+    struct ext2_vnode_context* target_ctx = target->ctxdata;
+
+    uint16_t links = le16toh(target_ctx->inode.i_links_count);
+
+    if(strlen(name) > EXT2_NAME_LEN) {
+        return -ENAMETOOLONG;
+    }
+
+    // Unlinked while still open
+    if(links == 0) {
+        return -ENOENT;
+    }
+
+    if(links >= EXT2_LINK_MAX) {
+        return -EMLINK;
+    }
+
+    struct ext2_dirent existing;
+    int retval = ext2_dirent_find(node, name, &existing);
+
+    if(retval == 0) {
+        return -EEXIST;
+    }
+
+    if(retval != -ENOENT) {
+        return retval;
+    }
+
+    retval = ext2_dirent_add(node, name, (uint32_t)(target->nodenumber), file_type_of(le16toh(target_ctx->inode.i_mode)));
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    touch_dir_locked(node);
+    touch_locked(target, false);
+
+    return add_links_locked(target, 1);
+}
+
 static int create_locked(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
-    const struct credentials* restrict cred, struct vnode** restrict out)
+    const char* restrict link_target, const struct credentials* restrict cred, struct vnode** restrict out)
 {
     struct ext2_vnode_context* ctx = node->ctxdata;
     struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
@@ -479,7 +568,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
         return -ENAMETOOLONG;
     }
 
-    if(type != VNODE_FILE && type != VNODE_DIRECTORY) {
+    if(type != VNODE_FILE && type != VNODE_DIRECTORY && type != VNODE_SYM_LINK) {
         return -EINVAL;
     }
 
@@ -503,6 +592,9 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
 
     if(directory) {
         inode_mode |= S_IFDIR;
+    }
+    else if(type == VNODE_SYM_LINK) {
+        inode_mode |= S_IFLNK;
     }
     else {
         inode_mode |= S_IFREG;
@@ -566,6 +658,10 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
 
     if(retval == 0 && directory) {
         retval = ext2_dir_init(child, (uint32_t)(node->nodenumber));
+    }
+
+    if(retval == 0 && type == VNODE_SYM_LINK) {
+        retval = write_link_target_locked(child, link_target);
     }
 
     // The new directory's ".." links to the parent
@@ -799,7 +895,39 @@ static int ext2_vnode_create(struct vnode* restrict node, const char* restrict n
     struct vnode* created;
 
     mutex_acquire(fs_lock(node));
-    int retval = create_locked(node, name, type, mode, cred, &created);
+    int retval = create_locked(node, name, type, mode, nullptr, cred, &created);
+    mutex_release(fs_lock(node));
+
+    if(retval < 0 && created) {
+        vnode_decref(created);
+    }
+
+    if(retval == 0) {
+        *out = created;
+    }
+
+    return retval;
+}
+
+static int ext2_vnode_link(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = link_locked(node, name, target);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static int ext2_vnode_symlink(struct vnode* restrict node, const char* restrict name, const char* restrict target,
+    const struct credentials* restrict cred, struct vnode** restrict out)
+{
+    struct vnode* created;
+
+    if(!link_target_fits(node, target)) {
+        return -ENAMETOOLONG;
+    }
+
+    mutex_acquire(fs_lock(node));
+    int retval = create_locked(node, name, VNODE_SYM_LINK, S_IRWXU | S_IRWXG | S_IRWXO, target, cred, &created);
     mutex_release(fs_lock(node));
 
     if(retval < 0 && created) {
@@ -942,6 +1070,8 @@ const struct vnode_ops ext2_vnode_ops = {
     .create = &ext2_vnode_create,
     .unlink = &ext2_vnode_unlink,
     .rename = &ext2_vnode_rename,
+    .link = &ext2_vnode_link,
+    .symlink = &ext2_vnode_symlink,
     .read = &ext2_vnode_read,
     .write = &ext2_vnode_write,
     .readlink = &ext2_vnode_readlink,
