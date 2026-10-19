@@ -101,6 +101,20 @@ int ext2_inode_read(struct ext2_vfs_context* restrict context, uint32_t ino, str
     return fcache_dev_read(context->devnode, offset, out, sizeof(struct ext2_inode));
 }
 
+int ext2_inode_clear(struct ext2_vfs_context* restrict context, uint32_t ino)
+{
+    static const uint8_t zeros[EXT2_GOOD_OLD_INODE_SIZE] = { 0 };
+
+    uint64_t offset;
+    int retval = inode_offset(context, ino, &offset);
+
+    for(size_t done = 0; retval == 0 && done < context->inode_size; done += sizeof(zeros)) {
+        retval = fcache_dev_write(context->devnode, offset + done, zeros, sizeof(zeros));
+    }
+
+    return retval;
+}
+
 int ext2_inode_nodetype(uint16_t mode, unsigned* restrict out)
 {
     switch(mode & S_IFMT) {

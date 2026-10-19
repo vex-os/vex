@@ -356,6 +356,7 @@ struct ext2_vfs_context {
     struct ext2_group_desc* groups;
 
     bool param_readonly;
+    uint16_t mount_state; // s_state as found when mounted writable, put back on unmount
 
     uint32_t creator_os;
     size_t block_size;
@@ -386,6 +387,7 @@ uint32_t ext2_inode_alloc(struct ext2_vfs_context* restrict context, uint32_t pa
 void ext2_inode_free(struct ext2_vfs_context* restrict context, uint32_t ino, bool directory);
 
 int ext2_inode_read(struct ext2_vfs_context* restrict context, uint32_t ino, struct ext2_inode* restrict out);
+int ext2_inode_clear(struct ext2_vfs_context* restrict context, uint32_t ino);
 int ext2_inode_nodetype(uint16_t mode, unsigned* restrict out);
 int ext2_inode_write(struct ext2_vfs_context* restrict context, uint32_t ino, const struct ext2_inode* restrict inode);
 int ext2_inode_set_size(struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uint64_t size);

@@ -253,6 +253,24 @@ static int fill_root(struct vfs* restrict fs, struct ext2_vfs_context* restrict 
     return 0;
 }
 
+static int mark_mounted(struct ext2_vfs_context* restrict context)
+{
+    struct ext2_superblock* super = &context->super;
+    int16_t max_mnt_count = (int16_t)le16toh(super->s_max_mnt_count);
+    uint16_t mnt_count = le16toh(super->s_mnt_count) + 1;
+
+    if(max_mnt_count > 0 && mnt_count >= max_mnt_count) {
+        pr_notice("ext2: %s: maximal mount count reached, running e2fsck is recommended", context->device->identifier);
+    }
+
+    context->mount_state = le16toh(super->s_state);
+
+    super->s_mnt_count = htole16(mnt_count);
+    super->s_state = htole16(context->mount_state & ~EXT2_VALID_FS);
+
+    return ext2_super_commit(context);
+}
+
 static int ext2_probe(struct vfs* restrict fs, const struct blk_device* restrict device)
 {
     struct ext2_superblock* super = kmalloc(sizeof(struct ext2_superblock));
@@ -329,13 +347,35 @@ static int ext2_mount(struct vfs* restrict fs, const struct blk_device* restrict
     fs->ctxdata = context;
     fs->readonly = context->param_readonly || must_mount_readonly(context);
 
+    if(!fs->readonly) {
+        retval = mark_mounted(context);
+
+        if(retval < 0) {
+            vnode_decref(fs->root);
+            free_context(context);
+            return retval;
+        }
+    }
+
     return 0;
 }
 
 static int ext2_unmount(struct vfs* restrict fs)
 {
+    struct ext2_vfs_context* context = fs->ctxdata;
+
     vnode_decref(fs->root);
-    free_context(fs->ctxdata);
+
+    if(!fs->readonly) {
+        context->super.s_state = htole16(context->mount_state);
+
+        if(ext2_super_commit(context) < 0) {
+            pr_warning("ext2: %s: failed to mark the filesystem clean", context->device->identifier);
+        }
+    }
+
+    free_context(context);
+
     return 0;
 }
 
@@ -418,6 +458,17 @@ static int ext2_sync(struct vfs* restrict fs)
 {
     struct ext2_vfs_context* context = fs->ctxdata;
     return vnode_fsync(context->devnode);
+}
+
+int ext2_super_commit(struct ext2_vfs_context* restrict context)
+{
+    return fcache_dev_write(context->devnode, EXT2_SUPER_OFFSET, &context->super, sizeof(struct ext2_superblock));
+}
+
+int ext2_group_commit(struct ext2_vfs_context* restrict context, uint32_t group)
+{
+    uint64_t offset = context->groups_offset + (uint64_t)group * sizeof(struct ext2_group_desc);
+    return fcache_dev_write(context->devnode, offset, &context->groups[group], sizeof(struct ext2_group_desc));
 }
 
 static const struct vfs_ops ext2_vfs_ops = {
