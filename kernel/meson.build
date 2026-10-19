@@ -28,8 +28,11 @@ fs = import('fs')
 kernel_c_args = [
     # Every translation unit sees CONFIG_* values without having
     # to include anything, so a forgotten include can't silently
-    # turn an option off
-    '-include', kernel_config_h.full_path(),
+    # turn an option off. The path is relative to the build directory,
+    # as Ninja names the generated header: an absolute one ends up in
+    # depfiles as a file Ninja doesn't know it generates, and objects
+    # only pick a changed .config up on the run after
+    '-include', fs.relative_to(kernel_config_h.full_path(), meson.project_build_root()),
     '-D__kernel__',
     '-D__KERNEL__',
     '-DUTSNAME_SYSNAME="Vex"',
