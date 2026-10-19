@@ -19,7 +19,7 @@ ninja -C build qemu               # builds the image and boots it in QEMU with O
 
 - The top-level `GNUmakefile` is an optional convenience wrapper; Meson and ninja remain the real build system. `make <target>` runs `meson setup` if `build.ninja` is missing, then forwards to `ninja -C build <target>` (`make` alone builds the default target). `BUILD_DIR` and `CROSS` (a basename in `cross/`, default `amd64-clang`) override the defaults. `make clean` skips setup when there is no build directory; `make distclean` removes the build directory, including `.config`. Never put build logic in the GNUmakefile; add it to `meson.build`.
 - `scripts/run-qemu-amd64.sh` takes the extra args `slow` (icount), `verbose` (`-d cpu_reset,int -no-reboot`), or a number (log to `qemu_<N>.log` instead of `qemu.log`). Under WSL it calls `qemu-system-x86_64.exe` with Windows paths.
-- Making the image needs `sfdisk`, `mkfs.fat` and mtools (`mmd`, `mcopy`). It uses `echfs-utils` if it is installed.
+- Making the image needs `sfdisk`, `mkfs.fat`, mtools (`mmd`, `mcopy`) and `mke2fs` from e2fsprogs. The DATA partition is ext2 with a test tree from `boot/mkimage.sh`. Check it after a run with `e2fsck -fn "build/boot/vexsys.boot.img?offset=$((10240 * 512))"`.
 - The defaults are `werror=true` and `warning_level=2`, so any new warning fails the build.
 - There is no test suite or linter target. Format C code with `clang-format` (`.clang-format`: 4 spaces, 140 columns, `if(` with no space before the paren, `T* p`). `contrib/**` is excluded from formatting.
 

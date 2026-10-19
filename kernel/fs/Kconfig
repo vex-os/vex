@@ -32,6 +32,10 @@ config ECHFS
     bool "echfs"
     default y
 
+config EXT2
+    bool "ext2"
+    default y
+
 config FAT
     bool "FAT"
     default y
