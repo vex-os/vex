@@ -25,7 +25,7 @@ struct memblock {
     size_t length;
 };
 
-static_assert(sizeof(struct memblock) <= (PAGE_SIZE / 2));
+static_assert(sizeof(struct memblock) <= SLAB_MAX_SIZE);
 
 static struct memblock* head = nullptr;
 static struct memblock* tail = nullptr;

@@ -23,8 +23,8 @@ static spinlock_type stale_lock = SPINLOCK_INIT;
 static struct vm_region* stale_regions = nullptr;
 static struct event stale_wakeup;
 
-static_assert(sizeof(struct vm_region) <= (PAGE_SIZE / 2));
-static_assert(sizeof(struct vmspace) <= (PAGE_SIZE / 2));
+static_assert(sizeof(struct vm_region) <= SLAB_MAX_SIZE);
+static_assert(sizeof(struct vmspace) <= SLAB_MAX_SIZE);
 
 static struct vm_region* find_region(struct vmspace* restrict vms, uintptr_t virt)
 {

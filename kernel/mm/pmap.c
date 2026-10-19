@@ -16,7 +16,7 @@
 #include <vex/string.h>
 #include <vex/tlb.h>
 
-static_assert(sizeof(struct pagemap) <= (PAGE_SIZE / 2));
+static_assert(sizeof(struct pagemap) <= SLAB_MAX_SIZE);
 
 struct pagemap sys_pmap;
 
