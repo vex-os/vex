@@ -12,12 +12,6 @@
 #include <vex/wallclock.h>
 #include <vex/xattr.h>
 
-enum {
-    XATTR_USER,
-    XATTR_TRUSTED,
-    XATTR_SECURITY,
-};
-
 static_assert(sizeof(struct vnode) <= SLAB_MAX_SIZE);
 
 static struct mutex rename_mutex = MUTEX_INIT;
@@ -402,41 +396,31 @@ static bool time_set(const struct k_timespec* restrict time, time_t* restrict ou
     return true;
 }
 
-struct xattr_space {
-    const char* prefix;
-    unsigned space;
+static const char* const xattr_prefixes[NUM_XATTR_SPACES] = {
+    [XATTR_USER] = "user.",
+    [XATTR_TRUSTED] = "trusted.",
+    [XATTR_SECURITY] = "security.",
 };
 
-static bool has_prefix(const char* restrict name, const char* restrict prefix)
+static int split_xattr_name(const char* restrict full, unsigned* restrict out_space, const char** restrict out_name)
 {
-    return 0 == strncmp(name, prefix, strlen(prefix));
-}
-
-// The name keeps its namespace prefix all the way to the filesystem
-static int xattr_namespace(const char* restrict name, unsigned* restrict out)
-{
-    static const struct xattr_space spaces[] = {
-        { "user.", XATTR_USER },
-        { "trusted.", XATTR_TRUSTED },
-        { "security.", XATTR_SECURITY },
-    };
-
-    size_t length = strlen(name);
-
-    if(length > XATTR_NAME_MAX) {
+    if(strlen(full) > XATTR_NAME_MAX) {
         return -ERANGE;
     }
 
-    for(size_t i = 0; i < sizeof(spaces) / sizeof(spaces[0]); ++i) {
-        if(!has_prefix(name, spaces[i].prefix)) {
+    for(unsigned space = 0; space < NUM_XATTR_SPACES; space += 1) {
+        size_t length = strlen(xattr_prefixes[space]);
+
+        if(0 != strncmp(full, xattr_prefixes[space], length)) {
             continue;
         }
 
-        if(length == strlen(spaces[i].prefix)) {
+        if(full[length] == 0) {
             return -EINVAL;
         }
 
-        *out = spaces[i].space;
+        *out_space = space;
+        *out_name = full + length;
 
         return 0;
     }
@@ -453,15 +437,9 @@ static int require_cap(const struct credentials* restrict cred, unsigned cap)
     return -EPERM;
 }
 
-static int xattr_permission(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name, bool write)
+static int xattr_permission(struct vnode* restrict node, const struct credentials* restrict cred, unsigned space, const char* restrict name,
+    bool write)
 {
-    unsigned space;
-    int retval = xattr_namespace(name, &space);
-
-    if(retval < 0) {
-        return retval;
-    }
-
     if(space == XATTR_TRUSTED) {
         return require_cap(cred, CAP_SYS_ADMIN);
     }
@@ -470,7 +448,7 @@ static int xattr_permission(struct vnode* restrict node, const struct credential
         return 0;
     }
 
-    if(space == XATTR_SECURITY && 0 == strcmp(name, "security.capability")) {
+    if(space == XATTR_SECURITY && 0 == strcmp(name, XATTR_CAPS_NAME)) {
         return require_cap(cred, CAP_SETFCAP);
     }
 
@@ -486,28 +464,6 @@ static int xattr_permission(struct vnode* restrict node, const struct credential
     return vnode_access(node, cred, write ? W_OK : R_OK);
 }
 
-static size_t filter_xattr_list(char* restrict list, size_t length, const struct credentials* restrict cred)
-{
-    if(cred_capable(cred, CAP_SYS_ADMIN)) {
-        return length;
-    }
-
-    size_t kept = 0;
-
-    for(size_t pos = 0; pos < length;) {
-        size_t entry = strnlen(list + pos, length - pos) + 1;
-
-        if(!has_prefix(list + pos, "trusted.")) {
-            memmove(list + kept, list + pos, entry);
-            kept += entry;
-        }
-
-        pos += entry;
-    }
-
-    return kept;
-}
-
 static void strip_file_caps(struct vnode* restrict node)
 {
     struct vnode* target;
@@ -516,8 +472,8 @@ static void strip_file_caps(struct vnode* restrict node)
         return;
     }
 
-    if(target->nodetype == VNODE_FILE && target->ops->removexattr && !target->fs->readonly) {
-        target->ops->removexattr(target, XATTR_NAME_CAPS);
+    if(target->nodetype == VNODE_FILE && target->ops->xattr_remove && !target->fs->readonly) {
+        target->ops->xattr_remove(target, XATTR_SECURITY, XATTR_CAPS_NAME);
     }
 
     vnode_decref(target);
@@ -1173,27 +1129,35 @@ int vnode_map_page(struct vnode* restrict node, uint64_t index, struct pagemap* 
     return node->ops->map_page(node, index, pmap, virt, vprot);
 }
 
-ssize_t vnode_getxattr(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name,
+ssize_t vnode_xattr_get(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name,
     void* restrict value, size_t size)
 {
     kassert(node);
     kassert(cred);
 
-    struct vnode* target;
-    ssize_t retval = vfs_cross_mount(node, &target);
+    unsigned space;
+    const char* suffix;
+    ssize_t retval = split_xattr_name(name, &space, &suffix);
 
     if(retval < 0) {
         return retval;
     }
 
-    retval = xattr_permission(target, cred, name, false);
+    struct vnode* target;
+    retval = vfs_cross_mount(node, &target);
 
-    if(retval == 0 && target->ops->getxattr == nullptr) {
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = xattr_permission(target, cred, space, suffix, false);
+
+    if(retval == 0 && target->ops->xattr_get == nullptr) {
         retval = -EOPNOTSUPP;
     }
 
     if(retval == 0) {
-        retval = target->ops->getxattr(target, name, value, size);
+        retval = target->ops->xattr_get(target, space, suffix, value, size);
     }
 
     vnode_decref(target);
@@ -1201,7 +1165,7 @@ ssize_t vnode_getxattr(struct vnode* restrict node, const struct credentials* re
     return retval;
 }
 
-int vnode_setxattr(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name,
+int vnode_xattr_set(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name,
     const void* restrict value, size_t size, unsigned flags)
 {
     kassert(node);
@@ -1215,8 +1179,16 @@ int vnode_setxattr(struct vnode* restrict node, const struct credentials* restri
         return -E2BIG;
     }
 
+    unsigned space;
+    const char* suffix;
+    int retval = split_xattr_name(name, &space, &suffix);
+
+    if(retval < 0) {
+        return retval;
+    }
+
     struct vnode* target;
-    int retval = vfs_cross_mount(node, &target);
+    retval = vfs_cross_mount(node, &target);
 
     if(retval < 0) {
         return retval;
@@ -1227,15 +1199,15 @@ int vnode_setxattr(struct vnode* restrict node, const struct credentials* restri
     }
 
     if(retval == 0) {
-        retval = xattr_permission(target, cred, name, true);
+        retval = xattr_permission(target, cred, space, suffix, true);
     }
 
-    if(retval == 0 && target->ops->setxattr == nullptr) {
+    if(retval == 0 && target->ops->xattr_set == nullptr) {
         retval = -EOPNOTSUPP;
     }
 
     if(retval == 0) {
-        retval = target->ops->setxattr(target, name, value, size, flags);
+        retval = target->ops->xattr_set(target, space, suffix, value, size, flags);
     }
 
     vnode_decref(target);
@@ -1243,35 +1215,7 @@ int vnode_setxattr(struct vnode* restrict node, const struct credentials* restri
     return retval;
 }
 
-ssize_t vnode_listxattr(struct vnode* restrict node, const struct credentials* restrict cred, char* restrict list, size_t size)
-{
-    kassert(node);
-    kassert(cred);
-
-    struct vnode* target;
-    ssize_t retval = vfs_cross_mount(node, &target);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    if(target->ops->listxattr == nullptr) {
-        retval = 0;
-    }
-    else {
-        retval = target->ops->listxattr(target, list, size);
-    }
-
-    vnode_decref(target);
-
-    if(retval > 0 && size > 0) {
-        retval = filter_xattr_list(list, retval, cred);
-    }
-
-    return retval;
-}
-
-int vnode_removexattr(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name)
+ssize_t vnode_xattr_list(struct vnode* restrict node, const struct credentials* restrict cred, char* restrict list, size_t size)
 {
     kassert(node);
     kassert(cred);
@@ -1283,20 +1227,83 @@ int vnode_removexattr(struct vnode* restrict node, const struct credentials* res
         return retval;
     }
 
+    bool trusted = cred_capable(cred, CAP_SYS_ADMIN);
+    size_t length = 0;
+
+    for(size_t index = 0; target->ops->xattr_iterate; index += 1) {
+        struct xattr_entry entry;
+        retval = target->ops->xattr_iterate(target, &entry, index);
+
+        if(retval < 0) {
+            break;
+        }
+
+        kassert(entry.space < NUM_XATTR_SPACES);
+
+        if(entry.space == XATTR_TRUSTED && !trusted) {
+            continue;
+        }
+
+        const char* prefix = xattr_prefixes[entry.space];
+        size_t prefix_len = strlen(prefix);
+        size_t name_len = strlen(entry.name) + 1;
+
+        if(size && length + prefix_len + name_len > size) {
+            retval = -ERANGE;
+            break;
+        }
+
+        if(size) {
+            memcpy(list + length, prefix, prefix_len);
+            memcpy(list + length + prefix_len, entry.name, name_len);
+        }
+
+        length += prefix_len + name_len;
+    }
+
+    vnode_decref(target);
+
+    if(retval < 0 && retval != -ENOENT) {
+        return retval;
+    }
+
+    return length;
+}
+
+int vnode_xattr_remove(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name)
+{
+    kassert(node);
+    kassert(cred);
+
+    unsigned space;
+    const char* suffix;
+    int retval = split_xattr_name(name, &space, &suffix);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct vnode* target;
+    retval = vfs_cross_mount(node, &target);
+
+    if(retval < 0) {
+        return retval;
+    }
+
     if(target->fs->readonly) {
         retval = -EROFS;
     }
 
     if(retval == 0) {
-        retval = xattr_permission(target, cred, name, true);
+        retval = xattr_permission(target, cred, space, suffix, true);
     }
 
-    if(retval == 0 && target->ops->removexattr == nullptr) {
+    if(retval == 0 && target->ops->xattr_remove == nullptr) {
         retval = -EOPNOTSUPP;
     }
 
     if(retval == 0) {
-        retval = target->ops->removexattr(target, name);
+        retval = target->ops->xattr_remove(target, space, suffix);
     }
 
     vnode_decref(target);

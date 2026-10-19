@@ -1063,20 +1063,21 @@ static int ext2_vnode_map_page(struct vnode* restrict node, uint64_t index, stru
     return retval;
 }
 
-static ssize_t ext2_vnode_getxattr(struct vnode* restrict node, const char* restrict name, void* restrict value, size_t size)
+static ssize_t ext2_vnode_xattr_get(struct vnode* restrict node, unsigned space, const char* restrict name, void* restrict value,
+    size_t size)
 {
     mutex_acquire(fs_lock(node));
-    ssize_t retval = ext2_xattr_get(node, name, value, size);
+    ssize_t retval = ext2_xattr_get(node, space, name, value, size);
     mutex_release(fs_lock(node));
     return retval;
 }
 
-static int ext2_vnode_setxattr(struct vnode* restrict node, const char* restrict name, const void* restrict value, size_t size,
-    unsigned flags)
+static int ext2_vnode_xattr_set(struct vnode* restrict node, unsigned space, const char* restrict name, const void* restrict value,
+    size_t size, unsigned flags)
 {
     mutex_acquire(fs_lock(node));
 
-    int retval = ext2_xattr_set(node, name, value, size, flags);
+    int retval = ext2_xattr_set(node, space, name, value, size, flags);
 
     if(retval == 0) {
         touch_locked(node, false);
@@ -1088,19 +1089,19 @@ static int ext2_vnode_setxattr(struct vnode* restrict node, const char* restrict
     return retval;
 }
 
-static ssize_t ext2_vnode_listxattr(struct vnode* restrict node, char* restrict list, size_t size)
+static int ext2_vnode_xattr_iterate(struct vnode* restrict node, struct xattr_entry* restrict out, size_t index)
 {
     mutex_acquire(fs_lock(node));
-    ssize_t retval = ext2_xattr_list(node, list, size);
+    int retval = ext2_xattr_iterate(node, out, index);
     mutex_release(fs_lock(node));
     return retval;
 }
 
-static int ext2_vnode_removexattr(struct vnode* restrict node, const char* restrict name)
+static int ext2_vnode_xattr_remove(struct vnode* restrict node, unsigned space, const char* restrict name)
 {
     mutex_acquire(fs_lock(node));
 
-    int retval = ext2_xattr_remove(node, name);
+    int retval = ext2_xattr_remove(node, space, name);
 
     if(retval == 0) {
         touch_locked(node, false);
@@ -1128,8 +1129,8 @@ const struct vnode_ops ext2_vnode_ops = {
     .setattr = &ext2_vnode_setattr,
     .fsync = &ext2_vnode_fsync,
     .map_page = &ext2_vnode_map_page,
-    .getxattr = &ext2_vnode_getxattr,
-    .setxattr = &ext2_vnode_setxattr,
-    .listxattr = &ext2_vnode_listxattr,
-    .removexattr = &ext2_vnode_removexattr,
+    .xattr_get = &ext2_vnode_xattr_get,
+    .xattr_set = &ext2_vnode_xattr_set,
+    .xattr_iterate = &ext2_vnode_xattr_iterate,
+    .xattr_remove = &ext2_vnode_xattr_remove,
 };

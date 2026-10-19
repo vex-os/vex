@@ -90,7 +90,7 @@ static int block_path(const struct ext2_vfs_context* restrict context, uint64_t 
 
     indices[0] = EXT2_IND_BLOCK + depth - 1;
 
-    for(unsigned level = 1; level <= depth; ++level) {
+    for(unsigned level = 1; level <= depth; level += 1) {
         span /= addr_per_block;
         indices[level] = lbn / span;
         lbn %= span;
@@ -176,7 +176,7 @@ static int block_map(struct ext2_vfs_context* restrict context, struct ext2_inod
     uint32_t table = 0;
     uint32_t block = 0;
 
-    for(unsigned level = 0; level < levels; ++level) {
+    for(unsigned level = 0; level < levels; level += 1) {
         retval = table_get(context, inode, table, indices[level], &block);
 
         if(retval < 0) {
@@ -435,7 +435,7 @@ int ext2_truncate_blocks(struct vnode* restrict node, uint64_t size)
     uint64_t base = EXT2_NDIR_BLOCKS;
     uint64_t span = fs_ctx->addr_per_block;
 
-    for(unsigned depth = 0; depth < 3; ++depth) {
+    for(unsigned depth = 0; depth < 3; depth += 1) {
         uint32_t root = le32toh(inode->i_block[EXT2_IND_BLOCK + depth]);
 
         if(root && keep < base + span) {

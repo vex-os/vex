@@ -36,43 +36,34 @@ struct ext2_region {
     uint8_t* end;
 };
 
-struct ext2_xattr_prefix {
-    const char* prefix;
-    uint8_t index;
+static const uint8_t indices[NUM_XATTR_SPACES] = {
+    [XATTR_USER] = EXT2_XATTR_INDEX_USER,
+    [XATTR_TRUSTED] = EXT2_XATTR_INDEX_TRUSTED,
+    [XATTR_SECURITY] = EXT2_XATTR_INDEX_SECURITY,
 };
 
-static const struct ext2_xattr_prefix prefixes[] = {
-    { "user.", EXT2_XATTR_INDEX_USER },
-    { "system.posix_acl_access", EXT2_XATTR_INDEX_POSIX_ACL_ACCESS },
-    { "system.posix_acl_default", EXT2_XATTR_INDEX_POSIX_ACL_DEFAULT },
-    { "trusted.", EXT2_XATTR_INDEX_TRUSTED },
-    { "security.", EXT2_XATTR_INDEX_SECURITY },
-};
-
-static bool split_name(const char* restrict name, uint8_t* restrict index, const char** restrict suffix)
+static bool index_of(unsigned space, uint8_t* restrict out)
 {
-    for(size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); ++i) {
-        size_t length = strlen(prefixes[i].prefix);
+    if(space >= NUM_XATTR_SPACES) {
+        return false;
+    }
 
-        if(0 == strncmp(name, prefixes[i].prefix, length)) {
-            *index = prefixes[i].index;
-            *suffix = name + length;
+    *out = indices[space];
+
+    return true;
+}
+
+// ACLs and other indices Linux knows about stay hidden
+static bool space_of(uint8_t index, unsigned* restrict out)
+{
+    for(unsigned space = 0; space < NUM_XATTR_SPACES; space += 1) {
+        if(indices[space] == index) {
+            *out = space;
             return true;
         }
     }
 
     return false;
-}
-
-static const char* prefix_of(uint8_t index)
-{
-    for(size_t i = 0; i < sizeof(prefixes) / sizeof(prefixes[0]); ++i) {
-        if(prefixes[i].index == index) {
-            return prefixes[i].prefix;
-        }
-    }
-
-    return nullptr;
 }
 
 static uint32_t rotate_xor(uint32_t hash, unsigned shift, uint32_t value)
@@ -427,7 +418,7 @@ static int find_entry(struct vnode* restrict node, uint8_t index, const char* re
 {
     struct ext2_vnode_context* ctx = node->ctxdata;
 
-    for(unsigned which = 0; which < NUM_AREAS; ++which) {
+    for(unsigned which = 0; which < NUM_AREAS; which += 1) {
         struct ext2_area area;
         int retval = node_area(node, which, &area);
 
@@ -648,20 +639,19 @@ static int remove_from_ibody(struct vnode* restrict node, uint8_t index, const c
     return retval;
 }
 
-ssize_t ext2_xattr_get(struct vnode* restrict node, const char* restrict name, void* restrict value, size_t size)
+ssize_t ext2_xattr_get(struct vnode* restrict node, unsigned space, const char* restrict name, void* restrict value, size_t size)
 {
     struct ext2_vnode_context* ctx = node->ctxdata;
     uint8_t index;
-    const char* suffix;
 
-    if(!split_name(name, &index, &suffix)) {
+    if(!index_of(space, &index)) {
         return -EOPNOTSUPP;
     }
 
     unsigned which;
     struct ext2_area area;
     struct ext2_xattr_entry entry;
-    int retval = find_entry(node, index, suffix, &which, &area, &entry);
+    int retval = find_entry(node, index, name, &which, &area, &entry);
 
     if(retval < 0) {
         return retval;
@@ -688,12 +678,12 @@ ssize_t ext2_xattr_get(struct vnode* restrict node, const char* restrict name, v
     return length;
 }
 
-ssize_t ext2_xattr_list(struct vnode* restrict node, char* restrict list, size_t size)
+int ext2_xattr_iterate(struct vnode* restrict node, struct xattr_entry* restrict out, size_t index)
 {
     struct ext2_vnode_context* ctx = node->ctxdata;
-    size_t total = 0;
+    size_t visible = 0;
 
-    for(unsigned which = 0; which < NUM_AREAS; ++which) {
+    for(unsigned which = 0; which < NUM_AREAS; which += 1) {
         struct ext2_area area;
         int retval = node_area(node, which, &area);
 
@@ -706,10 +696,9 @@ ssize_t ext2_xattr_list(struct vnode* restrict node, char* restrict list, size_t
         }
 
         struct ext2_xattr_entry entry;
-        char name[XATTR_NAME_MAX + 1];
 
         for(uint64_t at = area.first;; at += ENTRY_LEN(entry.e_name_len)) {
-            retval = area_entry(ctx->fs_ctx, &area, at, &entry, name);
+            retval = area_entry(ctx->fs_ctx, &area, at, &entry, out->name);
 
             if(retval < 0) {
                 return retval;
@@ -719,45 +708,35 @@ ssize_t ext2_xattr_list(struct vnode* restrict node, char* restrict list, size_t
                 break;
             }
 
-            const char* prefix = prefix_of(entry.e_name_index);
-
-            if(prefix == nullptr) {
+            if(!space_of(entry.e_name_index, &out->space)) {
                 continue;
             }
 
-            size_t prefix_len = strlen(prefix);
-            size_t needed = prefix_len + entry.e_name_len + 1;
-
-            if(size && total + needed > size) {
-                return -ERANGE;
+            if(visible == index) {
+                return 0;
             }
 
-            if(size) {
-                memcpy(list + total, prefix, prefix_len);
-                memcpy(list + total + prefix_len, name, entry.e_name_len + 1);
-            }
-
-            total += needed;
+            visible += 1;
         }
     }
 
-    return total;
+    return -ENOENT;
 }
 
-int ext2_xattr_set(struct vnode* restrict node, const char* restrict name, const void* restrict value, size_t size, unsigned flags)
+int ext2_xattr_set(struct vnode* restrict node, unsigned space, const char* restrict name, const void* restrict value, size_t size,
+    unsigned flags)
 {
     struct ext2_vnode_context* ctx = node->ctxdata;
     uint8_t index;
-    const char* suffix;
 
-    if(!split_name(name, &index, &suffix)) {
+    if(!index_of(space, &index)) {
         return -EOPNOTSUPP;
     }
 
     unsigned which;
     struct ext2_area area;
     struct ext2_xattr_entry entry;
-    int found = find_entry(node, index, suffix, &which, &area, &entry);
+    int found = find_entry(node, index, name, &which, &area, &entry);
 
     if(found < 0 && found != -ENODATA) {
         return found;
@@ -771,10 +750,10 @@ int ext2_xattr_set(struct vnode* restrict node, const char* restrict name, const
         return -ENODATA;
     }
 
-    int retval = change_block(node, index, suffix, value, size, false);
+    int retval = change_block(node, index, name, value, size, false);
 
     if(retval == 0 && found == 0 && which == AREA_IBODY) {
-        retval = remove_from_ibody(node, index, suffix);
+        retval = remove_from_ibody(node, index, name);
     }
 
     if(retval == 0) {
@@ -784,26 +763,25 @@ int ext2_xattr_set(struct vnode* restrict node, const char* restrict name, const
     return retval;
 }
 
-int ext2_xattr_remove(struct vnode* restrict node, const char* restrict name)
+int ext2_xattr_remove(struct vnode* restrict node, unsigned space, const char* restrict name)
 {
     struct ext2_vnode_context* ctx = node->ctxdata;
     uint8_t index;
-    const char* suffix;
 
-    if(!split_name(name, &index, &suffix)) {
+    if(!index_of(space, &index)) {
         return -EOPNOTSUPP;
     }
 
     unsigned which;
     struct ext2_area area;
     struct ext2_xattr_entry entry;
-    int retval = find_entry(node, index, suffix, &which, &area, &entry);
+    int retval = find_entry(node, index, name, &which, &area, &entry);
 
     if(retval == 0 && which == AREA_IBODY) {
-        retval = remove_from_ibody(node, index, suffix);
+        retval = remove_from_ibody(node, index, name);
     }
     else if(retval == 0) {
-        retval = change_block(node, index, suffix, nullptr, 0, true);
+        retval = change_block(node, index, name, nullptr, 0, true);
     }
 
     if(retval == 0) {

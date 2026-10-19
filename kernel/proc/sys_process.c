@@ -72,7 +72,7 @@ static int read_file_caps(struct vnode* restrict node, const struct credentials*
     bool* restrict has_caps)
 {
     struct k_vfs_cap_data data;
-    ssize_t size = vnode_getxattr(node, cred, XATTR_NAME_CAPS, &data, sizeof(data));
+    ssize_t size = vnode_xattr_get(node, cred, XATTR_NAME_CAPS, &data, sizeof(data));
 
     *has_caps = false;
 
