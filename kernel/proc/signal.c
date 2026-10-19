@@ -305,6 +305,12 @@ void signal_deliver(struct hart_context* restrict ctx)
         return;
     }
 
+    if(thrd->syscall_restart && 0 == (action.sa_flags & SA_RESTART)) {
+        arch_syscall_interrupted(ctx);
+    }
+
+    thrd->syscall_restart = false;
+
     // A stack that takes no frame leaves nothing to return to
     if(arch_signal_setup(thrd, ctx, &action, &info, old_mask) < 0) {
         process_kill(proc, SIGSEGV);

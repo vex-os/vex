@@ -201,7 +201,7 @@ static ssize_t await_until(struct event** restrict events, size_t count, uint64_
 
     if(!triggered) {
         if(interruptible && atomic_load(&thrd->pending_work, ATOMIC_ACQUIRE)) {
-            return -EINTR;
+            return -ERESTART;
         }
 
         return -ETIMEDOUT;

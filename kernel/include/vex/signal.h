@@ -130,3 +130,4 @@ void signal_flush(struct sigqueue* restrict queue);
 int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restrict ctx, const struct k_sigaction* restrict action,
     const struct k_siginfo* restrict info, sigset_t old_mask);
 int arch_signal_return(struct thread* restrict thrd, struct hart_context* restrict ctx, sigset_t* restrict mask);
+void arch_syscall_interrupted(struct hart_context* restrict ctx);

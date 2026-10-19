@@ -33,7 +33,8 @@ struct thread {
     uint16_t state; // Under sched_lock
     bool need_resched;
     bool wait_interrupt;
-    uint32_t preempt_count; // Spinlocks held, the thread is not preempted while nonzero
+    uint16_t preempt_count; // Spinlocks held, the thread is not preempted while nonzero
+    bool syscall_restart;   // The syscall being returned from was rewound to run again
 
     spinlock_type sched_lock;
     spinlock_type hart_lock; // Held while the thread is on a hart

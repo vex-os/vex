@@ -82,3 +82,7 @@
 #define ETXTBSY         __k_ETXTBSY
 #define EWOULDBLOCK     __k_EWOULDBLOCK
 #define EXDEV           __k_EXDEV
+
+// Kernel-only: the syscall runs again unless a handler without SA_RESTART takes the
+// signal that interrupted it, and then it returns EINTR; userspace never sees this one
+#define ERESTART 4095

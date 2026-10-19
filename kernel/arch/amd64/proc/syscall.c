@@ -1,6 +1,7 @@
 #include <arch/amd64.gdt.h>
 #include <arch/amd64.msr.h>
 #include <arch/hart.h>
+#include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/pmap.h>
 #include <vex/process.h>
@@ -11,7 +12,8 @@
 #include <vex/types.h>
 #include <vex/vms.h>
 
-#define SYSRET_BASE gdt_selector(GDT_KERN_DATA_64, 0, 3)
+#define SYSRET_BASE       gdt_selector(GDT_KERN_DATA_64, 0, 3)
+#define SYSCALL_INSN_SIZE 2
 
 extern void amd64_syscall_entry(void);
 
@@ -19,6 +21,8 @@ extern void amd64_syscall_entry(void);
 // user's stack already; no return address past the user half gets there
 void __used amd64_syscall_handler(struct hart_context* restrict ctx)
 {
+    uint64_t number = ctx->syscall_number;
+
     dispatch_syscall(ctx);
 
     struct thread* thrd = this_thread();
@@ -30,8 +34,24 @@ void __used amd64_syscall_handler(struct hart_context* restrict ctx)
         unreachable();
     }
 
+    if((intptr_t)(ctx->syscall_retval) == -ERESTART) {
+        ctx->syscall_number = number;
+        ctx->amd64_rip -= SYSCALL_INSN_SIZE;
+        ctx->amd64_rcx -= SYSCALL_INSN_SIZE;
+        thrd->syscall_restart = true;
+    }
+
     disable_interrupts();
     exit_to_user(ctx);
+
+    thrd->syscall_restart = false;
+}
+
+void arch_syscall_interrupted(struct hart_context* restrict ctx)
+{
+    ctx->syscall_retval = -EINTR;
+    ctx->amd64_rip += SYSCALL_INSN_SIZE;
+    ctx->amd64_rcx += SYSCALL_INSN_SIZE;
 }
 
 static void arch_init_syscall(void)
