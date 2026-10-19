@@ -341,6 +341,7 @@ static_assert(16 == sizeof(struct ext2_xattr_entry));
 #endif
 
 struct ext2_dirent {
+    uint64_t offset; // Of the record within the directory
     uint32_t ino;
     uint8_t file_type;
     char name[NAME_SIZE];
@@ -385,6 +386,7 @@ uint32_t ext2_inode_alloc(struct ext2_vfs_context* restrict context, uint32_t pa
 void ext2_inode_free(struct ext2_vfs_context* restrict context, uint32_t ino, bool directory);
 
 int ext2_inode_read(struct ext2_vfs_context* restrict context, uint32_t ino, struct ext2_inode* restrict out);
+int ext2_inode_nodetype(uint16_t mode, unsigned* restrict out);
 int ext2_inode_write(struct ext2_vfs_context* restrict context, uint32_t ino, const struct ext2_inode* restrict inode);
 int ext2_inode_set_size(struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uint64_t size);
 bool ext2_inode_set_owner(const struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uid_t uid,
@@ -396,8 +398,7 @@ int ext2_truncate_blocks(struct vnode* restrict node, uint64_t size);
 void ext2_xattr_release(struct ext2_vfs_context* restrict context, uint32_t block);
 
 int ext2_dirent_read(struct vnode* restrict dir, uint64_t* restrict offset, struct ext2_dirent* restrict out);
-int ext2_dirent_find(struct vnode* restrict dir, const char* restrict name, struct ext2_dirent* restrict out,
-    uint64_t* restrict out_offset);
+int ext2_dirent_find(struct vnode* restrict dir, const char* restrict name, struct ext2_dirent* restrict out);
 int ext2_dirent_add(struct vnode* restrict dir, const char* restrict name, uint32_t ino, uint8_t file_type);
 int ext2_dirent_remove(struct vnode* restrict dir, uint64_t offset);
 int ext2_dirent_retarget(struct vnode* restrict dir, uint64_t offset, uint32_t ino, uint8_t file_type);

@@ -215,26 +215,6 @@ static void free_context(struct ext2_vfs_context* restrict context)
     kfree(context);
 }
 
-static int nodetype_of(uint16_t mode, unsigned* restrict out)
-{
-    switch(mode & S_IFMT) {
-        case S_IFREG:
-            *out = VNODE_FILE;
-            return 0;
-
-        case S_IFDIR:
-            *out = VNODE_DIRECTORY;
-            return 0;
-
-        case S_IFLNK:
-            *out = VNODE_SYM_LINK;
-            return 0;
-
-        default:
-            return -EOPNOTSUPP;
-    }
-}
-
 static int fill_root(struct vfs* restrict fs, struct ext2_vfs_context* restrict context)
 {
     struct ext2_vnode_context* root_context = slab_alloc(sizeof(struct ext2_vnode_context));
@@ -421,7 +401,7 @@ static int ext2_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
     }
 
     if(retval == 0) {
-        retval = nodetype_of(le16toh(node_context->inode.i_mode), &node->nodetype);
+        retval = ext2_inode_nodetype(le16toh(node_context->inode.i_mode), &node->nodetype);
     }
 
     if(retval < 0) {
