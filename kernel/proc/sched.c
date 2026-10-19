@@ -113,6 +113,7 @@ static struct thread* rq_take_nolock(struct runqueue* restrict rq, struct hart_l
     return nullptr;
 }
 
+// https://files.catbox.moe/hxlgm4.png
 static struct thread* rq_steal(struct hart_local* restrict hart)
 {
     for(unsigned long i = 1; i < num_harts; ++i) {
