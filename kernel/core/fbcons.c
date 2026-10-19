@@ -241,6 +241,11 @@ static size_t cursor_ypos_prev = 0U;
 static size_t cursor_xpos = 0U;
 static size_t cursor_ypos = 0U;
 
+// The redraw only walks the cells between these, so that
+// a character costs one cell rather than a pass over the screen
+static size_t dirty_first = SIZE_MAX;
+static size_t dirty_last = 0U;
+
 static __always_inline void put_pixel(size_t offset, bool white)
 {
     switch(fb_depth) {
@@ -308,6 +313,28 @@ static void render_cursor(size_t sx, size_t sy)
     }
 }
 
+static void set_cell(size_t index, char value)
+{
+    struct vt_cell* cell = &vt_cells[index];
+
+    if(cell->value == value) {
+        return;
+    }
+
+    cell->value = value;
+    cell->dirty = true;
+
+    if(index < dirty_first) {
+        dirty_first = index;
+    }
+
+    if(index > dirty_last) {
+        dirty_last = index;
+    }
+}
+
+// Only cells whose character changes are redrawn,
+// so scrolling past blank space costs next to nothing
 static void do_newline(void)
 {
     cursor_ypos += 1U;
@@ -317,33 +344,29 @@ static void do_newline(void)
         size_t subscreen = vt_length - vt_width;
 
         for(size_t i = 0U; i < subscreen; ++i) {
-            struct vt_cell* cell = &vt_cells[i];
-            cell[0] = cell[vt_width];
-            cell[0].dirty = true;
+            set_cell(i, vt_cells[i + vt_width].value);
         }
 
-        struct vt_cell* cell = &vt_cells[subscreen];
-
-        for(size_t i = 0U; i < vt_width; ++i) {
-            cell[i].value = CHR_WS;
-            cell[i].dirty = true;
+        for(size_t i = subscreen; i < vt_length; ++i) {
+            set_cell(i, CHR_WS);
         }
     }
 }
 
 static void do_redraw(void)
 {
-    for(size_t i = 0U; i < vt_width; ++i) {
-        for(size_t j = 0U; j < vt_height; ++j) {
-            struct vt_cell* cell = &vt_cells[j * vt_width + i];
+    for(size_t i = dirty_first; i <= dirty_last && i < vt_length; ++i) {
+        struct vt_cell* cell = &vt_cells[i];
 
-            if(cell->dirty) {
-                render_cell(i, j, cell->value);
+        if(cell->dirty) {
+            render_cell(i % vt_width, i / vt_width, cell->value);
 
-                cell->dirty = false;
-            }
+            cell->dirty = false;
         }
     }
+
+    dirty_first = SIZE_MAX;
+    dirty_last = 0U;
 
     struct vt_cell* cell = &vt_cells[cursor_ypos_prev * vt_width + cursor_xpos_prev];
     render_cell(cursor_xpos_prev, cursor_ypos_prev, cell->value);
@@ -363,6 +386,9 @@ static void do_clear(void)
     }
 
     memset(vt_cells, 0, vt_length * sizeof(struct vt_cell));
+
+    dirty_first = SIZE_MAX;
+    dirty_last = 0U;
 }
 
 static void fbcons_putchar(int character)
@@ -372,25 +398,21 @@ static void fbcons_putchar(int character)
         case CHR_DEL:
             if(cursor_xpos > 0U)
                 cursor_xpos -= 1U;
-            do_redraw();
             return;
 
         case CHR_HT:
             cursor_xpos += 4U - (cursor_xpos % 4U);
             if(cursor_xpos >= vt_width)
                 cursor_xpos = vt_width - 1U;
-            do_redraw();
             return;
 
         case CHR_LF:
             cursor_xpos = 0U;
             do_newline();
-            do_redraw();
             return;
 
         case CHR_VT:
             do_newline();
-            do_redraw();
             return;
 
         case CHR_FF:
@@ -399,18 +421,14 @@ static void fbcons_putchar(int character)
             cursor_ypos_prev = 0U;
             cursor_xpos = 0U;
             cursor_ypos = 0U;
-            do_redraw();
             return;
 
         case CHR_CR:
             cursor_xpos = 0U;
-            do_redraw();
             return;
     }
 
-    struct vt_cell* cell = &vt_cells[cursor_ypos * vt_width + cursor_xpos];
-    cell->value = character;
-    cell->dirty = true;
+    set_cell(cursor_ypos * vt_width + cursor_xpos, (char)(character));
 
     cursor_xpos += 1U;
 
@@ -418,8 +436,6 @@ static void fbcons_putchar(int character)
         cursor_xpos = 0U;
         do_newline();
     }
-
-    do_redraw();
 }
 
 static void fbcons_write(struct console* restrict cons, const void* restrict data, size_t sz)
@@ -429,6 +445,8 @@ static void fbcons_write(struct console* restrict cons, const void* restrict dat
     for(size_t i = 0U; i < sz; fbcons_putchar(psz[i++])) {
         // empty
     }
+
+    do_redraw();
 }
 
 static const struct console_ops fbcons_ops = {
