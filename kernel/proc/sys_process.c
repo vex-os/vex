@@ -68,11 +68,10 @@ static int copy_strings(uintptr_t user_array, const char** restrict out, char** 
     return 0;
 }
 
-static int read_file_caps(struct vnode* restrict node, const struct credentials* restrict cred, struct file_caps* restrict out,
-    bool* restrict has_caps)
+static int read_file_caps(struct vnode* restrict node, struct file_caps* restrict out, bool* restrict has_caps)
 {
     struct k_vfs_cap_data data;
-    ssize_t size = vnode_xattr_get(node, cred, XATTR_NAME_CAPS, &data, sizeof(data));
+    ssize_t size = vnode_caps_get(node, &data, sizeof(data));
 
     *has_caps = false;
 
@@ -187,7 +186,7 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
     bool has_caps;
 
     if(retval == 0) {
-        retval = read_file_caps(node, cred, &file_caps, &has_caps);
+        retval = read_file_caps(node, &file_caps, &has_caps);
     }
 
     if(retval < 0) {

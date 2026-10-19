@@ -18,6 +18,12 @@ enum {
     VNODE_SYM_LINK,
 };
 
+enum {
+    VNODE_CAPS_UNKNOWN,
+    VNODE_CAPS_NONE,
+    VNODE_CAPS_PRESENT,
+};
+
 #define VATTR_MODE  0x0001U
 #define VATTR_UID   0x0002U
 #define VATTR_GID   0x0004U
@@ -77,6 +83,8 @@ struct vnode {
     unsigned refcount;
     unsigned nodetype;
     bool orphaned;
+    unsigned privs_seq;
+    unsigned caps_state;
     ino_t nodenumber;
     struct vcache* cache_entry;
     const struct blk_device* blkdev;
@@ -119,3 +127,4 @@ int vnode_xattr_set(struct vnode* restrict node, const struct credentials* restr
     const void* restrict value, size_t size, unsigned flags);
 ssize_t vnode_xattr_list(struct vnode* restrict node, const struct credentials* restrict cred, char* restrict list, size_t size);
 int vnode_xattr_remove(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name);
+ssize_t vnode_caps_get(struct vnode* restrict node, void* restrict value, size_t size);

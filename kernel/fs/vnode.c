@@ -428,6 +428,42 @@ static int split_xattr_name(const char* restrict full, unsigned* restrict out_sp
     return -EOPNOTSUPP;
 }
 
+static bool is_caps_name(unsigned space, const char* restrict name)
+{
+    return space == XATTR_SECURITY && 0 == strcmp(name, XATTR_CAPS_NAME);
+}
+
+static unsigned privs_snapshot(struct vnode* restrict node, unsigned* restrict caps_state)
+{
+    spinlock_acquire(&node->lock);
+    unsigned seq = node->privs_seq;
+    *caps_state = node->caps_state;
+    spinlock_release(&node->lock);
+
+    return seq;
+}
+
+// Comes after the change itself, so that whoever looked
+// before it can't record what it saw over the change
+static void privs_changed(struct vnode* restrict node)
+{
+    spinlock_acquire(&node->lock);
+    node->privs_seq += 1;
+    node->caps_state = VNODE_CAPS_UNKNOWN;
+    spinlock_release(&node->lock);
+}
+
+static void caps_learned(struct vnode* restrict node, unsigned seq, unsigned caps_state)
+{
+    spinlock_acquire(&node->lock);
+
+    if(node->privs_seq == seq) {
+        node->caps_state = caps_state;
+    }
+
+    spinlock_release(&node->lock);
+}
+
 static int require_cap(const struct credentials* restrict cred, unsigned cap)
 {
     if(cred_capable(cred, cap)) {
@@ -448,7 +484,7 @@ static int xattr_permission(struct vnode* restrict node, const struct credential
         return 0;
     }
 
-    if(space == XATTR_SECURITY && 0 == strcmp(name, XATTR_CAPS_NAME)) {
+    if(is_caps_name(space, name)) {
         return require_cap(cred, CAP_SETFCAP);
     }
 
@@ -472,8 +508,12 @@ static void strip_file_caps(struct vnode* restrict node)
         return;
     }
 
-    if(target->nodetype == VNODE_FILE && target->ops->xattr_remove && !target->fs->readonly) {
+    unsigned caps_state;
+    privs_snapshot(target, &caps_state);
+
+    if(target->nodetype == VNODE_FILE && target->ops->xattr_remove && !target->fs->readonly && caps_state != VNODE_CAPS_NONE) {
         target->ops->xattr_remove(target, XATTR_SECURITY, XATTR_CAPS_NAME);
+        privs_changed(target);
     }
 
     vnode_decref(target);
@@ -1208,6 +1248,10 @@ int vnode_xattr_set(struct vnode* restrict node, const struct credentials* restr
 
     if(retval == 0) {
         retval = target->ops->xattr_set(target, space, suffix, value, size, flags);
+
+        if(is_caps_name(space, suffix)) {
+            privs_changed(target);
+        }
     }
 
     vnode_decref(target);
@@ -1304,6 +1348,45 @@ int vnode_xattr_remove(struct vnode* restrict node, const struct credentials* re
 
     if(retval == 0) {
         retval = target->ops->xattr_remove(target, space, suffix);
+
+        if(is_caps_name(space, suffix)) {
+            privs_changed(target);
+        }
+    }
+
+    vnode_decref(target);
+
+    return retval;
+}
+
+// Skips both the permission check and the trip to
+// the filesystem once a file is known to have no caps
+ssize_t vnode_caps_get(struct vnode* restrict node, void* restrict value, size_t size)
+{
+    kassert(node);
+
+    struct vnode* target;
+    ssize_t retval = vfs_cross_mount(node, &target);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    unsigned caps_state;
+    unsigned seq = privs_snapshot(target, &caps_state);
+
+    if(caps_state == VNODE_CAPS_NONE || target->ops->xattr_get == nullptr) {
+        retval = -ENODATA;
+    }
+    else {
+        retval = target->ops->xattr_get(target, XATTR_SECURITY, XATTR_CAPS_NAME, value, size);
+    }
+
+    if(retval == -ENODATA) {
+        caps_learned(target, seq, VNODE_CAPS_NONE);
+    }
+    else if(retval >= 0 || retval == -ERANGE) {
+        caps_learned(target, seq, VNODE_CAPS_PRESENT);
     }
 
     vnode_decref(target);
