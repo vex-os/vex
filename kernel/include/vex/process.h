@@ -20,6 +20,7 @@ struct process {
 
     bool zombie;
     bool collected;
+    bool exiting;
 
     spinlock_type lock;
 

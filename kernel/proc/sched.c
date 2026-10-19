@@ -543,6 +543,23 @@ void sched_dequeue(struct thread* restrict thrd)
     spinlock_release_intr(&thrd->sched_lock, intr_state);
 }
 
+void sched_kick(struct thread* restrict thrd)
+{
+    bool intr_state = spinlock_acquire_intr(&thrd->sched_lock);
+
+    struct hart_local* target = nullptr;
+
+    if(thrd->state == THREAD_RUNNING) {
+        target = atomic_load(&thrd->last_hart, ATOMIC_RELAXED);
+    }
+
+    if(target && target != this_hart()) {
+        hart_ipi(target, sched_ireq_number);
+    }
+
+    spinlock_release_intr(&thrd->sched_lock, intr_state);
+}
+
 void sched_wake_at(struct thread* restrict thrd, uint64_t deadline)
 {
     bool intr_state = spinlock_acquire_intr(&sleep_lock);

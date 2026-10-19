@@ -7,6 +7,7 @@
 #include <vex/kprintf.h>
 #include <vex/mount.h>
 #include <vex/process.h>
+#include <vex/sched.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -277,9 +278,23 @@ void process_decref(struct process* proc)
 
 void process_exit(struct process* proc, int exit_code)
 {
+    if(atomic_exchange(&proc->exiting, true, ATOMIC_ACQ_REL)) {
+        return;
+    }
+
     pr_verbose("process[%lu]: exiting with exit_code=%d", (unsigned long)(proc->pid), exit_code);
 
     proc->exit_code = exit_code;
+
+    bool intr_state = spinlock_acquire_intr(&proc->lock);
+
+    for(struct thread* thrd = proc->threads; thrd; thrd = thrd->tnext) {
+        atomic_fetch_or(&thrd->pending_work, THREAD_WORK_EXIT, ATOMIC_RELEASE);
+
+        sched_kick(thrd);
+    }
+
+    spinlock_release_intr(&proc->lock, intr_state);
 
     // A zombie must not keep filesystems
     // busy until it is waited for
