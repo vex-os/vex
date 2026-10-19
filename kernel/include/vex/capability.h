@@ -17,4 +17,17 @@
 
 #define CAPS_KEEP __k_CAPS_KEEP
 
-#define k_caps __k_caps
+#define XATTR_NAME_CAPS __k_XATTR_NAME_CAPS
+
+#define VFS_CAP_REVISION_MASK   __k_VFS_CAP_REVISION_MASK
+#define VFS_CAP_REVISION_1      __k_VFS_CAP_REVISION_1
+#define VFS_CAP_REVISION_2      __k_VFS_CAP_REVISION_2
+#define VFS_CAP_REVISION_3      __k_VFS_CAP_REVISION_3
+#define VFS_CAP_FLAGS_EFFECTIVE __k_VFS_CAP_FLAGS_EFFECTIVE
+
+#define VFS_CAP_SIZE_1 __k_VFS_CAP_SIZE_1
+#define VFS_CAP_SIZE_2 __k_VFS_CAP_SIZE_2
+#define VFS_CAP_SIZE_3 __k_VFS_CAP_SIZE_3
+
+#define k_caps         __k_caps
+#define k_vfs_cap_data __k_vfs_cap_data

@@ -24,6 +24,32 @@
 
 #define __k_CAPS_KEEP 0x0001 /* Keep the permitted set when no uid is 0 anymore */
 
+/* File capabilities live in the security.capability extended
+ * attribute, laid out the way Linux has them, little-endian */
+
+#define __k_XATTR_NAME_CAPS "security.capability"
+
+#define __k_VFS_CAP_REVISION_MASK   0xFF000000
+#define __k_VFS_CAP_REVISION_1      0x01000000 /* 32-bit sets, no rootid */
+#define __k_VFS_CAP_REVISION_2      0x02000000 /* 64-bit sets, no rootid */
+#define __k_VFS_CAP_REVISION_3      0x03000000 /* 64-bit sets and rootid */
+#define __k_VFS_CAP_FLAGS_EFFECTIVE 0x00000001
+
+#define __k_VFS_CAP_SIZE_1 12
+#define __k_VFS_CAP_SIZE_2 20
+#define __k_VFS_CAP_SIZE_3 24
+
+struct __k_vfs_cap_word {
+    __k_uint32_t permitted;
+    __k_uint32_t inheritable;
+};
+
+struct __k_vfs_cap_data {
+    __k_uint32_t magic_etc;
+    struct __k_vfs_cap_word data[2]; /* Low half of the sets first */
+    __k_uint32_t rootid;             /* Revision 3 only */
+};
+
 struct __k_caps {
     __k_uint64_t effective;
     __k_uint64_t permitted;

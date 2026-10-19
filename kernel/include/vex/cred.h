@@ -25,6 +25,12 @@ struct credentials {
     gid_t groups[];
 };
 
+struct file_caps {
+    uint64_t permitted;
+    uint64_t inheritable;
+    bool effective;
+};
+
 extern struct credentials sys_cred;
 extern size_t cred_ngroups_max;
 
@@ -35,7 +41,9 @@ void cred_decref(struct credentials* restrict cred);
 
 bool cred_capable(const struct credentials* restrict cred, unsigned cap) __nodiscard;
 int cred_setcaps(struct credentials* restrict cred, const struct k_caps* restrict caps) __nodiscard;
-void cred_exec_caps(struct credentials* restrict cred, bool privileged);
+int cred_exec_caps(struct credentials* restrict cred, bool privileged, const struct file_caps* restrict file) __nodiscard;
+bool cred_exec_secure(const struct credentials* restrict cred) __nodiscard;
+int cred_parse_file_caps(const void* restrict value, size_t size, struct file_caps* restrict out) __nodiscard;
 bool cred_in_group(const struct credentials* restrict cred, gid_t gid) __nodiscard;
 
 int cred_setresuid(struct credentials* restrict cred, uid_t ruid, uid_t euid, uid_t suid) __nodiscard;

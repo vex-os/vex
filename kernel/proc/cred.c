@@ -1,6 +1,7 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
 #include <vex/cred.h>
+#include <vex/endian.h>
 #include <vex/errno.h>
 #include <vex/kmalloc.h>
 #include <vex/slab.h>
@@ -193,26 +194,116 @@ int cred_setcaps(struct credentials* restrict cred, const struct k_caps* restric
     return 0;
 }
 
-// Called with the ids the program will run with already in place;
-// a privileged program is one whose setuid or setgid bit took effect
-void cred_exec_caps(struct credentials* restrict cred, bool privileged)
+// Called with the ids the program will run with already in place; a privileged program
+// is one whose setuid or setgid bit took effect, file holds its capabilities if it has any;
+// There is no inheritable set, so the file's inheritable set never grants anything
+int cred_exec_caps(struct credentials* restrict cred, bool privileged, const struct file_caps* restrict file)
 {
     kassert(cred);
 
-    if(privileged) {
+    if(privileged || file) {
         cred->cap_ambient = 0;
     }
 
+    cred->cap_flags = 0;
+
     if(cred->euid == 0) {
         cred->cap_permitted = cred->cap_bounding;
-    }
-    else {
-        cred->cap_permitted = cred->cap_ambient & cred->cap_bounding;
+        cred->cap_ambient &= cred->cap_permitted;
+        cred->cap_effective = cred->cap_permitted;
+        return 0;
     }
 
+    cred->cap_permitted = cred->cap_ambient & cred->cap_bounding;
     cred->cap_ambient &= cred->cap_permitted;
-    cred->cap_effective = cred->cap_permitted;
-    cred->cap_flags = 0;
+    cred->cap_effective = cred->cap_ambient;
+
+    if(file == nullptr) {
+        return 0;
+    }
+
+    // A program that counts on all its capabilities being in effect
+    // without checking must not start with only some of them
+    if(file->effective && (file->permitted & ~cred->cap_bounding)) {
+        return -EPERM;
+    }
+
+    cred->cap_permitted |= file->permitted & cred->cap_bounding;
+
+    if(file->effective) {
+        cred->cap_effective = cred->cap_permitted;
+    }
+
+    return 0;
+}
+
+// Tells the new program not to trust what the caller passed it: it runs
+// with other ids, or holds capabilities the caller couldn't hand down itself
+bool cred_exec_secure(const struct credentials* restrict cred)
+{
+    kassert(cred);
+
+    if(cred->uid != cred->euid || cred->gid != cred->egid) {
+        return true;
+    }
+
+    return cred->uid && (cred->cap_permitted & ~cred->cap_ambient);
+}
+
+// Revision 3 names the uid that counts as root for the capabilities; without user namespaces
+// only 0 makes sense, so others leave the file without capabilities, as on Linux
+int cred_parse_file_caps(const void* restrict value, size_t size, struct file_caps* restrict out)
+{
+    kassert(value);
+    kassert(out);
+
+    struct k_vfs_cap_data data = { 0 };
+
+    if(size < sizeof(data.magic_etc) || size > sizeof(data)) {
+        return -EINVAL;
+    }
+
+    memcpy(&data, value, size);
+
+    uint32_t magic = le32toh(data.magic_etc);
+    uint32_t revision = magic & VFS_CAP_REVISION_MASK;
+    size_t expected;
+
+    switch(revision) {
+        case VFS_CAP_REVISION_1:
+            expected = VFS_CAP_SIZE_1;
+            break;
+
+        case VFS_CAP_REVISION_2:
+            expected = VFS_CAP_SIZE_2;
+            break;
+
+        case VFS_CAP_REVISION_3:
+            expected = VFS_CAP_SIZE_3;
+            break;
+
+        default:
+            return -EINVAL;
+    }
+
+    if(size != expected) {
+        return -EINVAL;
+    }
+
+    if(revision == VFS_CAP_REVISION_3 && data.rootid) {
+        return -ENODATA;
+    }
+
+    out->permitted = le32toh(data.data[0].permitted);
+    out->inheritable = le32toh(data.data[0].inheritable);
+    out->effective = magic & VFS_CAP_FLAGS_EFFECTIVE;
+
+    if(revision != VFS_CAP_REVISION_1) {
+        out->permitted |= (uint64_t)(le32toh(data.data[1].permitted)) << 32;
+        out->inheritable |= (uint64_t)(le32toh(data.data[1].inheritable)) << 32;
+    }
+
+    return 0;
 }
 
 bool cred_in_group(const struct credentials* restrict cred, gid_t gid)

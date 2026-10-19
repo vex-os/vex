@@ -68,12 +68,49 @@ static int copy_strings(uintptr_t user_array, const char** restrict out, char** 
     return 0;
 }
 
-static struct credentials* exec_cred(const struct credentials* restrict cred, const struct k_stat* restrict st)
+static int read_file_caps(struct vnode* restrict node, const struct credentials* restrict cred, struct file_caps* restrict out,
+    bool* restrict has_caps)
+{
+    struct k_vfs_cap_data data;
+    ssize_t size = vnode_getxattr(node, cred, XATTR_NAME_CAPS, &data, sizeof(data));
+
+    *has_caps = false;
+
+    if(size == -ENODATA || size == -EOPNOTSUPP) {
+        return 0;
+    }
+
+    // Larger than any revision
+    if(size == -ERANGE) {
+        return -EINVAL;
+    }
+
+    if(size < 0) {
+        return size;
+    }
+
+    int retval = cred_parse_file_caps(&data, size, out);
+
+    if(retval == -ENODATA) {
+        return 0;
+    }
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    *has_caps = true;
+
+    return 0;
+}
+
+static int exec_cred(const struct credentials* restrict cred, const struct k_stat* restrict st, const struct file_caps* restrict file,
+    struct credentials** restrict out)
 {
     struct credentials* copy = cred_copy(cred);
 
     if(copy == nullptr) {
-        return nullptr;
+        return -ENOMEM;
     }
 
     bool setuid = st->st_mode & S_ISUID;
@@ -90,9 +127,16 @@ static struct credentials* exec_cred(const struct credentials* restrict cred, co
     copy->suid = copy->euid;
     copy->sgid = copy->egid;
 
-    cred_exec_caps(copy, setuid || setgid);
+    int retval = cred_exec_caps(copy, setuid || setgid, file);
 
-    return copy;
+    if(retval < 0) {
+        cred_decref(copy);
+        return retval;
+    }
+
+    *out = copy;
+
+    return 0;
 }
 
 static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, char* restrict strings, const uintptr_t* restrict args)
@@ -139,6 +183,13 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
         retval = vnode_stat(node, &st);
     }
 
+    struct file_caps file_caps;
+    bool has_caps;
+
+    if(retval == 0) {
+        retval = read_file_caps(node, cred, &file_caps, &has_caps);
+    }
+
     if(retval < 0) {
         vnode_decref(node);
         return retval;
@@ -162,14 +213,18 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
 
     mutex_acquire(&proc->cred_lock);
 
-    struct credentials* new_cred = exec_cred(proc->cred, &st);
+    struct credentials* new_cred = nullptr;
     struct entry_point entry;
 
-    if(new_cred) {
-        retval = load_binary(vms, fp, argv, envp, new_cred, &entry);
+    if(has_caps) {
+        retval = exec_cred(proc->cred, &st, &file_caps, &new_cred);
     }
     else {
-        retval = -ENOMEM;
+        retval = exec_cred(proc->cred, &st, nullptr, &new_cred);
+    }
+
+    if(retval == 0) {
+        retval = load_binary(vms, fp, argv, envp, new_cred, &entry);
     }
 
     if(retval == 0) {
