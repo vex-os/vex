@@ -61,5 +61,9 @@
 #define __k_SYS_LISTXATTRAT   58
 #define __k_SYS_REMOVEXATTRAT 59
 #define __k_SYS_SETTIME       60
+#define __k_SYS_KILL          61
+#define __k_SYS_SIGACTION     62
+#define __k_SYS_SIGPROCMASK   63
+#define __k_SYS_SIGPENDING    64
 
 #endif /* USR_VEX_SYSCALL_H */

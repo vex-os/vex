@@ -14,7 +14,8 @@ struct process;
 struct hart_local;
 struct runqueue;
 
-#define THREAD_WORK_EXIT UINT32_C(0x00000001)
+#define THREAD_WORK_EXIT   UINT32_C(0x00000001)
+#define THREAD_WORK_SIGNAL UINT32_C(0x00000002)
 
 enum {
     THREAD_RUNNABLE,

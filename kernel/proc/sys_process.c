@@ -324,7 +324,7 @@ static intptr_t sys_exec(const uintptr_t* restrict args)
 
 static intptr_t collect_child(struct process* restrict target, uintptr_t wstatus)
 {
-    int status = W_EXITCODE(target->exit_code, 0);
+    int status = W_EXITCODE(target->exit_code, target->exit_signal);
     intptr_t retval = target->pid;
 
     if(wstatus) {

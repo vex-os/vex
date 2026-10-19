@@ -1,5 +1,6 @@
 #include <arch/amd64.idt.h>
 #include <vex/compiler.h>
+#include <vex/errno.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
@@ -9,6 +10,7 @@
 #include <vex/pmap.h>
 #include <vex/process.h>
 #include <vex/sched.h>
+#include <vex/signal.h>
 #include <vex/string.h>
 #include <vex/thread.h>
 #include <vex/vms.h>
@@ -78,20 +80,67 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
 
     // A fault from ring 3 holds
     // no kernel locks, so resolving
-    // or exiting may sleep
+    // or signalling may sleep
     enable_interrupts();
 
-    if(0 == vms_fault(proc->vms, fault, access)) {
-        // The way back to ring 3 swaps GS
-        // and an interrupt landing after
-        // that would take the user GS for the kernel GS
-        disable_interrupts();
-        return;
+    int retval = vms_fault(proc->vms, fault, access);
+
+    if(retval < 0) {
+        struct k_siginfo info = { .si_signo = SIGSEGV, .si_code = SEGV_MAPERR, .si_addr = (void*)(fault) };
+
+        if(retval == -EACCES) {
+            info.si_code = SEGV_ACCERR;
+        }
+        else if(retval != -EFAULT) {
+            info.si_signo = SIGBUS;
+            info.si_code = BUS_ADRERR;
+        }
+
+        signal_force(thrd, &info);
     }
 
-    process_exit(proc, -1);
-    sched_terminate();
-    unreachable();
+    // The way back to ring 3 swaps GS
+    // and an interrupt landing after
+    // that would take the user GS for the kernel GS
+    disable_interrupts();
+}
+
+static void user_exception_info(uint64_t intvec, const struct hart_context* restrict ctx, struct k_siginfo* restrict info)
+{
+    info->si_signo = SIGSEGV;
+    info->si_code = SI_KERNEL;
+    info->si_addr = (void*)(ctx->amd64_rip);
+
+    switch(intvec) {
+        case 0x00:
+            info->si_signo = SIGFPE;
+            info->si_code = FPE_INTDIV;
+            break;
+        case 0x01:
+            info->si_signo = SIGTRAP;
+            info->si_code = TRAP_TRACE;
+            break;
+        case 0x03:
+            info->si_signo = SIGTRAP;
+            info->si_code = TRAP_BRKPT;
+            break;
+        case 0x06:
+            info->si_signo = SIGILL;
+            info->si_code = ILL_ILLOPN;
+            break;
+        case 0x10:
+        case 0x13:
+            info->si_signo = SIGFPE;
+            info->si_code = FPE_FLTINV;
+            break;
+        case 0x11:
+            info->si_signo = SIGBUS;
+            info->si_code = BUS_ADRALN;
+            break;
+        default:
+            info->si_addr = nullptr;
+            break;
+    }
 }
 
 static bool iretq_to_user_faulted(const struct hart_context* restrict ctx, uint64_t intvec)
@@ -155,13 +204,27 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
         struct thread* thrd = hart->curr_thread;
         struct process* proc = thrd->proc;
 
-        if(proc) {
-            enable_interrupts();
-            process_exit(proc, -1);
+        if(proc == nullptr) {
+            sched_terminate();
+            unreachable();
         }
 
-        sched_terminate();
-        unreachable();
+        enable_interrupts();
+
+        // The frame IRETQ choked on is the
+        // one it would retry, so there is no going back
+        if(3 != (ctx->amd64_cs & 3)) {
+            process_kill(proc, SIGSEGV);
+            sched_terminate();
+            unreachable();
+        }
+
+        struct k_siginfo info = {};
+        user_exception_info(intvec, ctx, &info);
+        signal_force(thrd, &info);
+
+        disable_interrupts();
+        return;
     }
 
     panic("idt: unhandled exception 0x%02zX", (size_t)(intvec));
@@ -172,8 +235,8 @@ static void arch_init_isr(void)
     set_idt_entry_kern(0x00, false, &amd64_isr_00);
     set_idt_entry_kern(0x01, false, &amd64_isr_01);
     set_idt_entry_ist(0x02, IDT_IST_NMI, &amd64_isr_02);
-    set_idt_entry_kern(0x03, false, &amd64_isr_03);
-    set_idt_entry_kern(0x04, false, &amd64_isr_04);
+    set_idt_entry_user(0x03, false, &amd64_isr_03);
+    set_idt_entry_user(0x04, false, &amd64_isr_04);
     set_idt_entry_kern(0x05, false, &amd64_isr_05);
     set_idt_entry_kern(0x06, false, &amd64_isr_06);
     set_idt_entry_kern(0x07, false, &amd64_isr_07);

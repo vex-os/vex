@@ -109,7 +109,7 @@ amd64_return_to_user:
 # IRETQ back to ring 3 that faults after its SWAPGS, with the kernel's
 # CS in the frame; GS_BASE itself tells which one is live: kernel
 # thread pointers are higher-half, so the MSR's sign bit is set
-.macro isr_stub_paranoid stubname vector has_errcode
+.macro isr_stub_paranoid stubname vector has_errcode user_return
     .global \stubname
     .type \stubname, @function
     \stubname:
@@ -130,6 +130,11 @@ amd64_return_to_user:
         movq %rsp, %rdi
         movq $\vector, %rsi
         call amd64_isr_handler
+
+        .if \user_return
+        testq $3, 152(%rsp)             # hart_context::amd64_cs RPL bits
+        jnz amd64_return_to_user
+        .endif
 
         testl %ebx, %ebx
         jz 2f
@@ -179,23 +184,23 @@ amd64_return_to_user:
 
 isr_stub_pz         amd64_isr_00, 0x00
 isr_stub_pz         amd64_isr_01, 0x01
-isr_stub_paranoid   amd64_isr_02, 0x02, 0
+isr_stub_paranoid   amd64_isr_02, 0x02, 0, 0
 isr_stub_pz         amd64_isr_03, 0x03
 isr_stub_pz         amd64_isr_04, 0x04
 isr_stub_pz         amd64_isr_05, 0x05
 isr_stub_pz         amd64_isr_06, 0x06
 isr_stub_pz         amd64_isr_07, 0x07
-isr_stub_paranoid   amd64_isr_08, 0x08, 1
+isr_stub_paranoid   amd64_isr_08, 0x08, 1, 0
 isr_stub_pz         amd64_isr_09, 0x09
 isr_stub            amd64_isr_0A, 0x0A
-isr_stub_paranoid   amd64_isr_0B, 0x0B, 1
-isr_stub_paranoid   amd64_isr_0C, 0x0C, 1
-isr_stub_paranoid   amd64_isr_0D, 0x0D, 1
+isr_stub_paranoid   amd64_isr_0B, 0x0B, 1, 1
+isr_stub_paranoid   amd64_isr_0C, 0x0C, 1, 1
+isr_stub_paranoid   amd64_isr_0D, 0x0D, 1, 1
 isr_stub            amd64_isr_0E, 0x0E
 isr_stub_pz         amd64_isr_0F, 0x0F
 isr_stub_pz         amd64_isr_10, 0x10
 isr_stub            amd64_isr_11, 0x11
-isr_stub_paranoid   amd64_isr_12, 0x12, 0
+isr_stub_paranoid   amd64_isr_12, 0x12, 0, 0
 isr_stub_pz         amd64_isr_13, 0x13
 isr_stub_pz         amd64_isr_14, 0x14
 isr_stub            amd64_isr_15, 0x15

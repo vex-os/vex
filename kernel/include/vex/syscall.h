@@ -64,6 +64,10 @@
 #define SYS_LISTXATTRAT   __k_SYS_LISTXATTRAT
 #define SYS_REMOVEXATTRAT __k_SYS_REMOVEXATTRAT
 #define SYS_SETTIME       __k_SYS_SETTIME
+#define SYS_KILL          __k_SYS_KILL
+#define SYS_SIGACTION     __k_SYS_SIGACTION
+#define SYS_SIGPROCMASK   __k_SYS_SIGPROCMASK
+#define SYS_SIGPENDING    __k_SYS_SIGPENDING
 
 struct file;
 struct hart_context;

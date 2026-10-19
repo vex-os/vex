@@ -1,5 +1,6 @@
 #include <vex/atomic.h>
 #include <vex/sched.h>
+#include <vex/signal.h>
 #include <vex/thread.h>
 
 // Runs with interrupts disabled and returns with them disabled, so work
@@ -20,6 +21,10 @@ void exit_to_user(struct hart_context* restrict ctx)
         if(work & THREAD_WORK_EXIT) {
             sched_terminate();
             unreachable();
+        }
+
+        if(work & THREAD_WORK_SIGNAL) {
+            signal_deliver(ctx);
         }
 
         disable_interrupts();

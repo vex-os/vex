@@ -14,6 +14,7 @@
 #include <vex/preempt.h>
 #include <vex/process.h>
 #include <vex/sched.h>
+#include <vex/signal.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -230,6 +231,7 @@ static void reap_thread(struct thread* restrict thrd)
     }
 
     cred_decref(thrd->cred);
+    signal_flush(thrd->sig_queue);
     kstack_free(thrd->kstack_top);
     kfree(thrd->events);
     slab_free(thrd);

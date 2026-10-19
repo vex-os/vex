@@ -23,6 +23,7 @@ struct process {
     bool zombie;
     bool collected;
     bool exiting;
+    uint8_t exit_signal;
 
     spinlock_type lock;
 
@@ -62,6 +63,7 @@ void process_incref(struct process* proc);
 void process_decref(struct process* proc);
 
 void process_exit(struct process* proc, int exit_code);
+void process_kill(struct process* proc, int sig);
 void process_thread_reaped(struct process* proc, struct thread* thrd);
 bool process_claim(struct process* proc) __nodiscard;
 void process_destroy(struct process* proc);

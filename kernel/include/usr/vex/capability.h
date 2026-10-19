@@ -11,6 +11,7 @@
 #define __k_CAP_DAC_OVERRIDE 1 /* Bypass file permission checks */
 #define __k_CAP_FOWNER       3 /* Act as the owner of any file */
 #define __k_CAP_FSETID       4 /* Keep setuid and setgid bits a change would clear */
+#define __k_CAP_KILL         5 /* Signal any process */
 #define __k_CAP_SETGID       6
 #define __k_CAP_SETUID       7
 #define __k_CAP_SYS_ADMIN    21 /* Catch-all for administration, trusted.* extended attributes among it */

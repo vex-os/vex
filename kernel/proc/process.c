@@ -285,6 +285,7 @@ void process_decref(struct process* proc)
         }
 
         cred_decref(proc->cred);
+        signal_flush(proc->sig_queue);
         sighand_destroy(proc->sighand);
         mutex_deinit(&proc->cred_lock);
         event_deinit(&proc->evnt);
@@ -293,15 +294,16 @@ void process_decref(struct process* proc)
     }
 }
 
-void process_exit(struct process* proc, int exit_code)
+static void begin_exit(struct process* restrict proc, int exit_code, int exit_signal)
 {
     if(atomic_exchange(&proc->exiting, true, ATOMIC_ACQ_REL)) {
         return;
     }
 
-    pr_verbose("process[%lu]: exiting with exit_code=%d", (unsigned long)(proc->pid), exit_code);
+    pr_verbose("process[%lu]: exiting with exit_code=%d signal=%d", (unsigned long)(proc->pid), exit_code, exit_signal);
 
     proc->exit_code = exit_code;
+    proc->exit_signal = exit_signal;
 
     bool intr_state = spinlock_acquire_intr(&proc->lock);
 
@@ -316,6 +318,16 @@ void process_exit(struct process* proc, int exit_code)
     // A zombie must not keep filesystems
     // busy until it is waited for
     release_files(proc);
+}
+
+void process_exit(struct process* proc, int exit_code)
+{
+    begin_exit(proc, exit_code, 0);
+}
+
+void process_kill(struct process* proc, int sig)
+{
+    begin_exit(proc, 0, sig);
 }
 
 void process_thread_reaped(struct process* proc, struct thread* thrd)

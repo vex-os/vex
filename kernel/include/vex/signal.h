@@ -50,7 +50,44 @@
 #define SIG_UNBLOCK  __k_SIG_UNBLOCK
 #define SIG_SETMASK  __k_SIG_SETMASK
 
+#define SI_USER       __k_SI_USER
+#define SI_QUEUE      __k_SI_QUEUE
+#define SI_TIMER      __k_SI_TIMER
+#define SI_MESGQ      __k_SI_MESGQ
+#define SI_ASYNCIO    __k_SI_ASYNCIO
+#define SI_KERNEL     __k_SI_KERNEL
+#define ILL_ILLOPC    __k_ILL_ILLOPC
+#define ILL_ILLOPN    __k_ILL_ILLOPN
+#define ILL_ILLADR    __k_ILL_ILLADR
+#define ILL_ILLTRP    __k_ILL_ILLTRP
+#define ILL_PRVOPC    __k_ILL_PRVOPC
+#define ILL_PRVREG    __k_ILL_PRVREG
+#define ILL_COPROC    __k_ILL_COPROC
+#define ILL_BADSTK    __k_ILL_BADSTK
+#define FPE_INTDIV    __k_FPE_INTDIV
+#define FPE_INTOVF    __k_FPE_INTOVF
+#define FPE_FLTDIV    __k_FPE_FLTDIV
+#define FPE_FLTOVF    __k_FPE_FLTOVF
+#define FPE_FLTUND    __k_FPE_FLTUND
+#define FPE_FLTRES    __k_FPE_FLTRES
+#define FPE_FLTINV    __k_FPE_FLTINV
+#define FPE_FLTSUB    __k_FPE_FLTSUB
+#define SEGV_MAPERR   __k_SEGV_MAPERR
+#define SEGV_ACCERR   __k_SEGV_ACCERR
+#define BUS_ADRALN    __k_BUS_ADRALN
+#define BUS_ADRERR    __k_BUS_ADRERR
+#define BUS_OBJERR    __k_BUS_OBJERR
+#define TRAP_BRKPT    __k_TRAP_BRKPT
+#define TRAP_TRACE    __k_TRAP_TRACE
+#define CLD_EXITED    __k_CLD_EXITED
+#define CLD_KILLED    __k_CLD_KILLED
+#define CLD_DUMPED    __k_CLD_DUMPED
+#define CLD_TRAPPED   __k_CLD_TRAPPED
+#define CLD_STOPPED   __k_CLD_STOPPED
+#define CLD_CONTINUED __k_CLD_CONTINUED
+
 #define k_sigaction __k_sigaction
+#define k_siginfo   __k_siginfo
 
 typedef __k_sigset_t sigset_t;
 typedef __k_sighandler_t sighandler_t;
@@ -65,6 +102,23 @@ struct sighand {
     struct k_sigaction actions[NSIG];
 };
 
+struct sigqueue {
+    struct sigqueue* next;
+    struct k_siginfo info;
+};
+
+struct hart_context;
+struct process;
+struct thread;
+
 struct sighand* sighand_create(struct sighand* restrict parent) __nodiscard;
 void sighand_destroy(struct sighand* restrict sighand);
 void sighand_exec(struct sighand* restrict sighand);
+
+int signal_send(struct process* restrict proc, struct thread* restrict target, const struct k_siginfo* restrict info);
+void signal_force(struct thread* restrict thrd, const struct k_siginfo* restrict info);
+void signal_deliver(struct hart_context* restrict ctx);
+void signal_action(struct process* restrict proc, int sig, const struct k_sigaction* restrict act, struct k_sigaction* restrict oact);
+sigset_t signal_mask(struct thread* restrict thrd, int how, sigset_t set);
+sigset_t signal_pending(struct thread* restrict thrd);
+void signal_flush(struct sigqueue* restrict queue);

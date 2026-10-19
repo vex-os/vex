@@ -192,8 +192,12 @@ static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned a
 {
     struct vm_region* region = find_region(vms, page);
 
-    if(region == nullptr || (region->vprot & access) != access) {
+    if(region == nullptr) {
         return -EFAULT;
+    }
+
+    if((region->vprot & access) != access) {
+        return -EACCES;
     }
 
     for(;;) {

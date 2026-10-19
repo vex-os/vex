@@ -55,6 +55,66 @@ typedef void (*__k_sighandler_t)(int);
 #define __k_SIG_UNBLOCK 1
 #define __k_SIG_SETMASK 2
 
+/* Codes of any signal are negative, the positive ones belong to a signal */
+
+#define __k_SI_USER    (-1)
+#define __k_SI_QUEUE   (-2)
+#define __k_SI_TIMER   (-3)
+#define __k_SI_MESGQ   (-4)
+#define __k_SI_ASYNCIO (-5)
+#define __k_SI_KERNEL  (-6)
+
+#define __k_ILL_ILLOPC 1
+#define __k_ILL_ILLOPN 2
+#define __k_ILL_ILLADR 3
+#define __k_ILL_ILLTRP 4
+#define __k_ILL_PRVOPC 5
+#define __k_ILL_PRVREG 6
+#define __k_ILL_COPROC 7
+#define __k_ILL_BADSTK 8
+
+#define __k_FPE_INTDIV 1
+#define __k_FPE_INTOVF 2
+#define __k_FPE_FLTDIV 3
+#define __k_FPE_FLTOVF 4
+#define __k_FPE_FLTUND 5
+#define __k_FPE_FLTRES 6
+#define __k_FPE_FLTINV 7
+#define __k_FPE_FLTSUB 8
+
+#define __k_SEGV_MAPERR 1
+#define __k_SEGV_ACCERR 2
+
+#define __k_BUS_ADRALN 1
+#define __k_BUS_ADRERR 2
+#define __k_BUS_OBJERR 3
+
+#define __k_TRAP_BRKPT 1
+#define __k_TRAP_TRACE 2
+
+#define __k_CLD_EXITED    1
+#define __k_CLD_KILLED    2
+#define __k_CLD_DUMPED    3
+#define __k_CLD_TRAPPED   4
+#define __k_CLD_STOPPED   5
+#define __k_CLD_CONTINUED 6
+
+union __k_sigval {
+    int sival_int;
+    void* sival_ptr;
+};
+
+struct __k_siginfo {
+    int si_signo;
+    int si_code;
+    int si_errno;
+    int si_status;
+    __k_pid_t si_pid;
+    __k_uid_t si_uid;
+    void* si_addr;
+    union __k_sigval si_value;
+};
+
 struct __k_sigaction {
     __k_sighandler_t sa_handler;
     __k_uint64_t sa_flags;

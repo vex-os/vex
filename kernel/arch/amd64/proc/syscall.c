@@ -5,6 +5,7 @@
 #include <vex/pmap.h>
 #include <vex/process.h>
 #include <vex/sched.h>
+#include <vex/signal.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
 #include <vex/types.h>
@@ -24,7 +25,7 @@ void __used amd64_syscall_handler(struct hart_context* restrict ctx)
     struct process* proc = thrd->proc;
 
     if(proc && ctx->amd64_rcx >= pmap_user_end(proc->vms->pmap)) {
-        process_exit(proc, -1);
+        process_kill(proc, SIGSEGV);
         sched_terminate();
         unreachable();
     }
