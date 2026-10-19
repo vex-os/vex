@@ -16,5 +16,6 @@ kernel_sources += files(
     'sys_time.c',
     'sys_uname.c',
     'sys_vfs.c',
+    'sys_xattr.c',
     'syscall.c',
 )
