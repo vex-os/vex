@@ -415,10 +415,6 @@ int ext2_truncate_blocks(struct vnode* restrict node, uint64_t size)
     struct ext2_inode* inode = &ctx->inode;
     uint64_t keep = (size + fs_ctx->block_size - 1) / fs_ctx->block_size;
 
-    // Dirty pages past the new end
-    // must not reach the blocks freed below
-    fcache_truncate(node, size);
-
     for(uint64_t i = keep; i < EXT2_NDIR_BLOCKS; ++i) {
         uint32_t block = le32toh(inode->i_block[i]);
 

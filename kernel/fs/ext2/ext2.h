@@ -287,6 +287,7 @@ static_assert(EXT2_GOOD_OLD_INODE_SIZE == sizeof(struct ext2_inode));
 #endif
 
 #define EXT2_NAME_LEN 255
+#define EXT2_LINK_MAX 32000
 
 #define EXT2_FT_UNKNOWN  0
 #define EXT2_FT_REG_FILE 1

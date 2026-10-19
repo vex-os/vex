@@ -1,11 +1,37 @@
 #include <vex/blk_device.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
+#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/string.h>
 #include <vex/vnode.h>
 
 #include "ext2.h"
+
+static bool has_filetype(const struct ext2_vfs_context* restrict fs_ctx)
+{
+    return le32toh(fs_ctx->super.s_feature_incompat) & EXT2_FEATURE_INCOMPAT_FILETYPE;
+}
+
+static size_t rec_len_from_disk(const struct ext2_vfs_context* restrict fs_ctx, uint16_t raw)
+{
+    size_t rec_len = le16toh(raw);
+
+    if(fs_ctx->block_size == 65536 && (rec_len == 0 || rec_len == 65535)) {
+        return 65536;
+    }
+
+    return rec_len;
+}
+
+static uint16_t rec_len_to_disk(size_t rec_len)
+{
+    if(rec_len == 65536) {
+        return htole16(65535);
+    }
+
+    return htole16((uint16_t)(rec_len));
+}
 
 static int read_exact(struct vnode* restrict dir, void* restrict buffer, size_t sz, uint64_t offset)
 {
@@ -23,34 +49,136 @@ static int read_exact(struct vnode* restrict dir, void* restrict buffer, size_t 
     return 0;
 }
 
-int ext2_dirent_read(struct vnode* restrict dir, uint64_t* restrict offset, struct ext2_dirent* restrict out)
+static int write_exact(struct vnode* restrict dir, const void* restrict buffer, size_t sz, uint64_t offset)
+{
+    struct ext2_vnode_context* ctx = dir->ctxdata;
+
+    ssize_t done = fcache_write(dir, &ext2_bmap, buffer, sz, offset, ext2_inode_size(&ctx->inode));
+
+    if(done < 0) {
+        return done;
+    }
+
+    if((size_t)done != sz) {
+        return -EIO;
+    }
+
+    return 0;
+}
+
+static int read_record(struct vnode* restrict dir, uint64_t offset, struct ext2_dir_entry* restrict head, size_t* restrict rec_len)
+{
+    struct ext2_vnode_context* ctx = dir->ctxdata;
+    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
+    int retval = read_exact(dir, head, sizeof(struct ext2_dir_entry), offset);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    *rec_len = rec_len_from_disk(fs_ctx, head->rec_len);
+
+    size_t in_block = offset % fs_ctx->block_size;
+
+    bool valid = true;
+    valid = valid && *rec_len >= ext2_dirent_reclen(head->name_len);
+    valid = valid && 0 == *rec_len % 4;
+    valid = valid && *rec_len <= fs_ctx->block_size - in_block;
+
+    if(!valid) {
+        pr_warning("ext2: %s: inode %u has a broken directory record at %zu", fs_ctx->device->identifier, (uint32_t)(dir->nodenumber),
+            (size_t)(offset));
+        return -EIO;
+    }
+
+    return 0;
+}
+
+static void fill_record(const struct ext2_vfs_context* restrict fs_ctx, uint8_t* restrict at, size_t rec_len, uint32_t ino,
+    const char* restrict name, uint8_t file_type)
+{
+    struct ext2_dir_entry* head = (struct ext2_dir_entry*)(at);
+    size_t name_len = strlen(name);
+
+    head->inode = htole32(ino);
+    head->rec_len = rec_len_to_disk(rec_len);
+    head->name_len = (uint8_t)name_len;
+    head->file_type = 0;
+
+    if(has_filetype(fs_ctx)) {
+        head->file_type = file_type;
+    }
+
+    memcpy(head->name, name, name_len);
+}
+
+static int write_record(struct vnode* restrict dir, uint64_t offset, size_t rec_len, uint32_t ino, const char* restrict name,
+    uint8_t file_type)
+{
+    struct ext2_vnode_context* ctx = dir->ctxdata;
+    uint8_t buffer[sizeof(struct ext2_dir_entry) + EXT2_NAME_LEN + 3] = { 0 };
+
+    fill_record(ctx->fs_ctx, buffer, rec_len, ino, name, file_type);
+
+    return write_exact(dir, buffer, ext2_dirent_reclen(strlen(name)), offset);
+}
+
+static int directory_changed(struct vnode* restrict dir)
+{
+    struct ext2_vnode_context* ctx = dir->ctxdata;
+    uint32_t flags = le32toh(ctx->inode.i_flags);
+
+    if(0 == (flags & EXT2_INDEX_FL)) {
+        return 0;
+    }
+
+    ctx->inode.i_flags = htole32(flags & ~EXT2_INDEX_FL);
+
+    return ext2_inode_write(ctx->fs_ctx, (uint32_t)(dir->nodenumber), &ctx->inode);
+}
+
+static int append_block(struct vnode* restrict dir, const uint8_t* restrict block)
 {
     struct ext2_vnode_context* ctx = dir->ctxdata;
     struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
     uint64_t size = ext2_inode_size(&ctx->inode);
-    bool has_filetype = le32toh(fs_ctx->super.s_feature_incompat) & EXT2_FEATURE_INCOMPAT_FILETYPE;
+
+    int retval = write_exact(dir, block, fs_ctx->block_size, size);
+
+    if(retval == 0) {
+        retval = ext2_inode_set_size(fs_ctx, &ctx->inode, size + fs_ctx->block_size);
+    }
+
+    if(retval == 0) {
+        retval = ext2_inode_write(fs_ctx, (uint32_t)(dir->nodenumber), &ctx->inode);
+    }
+
+    return retval;
+}
+
+static uint8_t* alloc_block(const struct ext2_vfs_context* restrict fs_ctx)
+{
+    uint8_t* block = kmalloc(fs_ctx->block_size);
+
+    if(block) {
+        memset(block, 0, fs_ctx->block_size);
+    }
+
+    return block;
+}
+
+int ext2_dirent_read(struct vnode* restrict dir, uint64_t* restrict offset, struct ext2_dirent* restrict out)
+{
+    struct ext2_vnode_context* ctx = dir->ctxdata;
+    uint64_t size = ext2_inode_size(&ctx->inode);
 
     while(*offset < size) {
         struct ext2_dir_entry head;
-        int retval = read_exact(dir, &head, sizeof(head), *offset);
+        size_t rec_len;
+        int retval = read_record(dir, *offset, &head, &rec_len);
 
         if(retval < 0) {
             return retval;
-        }
-
-        size_t rec_len = le16toh(head.rec_len);
-        size_t in_block = *offset % fs_ctx->block_size;
-
-        // Records never cross a block boundary
-        bool valid = true;
-        valid = valid && rec_len >= ext2_dirent_reclen(head.name_len);
-        valid = valid && 0 == rec_len % 4;
-        valid = valid && rec_len <= fs_ctx->block_size - in_block;
-
-        if(!valid) {
-            pr_warning("ext2: %s: inode %u has a broken directory record at %zu", fs_ctx->device->identifier, (uint32_t)(dir->nodenumber),
-                (size_t)(*offset));
-            return -EIO;
         }
 
         uint64_t record = *offset;
@@ -72,7 +200,7 @@ int ext2_dirent_read(struct vnode* restrict dir, uint64_t* restrict offset, stru
         out->offset = record;
         out->ino = ino;
 
-        if(has_filetype) {
+        if(has_filetype(ctx->fs_ctx)) {
             out->file_type = head.file_type;
         }
         else {
@@ -98,6 +226,175 @@ int ext2_dirent_find(struct vnode* restrict dir, const char* restrict name, stru
 
         if(0 == strcmp(out->name, name)) {
             return 0;
+        }
+    }
+}
+
+int ext2_dirent_add(struct vnode* restrict dir, const char* restrict name, uint32_t ino, uint8_t file_type)
+{
+    struct ext2_vnode_context* ctx = dir->ctxdata;
+    uint64_t size = ext2_inode_size(&ctx->inode);
+    size_t needed = ext2_dirent_reclen(strlen(name));
+    uint64_t offset = 0;
+
+    int retval = directory_changed(dir);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    while(offset < size) {
+        struct ext2_dir_entry head;
+        size_t rec_len;
+        retval = read_record(dir, offset, &head, &rec_len);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        size_t used = 0;
+
+        if(head.inode) {
+            used = ext2_dirent_reclen(head.name_len);
+        }
+
+        if(rec_len - used < needed) {
+            offset += rec_len;
+            continue;
+        }
+
+        if(used) {
+            uint16_t shrunk = rec_len_to_disk(used);
+            retval = write_exact(dir, &shrunk, sizeof(shrunk), offset + offsetof(struct ext2_dir_entry, rec_len));
+
+            if(retval < 0) {
+                return retval;
+            }
+        }
+
+        return write_record(dir, offset + used, rec_len - used, ino, name, file_type);
+    }
+
+    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
+    uint8_t* block = alloc_block(fs_ctx);
+
+    if(block == nullptr) {
+        return -ENOMEM;
+    }
+
+    fill_record(fs_ctx, block, fs_ctx->block_size, ino, name, file_type);
+    retval = append_block(dir, block);
+    kfree(block);
+
+    return retval;
+}
+
+int ext2_dirent_remove(struct vnode* restrict dir, uint64_t offset)
+{
+    struct ext2_vnode_context* ctx = dir->ctxdata;
+    uint64_t block_start = offset - offset % ctx->fs_ctx->block_size;
+
+    int retval = directory_changed(dir);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct ext2_dir_entry head;
+    size_t rec_len;
+    retval = read_record(dir, offset, &head, &rec_len);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(offset == block_start) {
+        uint32_t unused = 0;
+        return write_exact(dir, &unused, sizeof(unused), offset + offsetof(struct ext2_dir_entry, inode));
+    }
+
+    uint64_t previous = block_start;
+
+    for(;;) {
+        struct ext2_dir_entry previous_head;
+        size_t previous_len;
+        retval = read_record(dir, previous, &previous_head, &previous_len);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        if(previous + previous_len == offset) {
+            uint16_t merged = rec_len_to_disk(previous_len + rec_len);
+            return write_exact(dir, &merged, sizeof(merged), previous + offsetof(struct ext2_dir_entry, rec_len));
+        }
+
+        if(previous + previous_len > offset) {
+            return -EIO;
+        }
+
+        previous += previous_len;
+    }
+}
+
+int ext2_dirent_retarget(struct vnode* restrict dir, uint64_t offset, uint32_t ino, uint8_t file_type)
+{
+    struct ext2_vnode_context* ctx = dir->ctxdata;
+    uint32_t raw = htole32(ino);
+
+    int retval = directory_changed(dir);
+
+    if(retval == 0) {
+        retval = write_exact(dir, &raw, sizeof(raw), offset + offsetof(struct ext2_dir_entry, inode));
+    }
+
+    if(retval == 0 && has_filetype(ctx->fs_ctx)) {
+        retval = write_exact(dir, &file_type, sizeof(file_type), offset + offsetof(struct ext2_dir_entry, file_type));
+    }
+
+    return retval;
+}
+
+int ext2_dir_init(struct vnode* restrict dir, uint32_t parent_ino)
+{
+    struct ext2_vnode_context* ctx = dir->ctxdata;
+    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
+    uint8_t* block = alloc_block(fs_ctx);
+
+    if(block == nullptr) {
+        return -ENOMEM;
+    }
+
+    size_t dot_len = ext2_dirent_reclen(1);
+
+    fill_record(fs_ctx, block, dot_len, (uint32_t)(dir->nodenumber), ".", EXT2_FT_DIR);
+    fill_record(fs_ctx, block + dot_len, fs_ctx->block_size - dot_len, parent_ino, "..", EXT2_FT_DIR);
+
+    int retval = append_block(dir, block);
+
+    kfree(block);
+
+    return retval;
+}
+
+int ext2_dir_check_empty(struct vnode* restrict dir)
+{
+    struct ext2_dirent entry;
+    uint64_t offset = 0;
+
+    for(;;) {
+        int retval = ext2_dirent_read(dir, &offset, &entry);
+
+        if(retval == -ENOENT) {
+            return 0;
+        }
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        if(0 != strcmp(entry.name, ".") && 0 != strcmp(entry.name, "..")) {
+            return -ENOTEMPTY;
         }
     }
 }
