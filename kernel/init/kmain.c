@@ -107,7 +107,7 @@ void __noreturn kmain(void)
 
     invoke_initcalls(initcalls_bsp_start, initcalls_bsp_end);
 
-    pr_emerg("handing around...");
+    pr_emerg("hanging around...");
 
     mount_root();
 

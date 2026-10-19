@@ -45,6 +45,7 @@ struct process {
     struct mutex cred_lock;
 
     struct sighand* sighand;
+    struct sigqueue* exit_note;
     sigset_t sig_pending;
     struct sigqueue* sig_queue;
 

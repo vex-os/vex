@@ -71,10 +71,34 @@ static void notify_parent(struct process* restrict proc)
 {
     struct process* parent = process_locate(atomic_load_n(&proc->ppid, ATOMIC_SEQ_CST));
 
-    if(parent) {
-        event_trigger(&parent->child_exited, true);
-        process_decref(parent);
+    if(parent == nullptr) {
+        return;
     }
+
+    event_trigger(&parent->child_exited, true);
+
+    // After the event, so a handler's waitpid finds the zombie
+    struct sigqueue* note = proc->exit_note;
+    struct credentials* cred = proc->cred;
+
+    proc->exit_note = nullptr;
+
+    note->info = (struct k_siginfo) {
+        .si_signo = SIGCHLD,
+        .si_code = CLD_EXITED,
+        .si_pid = proc->pid,
+        .si_uid = cred->uid,
+        .si_status = proc->exit_code,
+    };
+
+    if(proc->exit_signal) {
+        note->info.si_code = CLD_KILLED;
+        note->info.si_status = proc->exit_signal;
+    }
+
+    signal_send_node(parent, note);
+
+    process_decref(parent);
 }
 
 // Children are moved before their zombie flags are
@@ -181,8 +205,11 @@ struct process* process_create(struct process* restrict parent)
     }
 
     proc->sighand = sighand_create(parent_sighand);
+    proc->exit_note = slab_alloc(sizeof(struct sigqueue));
 
-    if(proc->sighand == nullptr) {
+    if(proc->sighand == nullptr || proc->exit_note == nullptr) {
+        slab_free(proc->exit_note);
+        sighand_destroy(proc->sighand);
         vms_release(proc->vms);
         slab_free(proc);
         return nullptr;
@@ -218,6 +245,7 @@ struct process* process_create(struct process* restrict parent)
 
     if(proc->cwd == nullptr) {
         cred_decref(proc->cred);
+        slab_free(proc->exit_note);
         sighand_destroy(proc->sighand);
         vms_release(proc->vms);
         slab_free(proc);
@@ -286,6 +314,7 @@ void process_decref(struct process* proc)
 
         cred_decref(proc->cred);
         signal_flush(proc->sig_queue);
+        slab_free(proc->exit_note);
         sighand_destroy(proc->sighand);
         mutex_deinit(&proc->cred_lock);
         event_deinit(&proc->evnt);

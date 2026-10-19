@@ -115,6 +115,53 @@ static void drop_locked(sigset_t* restrict pending, struct sigqueue** restrict q
     }
 }
 
+static void queue_signal(struct process* restrict proc, struct thread* restrict target, int sig, struct sigqueue* restrict node)
+{
+    struct sighand* sighand = proc->sighand;
+    sigset_t bit = sigbit(sig);
+
+    sigset_t* pending = &proc->sig_pending;
+    struct sigqueue** queue = &proc->sig_queue;
+
+    if(target) {
+        pending = &target->sig_pending;
+        queue = &target->sig_queue;
+    }
+
+    bool intr_state = spinlock_acquire_intr(&sighand->lock);
+
+    bool blocked = target && 0 != (target->sig_blocked & bit);
+
+    // A blocked signal stays pending even if ignored: the action may change before it is unblocked
+    if((ignored_locked(sighand, sig) && !blocked) || (*pending & bit)) {
+        spinlock_release_intr(&sighand->lock, intr_state);
+        slab_free(node);
+        return;
+    }
+
+    *pending |= bit;
+
+    if(node) {
+        queue_append(queue, node);
+    }
+
+    bool proc_intr_state = spinlock_acquire_intr(&proc->lock);
+
+    struct thread* thrd = target;
+
+    if(thrd == nullptr) {
+        thrd = choose_thread_locked(proc, bit);
+    }
+
+    if(thrd && 0 == (thrd->sig_blocked & bit)) {
+        atomic_fetch_or(&thrd->pending_work, THREAD_WORK_SIGNAL, ATOMIC_RELEASE);
+        sched_kick(thrd);
+    }
+
+    spinlock_release_intr(&proc->lock, proc_intr_state);
+    spinlock_release_intr(&sighand->lock, intr_state);
+}
+
 struct sighand* sighand_create(struct sighand* restrict parent)
 {
     struct sighand* sighand = pslab_alloc_virt();
@@ -163,63 +210,28 @@ void sighand_exec(struct sighand* restrict sighand)
 
 int signal_send(struct process* restrict proc, struct thread* restrict target, const struct k_siginfo* restrict info)
 {
-    int sig = info->si_signo;
-
-    if(sig == SIGKILL) {
+    if(info->si_signo == SIGKILL) {
         process_kill(proc, SIGKILL);
         return 0;
     }
 
-    // Allocated up front, since there is no sleeping under the lock;
+    // Allocated before the lock, under which nothing sleeps;
     // without it the signal still arrives, just with no siginfo
     struct sigqueue* node = slab_alloc(sizeof(struct sigqueue));
 
-    struct sighand* sighand = proc->sighand;
-    sigset_t bit = sigbit(sig);
-
-    sigset_t* pending = &proc->sig_pending;
-    struct sigqueue** queue = &proc->sig_queue;
-
-    if(target) {
-        pending = &target->sig_pending;
-        queue = &target->sig_queue;
-    }
-
-    bool intr_state = spinlock_acquire_intr(&sighand->lock);
-
-    bool blocked = target && 0 != (target->sig_blocked & bit);
-
-    // A blocked signal stays pending even if ignored: the action may change before it is unblocked
-    if((ignored_locked(sighand, sig) && !blocked) || (*pending & bit)) {
-        spinlock_release_intr(&sighand->lock, intr_state);
-        slab_free(node);
-        return 0;
-    }
-
-    *pending |= bit;
-
     if(node) {
         node->info = *info;
-        queue_append(queue, node);
     }
 
-    bool proc_intr_state = spinlock_acquire_intr(&proc->lock);
-
-    struct thread* thrd = target;
-
-    if(thrd == nullptr) {
-        thrd = choose_thread_locked(proc, bit);
-    }
-
-    if(thrd && 0 == (thrd->sig_blocked & bit)) {
-        atomic_fetch_or(&thrd->pending_work, THREAD_WORK_SIGNAL, ATOMIC_RELEASE);
-        sched_kick(thrd);
-    }
-
-    spinlock_release_intr(&proc->lock, proc_intr_state);
-    spinlock_release_intr(&sighand->lock, intr_state);
+    queue_signal(proc, target, info->si_signo, node);
 
     return 0;
+}
+
+// For senders that cannot allocate, such as the scheduler; the node is consumed either way
+void signal_send_node(struct process* restrict proc, struct sigqueue* restrict node)
+{
+    queue_signal(proc, nullptr, node->info.si_signo, node);
 }
 
 void signal_force(struct thread* restrict thrd, const struct k_siginfo* restrict info)

@@ -122,6 +122,7 @@ void sighand_destroy(struct sighand* restrict sighand);
 void sighand_exec(struct sighand* restrict sighand);
 
 int signal_send(struct process* restrict proc, struct thread* restrict target, const struct k_siginfo* restrict info);
+void signal_send_node(struct process* restrict proc, struct sigqueue* restrict node);
 void signal_force(struct thread* restrict thrd, const struct k_siginfo* restrict info);
 void signal_deliver(struct hart_context* restrict ctx);
 void signal_action(struct process* restrict proc, int sig, const struct k_sigaction* restrict act, struct k_sigaction* restrict oact);
