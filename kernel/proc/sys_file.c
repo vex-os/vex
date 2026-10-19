@@ -369,6 +369,55 @@ static intptr_t sys_ioctl(const uintptr_t* restrict args)
     return syscall_with_fd(args, &ioctl_file);
 }
 
+static intptr_t sys_utimensat(const uintptr_t* restrict args)
+{
+    struct thread* thread = this_thread();
+    struct process* proc = thread->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    unsigned flags = args[3];
+
+    if(flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)) {
+        return -EINVAL;
+    }
+
+    char path[PATH_SIZE];
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    struct k_timespec times[2];
+    const struct k_timespec* times_ptr = nullptr;
+
+    if(args[2]) {
+        copied = user_copyin(times, args[2], sizeof(times));
+
+        if(copied < 0) {
+            return copied;
+        }
+
+        times_ptr = times;
+    }
+
+    struct vnode* node;
+    int retval = syscall_resolve_at(args[0], path, flags, &node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = vnode_utimes(node, thread->cred, times_ptr);
+
+    vnode_decref(node);
+
+    return retval;
+}
+
 define_syscall(sys_openat, SYS_OPENAT);
 define_syscall(sys_close, SYS_CLOSE);
 define_syscall(sys_read, SYS_READ);
@@ -382,3 +431,4 @@ define_syscall(sys_fstatat, SYS_FSTATAT);
 define_syscall(sys_dup, SYS_DUP);
 define_syscall(sys_dup2, SYS_DUP2);
 define_syscall(sys_ioctl, SYS_IOCTL);
+define_syscall(sys_utimensat, SYS_UTIMENSAT);

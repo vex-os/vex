@@ -19,5 +19,6 @@
 #define __k_AT_SYMLINK_NOFOLLOW 0x0100
 #define __k_AT_REMOVEDIR        0x0200
 #define __k_AT_EMPTY_PATH       0x0400
+#define __k_AT_SYMLINK_FOLLOW   0x0800
 
 #endif /* USR_VEX_FCNTL_H */
