@@ -10,8 +10,8 @@ struct thread;
 
 struct mutex {
     spinlock_type lock;
+    uint32_t num_waiters;
     struct thread* owner;
-    size_t num_waiters;
     struct event released;
 };
 

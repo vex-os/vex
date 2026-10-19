@@ -2,6 +2,7 @@
 
 #include <arch/hart.h>
 #include <arch/thread.h>
+#include <vex/compiler.h>
 #include <vex/spinlock.h>
 #include <vex/types.h>
 
@@ -20,24 +21,26 @@ enum {
 
 struct thread {
     struct thread* self;
-    uint64_t errno_value;
 
     // Pinned, register-free scratch slots for syscall/trap entry trampolines:
     // reachable via thread-pointer-register-relative addressing (%gs on amd64)
-    // before any general purpose register is free to use. kernel_rsp mirrors
-    // arch.kernel_stack; entry_scratch is a transient holding cell for the
-    // interrupted user stack pointer while it is being switched away from.
+    // before any general purpose register is free to use. kernel_rsp is where
+    // the kernel stack starts for ring 3 entries; entry_scratch is a transient holding
+    // cell for the interrupted user stack pointer while it is being switched away from.
     void* kernel_rsp;
     void* entry_scratch;
 
-    unsigned long tid;
-    unsigned short state; // Under sched_lock
-
-    struct hart_context* syscall_ctx;
+    pid_t tid;
+    uint16_t state; // Under sched_lock
+    bool need_resched;
+    uint32_t preempt_count; // Spinlocks held, the thread is not preempted while nonzero
 
     spinlock_type sched_lock;
     spinlock_type hart_lock; // Held while the thread is on a hart
     spinlock_type yield_await;
+
+    struct hart_context* syscall_ctx;
+
     struct hart_local* last_hart;  // The hart this thread runs on or last to be running on
     struct hart_local* bound_hart; // The hart this thread MUST run on, nullptr otherwise
 
@@ -46,16 +49,14 @@ struct thread {
     struct thread* rq_prev;
 
     struct event** events;
-    size_t wakeup_index;
-    size_t num_events;
-    size_t max_events;
+    uint32_t wakeup_index;
+    uint32_t num_events;
+    uint32_t max_events;
 
     uint64_t wake_deadline;
     struct thread* wake_next;
 
     uint64_t timeslice;
-    unsigned preempt_count; // Spinlocks held, the thread is not preempted while nonzero
-    bool need_resched;
 
     struct process* proc;
     struct credentials* cred;
@@ -64,11 +65,18 @@ struct thread {
 
     void* kstack_top;
 
-    struct hart_context ctx;
     struct arch_thread arch;
 };
 
 static_assert((0 * sizeof(uintptr_t)) == offsetof(struct thread, self));
-static_assert((1 * sizeof(uintptr_t)) == offsetof(struct thread, errno_value));
-static_assert((2 * sizeof(uintptr_t)) == offsetof(struct thread, kernel_rsp));
-static_assert((3 * sizeof(uintptr_t)) == offsetof(struct thread, entry_scratch));
+static_assert((1 * sizeof(uintptr_t)) == offsetof(struct thread, kernel_rsp));
+static_assert((2 * sizeof(uintptr_t)) == offsetof(struct thread, entry_scratch));
+
+// The saved context lives at the very top of the kernel stack, where nothing
+// running on that stack reaches, so the thread itself stays small
+#define THREAD_CTX_RESERVE align_ceil(sizeof(struct hart_context), 16)
+
+static __always_inline __nodiscard struct hart_context* thread_ctx(const struct thread* restrict thrd)
+{
+    return (struct hart_context*)((uintptr_t)(thrd->kstack_top) - THREAD_CTX_RESERVE);
+}

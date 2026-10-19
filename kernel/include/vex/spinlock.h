@@ -5,7 +5,7 @@
 #include <vex/preempt.h>
 #include <vex/types.h>
 
-typedef uintptr_t spinlock_type;
+typedef uint32_t spinlock_type;
 #define SPINLOCK_INIT ((spinlock_type)(0))
 #define SPINLOCK_FREE ((spinlock_type)(0))
 #define SPINLOCK_LOCK ((spinlock_type)(1))

@@ -9,7 +9,7 @@ sched_enter:
     # so another hart may now resume that thread
     testq %rsi, %rsi
     jz 2f
-    movq $0, (%rsi)     # SPINLOCK_FREE
+    movl $0, (%rsi)     # SPINLOCK_FREE
 2:
     popq %rax
     movq %rax, %ds      # hart_context::amd64_ds

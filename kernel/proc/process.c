@@ -14,11 +14,11 @@
 #include <vex/vms.h>
 #include <vex/vnode.h>
 
-#define INIT_PID 1
+#define INIT_PID            1
+#define PROCTABLE_BUCKETS   1024
+#define PROCESS_SIZE_BUDGET 256
 
-#define PROCTABLE_BUCKETS 1024
-
-static_assert(sizeof(struct process) <= SLAB_MAX_SIZE);
+static_assert(sizeof(struct process) <= PROCESS_SIZE_BUDGET);
 
 static struct process* proctable[PROCTABLE_BUCKETS];
 static spinlock_type proctable_lock = SPINLOCK_INIT; // Taken with interrupts disabled: the scheduler looks up parents

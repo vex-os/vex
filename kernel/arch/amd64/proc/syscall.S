@@ -5,11 +5,11 @@
 amd64_syscall_entry:
     swapgs                      # %gs:0                         -> thread::self
 
-    movq %rsp, %gs:24           # thread::entry_scratch         <- user rsp for later sysretq
-    movq %gs:16, %rsp           # thread::kernel_rsp
+    movq %rsp, %gs:16           # thread::entry_scratch         <- user rsp for later sysretq
+    movq %gs:8, %rsp            # thread::kernel_rsp
 
     pushq $0x3B                 # hart_context::amd64_ss        <- gdt_selector(GDT_USER_DATA_64, 0, 3)
-    pushq %gs:24                # hart_context::amd64_rsp
+    pushq %gs:16                # hart_context::amd64_rsp
     pushq %r11                  # hart_context::amd64_rflags
     pushq $0x43                 # hart_context::amd64_cs        <- gdt_selector(GDT_USER_CODE_64, 0, 3)
     pushq %rcx                  # hart_context::amd64_rip
@@ -61,7 +61,7 @@ amd64_syscall_entry:
     popq %r14                   # hart_context::amd64_r14
     popq %r15                   # hart_context::amd64_r15
 
-    movq %gs:24, %rsp           # thread::entry_scratch         <- restore user rsp for sysretq
+    movq %gs:16, %rsp           # thread::entry_scratch         <- restore user rsp for sysretq
 
     swapgs                      # %gs:0                         -> whatever userspace had
 

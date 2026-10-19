@@ -16,7 +16,7 @@ struct process {
     pid_t ppid;
     int exit_code;
 
-    unsigned refcount;
+    uint32_t refcount;
 
     bool zombie;
     bool collected;
@@ -26,7 +26,7 @@ struct process {
     struct vmspace* vms;
 
     struct thread* threads;
-    unsigned long num_threads;
+    uint32_t num_threads;
 
     struct process* children;
     struct process* cnext;
@@ -39,14 +39,14 @@ struct process {
 
     struct credentials* cred;
     struct mutex cred_lock;
-    mode_t umask;
 
     struct vnode* cwd;
+    mode_t umask;
 
     spinlock_type fd_lock;
+    uint32_t num_fds;
+    uint32_t max_fds;
     struct file** fds;
-    size_t num_fds;
-    size_t max_fds;
 };
 
 struct process* process_create(struct process* restrict parent) __nodiscard;

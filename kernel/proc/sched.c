@@ -21,8 +21,9 @@
 #include <vex/vms.h>
 
 #define SCHED_TIMESLICE_NS (1000 * UINT64_C(CONFIG_SCHED_TIMESLICE))
+#define THREAD_SIZE_BUDGET 256
 
-static_assert(sizeof(struct thread) <= SLAB_MAX_SIZE);
+static_assert(sizeof(struct thread) <= THREAD_SIZE_BUDGET);
 
 struct runqueue {
     spinlock_type lock;
@@ -302,7 +303,7 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
             return;
         }
         else {
-            memcpy(&curr->ctx, ctx, sizeof(struct hart_context));
+            memcpy(thread_ctx(curr), ctx, sizeof(struct hart_context));
             arch_thread_ctx_save(curr);
 
             if(curr->state == THREAD_RUNNING) {
@@ -330,7 +331,7 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
         hart->curr_thread = hart->idle_thread;
         arch_thread_ctx_load(hart->idle_thread);
         clockevt_oneshot(sched_ireq_number, SCHED_TIMESLICE_NS);
-        sched_enter(&hart->idle_thread->ctx, curr_hart_lock);
+        sched_enter(thread_ctx(hart->idle_thread), curr_hart_lock);
     }
 
     atomic_fetch_or(&hart->flags, HART_FLAG_ACTIVE, ATOMIC_SEQ_CST);
@@ -340,7 +341,7 @@ static void sched_ireq_handler(unsigned number, const struct hart_context* restr
     arch_thread_ctx_load(next);
     clockevt_oneshot(sched_ireq_number, next->timeslice);
 
-    sched_enter(&next->ctx, curr_hart_lock);
+    sched_enter(thread_ctx(next), curr_hart_lock);
 }
 
 static void sched_idle(void* restrict arg)
@@ -449,7 +450,7 @@ struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg)
 
     cred_incref(&sys_cred);
 
-    arch_thread_setup_kern(thrd, entry, arg, kstack_top);
+    arch_thread_setup_kern(thrd, entry, arg);
 
     return thrd;
 }
@@ -472,7 +473,7 @@ struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry
     struct thread* thrd = alloc_thread_user(proc);
 
     if(thrd) {
-        arch_thread_setup_user(thrd, (void*)(entry), (void*)(stack_top), thrd->kstack_top, proc->vms);
+        arch_thread_setup_user(thrd, (void*)(entry), (void*)(stack_top), proc->vms);
         attach_thread_user(proc, thrd);
     }
 
@@ -484,7 +485,7 @@ struct thread* create_thread_fork(struct process* restrict proc, const struct ha
     struct thread* thrd = alloc_thread_user(proc);
 
     if(thrd) {
-        arch_thread_setup_fork(thrd, ctx, thrd->kstack_top, proc->vms);
+        arch_thread_setup_fork(thrd, ctx, proc->vms);
         attach_thread_user(proc, thrd);
     }
 

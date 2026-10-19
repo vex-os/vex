@@ -11,9 +11,9 @@ struct listener {
 
 struct event {
     spinlock_type lock;
-    size_t num_pending;
-    size_t num_listeners;
-    size_t max_listeners;
+    uint32_t num_pending;
+    uint32_t num_listeners;
+    uint32_t max_listeners;
     struct listener* listeners;
 };
 
