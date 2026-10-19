@@ -37,6 +37,7 @@ struct thread {
     pid_t tid;
     uint16_t state; // Under sched_lock
     bool need_resched;
+    bool wait_interrupt;
     uint32_t preempt_count; // Spinlocks held, the thread is not preempted while nonzero
 
     spinlock_type sched_lock;

@@ -1,3 +1,4 @@
+#include <vex/atomic.h>
 #include <vex/clocksrc.h>
 #include <vex/errno.h>
 #include <vex/event.h>
@@ -57,7 +58,7 @@ ssize_t event_await(struct event** restrict events, size_t count)
 }
 
 // A deadline of zero waits forever
-static ssize_t await_until(struct event** restrict events, size_t count, uint64_t deadline)
+static ssize_t await_until(struct event** restrict events, size_t count, uint64_t deadline, bool interruptible)
 {
     ssize_t result = event_await(events, count);
 
@@ -151,7 +152,7 @@ static ssize_t await_until(struct event** restrict events, size_t count, uint64_
 
     thrd->num_events = count;
 
-    sched_dequeue(thrd);
+    sched_dequeue(thrd, interruptible);
 
     if(deadline) {
         sched_wake_at(thrd, deadline);
@@ -199,6 +200,10 @@ static ssize_t await_until(struct event** restrict events, size_t count, uint64_
     thrd->num_events = 0;
 
     if(!triggered) {
+        if(interruptible && atomic_load(&thrd->pending_work, ATOMIC_ACQUIRE)) {
+            return -EINTR;
+        }
+
         return -ETIMEDOUT;
     }
 
@@ -207,7 +212,7 @@ static ssize_t await_until(struct event** restrict events, size_t count, uint64_
 
 ssize_t event_await_blocking(struct event** restrict events, size_t count)
 {
-    return await_until(events, count, 0);
+    return await_until(events, count, 0, false);
 }
 
 ssize_t event_await_timeout(struct event** restrict events, size_t count, uint64_t timeout_nsec)
@@ -218,7 +223,12 @@ ssize_t event_await_timeout(struct event** restrict events, size_t count, uint64
         deadline = UINT64_MAX;
     }
 
-    return await_until(events, count, deadline);
+    return await_until(events, count, deadline, false);
+}
+
+ssize_t event_await_interruptible(struct event** restrict events, size_t count)
+{
+    return await_until(events, count, 0, true);
 }
 
 size_t event_trigger(struct event* restrict evnt, bool linger_pending)

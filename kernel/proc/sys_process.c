@@ -367,7 +367,7 @@ static intptr_t wait_any_child(struct process* restrict caller, uintptr_t wstatu
         // A child that dies before this
         // wait starts leaves the event pending
         struct event* child_exited = &caller->child_exited;
-        ssize_t result = event_await_blocking(&child_exited, 1);
+        ssize_t result = event_await_interruptible(&child_exited, 1);
 
         if(result < 0) {
             return result;
@@ -410,7 +410,7 @@ static intptr_t sys_waitpid(const uintptr_t* restrict args)
     // so a process that is already a zombie has nothing to wait for
     if(!atomic_load_n(&target->zombie, ATOMIC_ACQUIRE)) {
         struct event* evnt = &target->evnt;
-        ssize_t result = event_await_blocking(&evnt, 1);
+        ssize_t result = event_await_interruptible(&evnt, 1);
 
         if(result < 0) {
             process_decref(target);

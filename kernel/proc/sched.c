@@ -505,13 +505,10 @@ struct thread* create_thread_user_enq(struct process* restrict proc, uintptr_t e
     return thrd;
 }
 
-void sched_enqueue(struct thread* restrict thrd)
+static struct hart_local* wake_locked(struct thread* restrict thrd)
 {
-    bool intr_state = spinlock_acquire_intr(&thrd->sched_lock);
-
     if(thrd->state != THREAD_BLOCKED) {
-        spinlock_release_intr(&thrd->sched_lock, intr_state);
-        return;
+        return nullptr;
     }
 
     struct hart_local* target = choose_hart(thrd);
@@ -523,14 +520,35 @@ void sched_enqueue(struct thread* restrict thrd)
     rq_push_nolock(rq, thrd);
 
     raw_spinlock_release(&rq->lock);
-    spinlock_release_intr(&thrd->sched_lock, intr_state);
 
-    kick_hart(target, thrd);
+    return target;
 }
 
-void sched_dequeue(struct thread* restrict thrd)
+void sched_enqueue(struct thread* restrict thrd)
 {
     bool intr_state = spinlock_acquire_intr(&thrd->sched_lock);
+
+    struct hart_local* target = wake_locked(thrd);
+
+    spinlock_release_intr(&thrd->sched_lock, intr_state);
+
+    if(target) {
+        kick_hart(target, thrd);
+    }
+}
+
+void sched_dequeue(struct thread* restrict thrd, bool interruptible)
+{
+    bool intr_state = spinlock_acquire_intr(&thrd->sched_lock);
+
+    thrd->wait_interrupt = interruptible;
+
+    // Work posted before sched_kick could see the thread blocked
+    // would never wake it, so such a wait does not start at all
+    if(interruptible && atomic_load(&thrd->pending_work, ATOMIC_ACQUIRE)) {
+        spinlock_release_intr(&thrd->sched_lock, intr_state);
+        return;
+    }
 
     if(thrd->state == THREAD_RUNNABLE) {
         rq_unlink(thrd);
@@ -546,6 +564,15 @@ void sched_dequeue(struct thread* restrict thrd)
 void sched_kick(struct thread* restrict thrd)
 {
     bool intr_state = spinlock_acquire_intr(&thrd->sched_lock);
+
+    if(thrd->state == THREAD_BLOCKED && thrd->wait_interrupt) {
+        struct hart_local* target = wake_locked(thrd);
+
+        spinlock_release_intr(&thrd->sched_lock, intr_state);
+
+        kick_hart(target, thrd);
+        return;
+    }
 
     struct hart_local* target = nullptr;
 
