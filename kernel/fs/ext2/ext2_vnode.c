@@ -1,6 +1,9 @@
+#include <vex/blk_device.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
+#include <vex/mount.h>
 #include <vex/mutex.h>
+#include <vex/pslab.h>
 #include <vex/slab.h>
 #include <vex/string.h>
 #include <vex/strings.h>
@@ -151,6 +154,226 @@ static ssize_t readlink_locked(struct vnode* restrict node, char* restrict buf, 
     return sz;
 }
 
+static int write_inode_locked(struct vnode* restrict node)
+{
+    struct ext2_vnode_context* ctx = node->ctxdata;
+    return ext2_inode_write(ctx->fs_ctx, (uint32_t)(node->nodenumber), &ctx->inode);
+}
+
+static bool block_mapped_locked(struct vnode* restrict node, uint64_t pos)
+{
+    struct fcache_extent extent;
+    size_t sector_size = node->fs->device->sector_size;
+    return ext2_bmap(node, pos / sector_size, false, &extent) == 0 && extent.mapped;
+}
+
+static ssize_t write_span_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, uint64_t offset)
+{
+    struct ext2_vnode_context* ctx = node->ctxdata;
+    uint64_t size = ext2_inode_size(&ctx->inode);
+    ssize_t written = fcache_write(node, &ext2_bmap, buffer, sz, offset, size);
+
+    if(written <= 0 || offset + written <= size) {
+        return written;
+    }
+
+    int retval = ext2_inode_set_size(ctx->fs_ctx, &ctx->inode, offset + written);
+
+    if(retval == 0) {
+        retval = write_inode_locked(node);
+    }
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    return written;
+}
+
+static int zero_fill_locked(struct vnode* restrict node, uint64_t from, uint64_t to)
+{
+    void* zeroes = pslab_alloc_virt();
+
+    if(zeroes == nullptr) {
+        return -ENOMEM;
+    }
+
+    memset(zeroes, 0, PAGE_SIZE);
+
+    int retval = 0;
+
+    while(from < to) {
+        size_t chunk = to - from;
+
+        if(chunk > PAGE_SIZE) {
+            chunk = PAGE_SIZE;
+        }
+
+        ssize_t written = write_span_locked(node, zeroes, chunk, from);
+
+        if(written < 0) {
+            retval = written;
+            break;
+        }
+
+        from += written;
+    }
+
+    pslab_free_virt(zeroes);
+
+    return retval;
+}
+
+static int fill_hole_locked(struct vnode* restrict node, uint64_t pos, uint64_t limit)
+{
+    struct ext2_vnode_context* ctx = node->ctxdata;
+    size_t block_size = ctx->fs_ctx->block_size;
+
+    if(block_mapped_locked(node, pos)) {
+        return 0;
+    }
+
+    uint64_t start = pos - pos % block_size;
+    uint64_t stop = start + block_size;
+
+    if(stop > limit) {
+        stop = limit;
+    }
+
+    return zero_fill_locked(node, start, stop);
+}
+
+static int clear_tail_locked(struct vnode* restrict node, uint64_t size, uint64_t new_size)
+{
+    struct ext2_vnode_context* ctx = node->ctxdata;
+    size_t block_size = ctx->fs_ctx->block_size;
+
+    if(0 == size % block_size || !block_mapped_locked(node, size)) {
+        return 0;
+    }
+
+    uint64_t stop = size - size % block_size + block_size;
+
+    if(stop > new_size) {
+        stop = new_size;
+    }
+
+    return zero_fill_locked(node, size, stop);
+}
+
+static ssize_t write_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+{
+    struct ext2_vnode_context* ctx = node->ctxdata;
+    size_t block_size = ctx->fs_ctx->block_size;
+
+    if(node->fs->readonly) {
+        return -EROFS;
+    }
+
+    if(offset < 0) {
+        return -EINVAL;
+    }
+
+    if(sz == 0) {
+        return 0;
+    }
+
+    uint64_t size = ext2_inode_size(&ctx->inode);
+    uint64_t end = offset + sz;
+    uint64_t limit = size;
+
+    if(end > limit) {
+        limit = end;
+    }
+
+    int retval = 0;
+
+    if((uint64_t)offset > size) {
+        retval = clear_tail_locked(node, size, offset);
+    }
+
+    if(retval == 0) {
+        retval = fill_hole_locked(node, offset, limit);
+    }
+
+    if(retval == 0 && (end - 1) / block_size != (uint64_t)offset / block_size) {
+        retval = fill_hole_locked(node, end - 1, limit);
+    }
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    return write_span_locked(node, buffer, sz, offset);
+}
+
+static int resize_locked(struct vnode* restrict node, uint64_t new_size)
+{
+    struct ext2_vnode_context* ctx = node->ctxdata;
+    uint64_t size = ext2_inode_size(&ctx->inode);
+    int retval = 0;
+
+    if(new_size > size) {
+        retval = clear_tail_locked(node, size, new_size);
+    }
+    else if(new_size < size) {
+        retval = ext2_truncate_blocks(node, new_size);
+    }
+
+    if(retval == 0) {
+        retval = ext2_inode_set_size(ctx->fs_ctx, &ctx->inode, new_size);
+    }
+
+    if(retval == 0) {
+        retval = write_inode_locked(node);
+    }
+
+    return retval;
+}
+
+static int setattr_locked(struct vnode* restrict node, const struct vattr* restrict attr)
+{
+    struct ext2_vnode_context* ctx = node->ctxdata;
+    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
+    struct ext2_inode* inode = &ctx->inode;
+
+    if(node->fs->readonly) {
+        return -EROFS;
+    }
+
+    if(attr->mask & (VATTR_UID | VATTR_GID)) {
+        uid_t uid = ext2_inode_uid(fs_ctx, inode);
+        gid_t gid = ext2_inode_gid(fs_ctx, inode);
+
+        if(attr->mask & VATTR_UID) {
+            uid = attr->uid;
+        }
+
+        if(attr->mask & VATTR_GID) {
+            gid = attr->gid;
+        }
+
+        if(!ext2_inode_set_owner(fs_ctx, inode, uid, gid)) {
+            return -EINVAL;
+        }
+    }
+
+    if(attr->mask & VATTR_MODE) {
+        uint16_t mode = le16toh(inode->i_mode);
+        inode->i_mode = htole16((mode & S_IFMT) | (attr->mode & ~S_IFMT));
+    }
+
+    if(attr->mask & VATTR_SIZE) {
+        return resize_locked(node, attr->size);
+    }
+
+    if(attr->mask & (VATTR_UID | VATTR_GID | VATTR_MODE)) {
+        return write_inode_locked(node);
+    }
+
+    return 0;
+}
+
 static void ext2_vnode_release(struct vnode* restrict node)
 {
     slab_free(node->ctxdata);
@@ -191,6 +414,23 @@ static ssize_t ext2_vnode_read(struct vnode* restrict node, void* restrict buffe
     return retval;
 }
 
+static ssize_t ext2_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+{
+    if(node->nodetype == VNODE_DIRECTORY) {
+        return -EISDIR;
+    }
+
+    if(node->nodetype != VNODE_FILE) {
+        return -EINVAL;
+    }
+
+    mutex_acquire(fs_lock(node));
+    ssize_t retval = write_locked(node, buffer, sz, offset);
+    mutex_release(fs_lock(node));
+
+    return retval;
+}
+
 static ssize_t ext2_vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz)
 {
     mutex_acquire(fs_lock(node));
@@ -226,6 +466,25 @@ static int ext2_vnode_stat(struct vnode* restrict node, struct k_stat* restrict 
     return 0;
 }
 
+static int ext2_vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr)
+{
+    mutex_acquire(fs_lock(node));
+    int retval = setattr_locked(node, attr);
+    mutex_release(fs_lock(node));
+    return retval;
+}
+
+static int ext2_vnode_fsync(struct vnode* restrict node)
+{
+    struct ext2_vnode_context* ctx = node->ctxdata;
+
+    mutex_acquire(fs_lock(node));
+    int retval = fcache_writeback(node, &ext2_bmap, ext2_inode_size(&ctx->inode));
+    mutex_release(fs_lock(node));
+
+    return retval;
+}
+
 static int ext2_vnode_map_page(struct vnode* restrict node, uint64_t index, struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot)
 {
     struct ext2_vnode_context* ctx = node->ctxdata;
@@ -246,7 +505,10 @@ const struct vnode_ops ext2_vnode_ops = {
     .lookup = &ext2_vnode_lookup,
     .iterate = &ext2_vnode_iterate,
     .read = &ext2_vnode_read,
+    .write = &ext2_vnode_write,
     .readlink = &ext2_vnode_readlink,
     .stat = &ext2_vnode_stat,
+    .setattr = &ext2_vnode_setattr,
+    .fsync = &ext2_vnode_fsync,
     .map_page = &ext2_vnode_map_page,
 };
