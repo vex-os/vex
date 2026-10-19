@@ -1,6 +1,7 @@
 #ifndef USR_VEX_SIGNAL_H
 #define USR_VEX_SIGNAL_H
 
+#include <arch/signal.h>
 #include <vex/types.h>
 
 #define __k_SIGHUP    1
@@ -120,6 +121,23 @@ struct __k_sigaction {
     __k_uint64_t sa_flags;
     void (*sa_restorer)(void);
     __k_sigset_t sa_mask;
+};
+
+struct __k_stack {
+    void* ss_sp;
+    __k_uint64_t ss_size;
+    __k_int32_t ss_flags;
+    __k_uint32_t ss_reserved;
+};
+
+#define __k_UC_FPU 0x0001 /* uc_mcontext points at the FPU state saved with it */
+
+struct __k_ucontext {
+    __k_uint64_t uc_flags;
+    struct __k_ucontext* uc_link;
+    struct __k_stack uc_stack;
+    __k_sigset_t uc_sigmask;
+    struct __k_mcontext uc_mcontext;
 };
 
 #endif /* USR_VEX_SIGNAL_H */

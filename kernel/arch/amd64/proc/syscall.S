@@ -41,6 +41,17 @@ amd64_syscall_entry:
 
     cli
 
+    # SYSRETQ reloads rip and rflags from rcx and r11, so a frame they no
+    # longer match, such as the one sigreturn restores, goes out through IRETQ
+    movq 32(%rsp), %rax         # hart_context::amd64_rcx
+    cmpq 144(%rsp), %rax        # hart_context::amd64_rip
+    jne amd64_return_to_user
+    movq 96(%rsp), %rax         # hart_context::amd64_r11
+    cmpq 160(%rsp), %rax        # hart_context::amd64_rflags
+    jne amd64_return_to_user
+    movq 168(%rsp), %rax        # hart_context::amd64_rsp
+    movq %rax, %gs:16           # thread::entry_scratch         <- a signal frame moves the stack
+
     popq %rax                   # hart_context::amd64_ds
     movq %rax, %ds
     popq %rax                   # hart_context::amd64_es

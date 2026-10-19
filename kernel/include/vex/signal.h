@@ -88,6 +88,10 @@
 
 #define k_sigaction __k_sigaction
 #define k_siginfo   __k_siginfo
+#define k_stack     __k_stack
+#define k_ucontext  __k_ucontext
+
+#define UC_FPU __k_UC_FPU
 
 typedef __k_sigset_t sigset_t;
 typedef __k_sighandler_t sighandler_t;
@@ -122,3 +126,7 @@ void signal_action(struct process* restrict proc, int sig, const struct k_sigact
 sigset_t signal_mask(struct thread* restrict thrd, int how, sigset_t set);
 sigset_t signal_pending(struct thread* restrict thrd);
 void signal_flush(struct sigqueue* restrict queue);
+
+int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restrict ctx, const struct k_sigaction* restrict action,
+    const struct k_siginfo* restrict info, sigset_t old_mask);
+int arch_signal_return(struct thread* restrict thrd, struct hart_context* restrict ctx, sigset_t* restrict mask);

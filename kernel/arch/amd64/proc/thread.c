@@ -7,7 +7,7 @@
 #include <vex/thread.h>
 #include <vex/vms.h>
 
-static void* fpu_state_of(const struct thread* restrict thrd)
+void* fpu_state_of(const struct thread* restrict thrd)
 {
     if(thrd->proc == nullptr) {
         return nullptr;

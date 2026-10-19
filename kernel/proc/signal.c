@@ -278,18 +278,46 @@ void signal_deliver(struct hart_context* restrict ctx)
     *pending &= ~sigbit(sig);
 
     struct sigqueue* node = queue_take(queue, sig);
-    sighandler_t handler = sighand->actions[sig - 1].sa_handler;
+    struct k_sigaction action = sighand->actions[sig - 1];
+    sigset_t old_mask = thrd->sig_blocked;
+    bool caught = action.sa_handler != SIG_DFL && action.sa_handler != SIG_IGN;
+
+    if(caught && (action.sa_flags & SA_RESETHAND)) {
+        memset(&sighand->actions[sig - 1], 0, sizeof(struct k_sigaction));
+    }
 
     recalc_locked(thrd);
 
     spinlock_release_intr(&sighand->lock, intr_state);
 
-    slab_free(node);
+    struct k_siginfo info = { .si_signo = sig, .si_code = SI_KERNEL };
 
-    // Handlers in userspace come with signal frames
-    if(handler == SIG_DFL && default_kills(sig)) {
-        process_kill(proc, sig);
+    if(node) {
+        info = node->info;
+        slab_free(node);
     }
+
+    if(!caught) {
+        if(action.sa_handler == SIG_DFL && default_kills(sig)) {
+            process_kill(proc, sig);
+        }
+
+        return;
+    }
+
+    // A stack that takes no frame leaves nothing to return to
+    if(arch_signal_setup(thrd, ctx, &action, &info, old_mask) < 0) {
+        process_kill(proc, SIGSEGV);
+        return;
+    }
+
+    sigset_t blocked = action.sa_mask;
+
+    if(0 == (action.sa_flags & SA_NODEFER)) {
+        blocked |= sigbit(sig);
+    }
+
+    signal_mask(thrd, SIG_BLOCK, blocked);
 }
 
 void signal_action(struct process* restrict proc, int sig, const struct k_sigaction* restrict act, struct k_sigaction* restrict oact)

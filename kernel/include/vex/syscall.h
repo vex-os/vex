@@ -68,6 +68,7 @@
 #define SYS_SIGACTION     __k_SYS_SIGACTION
 #define SYS_SIGPROCMASK   __k_SYS_SIGPROCMASK
 #define SYS_SIGPENDING    __k_SYS_SIGPENDING
+#define SYS_SIGRETURN     __k_SYS_SIGRETURN
 
 struct file;
 struct hart_context;

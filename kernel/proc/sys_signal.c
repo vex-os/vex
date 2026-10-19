@@ -95,9 +95,9 @@ static intptr_t sys_sigaction(const uintptr_t* restrict args)
             return -EINVAL;
         }
 
-        // Handlers in userspace need signal frames, which come later
-        if(act.sa_handler != SIG_DFL && act.sa_handler != SIG_IGN) {
-            return -ENOSYS;
+        // There is no trampoline of the kernel's own to return through
+        if(act.sa_handler != SIG_DFL && act.sa_handler != SIG_IGN && 0 == (act.sa_flags & SA_RESTORER)) {
+            return -EINVAL;
         }
 
         act.sa_mask &= ~(sigbit(SIGKILL) | sigbit(SIGSTOP));
@@ -176,7 +176,31 @@ static intptr_t sys_sigpending(const uintptr_t* restrict args)
     return 0;
 }
 
+static intptr_t sys_sigreturn(const uintptr_t* restrict args)
+{
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
+
+    if(proc == nullptr) {
+        return -ENOSYS;
+    }
+
+    struct hart_context* ctx = thrd->syscall_ctx;
+    sigset_t mask;
+
+    if(arch_signal_return(thrd, ctx, &mask) < 0) {
+        process_kill(proc, SIGSEGV);
+        return 0;
+    }
+
+    signal_mask(thrd, SIG_SETMASK, mask);
+
+    // The return value lands in the register just restored
+    return ctx->syscall_retval;
+}
+
 define_syscall(sys_kill, SYS_KILL);
 define_syscall(sys_sigaction, SYS_SIGACTION);
 define_syscall(sys_sigprocmask, SYS_SIGPROCMASK);
 define_syscall(sys_sigpending, SYS_SIGPENDING);
+define_syscall(sys_sigreturn, SYS_SIGRETURN);
