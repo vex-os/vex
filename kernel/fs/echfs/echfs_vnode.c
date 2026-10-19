@@ -2,6 +2,7 @@
 #include <vex/dirent.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
+#include <vex/kprintf.h>
 #include <vex/pslab.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
@@ -9,6 +10,7 @@
 #include <vex/strings.h>
 #include <vex/vcache.h>
 #include <vex/vnode.h>
+#include <vex/wallclock.h>
 
 #include "echfs.h"
 
@@ -20,6 +22,68 @@ static void free_chain(struct echfs_vfs_context* restrict fs, uint64_t block)
         uint64_t next = echfs_block_entry(fs, block);
         echfs_block_free(fs, block);
         block = next;
+    }
+}
+
+static uint64_t entry_seconds(const struct k_timespec* restrict time)
+{
+    if(time->tv_sec < 0) {
+        return 0;
+    }
+
+    return (uint64_t)(time->tv_sec);
+}
+
+static int update_entry_locked(struct vnode* restrict node, const struct k_timespec* restrict atime,
+    const struct k_timespec* restrict mtime, const struct k_timespec* restrict ctime)
+{
+    struct echfs_vnode_context* ctx = node->ctxdata;
+    struct echfs_vfs_context* fs = ctx->fs_ctx;
+
+    // The root has no entry, and the entry of
+    // an unlinked file may be another one's now
+    if(ctx->dir_entry == UINT64_MAX || ctx->unlinked) {
+        return 0;
+    }
+
+    struct echfs_dirent entry;
+    int retval = echfs_dirent_read(fs, ctx->dir_entry, &entry);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    struct echfs_dirent updated = entry;
+
+    if(node->nodetype == VNODE_FILE) {
+        updated.file_size = ctx->size;
+    }
+
+    if(atime) {
+        updated.access_time = entry_seconds(atime);
+    }
+
+    if(mtime) {
+        updated.modify_time = entry_seconds(mtime);
+    }
+
+    if(ctime) {
+        updated.change_time = entry_seconds(ctime);
+    }
+
+    if(0 == memcmp(&updated, &entry, sizeof(entry))) {
+        return 0;
+    }
+
+    return echfs_dirent_write(fs, ctx->dir_entry, &updated);
+}
+
+static void touch_dir_locked(struct vnode* restrict dir, const struct k_timespec* restrict now)
+{
+    int retval = update_entry_locked(dir, nullptr, now, now);
+
+    if(retval < 0) {
+        pr_error("echfs: updating a directory's times failed (%d)", retval);
     }
 }
 
@@ -161,6 +225,13 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     entry.owner_uid = cred->euid;
     entry.owner_gid = cred->egid;
 
+    struct k_timespec now;
+    wallclock_get(&now);
+
+    entry.access_time = entry_seconds(&now);
+    entry.modify_time = entry.access_time;
+    entry.change_time = entry.access_time;
+
     uint64_t start_block;
 
     if(type == VNODE_DIRECTORY) {
@@ -204,6 +275,9 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     child->nodenumber = free_index;
 
     *out = child;
+
+    touch_dir_locked(node, &now);
+
     return 0;
 }
 
@@ -277,6 +351,10 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
     target_ctx->unlinked = true;
     vcache_remove(target);
 
+    struct k_timespec now;
+    wallclock_get(&now);
+    touch_dir_locked(node, &now);
+
     return 0;
 }
 
@@ -342,7 +420,11 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
 
     // Entries are found by their parent's ID, so the
     // entry moves in place and keeps its node number
+    struct k_timespec now;
+    wallclock_get(&now);
+
     entry.directory_id = new_ctx->start_block;
+    entry.change_time = entry_seconds(&now);
     memset(entry.name, 0, sizeof(entry.name));
     kstrncpy(entry.name, newname, sizeof(entry.name));
 
@@ -362,7 +444,19 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
         vcache_remove(victim);
     }
 
-    return echfs_dirent_write(fs, old_index, &entry);
+    retval = echfs_dirent_write(fs, old_index, &entry);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    touch_dir_locked(olddir, &now);
+
+    if(newdir != olddir) {
+        touch_dir_locked(newdir, &now);
+    }
+
+    return 0;
 }
 
 static int chain_block(struct vnode* restrict node, uint64_t block_index, bool create, uintptr_t* restrict out)
@@ -472,23 +566,20 @@ static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, s
 static ssize_t write_span_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
-    struct echfs_vfs_context* fs = ctx->fs_ctx;
 
     ssize_t written = fcache_write(node, &echfs_bmap, buffer, sz, offset, ctx->size);
 
-    if(written <= 0 || (uint64_t)(offset + written) <= ctx->size) {
+    if(written <= 0) {
         return written;
     }
 
-    ctx->size = offset + written;
-
-    struct echfs_dirent entry;
-
-    if(!ctx->unlinked && 0 == echfs_dirent_read(fs, ctx->dir_entry, &entry)) {
-        entry.file_size = ctx->size;
-
-        echfs_dirent_write(fs, ctx->dir_entry, &entry);
+    if((uint64_t)(offset + written) > ctx->size) {
+        ctx->size = offset + written;
     }
+
+    struct k_timespec now;
+    wallclock_get(&now);
+    update_entry_locked(node, nullptr, &now, &now);
 
     return written;
 }
@@ -641,6 +732,17 @@ static int set_owner_locked(struct vnode* restrict node, const struct vattr* res
     return echfs_dirent_write(fs, ctx->dir_entry, &entry);
 }
 
+static int resize_locked(struct vnode* restrict node, off_t size)
+{
+    struct echfs_vnode_context* ctx = node->ctxdata;
+
+    if((uint64_t)size > ctx->size) {
+        return zero_fill_locked(node, ctx->size, size);
+    }
+
+    return shrink_locked(node, size);
+}
+
 static int setattr_locked(struct vnode* restrict node, const struct vattr* restrict attr)
 {
     struct echfs_vnode_context* ctx = node->ctxdata;
@@ -653,15 +755,31 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
         }
     }
 
-    if(0 == (attr->mask & VATTR_SIZE) || (uint64_t)attr->size == ctx->size) {
-        return 0;
+    if((attr->mask & VATTR_SIZE) && (uint64_t)attr->size != ctx->size) {
+        int retval = resize_locked(node, attr->size);
+
+        if(retval < 0) {
+            return retval;
+        }
     }
 
-    if((uint64_t)attr->size > ctx->size) {
-        return zero_fill_locked(node, ctx->size, attr->size);
+    const struct k_timespec* atime = nullptr;
+    const struct k_timespec* mtime = nullptr;
+    const struct k_timespec* ctime = nullptr;
+
+    if(attr->mask & VATTR_ATIME) {
+        atime = &attr->atime;
     }
 
-    return shrink_locked(node, attr->size);
+    if(attr->mask & VATTR_MTIME) {
+        mtime = &attr->mtime;
+    }
+
+    if(attr->mask & VATTR_CTIME) {
+        ctime = &attr->ctime;
+    }
+
+    return update_entry_locked(node, atime, mtime, ctime);
 }
 
 static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
@@ -692,7 +810,7 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
         out->st_mode = entry.permissions;
         out->st_atim.tv_sec = entry.access_time;
         out->st_mtim.tv_sec = entry.modify_time;
-        out->st_ctim.tv_sec = entry.create_time;
+        out->st_ctim.tv_sec = entry.change_time;
     }
 
     if(node->nodetype == VNODE_DIRECTORY) {

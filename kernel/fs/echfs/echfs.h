@@ -41,7 +41,7 @@ struct echfs_dirent {
     uint16_t permissions;
     uint16_t owner_uid;
     uint16_t owner_gid;
-    uint64_t create_time;
+    uint64_t change_time; // unix ctime
     uint64_t start_block; // or directory_id for directories
     uint64_t file_size;
 } __packed;
