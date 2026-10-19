@@ -13,8 +13,8 @@
 
 static intptr_t sys_unlinkat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -40,7 +40,7 @@ static intptr_t sys_unlinkat(const uintptr_t* restrict args)
         return retval;
     }
 
-    const struct credentials* cred = thread->cred;
+    const struct credentials* cred = thrd->cred;
 
     const char* name;
     struct vnode* parent;
@@ -67,8 +67,8 @@ static intptr_t sys_unlinkat(const uintptr_t* restrict args)
 
 static intptr_t sys_mkdirat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -88,7 +88,7 @@ static intptr_t sys_mkdirat(const uintptr_t* restrict args)
         return retval;
     }
 
-    const struct credentials* cred = thread->cred;
+    const struct credentials* cred = thrd->cred;
     mode_t umask = atomic_load_n(&proc->umask, ATOMIC_RELAXED);
 
     const char* name;
@@ -153,8 +153,8 @@ static int resolve_rename_parent(int dirfd, const char* restrict path, const str
 
 static intptr_t sys_renameat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -174,7 +174,7 @@ static intptr_t sys_renameat(const uintptr_t* restrict args)
         return copied;
     }
 
-    const struct credentials* cred = thread->cred;
+    const struct credentials* cred = thrd->cred;
 
     const char* oldname;
     struct vnode* olddir;
@@ -233,8 +233,8 @@ static int resolve_new_parent(int dirfd, const char* restrict path, const struct
 
 static intptr_t sys_linkat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -277,7 +277,7 @@ static intptr_t sys_linkat(const uintptr_t* restrict args)
 
     const char* name;
     struct vnode* parent;
-    retval = resolve_new_parent(args[2], newpath, thread->cred, &parent, &name);
+    retval = resolve_new_parent(args[2], newpath, thrd->cred, &parent, &name);
 
     if(retval == 0) {
         retval = vnode_link(parent, name, target);
@@ -291,8 +291,8 @@ static intptr_t sys_linkat(const uintptr_t* restrict args)
 
 static intptr_t sys_symlinkat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -314,14 +314,14 @@ static intptr_t sys_symlinkat(const uintptr_t* restrict args)
 
     const char* name;
     struct vnode* parent;
-    int retval = resolve_new_parent(args[1], path, thread->cred, &parent, &name);
+    int retval = resolve_new_parent(args[1], path, thrd->cred, &parent, &name);
 
     if(retval < 0) {
         return retval;
     }
 
     struct vnode* created;
-    retval = vnode_symlink(parent, name, target, thread->cred, &created);
+    retval = vnode_symlink(parent, name, target, thrd->cred, &created);
 
     vnode_decref(parent);
 
@@ -336,8 +336,8 @@ static intptr_t sys_symlinkat(const uintptr_t* restrict args)
 
 static intptr_t sys_readlinkat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -420,8 +420,8 @@ static intptr_t sys_getcwd(const uintptr_t* restrict args)
 
 static intptr_t sys_chdir(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -441,7 +441,7 @@ static intptr_t sys_chdir(const uintptr_t* restrict args)
         return retval;
     }
 
-    const struct credentials* cred = thread->cred;
+    const struct credentials* cred = thrd->cred;
 
     struct vnode* node;
     retval = path_resolve_at(stem, path, 0, cred, &node);
@@ -473,8 +473,8 @@ static intptr_t sys_chdir(const uintptr_t* restrict args)
 
 static intptr_t sys_fchdir(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -495,7 +495,7 @@ static intptr_t sys_fchdir(const uintptr_t* restrict args)
         return retval;
     }
 
-    const struct credentials* cred = thread->cred;
+    const struct credentials* cred = thrd->cred;
     retval = vnode_access(node, cred, X_OK);
 
     if(retval < 0) {

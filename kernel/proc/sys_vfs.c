@@ -12,14 +12,14 @@
 
 static intptr_t sys_mount(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
     }
 
-    const struct credentials* cred = thread->cred;
+    const struct credentials* cred = thrd->cred;
 
     if(!cred_capable(cred, CAP_MOUNT)) {
         return -EPERM;
@@ -103,14 +103,14 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
 
 static intptr_t sys_umount(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
     }
 
-    const struct credentials* cred = thread->cred;
+    const struct credentials* cred = thrd->cred;
 
     if(!cred_capable(cred, CAP_MOUNT)) {
         return -EPERM;

@@ -11,8 +11,8 @@
 
 static intptr_t sys_openat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -32,7 +32,7 @@ static intptr_t sys_openat(const uintptr_t* restrict args)
         return retval;
     }
 
-    const struct credentials* cred = thread->cred;
+    const struct credentials* cred = thrd->cred;
     mode_t umask = atomic_load_n(&proc->umask, ATOMIC_RELAXED);
 
     struct file* fp;
@@ -58,8 +58,8 @@ static intptr_t sys_openat(const uintptr_t* restrict args)
 
 static intptr_t sys_close(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -214,8 +214,8 @@ static intptr_t sys_fstat(const uintptr_t* restrict args)
 
 static intptr_t sys_fstatat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -261,8 +261,8 @@ static intptr_t sys_fstatat(const uintptr_t* restrict args)
 
 static intptr_t sys_fchmodat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -288,7 +288,7 @@ static intptr_t sys_fchmodat(const uintptr_t* restrict args)
         return retval;
     }
 
-    retval = vnode_chmod(node, thread->cred, args[2]);
+    retval = vnode_chmod(node, thrd->cred, args[2]);
 
     vnode_decref(node);
 
@@ -297,8 +297,8 @@ static intptr_t sys_fchmodat(const uintptr_t* restrict args)
 
 static intptr_t sys_fchownat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -324,7 +324,7 @@ static intptr_t sys_fchownat(const uintptr_t* restrict args)
         return retval;
     }
 
-    retval = vnode_chown(node, thread->cred, args[2], args[3]);
+    retval = vnode_chown(node, thrd->cred, args[2], args[3]);
 
     vnode_decref(node);
 
@@ -333,8 +333,8 @@ static intptr_t sys_fchownat(const uintptr_t* restrict args)
 
 static intptr_t sys_dup(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -345,8 +345,8 @@ static intptr_t sys_dup(const uintptr_t* restrict args)
 
 static intptr_t sys_dup2(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -374,8 +374,8 @@ static intptr_t sys_ioctl(const uintptr_t* restrict args)
 
 static intptr_t sys_utimensat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
-    struct process* proc = thread->proc;
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
 
     if(proc == nullptr) {
         return -ENOSYS;
@@ -414,7 +414,7 @@ static intptr_t sys_utimensat(const uintptr_t* restrict args)
         return retval;
     }
 
-    retval = vnode_utimes(node, thread->cred, times_ptr);
+    retval = vnode_utimes(node, thrd->cred, times_ptr);
 
     vnode_decref(node);
 

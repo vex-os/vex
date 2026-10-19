@@ -40,11 +40,11 @@ static int copyin_name(char* restrict name, uintptr_t user_name)
 
 static intptr_t sys_getxattrat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
+    struct thread* thrd = this_thread();
     unsigned flags = args[5];
     size_t size = args[4];
 
-    if(thread->proc == nullptr) {
+    if(thrd->proc == nullptr) {
         return -ENOSYS;
     }
 
@@ -79,7 +79,7 @@ static intptr_t sys_getxattrat(const uintptr_t* restrict args)
     ssize_t length = -ENOMEM;
 
     if(size == 0 || value) {
-        length = vnode_xattr_get(node, thread->cred, name, value, size);
+        length = vnode_xattr_get(node, thrd->cred, name, value, size);
     }
 
     vnode_decref(node);
@@ -101,11 +101,11 @@ static intptr_t sys_getxattrat(const uintptr_t* restrict args)
 
 static intptr_t sys_setxattrat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
+    struct thread* thrd = this_thread();
     unsigned flags = args[5];
     size_t size = args[4];
 
-    if(thread->proc == nullptr) {
+    if(thrd->proc == nullptr) {
         return -ENOSYS;
     }
 
@@ -145,7 +145,7 @@ static intptr_t sys_setxattrat(const uintptr_t* restrict args)
     retval = resolve(args, flags & RESOLVE_FLAGS, &node);
 
     if(retval == 0) {
-        retval = vnode_xattr_set(node, thread->cred, name, value, size, flags & (XATTR_CREATE | XATTR_REPLACE));
+        retval = vnode_xattr_set(node, thrd->cred, name, value, size, flags & (XATTR_CREATE | XATTR_REPLACE));
         vnode_decref(node);
     }
 
@@ -158,11 +158,11 @@ static intptr_t sys_setxattrat(const uintptr_t* restrict args)
 
 static intptr_t sys_listxattrat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
+    struct thread* thrd = this_thread();
     unsigned flags = args[4];
     size_t size = args[3];
 
-    if(thread->proc == nullptr) {
+    if(thrd->proc == nullptr) {
         return -ENOSYS;
     }
 
@@ -190,7 +190,7 @@ static intptr_t sys_listxattrat(const uintptr_t* restrict args)
     ssize_t length = -ENOMEM;
 
     if(size == 0 || list) {
-        length = vnode_xattr_list(node, thread->cred, list, size);
+        length = vnode_xattr_list(node, thrd->cred, list, size);
     }
 
     vnode_decref(node);
@@ -212,10 +212,10 @@ static intptr_t sys_listxattrat(const uintptr_t* restrict args)
 
 static intptr_t sys_removexattrat(const uintptr_t* restrict args)
 {
-    struct thread* thread = this_thread();
+    struct thread* thrd = this_thread();
     unsigned flags = args[3];
 
-    if(thread->proc == nullptr) {
+    if(thrd->proc == nullptr) {
         return -ENOSYS;
     }
 
@@ -237,7 +237,7 @@ static intptr_t sys_removexattrat(const uintptr_t* restrict args)
         return retval;
     }
 
-    retval = vnode_xattr_remove(node, thread->cred, name);
+    retval = vnode_xattr_remove(node, thrd->cred, name);
 
     vnode_decref(node);
 
