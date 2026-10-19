@@ -9,6 +9,7 @@
 #include <vex/slab.h>
 #include <vex/string.h>
 #include <vex/vnode.h>
+#include <vex/wallclock.h>
 
 #include "ext2.h"
 
@@ -266,6 +267,7 @@ static int mark_mounted(struct ext2_vfs_context* restrict context)
     context->mount_state = le16toh(super->s_state);
 
     super->s_mnt_count = htole16(mnt_count);
+    super->s_mtime = htole32((uint32_t)(wallclock_now()));
     super->s_state = htole16(context->mount_state & ~EXT2_VALID_FS);
 
     return ext2_super_commit(context);
@@ -462,6 +464,8 @@ static int ext2_sync(struct vfs* restrict fs)
 
 int ext2_super_commit(struct ext2_vfs_context* restrict context)
 {
+    context->super.s_wtime = htole32((uint32_t)(wallclock_now()));
+
     return fcache_dev_write(context->devnode, EXT2_SUPER_OFFSET, &context->super, sizeof(struct ext2_superblock));
 }
 

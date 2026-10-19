@@ -10,6 +10,7 @@
 #include <vex/strings.h>
 #include <vex/vcache.h>
 #include <vex/vnode.h>
+#include <vex/wallclock.h>
 
 #include "ext2.h"
 
@@ -162,6 +163,25 @@ static int write_inode_locked(struct vnode* restrict node)
     return ext2_inode_write(ctx->fs_ctx, (uint32_t)(node->nodenumber), &ctx->inode);
 }
 
+// The new times reach the disk with the next inode write
+static void touch_locked(struct vnode* restrict node, bool modified)
+{
+    struct ext2_vnode_context* ctx = node->ctxdata;
+    uint32_t now = (uint32_t)(wallclock_now());
+
+    ctx->inode.i_ctime = htole32(now);
+
+    if(modified) {
+        ctx->inode.i_mtime = htole32(now);
+    }
+}
+
+static void touch_dir_locked(struct vnode* restrict dir)
+{
+    touch_locked(dir, true);
+    write_inode_locked(dir);
+}
+
 static bool block_mapped_locked(struct vnode* restrict node, uint64_t pos)
 {
     struct fcache_extent extent;
@@ -302,7 +322,18 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
         return retval;
     }
 
-    return write_span_locked(node, buffer, sz, offset);
+    ssize_t written = write_span_locked(node, buffer, sz, offset);
+
+    if(written > 0) {
+        touch_locked(node, true);
+        retval = write_inode_locked(node);
+    }
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    return written;
 }
 
 static int resize_locked(struct vnode* restrict node, uint64_t new_size)
@@ -359,6 +390,10 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
         inode->i_mode = htole16((mode & S_IFMT) | (attr->mode & ~S_IFMT));
     }
 
+    if(attr->mask & (VATTR_UID | VATTR_GID | VATTR_MODE | VATTR_SIZE)) {
+        touch_locked(node, attr->mask & VATTR_SIZE);
+    }
+
     if(attr->mask & VATTR_SIZE) {
         return resize_locked(node, attr->size);
     }
@@ -401,17 +436,6 @@ static int add_links_locked(struct vnode* restrict node, int delta)
     return write_inode_locked(node);
 }
 
-static uint32_t deletion_time(const struct ext2_vfs_context* restrict fs_ctx)
-{
-    uint32_t wtime = le32toh(fs_ctx->super.s_wtime);
-
-    if(wtime == 0) {
-        return 1;
-    }
-
-    return wtime;
-}
-
 static void destroy_inode_locked(struct vnode* restrict node)
 {
     struct ext2_vnode_context* ctx = node->ctxdata;
@@ -433,7 +457,7 @@ static void destroy_inode_locked(struct vnode* restrict node)
     }
 
     ext2_inode_set_size(fs_ctx, inode, 0);
-    inode->i_dtime = htole32(deletion_time(fs_ctx));
+    inode->i_dtime = htole32((uint32_t)(wallclock_now()));
     write_inode_locked(node);
     ext2_inode_free(fs_ctx, ino, node->nodetype == VNODE_DIRECTORY);
 }
@@ -504,6 +528,9 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
 
     child_ctx->fs_ctx = fs_ctx;
     child_ctx->inode.i_mode = htole16(inode_mode);
+    child_ctx->inode.i_atime = htole32((uint32_t)(wallclock_now()));
+    child_ctx->inode.i_ctime = child_ctx->inode.i_atime;
+    child_ctx->inode.i_mtime = child_ctx->inode.i_atime;
     child_ctx->inode.i_links_count = htole16(1);
 
     if(directory) {
@@ -552,6 +579,10 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
         if(retval < 0 && directory) {
             add_links_locked(node, -1);
         }
+    }
+
+    if(retval == 0) {
+        touch_dir_locked(node);
     }
 
     if(retval < 0) {
@@ -616,10 +647,14 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
         return retval;
     }
 
+    touch_dir_locked(node);
+
     // The removed directory's ".." linked to the parent
     if(target->nodetype == VNODE_DIRECTORY) {
         add_links_locked(node, -1);
     }
+
+    touch_locked(target, false);
 
     return drop_entry_target_locked(target);
 }
@@ -690,6 +725,15 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
         return retval;
     }
 
+    touch_dir_locked(olddir);
+
+    if(newdir != olddir) {
+        touch_dir_locked(newdir);
+    }
+
+    touch_locked(source, false);
+    write_inode_locked(source);
+
     // Links to a directory come from the ".." of its subdirectories
     if(moves_directory) {
         struct ext2_dirent dotdot;
@@ -708,6 +752,8 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
     }
 
     if(victim) {
+        touch_locked(victim, false);
+
         int victim_retval = drop_entry_target_locked(victim);
 
         if(retval == 0) {
