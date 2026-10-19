@@ -10,6 +10,13 @@
 #include <vex/vcache.h>
 #include <vex/vnode.h>
 #include <vex/wallclock.h>
+#include <vex/xattr.h>
+
+enum {
+    XATTR_USER,
+    XATTR_TRUSTED,
+    XATTR_SECURITY,
+};
 
 static_assert(sizeof(struct vnode) <= SLAB_MAX_SIZE);
 
@@ -368,6 +375,137 @@ static int rename_crossed(struct vnode* olddir, const char* oldname, struct vnod
     vnode_decref(source);
 
     return retval;
+}
+
+static bool time_valid(const struct k_timespec* restrict time)
+{
+    if(time->tv_nsec == UTIME_NOW || time->tv_nsec == UTIME_OMIT) {
+        return true;
+    }
+
+    return time->tv_nsec >= 0 && time->tv_nsec < 1000000000;
+}
+
+static bool time_set(const struct k_timespec* restrict time, time_t* restrict out)
+{
+    if(time->tv_nsec == UTIME_OMIT) {
+        return false;
+    }
+
+    if(time->tv_nsec == UTIME_NOW) {
+        *out = wallclock_now();
+    }
+    else {
+        *out = time->tv_sec;
+    }
+
+    return true;
+}
+
+struct xattr_space {
+    const char* prefix;
+    unsigned space;
+};
+
+static bool has_prefix(const char* restrict name, const char* restrict prefix)
+{
+    return 0 == strncmp(name, prefix, strlen(prefix));
+}
+
+// The name keeps its namespace prefix all the way to the filesystem
+static int xattr_namespace(const char* restrict name, unsigned* restrict out)
+{
+    static const struct xattr_space spaces[] = {
+        { "user.", XATTR_USER },
+        { "trusted.", XATTR_TRUSTED },
+        { "security.", XATTR_SECURITY },
+    };
+
+    size_t length = strlen(name);
+
+    if(length > XATTR_NAME_MAX) {
+        return -ERANGE;
+    }
+
+    for(size_t i = 0; i < sizeof(spaces) / sizeof(spaces[0]); ++i) {
+        if(!has_prefix(name, spaces[i].prefix)) {
+            continue;
+        }
+
+        if(length == strlen(spaces[i].prefix)) {
+            return -EINVAL;
+        }
+
+        *out = spaces[i].space;
+
+        return 0;
+    }
+
+    return -EOPNOTSUPP;
+}
+
+static int require_cap(const struct credentials* restrict cred, unsigned cap)
+{
+    if(cred_capable(cred, cap)) {
+        return 0;
+    }
+
+    return -EPERM;
+}
+
+static int xattr_permission(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name, bool write)
+{
+    unsigned space;
+    int retval = xattr_namespace(name, &space);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(space == XATTR_TRUSTED) {
+        return require_cap(cred, CAP_SYS_ADMIN);
+    }
+
+    if(space == XATTR_SECURITY && !write) {
+        return 0;
+    }
+
+    if(space == XATTR_SECURITY && 0 == strcmp(name, "security.capability")) {
+        return require_cap(cred, CAP_SETFCAP);
+    }
+
+    if(space == XATTR_SECURITY) {
+        return require_cap(cred, CAP_SYS_ADMIN);
+    }
+
+    // Others could fill up a world-writable device node or symlink
+    if(node->nodetype != VNODE_FILE && node->nodetype != VNODE_DIRECTORY) {
+        return write ? -EPERM : -ENODATA;
+    }
+
+    return vnode_access(node, cred, write ? W_OK : R_OK);
+}
+
+static size_t filter_xattr_list(char* restrict list, size_t length, const struct credentials* restrict cred)
+{
+    if(cred_capable(cred, CAP_SYS_ADMIN)) {
+        return length;
+    }
+
+    size_t kept = 0;
+
+    for(size_t pos = 0; pos < length;) {
+        size_t entry = strnlen(list + pos, length - pos) + 1;
+
+        if(!has_prefix(list + pos, "trusted.")) {
+            memmove(list + kept, list + pos, entry);
+            kept += entry;
+        }
+
+        pos += entry;
+    }
+
+    return kept;
 }
 
 struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict ops, void* ctxdata)
@@ -852,31 +990,6 @@ int vnode_access(struct vnode* restrict node, const struct credentials* restrict
     return 0;
 }
 
-static bool time_valid(const struct k_timespec* restrict time)
-{
-    if(time->tv_nsec == UTIME_NOW || time->tv_nsec == UTIME_OMIT) {
-        return true;
-    }
-
-    return time->tv_nsec >= 0 && time->tv_nsec < 1000000000;
-}
-
-static bool time_set(const struct k_timespec* restrict time, time_t* restrict out)
-{
-    if(time->tv_nsec == UTIME_OMIT) {
-        return false;
-    }
-
-    if(time->tv_nsec == UTIME_NOW) {
-        *out = wallclock_now();
-    }
-    else {
-        *out = time->tv_sec;
-    }
-
-    return true;
-}
-
 int vnode_utimes(struct vnode* restrict node, const struct credentials* restrict cred, const struct k_timespec* restrict times)
 {
     kassert(node);
@@ -1037,4 +1150,135 @@ int vnode_map_page(struct vnode* restrict node, uint64_t index, struct pagemap* 
     }
 
     return node->ops->map_page(node, index, pmap, virt, vprot);
+}
+
+ssize_t vnode_getxattr(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name,
+    void* restrict value, size_t size)
+{
+    kassert(node);
+    kassert(cred);
+
+    struct vnode* target;
+    ssize_t retval = vfs_cross_mount(node, &target);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = xattr_permission(target, cred, name, false);
+
+    if(retval == 0 && target->ops->getxattr == nullptr) {
+        retval = -EOPNOTSUPP;
+    }
+
+    if(retval == 0) {
+        retval = target->ops->getxattr(target, name, value, size);
+    }
+
+    vnode_decref(target);
+
+    return retval;
+}
+
+int vnode_setxattr(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name,
+    const void* restrict value, size_t size, unsigned flags)
+{
+    kassert(node);
+    kassert(cred);
+
+    if((flags & ~(XATTR_CREATE | XATTR_REPLACE)) || flags == (XATTR_CREATE | XATTR_REPLACE)) {
+        return -EINVAL;
+    }
+
+    if(size > XATTR_SIZE_MAX) {
+        return -E2BIG;
+    }
+
+    struct vnode* target;
+    int retval = vfs_cross_mount(node, &target);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->fs->readonly) {
+        retval = -EROFS;
+    }
+
+    if(retval == 0) {
+        retval = xattr_permission(target, cred, name, true);
+    }
+
+    if(retval == 0 && target->ops->setxattr == nullptr) {
+        retval = -EOPNOTSUPP;
+    }
+
+    if(retval == 0) {
+        retval = target->ops->setxattr(target, name, value, size, flags);
+    }
+
+    vnode_decref(target);
+
+    return retval;
+}
+
+ssize_t vnode_listxattr(struct vnode* restrict node, const struct credentials* restrict cred, char* restrict list, size_t size)
+{
+    kassert(node);
+    kassert(cred);
+
+    struct vnode* target;
+    ssize_t retval = vfs_cross_mount(node, &target);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->ops->listxattr == nullptr) {
+        retval = 0;
+    }
+    else {
+        retval = target->ops->listxattr(target, list, size);
+    }
+
+    vnode_decref(target);
+
+    if(retval > 0 && size > 0) {
+        retval = filter_xattr_list(list, retval, cred);
+    }
+
+    return retval;
+}
+
+int vnode_removexattr(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name)
+{
+    kassert(node);
+    kassert(cred);
+
+    struct vnode* target;
+    int retval = vfs_cross_mount(node, &target);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->fs->readonly) {
+        retval = -EROFS;
+    }
+
+    if(retval == 0) {
+        retval = xattr_permission(target, cred, name, true);
+    }
+
+    if(retval == 0 && target->ops->removexattr == nullptr) {
+        retval = -EOPNOTSUPP;
+    }
+
+    if(retval == 0) {
+        retval = target->ops->removexattr(target, name);
+    }
+
+    vnode_decref(target);
+
+    return retval;
 }

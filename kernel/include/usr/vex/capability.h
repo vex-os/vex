@@ -13,6 +13,8 @@
 #define __k_CAP_FSETID       4 /* Keep setuid and setgid bits a change would clear */
 #define __k_CAP_SETGID       6
 #define __k_CAP_SETUID       7
+#define __k_CAP_SYS_ADMIN    21 /* Catch-all for administration, trusted.* extended attributes among it */
+#define __k_CAP_SETFCAP      31 /* Set file capabilities */
 
 /* Vex-only capabilities start at 48 */
 

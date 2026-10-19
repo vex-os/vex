@@ -58,6 +58,10 @@ struct vnode_ops {
     int (*setattr)(struct vnode* restrict node, const struct vattr* restrict attr);
     int (*fsync)(struct vnode* restrict node);
     int (*map_page)(struct vnode* restrict node, uint64_t index, struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot);
+    ssize_t (*getxattr)(struct vnode* restrict node, const char* restrict name, void* restrict value, size_t size);
+    int (*setxattr)(struct vnode* restrict node, const char* restrict name, const void* restrict value, size_t size, unsigned flags);
+    ssize_t (*listxattr)(struct vnode* restrict node, char* restrict list, size_t size);
+    int (*removexattr)(struct vnode* restrict node, const char* restrict name);
 };
 
 struct blk_device;
@@ -107,3 +111,9 @@ int vnode_access(struct vnode* restrict node, const struct credentials* restrict
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, uintptr_t argument);
 int vnode_fsync(struct vnode* restrict node);
 int vnode_map_page(struct vnode* restrict node, uint64_t index, struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot);
+ssize_t vnode_getxattr(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name,
+    void* restrict value, size_t size);
+int vnode_setxattr(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name,
+    const void* restrict value, size_t size, unsigned flags);
+ssize_t vnode_listxattr(struct vnode* restrict node, const struct credentials* restrict cred, char* restrict list, size_t size);
+int vnode_removexattr(struct vnode* restrict node, const struct credentials* restrict cred, const char* restrict name);
