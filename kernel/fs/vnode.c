@@ -508,6 +508,21 @@ static size_t filter_xattr_list(char* restrict list, size_t length, const struct
     return kept;
 }
 
+static void strip_file_caps(struct vnode* restrict node)
+{
+    struct vnode* target;
+
+    if(vfs_cross_mount(node, &target) < 0) {
+        return;
+    }
+
+    if(target->nodetype == VNODE_FILE && target->ops->removexattr && !target->fs->readonly) {
+        target->ops->removexattr(target, XATTR_NAME_CAPS);
+    }
+
+    vnode_decref(target);
+}
+
 struct vnode* vnode_alloc(unsigned nodetype, const struct vnode_ops* restrict ops, void* ctxdata)
 {
     kassert(ops);
@@ -948,7 +963,13 @@ int vnode_chown(struct vnode* restrict node, const struct credentials* restrict 
         }
     }
 
-    return vnode_setattr(node, &attr);
+    retval = vnode_setattr(node, &attr);
+
+    if(retval == 0) {
+        strip_file_caps(node);
+    }
+
+    return retval;
 }
 
 int vnode_access(struct vnode* restrict node, const struct credentials* restrict cred, unsigned mask)
