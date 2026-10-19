@@ -13,6 +13,10 @@ struct hart_local;
 struct runqueue;
 
 enum {
+    THREAD_WORK_EXIT = 1U << 0,
+};
+
+enum {
     THREAD_RUNNABLE,
     THREAD_RUNNING,
     THREAD_BLOCKED,
@@ -52,6 +56,7 @@ struct thread {
     uint32_t wakeup_index;
     uint32_t num_events;
     uint32_t max_events;
+    uint32_t pending_work; // THREAD_WORK_*, looked at on every return to ring 3
 
     uint64_t wake_deadline;
     struct thread* wake_next;
@@ -80,3 +85,5 @@ static __always_inline __nodiscard struct hart_context* thread_ctx(const struct 
 {
     return (struct hart_context*)((uintptr_t)(thrd->kstack_top) - THREAD_CTX_RESERVE);
 }
+
+void exit_to_user(struct hart_context* restrict ctx);

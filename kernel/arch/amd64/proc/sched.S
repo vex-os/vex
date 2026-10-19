@@ -11,6 +11,9 @@ sched_enter:
     jz 2f
     movl $0, (%rsi)     # SPINLOCK_FREE
 2:
+    testq $3, 152(%rsp) # hart_context::amd64_cs RPL bits
+    jnz 3f
+
     popq %rax
     movq %rax, %ds      # hart_context::amd64_ds
     popq %rax
@@ -31,8 +34,13 @@ sched_enter:
     popq %r14           # hart_context::amd64_r14
     popq %r15           # hart_context::amd64_r15
     addq $0x08, %rsp    # hart_context::amd64_err
+    iretq
 
-    testq $3, 8(%rsp)   # CS is at 8(%rsp); test RPL bits for ring 3
-    jz 1f
-    swapgs
-1:  iretq
+3:
+    movq %rsp, %rsi
+    movq %gs:8, %rsp    # thread::kernel_rsp
+    subq $184, %rsp     # sizeof(struct hart_context)
+    movq %rsp, %rdi
+    movl $23, %ecx
+    rep movsq
+    jmp amd64_return_to_user

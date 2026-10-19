@@ -31,6 +31,10 @@ struct hart_context {
     uint64_t amd64_ss;
 } __packed;
 
+// Entry and exit stubs address the frame by these offsets
+static_assert(184 == sizeof(struct hart_context));
+static_assert(152 == offsetof(struct hart_context, amd64_cs));
+
 #define syscall_pc     amd64_rip
 #define syscall_arg_1  amd64_rdi
 #define syscall_arg_2  amd64_rsi

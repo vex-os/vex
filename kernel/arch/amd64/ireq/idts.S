@@ -1,61 +1,81 @@
 .section .text
 
 .macro push_interrupt_frame
-    pushq %r15      # hart_context::amd64_r15
-    pushq %r14      # hart_context::amd64_r14
-    pushq %r13      # hart_context::amd64_r13
-    pushq %r12      # hart_context::amd64_r12
-    pushq %r11      # hart_context::amd64_r11
-    pushq %r10      # hart_context::amd64_r10
-    pushq %r9       # hart_context::amd64_r9
-    pushq %r8       # hart_context::amd64_r8
-    pushq %rbp      # hart_context::amd64_rbp
-    pushq %rdi      # hart_context::amd64_rdi
-    pushq %rsi      # hart_context::amd64_rsi
-    pushq %rdx      # hart_context::amd64_rdx
-    pushq %rcx      # hart_context::amd64_rcx
-    pushq %rbx      # hart_context::amd64_rbx
-    pushq %rax      # hart_context::amd64_rax
+    pushq %r15                          # hart_context::amd64_r15
+    pushq %r14                          # hart_context::amd64_r14
+    pushq %r13                          # hart_context::amd64_r13
+    pushq %r12                          # hart_context::amd64_r12
+    pushq %r11                          # hart_context::amd64_r11
+    pushq %r10                          # hart_context::amd64_r10
+    pushq %r9                           # hart_context::amd64_r9
+    pushq %r8                           # hart_context::amd64_r8
+    pushq %rbp                          # hart_context::amd64_rbp
+    pushq %rdi                          # hart_context::amd64_rdi
+    pushq %rsi                          # hart_context::amd64_rsi
+    pushq %rdx                          # hart_context::amd64_rdx
+    pushq %rcx                          # hart_context::amd64_rcx
+    pushq %rbx                          # hart_context::amd64_rbx
+    pushq %rax                          # hart_context::amd64_rax
     movq %es, %rax
-    pushq %rax      # hart_context::amd64_es
+    pushq %rax                          # hart_context::amd64_es
     movq %ds, %rax
-    pushq %rax      # hart_context::amd64_ds
+    pushq %rax                          # hart_context::amd64_ds
 .endm
 
 .macro pop_interrupt_frame
     popq %rax
-    movq %rax, %ds  # hart_context::amd64_ds
+    movq %rax, %ds                      # hart_context::amd64_ds
     popq %rax
-    movq %rax, %es  # hart_context::amd64_es
-    popq %rax       # hart_context::amd64_rax
-    popq %rbx       # hart_context::amd64_rbx
-    popq %rcx       # hart_context::amd64_rcx
-    popq %rdx       # hart_context::amd64_rdx
-    popq %rsi       # hart_context::amd64_rsi
-    popq %rdi       # hart_context::amd64_rdi
-    popq %rbp       # hart_context::amd64_rbp
-    popq %r8        # hart_context::amd64_r8
-    popq %r9        # hart_context::amd64_r9
-    popq %r10       # hart_context::amd64_r10
-    popq %r11       # hart_context::amd64_r11
-    popq %r12       # hart_context::amd64_r12
-    popq %r13       # hart_context::amd64_r13
-    popq %r14       # hart_context::amd64_r14
-    popq %r15       # hart_context::amd64_r15
+    movq %rax, %es                      # hart_context::amd64_es
+    popq %rax                           # hart_context::amd64_rax
+    popq %rbx                           # hart_context::amd64_rbx
+    popq %rcx                           # hart_context::amd64_rcx
+    popq %rdx                           # hart_context::amd64_rdx
+    popq %rsi                           # hart_context::amd64_rsi
+    popq %rdi                           # hart_context::amd64_rdi
+    popq %rbp                           # hart_context::amd64_rbp
+    popq %r8                            # hart_context::amd64_r8
+    popq %r9                            # hart_context::amd64_r9
+    popq %r10                           # hart_context::amd64_r10
+    popq %r11                           # hart_context::amd64_r11
+    popq %r12                           # hart_context::amd64_r12
+    popq %r13                           # hart_context::amd64_r13
+    popq %r14                           # hart_context::amd64_r14
+    popq %r15                           # hart_context::amd64_r15
 .endm
 
 .macro swapgs_if_user
-    testq $3, 16(%rsp)  # hart_context::amd64_cs RPL bits
+    testq $3, 16(%rsp)                  # hart_context::amd64_cs RPL bits
     jz 1f
     swapgs
     1:
 .endm
+
+.macro return_from_stub
+    testq $3, 152(%rsp)                 # hart_context::amd64_cs RPL bits
+    jnz amd64_return_to_user
+    pop_interrupt_frame
+    addq $0x08, %rsp
+    iretq
+.endm
+
+.global amd64_return_to_user
+.type amd64_return_to_user, @function
+amd64_return_to_user:
+    movq %rsp, %rdi
+    call exit_to_user
+
+    pop_interrupt_frame
+    swapgs
+    addq $0x08, %rsp
+    iretq
 
 .macro isr_stub stubname vector
     .global \stubname
     .type \stubname, @function
     \stubname:
         cli
+        cld                             # Ring 3 may leave DF set, C code expects it clear
         swapgs_if_user
         push_interrupt_frame
 
@@ -63,10 +83,7 @@
         movq $\vector, %rsi
         call amd64_isr_handler
 
-        pop_interrupt_frame
-        swapgs_if_user
-        addq $0x08, %rsp
-        iretq
+        return_from_stub
 .endm
 
 .macro isr_stub_pz stubname vector
@@ -74,7 +91,8 @@
     .type \stubname, @function
     \stubname:
         cli
-        pushq $0x0000000000000000 # hart_context::amd64_err
+        cld
+        pushq $0x0000000000000000       # hart_context::amd64_err
         swapgs_if_user
         push_interrupt_frame
 
@@ -82,10 +100,7 @@
         movq $\vector, %rsi
         call amd64_isr_handler
 
-        pop_interrupt_frame
-        swapgs_if_user
-        addq $0x08, %rsp
-        iretq
+        return_from_stub
 .endm
 
 # NMI, #DF and #MC can arrive anywhere, including the window
@@ -98,13 +113,14 @@
     .global \stubname
     .type \stubname, @function
     \stubname:
+        cld
         .if \has_errcode == 0
-        pushq $0x0000000000000000 # hart_context::amd64_err
+        pushq $0x0000000000000000       # hart_context::amd64_err
         .endif
         push_interrupt_frame
 
         xorl %ebx, %ebx
-        movl $0xC0000101, %ecx  # MSR_GS_BASE
+        movl $0xC0000101, %ecx          # MSR_GS_BASE
         rdmsr
         testl %edx, %edx
         js 1f
@@ -129,6 +145,7 @@
     .type \stubname, @function
     \stubname:
         cli
+        cld
         pushq $0x0000000000000000
         swapgs_if_user
         push_interrupt_frame
@@ -148,6 +165,7 @@
     .type \stubname, @function
     \stubname:
         cli
+        cld
         pushq $0x0000000000000000
         swapgs_if_user
         push_interrupt_frame
@@ -156,10 +174,7 @@
         movq $\vector, %rsi
         call amd64_ireq_handler
 
-        pop_interrupt_frame
-        swapgs_if_user
-        addq $0x08, %rsp
-        iretq
+        return_from_stub
 .endm
 
 isr_stub_pz         amd64_isr_00, 0x00

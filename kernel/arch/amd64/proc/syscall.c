@@ -28,6 +28,9 @@ void __used amd64_syscall_handler(struct hart_context* restrict ctx)
         sched_terminate();
         unreachable();
     }
+
+    disable_interrupts();
+    exit_to_user(ctx);
 }
 
 static void arch_init_syscall(void)

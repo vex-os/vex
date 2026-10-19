@@ -18,4 +18,5 @@ kernel_sources += files(
     'sys_vfs.c',
     'sys_xattr.c',
     'syscall.c',
+    'user_exit.c',
 )
