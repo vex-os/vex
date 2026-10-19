@@ -303,6 +303,14 @@ void vcache_remove(struct vnode* restrict node)
     slab_free(entry);
 }
 
+bool vcache_cached(struct vnode* restrict node)
+{
+    spinlock_acquire(&cache_lock);
+    bool cached = node->cache_entry != nullptr;
+    spinlock_release(&cache_lock);
+    return cached;
+}
+
 void vcache_rekey(struct vnode* restrict node, ino_t nodenumber)
 {
     spinlock_acquire(&cache_lock);

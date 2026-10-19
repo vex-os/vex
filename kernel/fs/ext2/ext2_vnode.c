@@ -590,7 +590,11 @@ static int drop_entry_target_locked(struct vnode* restrict target)
         retval = add_links_locked(target, -1);
     }
 
-    vcache_remove(target);
+    // A file with names left stays cached
+    // so they all keep leading to this vnode
+    if(0 == ctx->inode.i_links_count) {
+        vcache_remove(target);
+    }
 
     return retval;
 }

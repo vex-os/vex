@@ -168,13 +168,13 @@ static int unlink_crossed(struct vnode* restrict node, const char* restrict name
         return -EBUSY;
     }
 
-    // The filesystem has to vcache_remove the victim under its own lock,
-    // before the entry can be reused, or a new file there gets this vnode
+    // Once the victim's last name is gone, the filesystem has to vcache_remove it under its own lock,
+    // before the entry can be reused, or a new file there gets this vnode; with names left it stays cached
     retval = node->ops->unlink(node, name, victim);
 
     // Whichever reference goes last, possibly
     // the one dropped right below, uncounts it
-    if(retval == 0) {
+    if(retval == 0 && !vcache_cached(victim)) {
         victim->orphaned = true;
         atomic_fetch_add(&victim->fs->orphans, 1, ATOMIC_RELAXED);
     }
@@ -285,13 +285,13 @@ static int rename_crossed(struct vnode* olddir, const char* oldname, struct vnod
     // Both names already lead to the same file
     bool same = victim == source;
 
-    // The filesystem has to vcache_remove the victim and vcache_rekey the
-    // source under its own lock, before a lookup can see the new entry
+    // The filesystem has to vcache_remove a victim left without names and vcache_rekey
+    // the source under its own lock, before a lookup can see the new entry
     if(retval == 0 && !same) {
         retval = olddir->ops->rename(olddir, oldname, source, newdir, newname, victim);
     }
 
-    if(retval == 0 && !same && victim) {
+    if(retval == 0 && !same && victim && !vcache_cached(victim)) {
         victim->orphaned = true;
         atomic_fetch_add(&victim->fs->orphans, 1, ATOMIC_RELAXED);
     }

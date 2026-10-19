@@ -24,4 +24,5 @@ bool vcache_keep(struct vnode* restrict node) __nodiscard;
 bool vcache_in_use(struct vfs* restrict fs, unsigned root_refs) __nodiscard;
 void vcache_evict(struct vfs* restrict fs);
 void vcache_remove(struct vnode* restrict node);
+bool vcache_cached(struct vnode* restrict node) __nodiscard;
 void vcache_rekey(struct vnode* restrict node, ino_t nodenumber);
