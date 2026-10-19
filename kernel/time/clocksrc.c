@@ -3,8 +3,7 @@
 #include <vex/errno.h>
 #include <vex/kprintf.h>
 #include <vex/spinlock.h>
-
-#define NSEC_PER_SEC UINT64_C(1000000000)
+#include <vex/time.h>
 
 static struct clocksrc* clocksrc_head = nullptr;
 static struct clocksrc* clocksrc_active = nullptr;
@@ -13,9 +12,10 @@ static spinlock_type clocksrc_lock = SPINLOCK_INIT;
 static void compute_mult_shift(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
 {
     uint64_t freq = scale * frequency;
+    uint64_t nsec_per_sec = NSEC_PER_SEC;
 
-    src->priv.shift = __builtin_clzll(NSEC_PER_SEC);
-    src->priv.mult = (NSEC_PER_SEC << src->priv.shift) / freq;
+    src->priv.shift = __builtin_clzll(nsec_per_sec);
+    src->priv.mult = (nsec_per_sec << src->priv.shift) / freq;
 }
 
 static uint64_t update_nolock(void)

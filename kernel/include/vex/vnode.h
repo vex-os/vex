@@ -7,6 +7,7 @@
 #include <vex/fcache.h>
 #include <vex/spinlock.h>
 #include <vex/stat.h>
+#include <vex/time.h>
 #include <vex/types.h>
 #include <vex/xattr.h>
 

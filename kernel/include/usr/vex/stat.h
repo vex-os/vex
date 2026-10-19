@@ -37,12 +37,6 @@
 #define __k_UTIME_NOW  ((__k_int64_t)((1L << 30) - 1))
 #define __k_UTIME_OMIT ((__k_int64_t)((1L << 30) - 2))
 
-/* TODO: move to separate header */
-struct __k_timespec {
-    __k_time_t tv_sec;
-    __k_int64_t tv_nsec;
-};
-
 struct __k_stat {
     __k_dev_t st_dev;
     __k_ino_t st_ino;

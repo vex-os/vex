@@ -63,6 +63,7 @@
 #define SYS_SETXATTRAT    __k_SYS_SETXATTRAT
 #define SYS_LISTXATTRAT   __k_SYS_LISTXATTRAT
 #define SYS_REMOVEXATTRAT __k_SYS_REMOVEXATTRAT
+#define SYS_SETTIME       __k_SYS_SETTIME
 
 struct file;
 struct hart_context;

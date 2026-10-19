@@ -389,7 +389,7 @@ static bool time_valid(const struct k_timespec* restrict time)
         return true;
     }
 
-    return time->tv_nsec >= 0 && time->tv_nsec < 1000000000;
+    return time->tv_nsec >= 0 && time->tv_nsec < NSEC_PER_SEC;
 }
 
 static bool time_set(const struct k_timespec* restrict time, time_t* restrict out)

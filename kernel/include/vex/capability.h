@@ -9,6 +9,7 @@
 #define CAP_SETGID       __k_CAP_SETGID
 #define CAP_SETUID       __k_CAP_SETUID
 #define CAP_SYS_ADMIN    __k_CAP_SYS_ADMIN
+#define CAP_SYS_TIME     __k_CAP_SYS_TIME
 #define CAP_SETFCAP      __k_CAP_SETFCAP
 #define CAP_MOUNT        __k_CAP_MOUNT
 

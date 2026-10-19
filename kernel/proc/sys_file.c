@@ -6,6 +6,7 @@
 #include <vex/stat.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
+#include <vex/time.h>
 #include <vex/uaccess.h>
 #include <vex/vnode.h>
 

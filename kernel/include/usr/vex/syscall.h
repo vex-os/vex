@@ -60,5 +60,6 @@
 #define __k_SYS_SETXATTRAT    57
 #define __k_SYS_LISTXATTRAT   58
 #define __k_SYS_REMOVEXATTRAT 59
+#define __k_SYS_SETTIME       60
 
 #endif /* USR_VEX_SYSCALL_H */

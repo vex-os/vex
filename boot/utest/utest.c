@@ -1,5 +1,6 @@
 #include <vex/fcntl.h>
 #include <vex/syscall.h>
+#include <vex/time.h>
 #include <vex/utsname.h>
 
 static long syscall1(long num, long a1)
@@ -205,6 +206,18 @@ int main(void)
     readback("/moved2/short.txt");                                                       // should print "/moved2/a-rath"
     printnumber(syscall3(__k_SYS_UNLINKAT, __k_AT_FDCWD, (long)"/moved2/short.txt", 0)); // should print 0
     printnumber(syscall3(__k_SYS_UNLINKAT, __k_AT_FDCWD, (long)long_names[4], 0));       // should print 0
+
+    struct __k_timespec now;
+    syscall2(__k_SYS_GETTIME, __k_CLOCK_REALTIME, (long)&now);
+    printnumber(now.tv_sec); // should print the date at boot, seconds since the epoch
+    syscall2(__k_SYS_GETTIME, __k_CLOCK_MONOTONIC, (long)&now);
+    printnumber(now.tv_sec); // should print a few seconds of uptime
+
+    struct __k_timespec date = { .tv_sec = 2000000000, .tv_nsec = 0 };
+    printnumber(syscall2(__k_SYS_SETTIME, __k_CLOCK_MONOTONIC, (long)&date)); // should print -226 (EINVAL)
+    printnumber(syscall2(__k_SYS_SETTIME, __k_CLOCK_REALTIME, (long)&date));  // should print 0
+    syscall2(__k_SYS_GETTIME, __k_CLOCK_REALTIME, (long)&now);
+    printnumber(now.tv_sec); // should print 2000000000
 
     return 1337;
 }
