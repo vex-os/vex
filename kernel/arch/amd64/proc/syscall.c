@@ -2,11 +2,33 @@
 #include <arch/amd64.msr.h>
 #include <arch/hart.h>
 #include <vex/initcall.h>
+#include <vex/pmap.h>
+#include <vex/process.h>
+#include <vex/sched.h>
+#include <vex/syscall.h>
+#include <vex/thread.h>
 #include <vex/types.h>
+#include <vex/vms.h>
 
 #define SYSRET_BASE gdt_selector(GDT_KERN_DATA_64, 0, 3)
 
 extern void amd64_syscall_entry(void);
+
+// SYSRET to a non-canonical RCX faults in ring 0 on Intel, but on the
+// user's stack already; no return address past the user half gets there
+void __used amd64_syscall_handler(struct hart_context* restrict ctx)
+{
+    dispatch_syscall(ctx);
+
+    struct thread* thrd = this_thread();
+    struct process* proc = thrd->proc;
+
+    if(proc && ctx->amd64_rcx >= pmap_user_end(proc->vms->pmap)) {
+        process_exit(proc, -1);
+        sched_terminate();
+        unreachable();
+    }
+}
 
 static void arch_init_syscall(void)
 {

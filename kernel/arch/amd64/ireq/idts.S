@@ -90,8 +90,10 @@
 
 # NMI, #DF and #MC can arrive anywhere, including the window
 # between SYSCALL and its SWAPGS, where CS is already the kernel's
-# but GS is still the user's; GS_BASE itself tells which one is live:
-# kernel thread pointers are higher-half, so the MSR's sign bit is set
+# but GS is still the user's; #NP, #SS and #GP also come from an
+# IRETQ back to ring 3 that faults after its SWAPGS, with the kernel's
+# CS in the frame; GS_BASE itself tells which one is live: kernel
+# thread pointers are higher-half, so the MSR's sign bit is set
 .macro isr_stub_paranoid stubname vector has_errcode
     .global \stubname
     .type \stubname, @function
@@ -171,9 +173,9 @@ isr_stub_pz         amd64_isr_07, 0x07
 isr_stub_paranoid   amd64_isr_08, 0x08, 1
 isr_stub_pz         amd64_isr_09, 0x09
 isr_stub            amd64_isr_0A, 0x0A
-isr_stub            amd64_isr_0B, 0x0B
-isr_stub            amd64_isr_0C, 0x0C
-isr_stub            amd64_isr_0D, 0x0D
+isr_stub_paranoid   amd64_isr_0B, 0x0B, 1
+isr_stub_paranoid   amd64_isr_0C, 0x0C, 1
+isr_stub_paranoid   amd64_isr_0D, 0x0D, 1
 isr_stub            amd64_isr_0E, 0x0E
 isr_stub_pz         amd64_isr_0F, 0x0F
 isr_stub_pz         amd64_isr_10, 0x10

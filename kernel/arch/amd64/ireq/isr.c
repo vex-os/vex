@@ -4,6 +4,7 @@
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 #include <vex/kstack.h>
+#include <vex/linker.h>
 #include <vex/panic.h>
 #include <vex/pmap.h>
 #include <vex/process.h>
@@ -93,6 +94,31 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
     unreachable();
 }
 
+static bool iretq_to_user_faulted(const struct hart_context* restrict ctx, uint64_t intvec)
+{
+    if(intvec != 0x0B && intvec != 0x0C && intvec != 0x0D) {
+        return false;
+    }
+
+    if(3 == (ctx->amd64_cs & 3)) {
+        return false;
+    }
+
+    const char* insn = (const char*)(ctx->amd64_rip);
+
+    if(insn < text_start || insn + 2 > text_end) {
+        return false;
+    }
+
+    if((uint8_t)(insn[0]) != 0x48 || (uint8_t)(insn[1]) != 0xCF) {
+        return false;
+    }
+
+    const uint64_t* frame = (const uint64_t*)(ctx->amd64_rsp);
+
+    return 3 == (frame[1] & 3);
+}
+
 void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec)
 {
     disable_interrupts();
@@ -125,7 +151,7 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
         panic("double fault: hart=%hu rip=%p", hart->index, (void*)(ctx->amd64_rip));
     }
 
-    if(3 == (ctx->amd64_cs & 3)) {
+    if(3 == (ctx->amd64_cs & 3) || iretq_to_user_faulted(ctx, intvec)) {
         struct thread* thrd = hart->curr_thread;
         struct process* proc = thrd->proc;
 

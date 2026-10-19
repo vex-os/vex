@@ -37,7 +37,7 @@ amd64_syscall_entry:
     sti
 
     movq %rsp, %rdi
-    call dispatch_syscall
+    call amd64_syscall_handler
 
     cli
 
