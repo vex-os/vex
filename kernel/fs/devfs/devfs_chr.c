@@ -12,7 +12,7 @@ struct devfs_chr_context {
     const struct chr_device* device;
 };
 
-static_assert(sizeof(struct devfs_chr_context) <= (PAGE_SIZE / 2));
+static_assert(sizeof(struct devfs_chr_context) <= SLAB_MAX_SIZE);
 
 static void devfs_chr_release(struct vnode* restrict node)
 {

@@ -10,7 +10,7 @@
 #include <vex/vcache.h>
 #include <vex/vnode.h>
 
-static_assert(sizeof(struct vnode) <= (PAGE_SIZE / 2));
+static_assert(sizeof(struct vnode) <= SLAB_MAX_SIZE);
 
 static struct mutex rename_mutex = MUTEX_INIT;
 

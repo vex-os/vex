@@ -12,7 +12,7 @@
 
 #include "echfs.h"
 
-static_assert(sizeof(struct echfs_vnode_context) <= (PAGE_SIZE / 2));
+static_assert(sizeof(struct echfs_vnode_context) <= SLAB_MAX_SIZE);
 
 static void free_chain(struct echfs_vfs_context* restrict fs, uint64_t block)
 {

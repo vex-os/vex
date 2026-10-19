@@ -13,7 +13,7 @@
 
 #include "fat.h"
 
-static_assert(sizeof(struct fat_vfs_context) <= (PAGE_SIZE / 2));
+static_assert(sizeof(struct fat_vnode_context) <= SLAB_MAX_SIZE);
 
 static int fat_probe(struct vfs* restrict fs, const struct blk_device* restrict device)
 {

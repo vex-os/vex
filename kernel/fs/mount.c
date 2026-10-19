@@ -20,8 +20,8 @@ struct mount_entry {
     char* path;
 };
 
-static_assert(sizeof(struct vfs) <= (PAGE_SIZE / 2));
-static_assert(sizeof(struct vfs_driver) <= (PAGE_SIZE / 2));
+static_assert(sizeof(struct vfs) <= SLAB_MAX_SIZE);
+static_assert(sizeof(struct vfs_driver) <= SLAB_MAX_SIZE);
 
 static spinlock_type drivers_lock = SPINLOCK_INIT;
 static struct vfs_driver* drivers_head = nullptr;

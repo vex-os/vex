@@ -14,8 +14,8 @@
 
 #include "devfs.h"
 
-static_assert(sizeof(struct devfs_node) <= (PAGE_SIZE / 2));
-static_assert(sizeof(struct devfs_state) <= (PAGE_SIZE / 2));
+static_assert(sizeof(struct devfs_node) <= SLAB_MAX_SIZE);
+static_assert(sizeof(struct devfs_state) <= SLAB_MAX_SIZE);
 
 int devfs_insert(struct vfs* restrict fs, const char* restrict name, struct vnode* restrict node)
 {
