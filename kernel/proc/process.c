@@ -8,6 +8,7 @@
 #include <vex/mount.h>
 #include <vex/process.h>
 #include <vex/sched.h>
+#include <vex/signal.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -173,6 +174,20 @@ struct process* process_create(struct process* restrict parent)
         return nullptr;
     }
 
+    struct sighand* parent_sighand = nullptr;
+
+    if(parent) {
+        parent_sighand = parent->sighand;
+    }
+
+    proc->sighand = sighand_create(parent_sighand);
+
+    if(proc->sighand == nullptr) {
+        vms_release(proc->vms);
+        slab_free(proc);
+        return nullptr;
+    }
+
     if(parent) {
         proc->ppid = parent->pid;
     }
@@ -203,6 +218,7 @@ struct process* process_create(struct process* restrict parent)
 
     if(proc->cwd == nullptr) {
         cred_decref(proc->cred);
+        sighand_destroy(proc->sighand);
         vms_release(proc->vms);
         slab_free(proc);
         return nullptr;
@@ -269,6 +285,7 @@ void process_decref(struct process* proc)
         }
 
         cred_decref(proc->cred);
+        sighand_destroy(proc->sighand);
         mutex_deinit(&proc->cred_lock);
         event_deinit(&proc->evnt);
         event_deinit(&proc->child_exited);

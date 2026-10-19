@@ -4,9 +4,11 @@
 #include <vex/event.h>
 #include <vex/limits.h>
 #include <vex/mutex.h>
+#include <vex/signal.h>
 #include <vex/spinlock.h>
 
 struct file;
+struct sigqueue;
 struct thread;
 struct vmspace;
 struct vnode;
@@ -40,6 +42,10 @@ struct process {
 
     struct credentials* cred;
     struct mutex cred_lock;
+
+    struct sighand* sighand;
+    sigset_t sig_pending;
+    struct sigqueue* sig_queue;
 
     struct vnode* cwd;
     mode_t umask;

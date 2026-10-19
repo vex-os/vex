@@ -3,18 +3,18 @@
 #include <arch/hart.h>
 #include <arch/thread.h>
 #include <vex/compiler.h>
+#include <vex/signal.h>
 #include <vex/spinlock.h>
 #include <vex/types.h>
 
 struct credentials;
 struct event;
+struct sigqueue;
 struct process;
 struct hart_local;
 struct runqueue;
 
-enum {
-    THREAD_WORK_EXIT = 1U << 0,
-};
+#define THREAD_WORK_EXIT UINT32_C(0x00000001)
 
 enum {
     THREAD_RUNNABLE,
@@ -25,12 +25,6 @@ enum {
 
 struct thread {
     struct thread* self;
-
-    // Pinned, register-free scratch slots for syscall/trap entry trampolines:
-    // reachable via thread-pointer-register-relative addressing (%gs on amd64)
-    // before any general purpose register is free to use. kernel_rsp is where
-    // the kernel stack starts for ring 3 entries; entry_scratch is a transient holding
-    // cell for the interrupted user stack pointer while it is being switched away from.
     void* kernel_rsp;
     void* entry_scratch;
 
@@ -57,7 +51,7 @@ struct thread {
     uint32_t wakeup_index;
     uint32_t num_events;
     uint32_t max_events;
-    uint32_t pending_work; // THREAD_WORK_*, looked at on every return to ring 3
+    uint32_t pending_work; // loaded every return to ring-3
 
     uint64_t wake_deadline;
     struct thread* wake_next;
@@ -68,6 +62,10 @@ struct thread {
     struct credentials* cred;
     struct thread* tnext;
     struct thread* tprev;
+
+    sigset_t sig_blocked;
+    sigset_t sig_pending;
+    struct sigqueue* sig_queue;
 
     void* kstack_top;
 

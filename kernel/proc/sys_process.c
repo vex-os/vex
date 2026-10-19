@@ -10,6 +10,7 @@
 #include <vex/process.h>
 #include <vex/pslab.h>
 #include <vex/sched.h>
+#include <vex/signal.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
 #include <vex/uaccess.h>
@@ -246,6 +247,7 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
 
     proc->vms = vms;
     arch_thread_exec(thrd, vms, entry.address, entry.ustack);
+    sighand_exec(proc->sighand);
 
     vms_release(old_vms);
 
@@ -289,6 +291,8 @@ static intptr_t sys_fork(const uintptr_t* restrict args)
     }
 
     pid_t pid = child->pid;
+
+    child_thread->sig_blocked = thrd->sig_blocked;
 
     sched_enqueue(child_thread);
 

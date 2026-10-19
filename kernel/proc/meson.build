@@ -6,6 +6,7 @@ kernel_sources += files(
     'mutex.c',
     'process.c',
     'sched.c',
+    'signal.c',
     'sys_cred.c',
     'sys_dir.c',
     'sys_file.c',
