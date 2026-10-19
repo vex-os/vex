@@ -1,0 +1,77 @@
+comment "Processors"
+
+config SMP
+    bool "Symmetric multiprocessing"
+    depends on ARCH_HAS_SMP
+    default y
+    help
+      Bring up and schedule on all harts reported by firmware.
+      Without this only the bootstrap hart is used
+
+config MAX_HARTS
+    int "Maximum number of harts"
+    depends on SMP
+    range 2 4096
+    default 64
+    help
+      Hart state is allocated statically for this many harts;
+      the ones firmware reports past it are left unused
+
+config SCHED_TIMESLICE
+    int "Scheduler timeslice (us)"
+    range 100 1000000
+    default 5000
+    help
+      How long a thread runs before the scheduler
+      lets another runnable thread on the same hart
+
+comment "Processes"
+
+config DEFAULT_INIT
+    string "Default init path"
+    default "/sbin/init"
+    help
+      Path to the first userspace process, used when the
+      kernel command line does not specify init=
+
+config MAX_THREADS
+    int "Maximum number of threads"
+    range 32 65536
+    default 16384
+    help
+      Every thread takes a kernel stack slot in a region of fixed
+      size, so this caps kernel and user threads together; a multiple of 32
+
+config MAX_FDS
+    int "Maximum open file descriptors per process"
+    range 16 1048576
+    default 1024
+    help
+      Opening or duplicating a descriptor at or past
+      this number fails with EMFILE or EBADF
+
+config NGROUPS_MAX
+    int "Maximum supplementary groups per process"
+    range 0 65536
+    default 64
+    help
+      Starting limit for setgroups. The list lives inside the credentials
+      object, so a long one moves it from the slab allocator to the heap
+
+comment "Stacks"
+
+config KSTACK_PAGES
+    int "Kernel stack size (pages)"
+    range 2 64
+    default 4
+    help
+      Pages in the kernel stack of every thread,
+      not counting the unmapped guard page below it
+
+config USER_STACK_SIZE
+    int "User stack size (KiB)"
+    range 4 1048576
+    default 8192
+    help
+      Address space reserved for the stack of a new process,
+      a power of two; pages are only allocated once touched

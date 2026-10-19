@@ -5,117 +5,56 @@ source "kernel/arch/$(ARCH)/Kconfig"
 config ARCH_HAS_SMP
     bool
 
-menu "Kernel core"
+config ARCH_HAS_DEBUGCON
+    bool
 
-config SMP
-    bool "Symmetric multiprocessing"
-    depends on ARCH_HAS_SMP
-    default y
-    help
-      Bring up and schedule on all harts reported by firmware.
-      Without this only the bootstrap hart is used.
+menu "Processes and scheduling"
+source "kernel/proc/Kconfig"
+endmenu
 
-config MAX_HARTS
-    int "Maximum number of harts"
-    depends on SMP
-    range 2 4096
-    default 64
-    help
-      Hart state is allocated statically for this many harts;
-      the ones firmware reports past it are left unused
+menu "Console and logging"
+source "kernel/core/Kconfig"
+endmenu
 
-config DEFAULT_INIT
-    string "Default init path"
-    default "/sbin/init"
-    help
-      Path to the first userspace process, used when the
-      kernel command line does not specify init=
-
-config USER_STACK_SIZE
-    int "User stack size in KiB"
-    range 4 1048576
-    default 8192
-    help
-      Address space reserved for the stack of a new process,
-      a power of two; pages are only allocated once touched
-
-config KSTACK_PAGES
-    int "Kernel stack size in pages"
-    range 2 64
-    default 4
-    help
-      Pages in the kernel stack of every thread,
-      not counting the unmapped guard page below it
-
-config MAX_THREADS
-    int "Maximum number of threads"
-    range 32 65536
-    default 16384
-    help
-      Every thread takes a kernel stack slot in a region of fixed
-      size, so this caps kernel and user threads together; a multiple of 32
-
-config MAX_FDS
-    int "Maximum open file descriptors per process"
-    range 16 1048576
-    default 1024
-
-config NGROUPS_MAX
-    int "Maximum supplementary groups per process"
-    range 0 65536
-    default 64
-    help
-      Starting limit for setgroups. The list lives inside the credentials
-      object, so a long one moves it from the slab allocator to the heap
-
-config SCHED_TIMESLICE
-    int "Scheduler timeslice in microseconds"
-    range 100 1000000
-    default 5000
-
-config KPRINTF_BUFSIZE
-    int "Kernel log buffer size in bytes"
-    range 256 1048576
-    default 4096
-    help
-      Ring buffer of recent kernel messages, replayed to
-      consoles that register or unblank later
-
-config FBCONS
-    bool "Framebuffer console"
-    default y
-    help
-      Print kernel messages to the framebuffer
-      provided by the bootloader
-
-config UACPI_QUIET
-    bool "Silence uACPI log messages"
-    default y
-
+menu "Block devices"
+source "kernel/dev/Kconfig"
 endmenu
 
 menu "Device drivers"
-
-source "kernel/dev/Kconfig"
 source "kernel/drivers/Kconfig"
-
 endmenu
 
+menu "Filesystems"
 source "kernel/fs/Kconfig"
+endmenu
 
 menu "Debugging"
 
 config KASSERT
     bool "Kernel assertions"
     default y
+    help
+      Check kassert() conditions at runtime and panic
+      with the failed expression when one does not hold
+
+comment "Tracing"
 
 config TRACE_BLK_EVENTS
     bool "Trace block device events"
+    help
+      Log block devices being added and removed;
+      shown only with loglevel=verbose
 
 config TRACE_CHR_EVENTS
     bool "Trace character device events"
+    help
+      Log character devices being added and removed;
+      shown only with loglevel=verbose
 
 config TRACE_INITCALLS
     bool "Trace initcalls"
+    help
+      Log every initcall before it runs, which helps to find
+      the one a boot hangs in; shown only with loglevel=verbose
 
 endmenu

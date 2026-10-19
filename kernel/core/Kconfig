@@ -1,0 +1,33 @@
+config KPRINTF_BUFSIZE
+    int "Kernel log buffer size (bytes)"
+    range 256 1048576
+    default 4096
+    help
+      Ring buffer of recent kernel messages, replayed to
+      consoles that register or unblank later
+
+comment "Consoles"
+
+config FBCONS
+    bool "Framebuffer console"
+    default y
+    help
+      Print kernel messages to the framebuffer
+      provided by the bootloader
+
+config BXCONS
+    bool "Bochs debug port console"
+    depends on ARCH_HAS_DEBUGCON
+    default y
+    help
+      Print kernel messages to the debug I/O port, which
+      QEMU and Bochs can redirect to a file or stdio
+
+comment "Firmware"
+
+config UACPI_QUIET
+    bool "Silence uACPI log messages"
+    default y
+    help
+      Drop the messages uACPI logs while it parses
+      and runs the firmware ACPI tables

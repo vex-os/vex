@@ -1,7 +1,15 @@
+comment "Partition tables"
+
 config PTABLE_GPT
     bool "GUID partition tables"
     default y
+    help
+      Expose the partitions of a GPT disk
+      as block devices of their own
 
 config PTABLE_MBR
     bool "MBR partition tables"
     default y
+    help
+      Expose the four primary partitions of an MBR disk
+      as block devices of their own

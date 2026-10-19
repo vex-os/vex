@@ -1,7 +1,17 @@
+comment "Storage"
+
 config AHCI
     bool "AHCI SATA controllers"
     default y
+    help
+      SATA disks and ATAPI drives behind an AHCI host
+      bus adapter, the usual controller on PCI(e) machines
+
+comment "Input"
 
 config PS2KBD
     bool "PS/2 keyboard"
     default y
+    help
+      Keyboard on the first port of
+      the PS/2 (i8042) controller

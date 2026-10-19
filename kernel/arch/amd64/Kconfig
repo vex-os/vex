@@ -1,14 +1,4 @@
 config ARCH_AMD64
     def_bool y
     select ARCH_HAS_SMP
-
-menu "AMD64 options"
-
-config BXCONS
-    bool "Bochs debug port console"
-    default y
-    help
-      Print kernel messages to I/O port 0xE9, which
-      QEMU and Bochs can redirect to a file or stdio
-
-endmenu
+    select ARCH_HAS_DEBUGCON

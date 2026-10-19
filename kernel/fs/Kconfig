@@ -1,4 +1,4 @@
-menu "Filesystems"
+comment "Caching"
 
 config VCACHE_MAX_UNUSED
     int "Unused vnodes kept cached"
@@ -17,12 +17,14 @@ config FCACHE_WRITEBACK_MSEC
       metadata are written back to disk
 
 config FCACHE_DIRTY_PERCENT
-    int "Dirty file cache limit (percent of memory)"
+    int "Dirty file cache limit (% of memory)"
     range 1 90
     default 20
     help
       A write that finds more of memory dirty than this
       writes its own file back before returning
+
+comment "Access times"
 
 choice
     prompt "Access time updates on read"
@@ -50,7 +52,7 @@ config ATIME_NONE
 endchoice
 
 config ATIME_RELATIME_INTERVAL
-    int "Relatime update interval (seconds)"
+    int "Relatime update interval (s)"
     depends on ATIME_RELATIME
     range 1 31536000
     default 86400
@@ -58,20 +60,32 @@ config ATIME_RELATIME_INTERVAL
       An access time this much older than now is moved
       even when the file has not changed since
 
+comment "Filesystem types"
+
 config DEVFS
     bool "Device filesystem"
     default y
+    help
+      Synthetic filesystem with a node for every
+      registered block and character device
 
 config ECHFS
     bool "echfs"
     default y
+    help
+      The simple filesystem made
+      alongside the Limine bootloader
 
 config EXT2
     bool "ext2"
     default y
+    help
+      Second extended filesystem, used for
+      the DATA partition of the boot image
 
 config FAT
     bool "FAT"
     default y
-
-endmenu
+    help
+      FAT12, FAT16 and FAT32 volumes,
+      such as the EFI system partition
