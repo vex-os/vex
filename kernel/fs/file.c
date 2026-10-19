@@ -25,7 +25,7 @@ static unsigned access_for(unsigned flags)
     return mask;
 }
 
-int file_open_node(struct vnode* restrict node, unsigned flags, struct file** restrict out)
+int file_open_node(struct vnode* restrict node, unsigned flags, const struct credentials* restrict cred, struct file** restrict out)
 {
     if(node->nodetype == VNODE_DIRECTORY && (flags & (O_WRONLY | O_TRUNC))) {
         vnode_decref(node);
@@ -47,7 +47,11 @@ int file_open_node(struct vnode* restrict node, unsigned flags, struct file** re
 
     if((flags & O_TRUNC) && node->nodetype == VNODE_FILE) {
         struct vattr attr = { .mask = VATTR_SIZE, .size = 0 };
-        retval = vnode_setattr(node, &attr);
+        retval = vnode_remove_privs(node, cred);
+
+        if(retval == 0) {
+            retval = vnode_setattr(node, &attr);
+        }
 
         if(retval < 0) {
             vnode_close(node);
@@ -128,7 +132,7 @@ int file_open(struct vnode* restrict stem, const char* restrict path, unsigned f
         }
     }
 
-    return file_open_node(node, flags, out);
+    return file_open_node(node, flags, cred, out);
 }
 
 struct file* file_dupe(struct file* restrict fp)
@@ -176,7 +180,7 @@ ssize_t file_read(struct file* restrict fp, void* restrict buffer, size_t sz)
     return result;
 }
 
-ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t sz)
+ssize_t file_write(struct file* restrict fp, const struct credentials* restrict cred, const void* restrict buffer, size_t sz)
 {
     if(fp == nullptr || buffer == nullptr) {
         return -EINVAL;
@@ -201,6 +205,14 @@ ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t
         fp->offset = stat.st_size;
     }
 
+    if(sz > 0) {
+        int retval = vnode_remove_privs(fp->node, cred);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
     ssize_t result = vnode_write(fp->node, buffer, sz, fp->offset);
 
     if(result > 0) {
@@ -210,7 +222,7 @@ ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t
     return result;
 }
 
-int file_truncate(struct file* restrict fp, off_t size)
+int file_truncate(struct file* restrict fp, const struct credentials* restrict cred, off_t size)
 {
     if(fp == nullptr) {
         return -EINVAL;
@@ -218,6 +230,12 @@ int file_truncate(struct file* restrict fp, off_t size)
 
     if(0 == (fp->flags & O_WRONLY)) {
         return -EBADF;
+    }
+
+    int retval = vnode_remove_privs(fp->node, cred);
+
+    if(retval < 0) {
+        return retval;
     }
 
     struct vattr attr = { .mask = VATTR_SIZE, .size = size };

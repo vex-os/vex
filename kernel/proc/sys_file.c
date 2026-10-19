@@ -119,6 +119,7 @@ static intptr_t sys_read(const uintptr_t* restrict args)
 
 static intptr_t write_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
+    struct thread* thrd = this_thread();
     uintptr_t user_buf = args[1];
     size_t remaining = args[2];
     size_t total = 0;
@@ -141,7 +142,7 @@ static intptr_t write_file(struct file* restrict fp, const uintptr_t* restrict a
             return copied;
         }
 
-        ssize_t num_written = file_write(fp, buffer, chunk);
+        ssize_t num_written = file_write(fp, thrd->cred, buffer, chunk);
 
         if(num_written < 0) {
             if(total > 0)
@@ -178,7 +179,9 @@ static intptr_t sys_seek(const uintptr_t* restrict args)
 
 static intptr_t ftruncate_file(struct file* restrict fp, const uintptr_t* restrict args)
 {
-    return file_truncate(fp, args[1]);
+    struct thread* thrd = this_thread();
+
+    return file_truncate(fp, thrd->cred, args[1]);
 }
 
 static intptr_t sys_ftruncate(const uintptr_t* restrict args)

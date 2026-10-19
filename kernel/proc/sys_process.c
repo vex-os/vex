@@ -195,7 +195,7 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
     }
 
     struct file* fp;
-    retval = file_open_node(node, O_RDONLY, &fp);
+    retval = file_open_node(node, O_RDONLY, cred, &fp);
 
     if(retval < 0) {
         return retval;
@@ -318,7 +318,6 @@ static intptr_t sys_exec(const uintptr_t* restrict args)
     return retval;
 }
 
-// Takes over the caller's reference to a claimed zombie child
 static intptr_t collect_child(struct process* restrict target, uintptr_t wstatus)
 {
     int status = W_EXITCODE(target->exit_code, 0);

@@ -85,6 +85,7 @@ struct vnode {
     bool orphaned;
     unsigned privs_seq;
     unsigned caps_state;
+    bool privs_clear;
     ino_t nodenumber;
     struct vcache* cache_entry;
     const struct blk_device* blkdev;
@@ -118,6 +119,7 @@ int vnode_chown(struct vnode* restrict node, const struct credentials* restrict 
 int vnode_utimes(struct vnode* restrict node, const struct credentials* restrict cred, const struct k_timespec* restrict times);
 int vnode_may_delete(struct vnode* restrict dir, const char* restrict name, const struct credentials* restrict cred) __nodiscard;
 int vnode_access(struct vnode* restrict node, const struct credentials* restrict cred, unsigned mask) __nodiscard;
+int vnode_remove_privs(struct vnode* restrict node, const struct credentials* restrict cred) __nodiscard;
 int vnode_ioctl(struct vnode* restrict node, uint32_t request, uintptr_t argument);
 int vnode_fsync(struct vnode* restrict node);
 int vnode_map_page(struct vnode* restrict node, uint64_t index, struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot);

@@ -18,13 +18,14 @@ struct file {
 
 int file_open(struct vnode* restrict stem, const char* restrict path, unsigned flags, mode_t mode, const struct credentials* restrict cred,
     struct file** restrict out) __nodiscard;
-int file_open_node(struct vnode* restrict node, unsigned flags, struct file** restrict out) __nodiscard;
+int file_open_node(struct vnode* restrict node, unsigned flags, const struct credentials* restrict cred,
+    struct file** restrict out) __nodiscard;
 struct file* file_dupe(struct file* restrict fp) __nodiscard;
 void file_close(struct file* restrict fp);
 
 ssize_t file_read(struct file* restrict fp, void* restrict buffer, size_t sz);
-ssize_t file_write(struct file* restrict fp, const void* restrict buffer, size_t sz);
+ssize_t file_write(struct file* restrict fp, const struct credentials* restrict cred, const void* restrict buffer, size_t sz);
 
-int file_truncate(struct file* restrict fp, off_t size);
+int file_truncate(struct file* restrict fp, const struct credentials* restrict cred, off_t size);
 int file_seek(struct file* restrict fp, off_t offset, int origin);
 int file_ioctl(struct file* restrict fp, uint32_t request, uintptr_t argument);

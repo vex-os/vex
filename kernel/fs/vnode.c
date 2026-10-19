@@ -12,6 +12,18 @@
 #include <vex/wallclock.h>
 #include <vex/xattr.h>
 
+struct privs_state {
+    unsigned seq;
+    unsigned caps_state;
+    bool clear;
+};
+
+static const char* const xattr_prefixes[NUM_XATTR_SPACES] = {
+    [XATTR_USER] = "user.",
+    [XATTR_TRUSTED] = "trusted.",
+    [XATTR_SECURITY] = "security.",
+};
+
 static_assert(sizeof(struct vnode) <= SLAB_MAX_SIZE);
 
 static struct mutex rename_mutex = MUTEX_INIT;
@@ -396,12 +408,6 @@ static bool time_set(const struct k_timespec* restrict time, time_t* restrict ou
     return true;
 }
 
-static const char* const xattr_prefixes[NUM_XATTR_SPACES] = {
-    [XATTR_USER] = "user.",
-    [XATTR_TRUSTED] = "trusted.",
-    [XATTR_SECURITY] = "security.",
-};
-
 static int split_xattr_name(const char* restrict full, unsigned* restrict out_space, const char** restrict out_name)
 {
     if(strlen(full) > XATTR_NAME_MAX) {
@@ -428,19 +434,30 @@ static int split_xattr_name(const char* restrict full, unsigned* restrict out_sp
     return -EOPNOTSUPP;
 }
 
+// Setgid without group execute marks mandatory locking rather than granting anything
+static mode_t without_privs(mode_t mode)
+{
+    mode_t result = mode & ~(S_IFMT | S_ISUID);
+
+    if(mode & S_IXGRP) {
+        result &= ~S_ISGID;
+    }
+
+    return result;
+}
+
 static bool is_caps_name(unsigned space, const char* restrict name)
 {
     return space == XATTR_SECURITY && 0 == strcmp(name, XATTR_CAPS_NAME);
 }
 
-static unsigned privs_snapshot(struct vnode* restrict node, unsigned* restrict caps_state)
+static void privs_snapshot(struct vnode* restrict node, struct privs_state* restrict out)
 {
     spinlock_acquire(&node->lock);
-    unsigned seq = node->privs_seq;
-    *caps_state = node->caps_state;
+    out->seq = node->privs_seq;
+    out->caps_state = node->caps_state;
+    out->clear = node->privs_clear;
     spinlock_release(&node->lock);
-
-    return seq;
 }
 
 // Comes after the change itself, so that whoever looked
@@ -450,6 +467,19 @@ static void privs_changed(struct vnode* restrict node)
     spinlock_acquire(&node->lock);
     node->privs_seq += 1;
     node->caps_state = VNODE_CAPS_UNKNOWN;
+    node->privs_clear = false;
+    spinlock_release(&node->lock);
+}
+
+static void privs_cleared(struct vnode* restrict node, unsigned seq)
+{
+    spinlock_acquire(&node->lock);
+
+    if(node->privs_seq == seq) {
+        node->caps_state = VNODE_CAPS_NONE;
+        node->privs_clear = true;
+    }
+
     spinlock_release(&node->lock);
 }
 
@@ -508,10 +538,10 @@ static void strip_file_caps(struct vnode* restrict node)
         return;
     }
 
-    unsigned caps_state;
-    privs_snapshot(target, &caps_state);
+    struct privs_state state;
+    privs_snapshot(target, &state);
 
-    if(target->nodetype == VNODE_FILE && target->ops->xattr_remove && !target->fs->readonly && caps_state != VNODE_CAPS_NONE) {
+    if(target->nodetype == VNODE_FILE && target->ops->xattr_remove && !target->fs->readonly && state.caps_state != VNODE_CAPS_NONE) {
         target->ops->xattr_remove(target, XATTR_SECURITY, XATTR_CAPS_NAME);
         privs_changed(target);
     }
@@ -874,6 +904,10 @@ int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr
         retval = target->ops->setattr(target, attr);
     }
 
+    if(retval == 0 && (attr->mask & (VATTR_MODE | VATTR_UID | VATTR_GID))) {
+        privs_changed(target);
+    }
+
     vnode_decref(target);
 
     return retval;
@@ -950,13 +984,9 @@ int vnode_chown(struct vnode* restrict node, const struct credentials* restrict 
     }
 
     // A program must not keep running as an owner it no longer has
-    if((st.st_mode & S_IFMT) != S_IFDIR && (st.st_mode & (S_ISUID | S_ISGID))) {
+    if((st.st_mode & S_IFMT) != S_IFDIR && without_privs(st.st_mode) != (st.st_mode & ~S_IFMT)) {
         attr.mask |= VATTR_MODE;
-        attr.mode = st.st_mode & ~(S_IFMT | S_ISUID);
-
-        if(st.st_mode & S_IXGRP) {
-            attr.mode &= ~S_ISGID;
-        }
+        attr.mode = without_privs(st.st_mode);
     }
 
     retval = vnode_setattr(node, &attr);
@@ -1005,6 +1035,62 @@ int vnode_access(struct vnode* restrict node, const struct credentials* restrict
     }
 
     return 0;
+}
+
+int vnode_remove_privs(struct vnode* restrict node, const struct credentials* restrict cred)
+{
+    kassert(node);
+    kassert(cred);
+
+    if(node->nodetype != VNODE_FILE) {
+        return 0;
+    }
+
+    struct privs_state state;
+    privs_snapshot(node, &state);
+
+    if(state.clear) {
+        return 0;
+    }
+
+    struct k_stat st;
+    int retval = vnode_stat(node, &st);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    mode_t stripped = without_privs(st.st_mode);
+    bool mode_clear = stripped == (st.st_mode & ~S_IFMT);
+
+    if(!mode_clear && !cred_capable(cred, CAP_FSETID)) {
+        struct vattr attr = { .mask = VATTR_MODE, .mode = stripped };
+        retval = vnode_setattr(node, &attr);
+    }
+
+    bool caps_clear = state.caps_state == VNODE_CAPS_NONE || node->ops->xattr_remove == nullptr;
+
+    if(retval == 0 && !caps_clear) {
+        retval = node->ops->xattr_remove(node, XATTR_SECURITY, XATTR_CAPS_NAME);
+
+        if(retval == 0) {
+            privs_changed(node);
+        }
+
+        caps_clear = retval == -ENODATA;
+    }
+
+    if(retval == -ENODATA) {
+        retval = 0;
+    }
+
+    // Whatever was taken away above moved the sequence on,
+    // so only the next write marks the file as clean
+    if(retval == 0 && mode_clear && caps_clear) {
+        privs_cleared(node, state.seq);
+    }
+
+    return retval;
 }
 
 int vnode_utimes(struct vnode* restrict node, const struct credentials* restrict cred, const struct k_timespec* restrict times)
@@ -1372,10 +1458,10 @@ ssize_t vnode_caps_get(struct vnode* restrict node, void* restrict value, size_t
         return retval;
     }
 
-    unsigned caps_state;
-    unsigned seq = privs_snapshot(target, &caps_state);
+    struct privs_state state;
+    privs_snapshot(target, &state);
 
-    if(caps_state == VNODE_CAPS_NONE || target->ops->xattr_get == nullptr) {
+    if(state.caps_state == VNODE_CAPS_NONE || target->ops->xattr_get == nullptr) {
         retval = -ENODATA;
     }
     else {
@@ -1383,10 +1469,10 @@ ssize_t vnode_caps_get(struct vnode* restrict node, void* restrict value, size_t
     }
 
     if(retval == -ENODATA) {
-        caps_learned(target, seq, VNODE_CAPS_NONE);
+        caps_learned(target, state.seq, VNODE_CAPS_NONE);
     }
     else if(retval >= 0 || retval == -ERANGE) {
-        caps_learned(target, seq, VNODE_CAPS_PRESENT);
+        caps_learned(target, state.seq, VNODE_CAPS_PRESENT);
     }
 
     vnode_decref(target);
