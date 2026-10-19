@@ -1,12 +1,14 @@
 #include <vex/blk_device.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
-#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/string.h>
 #include <vex/vnode.h>
 
 #include "ext2.h"
+
+#define MIN_REC_LEN (size_t)(4 + sizeof(struct ext2_dir_entry))
+#define MAX_REC_LEN (size_t)((EXT2_NAME_LEN + 3 + sizeof(struct ext2_dir_entry)) & ~(size_t)(3))
 
 static bool has_filetype(const struct ext2_vfs_context* restrict fs_ctx)
 {
@@ -116,7 +118,7 @@ static int write_record(struct vnode* restrict dir, uint64_t offset, size_t rec_
     uint8_t file_type)
 {
     struct ext2_vnode_context* ctx = dir->ctxdata;
-    uint8_t buffer[sizeof(struct ext2_dir_entry) + EXT2_NAME_LEN + 3] = { 0 };
+    uint8_t buffer[MAX_REC_LEN] = { 0 };
 
     fill_record(ctx->fs_ctx, buffer, rec_len, ino, name, file_type);
 
@@ -137,13 +139,13 @@ static int directory_changed(struct vnode* restrict dir)
     return ext2_inode_write(ctx->fs_ctx, (uint32_t)(dir->nodenumber), &ctx->inode);
 }
 
-static int append_block(struct vnode* restrict dir, const uint8_t* restrict block)
+static int append_block(struct vnode* restrict dir, const uint8_t* restrict records, size_t length)
 {
     struct ext2_vnode_context* ctx = dir->ctxdata;
     struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
     uint64_t size = ext2_inode_size(&ctx->inode);
 
-    int retval = write_exact(dir, block, fs_ctx->block_size, size);
+    int retval = write_exact(dir, records, length, size);
 
     if(retval == 0) {
         retval = ext2_inode_set_size(fs_ctx, &ctx->inode, size + fs_ctx->block_size);
@@ -154,17 +156,6 @@ static int append_block(struct vnode* restrict dir, const uint8_t* restrict bloc
     }
 
     return retval;
-}
-
-static uint8_t* alloc_block(const struct ext2_vfs_context* restrict fs_ctx)
-{
-    uint8_t* block = kmalloc(fs_ctx->block_size);
-
-    if(block) {
-        memset(block, 0, fs_ctx->block_size);
-    }
-
-    return block;
 }
 
 int ext2_dirent_read(struct vnode* restrict dir, uint64_t* restrict offset, struct ext2_dirent* restrict out)
@@ -276,17 +267,11 @@ int ext2_dirent_add(struct vnode* restrict dir, const char* restrict name, uint3
     }
 
     struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
-    uint8_t* block = alloc_block(fs_ctx);
+    uint8_t record[MAX_REC_LEN] = { 0 };
 
-    if(block == nullptr) {
-        return -ENOMEM;
-    }
+    fill_record(fs_ctx, record, fs_ctx->block_size, ino, name, file_type);
 
-    fill_record(fs_ctx, block, fs_ctx->block_size, ino, name, file_type);
-    retval = append_block(dir, block);
-    kfree(block);
-
-    return retval;
+    return append_block(dir, record, ext2_dirent_reclen(strlen(name)));
 }
 
 int ext2_dirent_remove(struct vnode* restrict dir, uint64_t offset)
@@ -359,22 +344,14 @@ int ext2_dir_init(struct vnode* restrict dir, uint32_t parent_ino)
 {
     struct ext2_vnode_context* ctx = dir->ctxdata;
     struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
-    uint8_t* block = alloc_block(fs_ctx);
-
-    if(block == nullptr) {
-        return -ENOMEM;
-    }
-
     size_t dot_len = ext2_dirent_reclen(1);
+    size_t dotdot_len = ext2_dirent_reclen(2);
+    uint8_t records[2 * MIN_REC_LEN] = { 0 };
 
-    fill_record(fs_ctx, block, dot_len, (uint32_t)(dir->nodenumber), ".", EXT2_FT_DIR);
-    fill_record(fs_ctx, block + dot_len, fs_ctx->block_size - dot_len, parent_ino, "..", EXT2_FT_DIR);
+    fill_record(fs_ctx, records, dot_len, (uint32_t)(dir->nodenumber), ".", EXT2_FT_DIR);
+    fill_record(fs_ctx, records + dot_len, fs_ctx->block_size - dot_len, parent_ino, "..", EXT2_FT_DIR);
 
-    int retval = append_block(dir, block);
-
-    kfree(block);
-
-    return retval;
+    return append_block(dir, records, dot_len + dotdot_len);
 }
 
 int ext2_dir_check_empty(struct vnode* restrict dir)

@@ -1,7 +1,6 @@
 #include <vex/blk_device.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
-#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/mount.h>
 #include <vex/vnode.h>
@@ -237,55 +236,63 @@ static void release_block(struct ext2_vfs_context* restrict context, struct ext2
 static int trim_table(struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uint32_t table, unsigned depth,
     uint64_t keep)
 {
+    uint32_t entries[64];
     uint64_t span = 1;
 
     for(unsigned i = 0; i < depth; ++i) {
         span *= context->addr_per_block;
     }
 
-    uint32_t* entries = kmalloc(context->block_size);
+    uint64_t first_slot = keep / span;
+    uint64_t offset = ext2_block_offset(context, table);
+    int retval = 0;
 
-    if(entries == nullptr) {
-        return -ENOMEM;
+    for(uint64_t base = first_slot - first_slot % 64; retval == 0 && base < context->addr_per_block; base += 64) {
+        size_t count = context->addr_per_block - base;
+
+        if(count > 64) {
+            count = 64;
+        }
+
+        retval = fcache_dev_read(context->devnode, offset + base * sizeof(uint32_t), entries, count * sizeof(uint32_t));
+        bool changed = false;
+
+        for(size_t i = 0; retval == 0 && i < count; ++i) {
+            uint64_t slot = base + i;
+            uint32_t child = le32toh(entries[i]);
+
+            if(slot < first_slot || child == 0) {
+                continue;
+            }
+
+            if(!data_block_valid(context, child)) {
+                retval = -EIO;
+                break;
+            }
+
+            uint64_t child_keep = 0;
+
+            if(slot == first_slot) {
+                child_keep = keep % span;
+            }
+
+            if(depth > 0) {
+                retval = trim_table(context, inode, child, depth - 1, child_keep);
+            }
+
+            if(retval == 0 && child_keep == 0) {
+                release_block(context, inode, child, depth > 0);
+                entries[i] = 0;
+                changed = true;
+            }
+        }
+
+        // A table left without entries
+        // is freed by the caller; unwritten
+        if(retval == 0 && changed && keep > 0) {
+            retval = fcache_dev_write(context->devnode, offset + base * sizeof(uint32_t), entries, count * sizeof(uint32_t));
+        }
     }
-
-    int retval = fcache_dev_read(context->devnode, ext2_block_offset(context, table), entries, context->block_size);
-    bool changed = false;
-
-    for(uint64_t slot = keep / span; retval == 0 && slot < context->addr_per_block; ++slot) {
-        uint32_t child = le32toh(entries[slot]);
-
-        if(child == 0) {
-            continue;
-        }
-
-        if(!data_block_valid(context, child)) {
-            retval = -EIO;
-            break;
-        }
-
-        uint64_t child_keep = 0;
-
-        if(slot == keep / span) {
-            child_keep = keep % span;
-        }
-
-        if(depth > 0) {
-            retval = trim_table(context, inode, child, depth - 1, child_keep);
-        }
-
-        if(retval == 0 && child_keep == 0) {
-            release_block(context, inode, child, depth > 0);
-            entries[slot] = 0;
-            changed = true;
-        }
-    }
-
-    if(retval == 0 && changed && keep > 0) {
-        retval = fcache_dev_write(context->devnode, ext2_block_offset(context, table), entries, context->block_size);
-    }
-
-    kfree(entries);
 
     return retval;
 }

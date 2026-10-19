@@ -1,7 +1,6 @@
 #include <vex/blk_device.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
-#include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/string.h>
 
@@ -42,36 +41,64 @@ static bool find_clear_bit(const uint8_t* restrict bitmap, uint32_t start, uint3
     return false;
 }
 
+// Reads the bitmap a piece at a time, a whole block of it doesn't fit the slab
+static int scan_bitmap(struct ext2_vfs_context* restrict context, uint64_t offset, uint32_t start, uint32_t limit, uint32_t* restrict out)
+{
+    uint8_t chunk[256];
+    uint32_t bit = start;
+
+    while(bit < limit) {
+        uint32_t first_byte = bit / 8;
+        uint32_t chunk_end = (first_byte + sizeof(chunk)) * 8;
+
+        if(chunk_end > limit) {
+            chunk_end = limit;
+        }
+
+        size_t bytes = (chunk_end + 7) / 8 - first_byte;
+        int retval = fcache_dev_read(context->devnode, offset + first_byte, chunk, bytes);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        uint32_t found;
+
+        if(find_clear_bit(chunk, bit - first_byte * 8, chunk_end - first_byte * 8, &found)) {
+            *out = first_byte * 8 + found;
+            return 0;
+        }
+
+        bit = chunk_end;
+    }
+
+    return -ENOSPC;
+}
+
+// Looks in [start, limit) first, then wraps around to [first, start)
 static int bitmap_take(struct ext2_vfs_context* restrict context, uint32_t bitmap_block, uint32_t first, uint32_t start, uint32_t limit,
     uint32_t* restrict out)
 {
-    size_t size = (limit + 7) / 8;
     uint64_t offset = ext2_block_offset(context, bitmap_block);
-    uint8_t* bitmap = kmalloc(size);
+    uint32_t bit;
+    int retval = scan_bitmap(context, offset, start, limit, &bit);
 
-    if(bitmap == nullptr) {
-        return -ENOMEM;
+    if(retval == -ENOSPC) {
+        retval = scan_bitmap(context, offset, first, start, &bit);
     }
 
-    int retval = fcache_dev_read(context->devnode, offset, bitmap, size);
-
     if(retval < 0) {
-        kfree(bitmap);
         return retval;
     }
 
-    uint32_t bit;
-    bool found = find_clear_bit(bitmap, start, limit, &bit) || find_clear_bit(bitmap, first, start, &bit);
+    uint8_t byte;
+    retval = fcache_dev_read(context->devnode, offset + bit / 8, &byte, sizeof(byte));
 
-    if(!found) {
-        kfree(bitmap);
-        return -ENOSPC;
+    if(retval < 0) {
+        return retval;
     }
 
-    uint8_t byte = bitmap[bit / 8] | (1U << (bit % 8));
-
-    kfree(bitmap);
-
+    byte |= 1U << (bit % 8);
     retval = fcache_dev_write(context->devnode, offset + bit / 8, &byte, sizeof(byte));
 
     if(retval < 0) {
