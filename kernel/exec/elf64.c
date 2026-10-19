@@ -275,7 +275,7 @@ static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t 
         { AT_EUID, cred->euid },
         { AT_GID, cred->gid },
         { AT_EGID, cred->egid },
-        { AT_SECURE, cred->uid != cred->euid || cred->gid != cred->egid }, // Tells libc not to trust the environment
+        { AT_SECURE, cred_exec_secure(cred) }, // Tells libc not to trust the environment
         { AT_NULL, 0 },
     };
 
