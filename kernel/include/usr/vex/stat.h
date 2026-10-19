@@ -1,6 +1,7 @@
 #ifndef USR_VEX_STAT_H
 #define USR_VEX_STAT_H
 
+#include <vex/time.h>
 #include <vex/types.h>
 
 /* These constants must be the same as ext2 filesystem ones */
@@ -46,9 +47,9 @@ struct __k_stat {
     __k_gid_t st_gid;
     __k_dev_t st_rdev;
     __k_off_t st_size;
-    __k_time_t st_atime;
-    __k_time_t st_mtime;
-    __k_time_t st_ctime;
+    struct __k_timespec st_atim;
+    struct __k_timespec st_mtim;
+    struct __k_timespec st_ctim;
     __k_blksize_t st_blksize;
     __k_blkcnt_t st_blocks;
 };

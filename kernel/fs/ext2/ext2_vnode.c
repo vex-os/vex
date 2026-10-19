@@ -395,11 +395,11 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
     }
 
     if(attr->mask & VATTR_ATIME) {
-        inode->i_atime = htole32((uint32_t)(attr->atime));
+        inode->i_atime = htole32((uint32_t)(attr->atime.tv_sec));
     }
 
     if(attr->mask & VATTR_MTIME) {
-        inode->i_mtime = htole32((uint32_t)(attr->mtime));
+        inode->i_mtime = htole32((uint32_t)(attr->mtime.tv_sec));
     }
 
     if(attr->mask & VATTR_SIZE) {
@@ -1018,9 +1018,9 @@ static int ext2_vnode_stat(struct vnode* restrict node, struct k_stat* restrict 
     out->st_uid = ext2_inode_uid(fs_ctx, inode);
     out->st_gid = ext2_inode_gid(fs_ctx, inode);
     out->st_size = (off_t)ext2_inode_size(inode);
-    out->st_atime = le32toh(inode->i_atime);
-    out->st_mtime = le32toh(inode->i_mtime);
-    out->st_ctime = le32toh(inode->i_ctime);
+    out->st_atim.tv_sec = le32toh(inode->i_atime);
+    out->st_mtim.tv_sec = le32toh(inode->i_mtime);
+    out->st_ctim.tv_sec = le32toh(inode->i_ctime);
     out->st_blksize = fs_ctx->block_size;
     out->st_blocks = le32toh(inode->i_blocks);
 

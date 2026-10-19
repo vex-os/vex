@@ -38,8 +38,8 @@ struct vattr {
     uid_t uid;
     gid_t gid;
     off_t size;
-    time_t atime;
-    time_t mtime;
+    struct k_timespec atime;
+    struct k_timespec mtime;
 };
 
 struct pagemap;

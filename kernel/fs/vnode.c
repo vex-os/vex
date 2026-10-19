@@ -392,17 +392,17 @@ static bool time_valid(const struct k_timespec* restrict time)
     return time->tv_nsec >= 0 && time->tv_nsec < NSEC_PER_SEC;
 }
 
-static bool time_set(const struct k_timespec* restrict time, time_t* restrict out)
+static bool time_set(const struct k_timespec* restrict time, struct k_timespec* restrict out)
 {
     if(time->tv_nsec == UTIME_OMIT) {
         return false;
     }
 
     if(time->tv_nsec == UTIME_NOW) {
-        *out = wallclock_now();
+        wallclock_get(out);
     }
     else {
-        *out = time->tv_sec;
+        *out = *time;
     }
 
     return true;

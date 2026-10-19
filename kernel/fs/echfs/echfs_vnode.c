@@ -690,9 +690,9 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
         out->st_uid = entry.owner_uid;
         out->st_gid = entry.owner_gid;
         out->st_mode = entry.permissions;
-        out->st_atime = entry.access_time;
-        out->st_mtime = entry.modify_time;
-        out->st_ctime = entry.create_time;
+        out->st_atim.tv_sec = entry.access_time;
+        out->st_mtim.tv_sec = entry.modify_time;
+        out->st_ctim.tv_sec = entry.create_time;
     }
 
     if(node->nodetype == VNODE_DIRECTORY) {

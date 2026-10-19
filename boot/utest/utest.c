@@ -1,4 +1,5 @@
 #include <vex/fcntl.h>
+#include <vex/stat.h>
 #include <vex/syscall.h>
 #include <vex/time.h>
 #include <vex/utsname.h>
@@ -218,6 +219,14 @@ int main(void)
     printnumber(syscall2(__k_SYS_SETTIME, __k_CLOCK_REALTIME, (long)&date));  // should print 0
     syscall2(__k_SYS_GETTIME, __k_CLOCK_REALTIME, (long)&now);
     printnumber(now.tv_sec); // should print 2000000000
+
+    struct __k_stat st;
+    fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/moved2/stamped.txt", __k_O_WRONLY | __k_O_CREAT, 0644);
+    syscall3(__k_SYS_WRITE, fd, (long)"stamped\n", 8);
+    syscall1(__k_SYS_CLOSE, fd);
+    syscall4(__k_SYS_FSTATAT, __k_AT_FDCWD, (long)"/moved2/stamped.txt", (long)&st, 0);
+    printnumber(st.st_mtim.tv_sec);  // should print 2000000000, the clock was just set
+    printnumber(st.st_mtim.tv_nsec); // should print the nanoseconds on ext2, 0 on FAT
 
     return 1337;
 }
