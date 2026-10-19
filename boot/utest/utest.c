@@ -238,5 +238,17 @@ int main(void)
     printnumber(st.st_mtim.tv_sec);  // should print 4000000000
     printnumber(st.st_mtim.tv_nsec); // should print 456 on ext2, 0 on FAT
 
+    // Relatime: the first read moves the atime past the change, later ones leave it
+    struct __k_stat before, first, second;
+    syscall4(__k_SYS_UTIMENSAT, __k_AT_FDCWD, (long)"/moved2/stamped.txt", 0, 0);
+    syscall4(__k_SYS_FSTATAT, __k_AT_FDCWD, (long)"/moved2/stamped.txt", (long)&before, 0);
+    readback("/moved2/stamped.txt"); // should print "stamped"
+    syscall4(__k_SYS_FSTATAT, __k_AT_FDCWD, (long)"/moved2/stamped.txt", (long)&first, 0);
+    readback("/moved2/stamped.txt"); // should print "stamped"
+    syscall4(__k_SYS_FSTATAT, __k_AT_FDCWD, (long)"/moved2/stamped.txt", (long)&second, 0);
+    printnumber(first.st_atim.tv_nsec != before.st_atim.tv_nsec); // should print 1 on ext2, 0 on FAT
+    printnumber(second.st_atim.tv_nsec - first.st_atim.tv_nsec);  // should print 0
+    printnumber(second.st_ctim.tv_nsec - before.st_ctim.tv_nsec); // should print 0
+
     return 1337;
 }

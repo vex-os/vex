@@ -24,6 +24,40 @@ config FCACHE_DIRTY_PERCENT
       A write that finds more of memory dirty than this
       writes its own file back before returning
 
+choice
+    prompt "Access time updates on read"
+    default ATIME_RELATIME
+    help
+      Whether reading a file or a directory moves its
+      access time, which costs an inode write when it does
+
+config ATIME_RELATIME
+    bool "relatime"
+    help
+      Only when the access time is not past the last change,
+      or is older than ATIME_RELATIME_INTERVAL; as in Linux
+
+config ATIME_STRICT
+    bool "strictatime"
+    help
+      On every read, as POSIX asks
+
+config ATIME_NONE
+    bool "noatime"
+    help
+      Never; only utimensat and file creation set it
+
+endchoice
+
+config ATIME_RELATIME_INTERVAL
+    int "Relatime update interval (seconds)"
+    depends on ATIME_RELATIME
+    range 1 31536000
+    default 86400
+    help
+      An access time this much older than now is moved
+      even when the file has not changed since
+
 config DEVFS
     bool "Device filesystem"
     default y

@@ -31,6 +31,7 @@ enum {
 #define VATTR_SIZE  0x0008U
 #define VATTR_ATIME 0x0010U
 #define VATTR_MTIME 0x0020U
+#define VATTR_CTIME 0x0040U
 
 struct vattr {
     unsigned mask; // VATTR; fields to change, the others are ignored
@@ -40,6 +41,7 @@ struct vattr {
     off_t size;
     struct k_timespec atime;
     struct k_timespec mtime;
+    struct k_timespec ctime;
 };
 
 struct pagemap;
@@ -114,7 +116,7 @@ ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz
 ssize_t vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset);
 ssize_t vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz);
 int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out);
-int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr);
+int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict request);
 int vnode_chmod(struct vnode* restrict node, const struct credentials* restrict cred, mode_t mode);
 int vnode_chown(struct vnode* restrict node, const struct credentials* restrict cred, uid_t uid, gid_t gid);
 int vnode_utimes(struct vnode* restrict node, const struct credentials* restrict cred, const struct k_timespec* restrict times);

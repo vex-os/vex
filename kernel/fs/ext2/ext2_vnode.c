@@ -391,16 +391,16 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
         inode->i_mode = htole16((mode & S_IFMT) | (attr->mode & ~S_IFMT));
     }
 
-    if(attr->mask) {
-        touch_locked(node, attr->mask & VATTR_SIZE);
-    }
-
     if(attr->mask & VATTR_ATIME) {
         ext2_inode_set_time(inode, EXT2_ATIME, &attr->atime);
     }
 
     if(attr->mask & VATTR_MTIME) {
         ext2_inode_set_time(inode, EXT2_MTIME, &attr->mtime);
+    }
+
+    if(attr->mask & VATTR_CTIME) {
+        ext2_inode_set_time(inode, EXT2_CTIME, &attr->ctime);
     }
 
     if(attr->mask & VATTR_SIZE) {

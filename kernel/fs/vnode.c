@@ -12,6 +12,20 @@
 #include <vex/wallclock.h>
 #include <vex/xattr.h>
 
+#ifdef CONFIG_ATIME_RELATIME
+#define RELATIME                  true
+#define RELATIME_INTERVAL_SECONDS CONFIG_ATIME_RELATIME_INTERVAL
+#else
+#define RELATIME                  false
+#define RELATIME_INTERVAL_SECONDS 0
+#endif
+
+#ifdef CONFIG_ATIME_NONE
+#define ATIME_ON_READ false
+#else
+#define ATIME_ON_READ true
+#endif
+
 struct privs_state {
     unsigned seq;
     unsigned caps_state;
@@ -383,6 +397,46 @@ static int rename_crossed(struct vnode* olddir, const char* oldname, struct vnod
     return retval;
 }
 
+static bool time_not_before(const struct k_timespec* restrict time, const struct k_timespec* restrict other)
+{
+    if(time->tv_sec != other->tv_sec) {
+        return time->tv_sec > other->tv_sec;
+    }
+
+    return time->tv_nsec >= other->tv_nsec;
+}
+
+static bool atime_due(struct vnode* restrict target, const struct k_timespec* restrict now)
+{
+    if(!RELATIME) {
+        return true;
+    }
+
+    struct k_stat st;
+
+    if(target->ops->stat == nullptr || target->ops->stat(target, &st) < 0) {
+        return false;
+    }
+
+    bool behind = time_not_before(&st.st_mtim, &st.st_atim) || time_not_before(&st.st_ctim, &st.st_atim);
+
+    return behind || now->tv_sec - st.st_atim.tv_sec >= RELATIME_INTERVAL_SECONDS;
+}
+
+static void touch_atime(struct vnode* restrict target)
+{
+    if(!ATIME_ON_READ || target->fs->readonly || target->ops->setattr == nullptr) {
+        return;
+    }
+
+    struct vattr attr = { .mask = VATTR_ATIME };
+    wallclock_get(&attr.atime);
+
+    if(atime_due(target, &attr.atime)) {
+        target->ops->setattr(target, &attr);
+    }
+}
+
 static bool time_valid(const struct k_timespec* restrict time)
 {
     if(time->tv_nsec == UTIME_NOW || time->tv_nsec == UTIME_OMIT) {
@@ -392,14 +446,14 @@ static bool time_valid(const struct k_timespec* restrict time)
     return time->tv_nsec >= 0 && time->tv_nsec < NSEC_PER_SEC;
 }
 
-static bool time_set(const struct k_timespec* restrict time, struct k_timespec* restrict out)
+static bool time_set(const struct k_timespec* restrict time, const struct k_timespec* restrict now, struct k_timespec* restrict out)
 {
     if(time->tv_nsec == UTIME_OMIT) {
         return false;
     }
 
     if(time->tv_nsec == UTIME_NOW) {
-        wallclock_get(out);
+        *out = *now;
     }
     else {
         *out = *time;
@@ -649,6 +703,10 @@ int vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, si
         retval = target->ops->iterate(target, out, index);
     }
 
+    if(retval == 0 && index == 0) {
+        touch_atime(target);
+    }
+
     vnode_decref(target);
 
     return retval;
@@ -827,6 +885,10 @@ ssize_t vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz
         retval = target->ops->read(target, buffer, sz, offset);
     }
 
+    if(retval >= 0) {
+        touch_atime(target);
+    }
+
     vnode_decref(target);
 
     return retval;
@@ -878,13 +940,27 @@ int vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
     return retval;
 }
 
-int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr)
+// Every change made through here is a status change, so the ctime
+// moves with it unless the caller set one; a new size also modifies
+int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict request)
 {
     kassert(node);
-    kassert(attr);
+    kassert(request);
 
-    if((attr->mask & VATTR_SIZE) && (node->nodetype != VNODE_FILE || attr->size < 0)) {
+    if((request->mask & VATTR_SIZE) && (node->nodetype != VNODE_FILE || request->size < 0)) {
         return -EINVAL;
+    }
+
+    struct vattr attr = *request;
+
+    if(attr.mask && 0 == (attr.mask & VATTR_CTIME)) {
+        attr.mask |= VATTR_CTIME;
+        wallclock_get(&attr.ctime);
+    }
+
+    if((attr.mask & VATTR_SIZE) && 0 == (attr.mask & VATTR_MTIME)) {
+        attr.mask |= VATTR_MTIME;
+        attr.mtime = attr.ctime;
     }
 
     struct vnode* target;
@@ -901,10 +977,10 @@ int vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr
         retval = -EPERM;
     }
     else {
-        retval = target->ops->setattr(target, attr);
+        retval = target->ops->setattr(target, &attr);
     }
 
-    if(retval == 0 && (attr->mask & (VATTR_MODE | VATTR_UID | VATTR_GID))) {
+    if(retval == 0 && (attr.mask & (VATTR_MODE | VATTR_UID | VATTR_GID))) {
         privs_changed(target);
     }
 
@@ -1112,18 +1188,23 @@ int vnode_utimes(struct vnode* restrict node, const struct credentials* restrict
     }
 
     struct vattr attr = { 0 };
+    struct k_timespec now;
+    wallclock_get(&now);
 
-    if(time_set(&times[0], &attr.atime)) {
+    if(time_set(&times[0], &now, &attr.atime)) {
         attr.mask |= VATTR_ATIME;
     }
 
-    if(time_set(&times[1], &attr.mtime)) {
+    if(time_set(&times[1], &now, &attr.mtime)) {
         attr.mask |= VATTR_MTIME;
     }
 
     if(attr.mask == 0) {
         return 0;
     }
+
+    attr.mask |= VATTR_CTIME;
+    attr.ctime = now;
 
     struct k_stat st;
     int retval = vnode_stat(node, &st);
