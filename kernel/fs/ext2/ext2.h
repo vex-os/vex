@@ -5,6 +5,7 @@
 #include <vex/limits.h>
 #include <vex/mutex.h>
 #include <vex/stat.h>
+#include <vex/time.h>
 #include <vex/types.h>
 #include <vex/xattr.h>
 
@@ -36,6 +37,7 @@ struct vnode;
 
 #define EXT2_GOOD_OLD_FIRST_INO  11
 #define EXT2_GOOD_OLD_INODE_SIZE 128
+#define EXT2_EXTRA_ISIZE         32 // Bytes of struct ext2_inode past the good old size
 
 #define EXT2_FEATURE_COMPAT_DIR_PREALLOC  UINT32_C(0x00000001)
 #define EXT2_FEATURE_COMPAT_IMAGIC_INODES UINT32_C(0x00000002)
@@ -281,11 +283,34 @@ struct ext2_inode {
     uint32_t i_size_high;
     uint32_t i_faddr;
     union ext2_osd2 osd2;
+    uint16_t i_extra_isize; // Large inodes only; the fields below are valid as far as it reaches
+    uint16_t i_checksum_hi;
+    uint32_t i_ctime_extra;
+    uint32_t i_mtime_extra;
+    uint32_t i_atime_extra;
+    uint32_t i_crtime;
+    uint32_t i_crtime_extra;
+    uint32_t i_version_hi;
+    uint32_t i_projid;
 } __packed;
 
 #ifndef __INTELLISENSE__
-static_assert(EXT2_GOOD_OLD_INODE_SIZE == sizeof(struct ext2_inode));
+static_assert(EXT2_GOOD_OLD_INODE_SIZE == offsetof(struct ext2_inode, i_extra_isize));
+static_assert(EXT2_GOOD_OLD_INODE_SIZE + EXT2_EXTRA_ISIZE == sizeof(struct ext2_inode));
 #endif
+
+// A time's extra field holds the nanoseconds above two epoch bits that
+// extend the signed 32-bit seconds; without it the range ends in 2038
+#define EXT2_EPOCH_BITS     2
+#define EXT2_EPOCH_MASK     ((UINT32_C(1) << EXT2_EPOCH_BITS) - 1)
+#define EXT2_TIME_MIN       ((int64_t)(INT32_MIN))
+#define EXT2_TIME_MAX       ((int64_t)(INT32_MAX))
+#define EXT2_EXTRA_TIME_MAX (EXT2_TIME_MIN + (INT64_C(1) << (32 + EXT2_EPOCH_BITS)) - 1)
+
+#define EXT2_ATIME  0
+#define EXT2_CTIME  1
+#define EXT2_MTIME  2
+#define EXT2_CRTIME 3
 
 #define EXT2_NAME_LEN 255
 #define EXT2_LINK_MAX 32000
@@ -396,6 +421,8 @@ int ext2_inode_write(struct ext2_vfs_context* restrict context, uint32_t ino, co
 int ext2_inode_set_size(struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uint64_t size);
 bool ext2_inode_set_owner(const struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uid_t uid,
     gid_t gid) __nodiscard;
+void ext2_inode_get_time(const struct ext2_inode* restrict inode, unsigned which, struct k_timespec* restrict out);
+void ext2_inode_set_time(struct ext2_inode* restrict inode, unsigned which, const struct k_timespec* restrict time);
 
 int ext2_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct fcache_extent* restrict out);
 int ext2_truncate_blocks(struct vnode* restrict node, uint64_t size);

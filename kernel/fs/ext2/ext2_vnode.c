@@ -167,12 +167,13 @@ static int write_inode_locked(struct vnode* restrict node)
 static void touch_locked(struct vnode* restrict node, bool modified)
 {
     struct ext2_vnode_context* ctx = node->ctxdata;
-    uint32_t now = (uint32_t)(wallclock_now());
+    struct k_timespec now;
+    wallclock_get(&now);
 
-    ctx->inode.i_ctime = htole32(now);
+    ext2_inode_set_time(&ctx->inode, EXT2_CTIME, &now);
 
     if(modified) {
-        ctx->inode.i_mtime = htole32(now);
+        ext2_inode_set_time(&ctx->inode, EXT2_MTIME, &now);
     }
 }
 
@@ -395,11 +396,11 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
     }
 
     if(attr->mask & VATTR_ATIME) {
-        inode->i_atime = htole32((uint32_t)(attr->atime.tv_sec));
+        ext2_inode_set_time(inode, EXT2_ATIME, &attr->atime);
     }
 
     if(attr->mask & VATTR_MTIME) {
-        inode->i_mtime = htole32((uint32_t)(attr->mtime.tv_sec));
+        ext2_inode_set_time(inode, EXT2_MTIME, &attr->mtime);
     }
 
     if(attr->mask & VATTR_SIZE) {
@@ -620,10 +621,19 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
 
     child_ctx->fs_ctx = fs_ctx;
     child_ctx->inode.i_mode = htole16(inode_mode);
-    child_ctx->inode.i_atime = htole32((uint32_t)(wallclock_now()));
-    child_ctx->inode.i_ctime = child_ctx->inode.i_atime;
-    child_ctx->inode.i_mtime = child_ctx->inode.i_atime;
     child_ctx->inode.i_links_count = htole16(1);
+
+    if(fs_ctx->inode_size > EXT2_GOOD_OLD_INODE_SIZE) {
+        child_ctx->inode.i_extra_isize = htole16(EXT2_EXTRA_ISIZE);
+    }
+
+    struct k_timespec now;
+    wallclock_get(&now);
+
+    ext2_inode_set_time(&child_ctx->inode, EXT2_ATIME, &now);
+    ext2_inode_set_time(&child_ctx->inode, EXT2_CTIME, &now);
+    ext2_inode_set_time(&child_ctx->inode, EXT2_MTIME, &now);
+    ext2_inode_set_time(&child_ctx->inode, EXT2_CRTIME, &now);
 
     if(directory) {
         child_ctx->inode.i_links_count = htole16(2);
@@ -1018,9 +1028,9 @@ static int ext2_vnode_stat(struct vnode* restrict node, struct k_stat* restrict 
     out->st_uid = ext2_inode_uid(fs_ctx, inode);
     out->st_gid = ext2_inode_gid(fs_ctx, inode);
     out->st_size = (off_t)ext2_inode_size(inode);
-    out->st_atim.tv_sec = le32toh(inode->i_atime);
-    out->st_mtim.tv_sec = le32toh(inode->i_mtime);
-    out->st_ctim.tv_sec = le32toh(inode->i_ctime);
+    ext2_inode_get_time(inode, EXT2_ATIME, &out->st_atim);
+    ext2_inode_get_time(inode, EXT2_MTIME, &out->st_mtim);
+    ext2_inode_get_time(inode, EXT2_CTIME, &out->st_ctim);
     out->st_blksize = fs_ctx->block_size;
     out->st_blocks = le32toh(inode->i_blocks);
 

@@ -3,9 +3,27 @@
 #include <vex/fcache.h>
 #include <vex/kprintf.h>
 #include <vex/mount.h>
+#include <vex/string.h>
 #include <vex/vnode.h>
 
 #include "ext2.h"
+
+struct ext2_time_layout {
+    size_t base;
+    size_t extra;
+};
+
+static const struct ext2_time_layout time_layouts[] = {
+    [EXT2_ATIME] = { offsetof(struct ext2_inode, i_atime), offsetof(struct ext2_inode, i_atime_extra) },
+    [EXT2_CTIME] = { offsetof(struct ext2_inode, i_ctime), offsetof(struct ext2_inode, i_ctime_extra) },
+    [EXT2_MTIME] = { offsetof(struct ext2_inode, i_mtime), offsetof(struct ext2_inode, i_mtime_extra) },
+    [EXT2_CRTIME] = { offsetof(struct ext2_inode, i_crtime), offsetof(struct ext2_inode, i_crtime_extra) },
+};
+
+static bool field_present(const struct ext2_inode* restrict inode, size_t offset)
+{
+    return offset + sizeof(uint32_t) <= EXT2_GOOD_OLD_INODE_SIZE + (size_t)(le16toh(inode->i_extra_isize));
+}
 
 static bool data_block_valid(const struct ext2_vfs_context* restrict context, uint32_t block)
 {
@@ -306,7 +324,27 @@ int ext2_inode_read(struct ext2_vfs_context* restrict context, uint32_t ino, str
         return retval;
     }
 
-    return fcache_dev_read(context->devnode, offset, out, sizeof(struct ext2_inode));
+    size_t size = sizeof(struct ext2_inode);
+
+    if(size > context->inode_size) {
+        size = context->inode_size;
+    }
+
+    retval = fcache_dev_read(context->devnode, offset, out, size);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    size_t extra_isize = le16toh(out->i_extra_isize);
+
+    // Extra fields that a small inode lacks or a broken
+    // i_extra_isize claims are dropped rather than trusted
+    if(size == EXT2_GOOD_OLD_INODE_SIZE || extra_isize > context->inode_size - EXT2_GOOD_OLD_INODE_SIZE || extra_isize % sizeof(uint32_t)) {
+        memset((uint8_t*)(out) + EXT2_GOOD_OLD_INODE_SIZE, 0, EXT2_EXTRA_ISIZE);
+    }
+
+    return 0;
 }
 
 int ext2_inode_clear(struct ext2_vfs_context* restrict context, uint32_t ino)
@@ -352,7 +390,15 @@ int ext2_inode_write(struct ext2_vfs_context* restrict context, uint32_t ino, co
         return retval;
     }
 
-    return fcache_dev_write(context->devnode, offset, inode, sizeof(struct ext2_inode));
+    // In-inode extended attributes start right
+    // where i_extra_isize ends, so stop there
+    size_t extra_isize = le16toh(inode->i_extra_isize);
+
+    if(extra_isize > EXT2_EXTRA_ISIZE) {
+        extra_isize = EXT2_EXTRA_ISIZE;
+    }
+
+    return fcache_dev_write(context->devnode, offset, inode, EXT2_GOOD_OLD_INODE_SIZE + extra_isize);
 }
 
 int ext2_inode_set_size(struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uint64_t size)
@@ -413,6 +459,71 @@ bool ext2_inode_set_owner(const struct ext2_vfs_context* restrict context, struc
     }
 
     return true;
+}
+
+void ext2_inode_get_time(const struct ext2_inode* restrict inode, unsigned which, struct k_timespec* restrict out)
+{
+    const struct ext2_time_layout* layout = &time_layouts[which];
+    const uint8_t* bytes = (const uint8_t*)(inode);
+
+    out->tv_sec = 0;
+    out->tv_nsec = 0;
+
+    if(!field_present(inode, layout->base)) {
+        return;
+    }
+
+    uint32_t base;
+    memcpy(&base, bytes + layout->base, sizeof(base));
+    out->tv_sec = (int32_t)(le32toh(base));
+
+    if(field_present(inode, layout->extra)) {
+        uint32_t extra;
+        memcpy(&extra, bytes + layout->extra, sizeof(extra));
+        extra = le32toh(extra);
+
+        out->tv_sec += (int64_t)(extra & EXT2_EPOCH_MASK) << 32;
+        out->tv_nsec = extra >> EXT2_EPOCH_BITS;
+
+        if(out->tv_nsec >= NSEC_PER_SEC) {
+            out->tv_nsec = 0;
+        }
+    }
+}
+
+void ext2_inode_set_time(struct ext2_inode* restrict inode, unsigned which, const struct k_timespec* restrict time)
+{
+    const struct ext2_time_layout* layout = &time_layouts[which];
+    uint8_t* bytes = (uint8_t*)(inode);
+
+    if(!field_present(inode, layout->base)) {
+        return;
+    }
+
+    bool has_extra = field_present(inode, layout->extra);
+    int64_t limit = EXT2_TIME_MAX;
+    int64_t seconds = time->tv_sec;
+
+    if(has_extra) {
+        limit = EXT2_EXTRA_TIME_MAX;
+    }
+
+    if(seconds < EXT2_TIME_MIN) {
+        seconds = EXT2_TIME_MIN;
+    }
+
+    if(seconds > limit) {
+        seconds = limit;
+    }
+
+    uint32_t base = htole32((uint32_t)(seconds));
+    memcpy(bytes + layout->base, &base, sizeof(base));
+
+    if(has_extra) {
+        uint32_t epoch = (uint32_t)((seconds - (int32_t)(seconds)) >> 32) & EXT2_EPOCH_MASK;
+        uint32_t extra = htole32(epoch | ((uint32_t)(time->tv_nsec) << EXT2_EPOCH_BITS));
+        memcpy(bytes + layout->extra, &extra, sizeof(extra));
+    }
 }
 
 int ext2_truncate_blocks(struct vnode* restrict node, uint64_t size)
