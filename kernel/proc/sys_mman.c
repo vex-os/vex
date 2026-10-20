@@ -210,7 +210,7 @@ static intptr_t sys_msync(const uintptr_t* restrict args)
         return -EINVAL;
     }
 
-    return vms_sync(process->vmspace, args[0], end, 0 != (flags & MS_SYNC));
+    return vms_sync(process->vmspace, args[0], end, (flags & MS_SYNC));
 }
 
 define_syscall(sys_msync, SYS_MSYNC);

@@ -151,7 +151,7 @@ static intptr_t sys_sigaction(const uintptr_t* restrict args)
             return copied;
         }
 
-        if(sig == SIGKILL || sig == SIGSTOP || 0 != (act.sa_flags & ~SA_KNOWN)) {
+        if(sig == SIGKILL || sig == SIGSTOP || (act.sa_flags & ~SA_KNOWN)) {
             return -EINVAL;
         }
 

@@ -122,7 +122,7 @@ static int gpt_check_header(const blk_device_t* restrict device, uintptr_t heade
     uint32_t entry_size = le32toh(header.entry_size);
     uint64_t entry_start_lba = le64toh(header.entry_start_lba);
 
-    if(entry_size < sizeof(gpt_entry_t) || entry_size % 8 != 0) {
+    if(entry_size < sizeof(gpt_entry_t) || (entry_size % 8)) {
         return -EINVAL;
     }
 

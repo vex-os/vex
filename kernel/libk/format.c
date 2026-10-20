@@ -271,7 +271,7 @@ int vformat(format_func_t func, void* restrict user, const char* restrict fmt, v
         }
 
         flags = 0;
-        while((fvalue = get_flag(*fmt)) != 0) {
+        while((fvalue = get_flag(*fmt))) {
             flags |= fvalue;
             fmt += 1;
         }

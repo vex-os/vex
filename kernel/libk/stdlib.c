@@ -63,7 +63,7 @@
             limit = max_value / base;                                              \
         }                                                                          \
                                                                                    \
-        while((cptr = memchr(digits, tolower(chr), base)) != nullptr) {            \
+        while((cptr = memchr(digits, tolower(chr), base))) {                       \
             chr = cptr - digits;                                                   \
                                                                                    \
             if(accum < limit || (accum == limit && chr < limdigit)) {              \
@@ -151,7 +151,7 @@ IMPL_STRTOINT(strtoimax, intmax_t, INTMAX_MAX, INTMAX_MIN);
         limit = max_value / base;                                                  \
         accum = 0;                                                                 \
                                                                                    \
-        while((cptr = memchr(digits, tolower(chr), base)) != nullptr) {            \
+        while((cptr = memchr(digits, tolower(chr), base))) {                       \
             chr = cptr - digits;                                                   \
                                                                                    \
             if(accum < limit || (accum == limit && chr < limdigit)) {              \

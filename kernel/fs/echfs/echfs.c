@@ -62,7 +62,7 @@ static int echfs_mount(vfs_t* restrict fs, const blk_device_t* restrict device, 
 
     kfree(identity);
 
-    if(block_size == 0 || block_size % sector_size != 0) {
+    if(block_size == 0 || block_size % sector_size) {
         return -EINVAL;
     }
 

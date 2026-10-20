@@ -767,7 +767,7 @@ int vms_fault(vmspace_t* restrict vmspace, uintptr_t virt, unsigned access)
 
     mutex_acquire(&vmspace->lock);
     access &= ~VPROT_USER;
-    int retval = fault_locked(vmspace, page_align(virt), access, 0 != (access & VPROT_WRITE));
+    int retval = fault_locked(vmspace, page_align(virt), access, (access & VPROT_WRITE));
     mutex_release(&vmspace->lock);
 
     return retval;

@@ -229,7 +229,7 @@ static size_t find_free(const fat_vfs_context_t* restrict context, uintptr_t fir
                 value = le32toh(data32) & FAT32_MASK;
             }
 
-            if(value != 0) {
+            if(value) {
                 continue;
             }
 

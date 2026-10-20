@@ -140,7 +140,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
 
     vnode_t* mountpoint = nullptr;
 
-    if(path[0] != PATH_SEPARATOR || path[1] != 0) {
+    if(path[0] != PATH_SEPARATOR || path[1]) {
         retval = path_resolve(path, &kernel_credentials, &mountpoint);
 
         if(retval < 0) {
@@ -279,7 +279,7 @@ int vfs_unmount(const char* restrict path)
 
     mount_entry_t** prev = &mounts_head;
 
-    while(*prev && (*prev)->path && 0 != strcmp((*prev)->path, path)) {
+    while(*prev && (*prev)->path && strcmp((*prev)->path, path)) {
         prev = &(*prev)->next;
     }
 

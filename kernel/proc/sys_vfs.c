@@ -119,7 +119,7 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
             return copied;
         }
 
-        if(source[0] != 0) {
+        if(source[0]) {
             vnode_t* base_dir;
             int retval = syscall_dirfd(AT_FDCWD, source, &base_dir);
 

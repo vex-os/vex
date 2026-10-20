@@ -243,7 +243,7 @@ static int find_entry(const fat_vfs_context_t* restrict fs, uintptr_t dir_cluste
 
 static void free_chain(fat_vfs_context_t* restrict fs, uintptr_t cluster)
 {
-    while(cluster != 0 && cluster != UINTPTR_MAX) {
+    while(cluster && cluster != UINTPTR_MAX) {
         uintptr_t next = fat_cluster_next(fs, cluster);
         fat_cluster_free(fs, cluster);
         cluster = next;
@@ -466,7 +466,7 @@ static int create_locked(vnode_t* restrict node, const char* restrict name, unsi
     retval = fat_dirent_write(fs, context->first_cluster, slot_offset + num_lfn, &dirent);
 
     if(retval < 0) {
-        if(first_cluster != 0)
+        if(first_cluster)
             fat_cluster_free(fs, first_cluster);
         return retval;
     }
@@ -629,7 +629,7 @@ static int set_dotdot(fat_vfs_context_t* restrict fs, uintptr_t dir_cluster, uin
         return retval;
     }
 
-    if(offset != 2 || 0 != strcmp(dotdot.full_name, "..")) {
+    if(offset != 2 || strcmp(dotdot.full_name, "..")) {
         return -EIO;
     }
 

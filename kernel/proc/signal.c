@@ -185,7 +185,7 @@ static int queue_signal(process_t* restrict process, pid_t tid, int sig, pending
         thread = choose_thread_locked(process, bit);
     }
 
-    if(thread && 0 != (thread->sig_blocked & bit)) {
+    if(thread && (thread->sig_blocked & bit)) {
         thread = nullptr;
     }
 
@@ -331,7 +331,7 @@ void signal_force(thread_t* restrict thread, const siginfo_t* restrict info)
 
     // A blocked signal means its handler is the one that faulted, or the fault
     // came with the handler masked; running it would only fault again
-    if(action->sa_handler == SIG_IGN || 0 != (thread->sig_blocked & bit)) {
+    if(action->sa_handler == SIG_IGN || (thread->sig_blocked & bit)) {
         memset(action, 0, sizeof(sigaction_t));
     }
 

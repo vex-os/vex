@@ -276,8 +276,7 @@ static intptr_t wait_any_child(process_t* restrict caller, uintptr_t wstatus)
         process_t* target = nullptr;
 
         bool intr_state = spinlock_acquire_intr(&caller->lock);
-
-        bool has_children = caller->children != nullptr;
+        bool has_children = caller->children;
 
         for(process_t* it = caller->children; it; it = it->sibling_next) {
             if(process_claim(it)) {

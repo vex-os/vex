@@ -306,7 +306,7 @@ void vcache_remove(vnode_t* restrict node)
 bool vcache_cached(vnode_t* restrict node)
 {
     spinlock_acquire(&cache_lock);
-    bool cached = node->cache_entry != nullptr;
+    bool cached = node->cache_entry;
     spinlock_release(&cache_lock);
     return cached;
 }

@@ -108,7 +108,7 @@ int fat_dirent_read(const fat_vfs_context_t* restrict context, uintptr_t cluster
             const fat_ldir_entry_t* ldir = &entry_raw.ldir;
             uint8_t ord = ldir->order & ~UINT8_C(0x40);
 
-            if(ord == 0 || ord > FAT_LFN_MAX_SEGMENTS || ldir->type != 0) {
+            if(ord == 0 || ord > FAT_LFN_MAX_SEGMENTS || ldir->type) {
                 num_ldir = 0;
                 continue;
             }

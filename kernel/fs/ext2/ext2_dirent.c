@@ -368,7 +368,7 @@ int ext2_dir_check_empty(vnode_t* restrict dir)
             return retval;
         }
 
-        if(0 != strcmp(entry.name, ".") && 0 != strcmp(entry.name, "..")) {
+        if(strcmp(entry.name, ".") && strcmp(entry.name, "..")) {
             return -ENOTEMPTY;
         }
     }

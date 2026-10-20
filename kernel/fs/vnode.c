@@ -473,7 +473,7 @@ static int split_xattr_name(const char* restrict full, unsigned* restrict out_sp
     for(unsigned space = 0; space < NUM_XATTR_SPACES; space += 1) {
         size_t length = strlen(xattr_prefixes[space]);
 
-        if(0 != strncmp(full, xattr_prefixes[space], length)) {
+        if(strncmp(full, xattr_prefixes[space], length)) {
             continue;
         }
 
