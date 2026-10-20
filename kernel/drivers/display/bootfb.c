@@ -6,6 +6,7 @@
 #include <vex/kprintf.h>
 #include <vex/limits.h>
 #include <vex/mmio.h>
+#include <vex/slab.h>
 #include <vex/string.h>
 #include <vex/vprot.h>
 
@@ -14,14 +15,19 @@ static volatile __used __section(".limine_requests") struct limine_framebuffer_r
     .revision = 0,
 };
 
-static const fb_device_ops_t bootfb_ops = {}; // Scanned out directly, without a palette
+typedef struct bootfb_s bootfb_t;
 
-static fb_device_t bootfb = {
-    .ops = &bootfb_ops,
+struct bootfb_s {
+    fb_device_t device;
+    bootfb_t* next;
 };
 
+static_assert(sizeof(bootfb_t) <= SLAB_MAX_SIZE);
+
+static const fb_device_ops_t bootfb_ops = {}; // Scanned out directly, without a palette
+
+static bootfb_t* bootfb_head = nullptr;
 static console_t* bootfb_console = nullptr;
-static bool bootfb_found = false;
 
 static bool describe(const struct limine_framebuffer* restrict fb, vexfb_info_t* restrict info)
 {
@@ -50,56 +56,81 @@ static bool describe(const struct limine_framebuffer* restrict fb, vexfb_info_t*
     return true;
 }
 
+static bootfb_t* bootfb_create(const struct limine_framebuffer* restrict fb)
+{
+    bootfb_t* bootfb = slab_alloc(sizeof(bootfb_t));
+
+    if(bootfb == nullptr) {
+        pr_warning("bootfb: out of memory");
+        return nullptr;
+    }
+
+    memset(bootfb, 0, sizeof(bootfb_t));
+
+    fb_device_t* device = &bootfb->device;
+    device->ops = &bootfb_ops;
+
+    if(!describe(fb, &device->info)) {
+        slab_free(bootfb);
+        return nullptr;
+    }
+
+    // Limine hands out an HHDM address
+    // but Vex only maps usable blocks there
+    device->phys = virt_to_phys(fb->address);
+    device->cache = VPROT_CACHE_WC;
+    device->virt = mmio_map(device->phys, device->info.size, VPROT_RW | device->cache);
+
+    if(device->virt == nullptr) {
+        pr_warning("bootfb: failed to map a framebuffer");
+        slab_free(bootfb);
+        return nullptr;
+    }
+
+    return bootfb;
+}
+
 static void init_bootfb(void)
 {
     if(fb_request.response == nullptr) {
         return;
     }
 
-    for(size_t i = 0; i < fb_request.response->framebuffer_count; ++i) {
-        struct limine_framebuffer* fb = fb_request.response->framebuffers[i];
+    bootfb_t** tail = &bootfb_head;
 
-        if(!describe(fb, &bootfb.info)) {
+    for(size_t i = 0; i < fb_request.response->framebuffer_count; ++i) {
+        bootfb_t* bootfb = bootfb_create(fb_request.response->framebuffers[i]);
+
+        if(bootfb == nullptr) {
             continue;
         }
 
-        // Limine hands out an HHDM address
-        // but Vex only maps usable blocks there
-        bootfb.phys = virt_to_phys(fb->address);
-        bootfb.cache = VPROT_CACHE_WC;
-        bootfb.virt = mmio_map(bootfb.phys, bootfb.info.size, VPROT_RW | bootfb.cache);
-
-        if(bootfb.virt == nullptr) {
-            pr_warning("bootfb: failed to map the framebuffer");
-            return;
-        }
-
-        bootfb_found = true;
+        *tail = bootfb;
+        tail = &bootfb->next;
+    }
 
 #ifdef CONFIG_FBCONS
-        bootfb_console = fbcons_attach(&bootfb.info, bootfb.virt);
-#endif
-
-        return;
+    if(bootfb_head) {
+        bootfb_console = fbcons_attach(&bootfb_head->device.info, bootfb_head->device.virt);
     }
+#endif
 }
 
 initcall_bsp_heap(init_bootfb, INIT_LAST);
 
 static void init_bootfb_device(void)
 {
-    if(!bootfb_found) {
-        return;
+    for(bootfb_t* bootfb = bootfb_head; bootfb; bootfb = bootfb->next) {
+        fb_device_t* device = &bootfb->device;
+        int retval = fb_device_add(device, bootfb == bootfb_head ? bootfb_console : nullptr);
+
+        if(retval < 0) {
+            pr_warning("bootfb: %s", strerror(retval));
+            continue;
+        }
+
+        pr_inform("bootfb: %s: %ux%u, %u bpp", device->chr.name, device->info.width, device->info.height, device->info.bpp);
     }
-
-    int retval = fb_device_add(&bootfb, bootfb_console);
-
-    if(retval < 0) {
-        pr_warning("bootfb: %s", strerror(retval));
-        return;
-    }
-
-    pr_inform("bootfb: %s: %ux%u, %u bpp", bootfb.chr.name, bootfb.info.width, bootfb.info.height, bootfb.info.bpp);
 }
 
 initcall_bsp_dev(init_bootfb_device, INIT_MIDDLE);
