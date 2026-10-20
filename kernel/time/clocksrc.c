@@ -1,4 +1,5 @@
 #include <vex/assert.h>
+#include <vex/atomic.h>
 #include <vex/clocksrc.h>
 #include <vex/errno.h>
 #include <vex/kprintf.h>
@@ -171,6 +172,28 @@ uint64_t clock_source_now_ns(void)
     uint64_t now_nsec = update_nolock();
     spinlock_release_intr(&clock_source_lock, intr_state);
     return now_nsec;
+}
+
+uint64_t clock_source_peek_ns(void)
+{
+    bool intr_state = disable_interrupts();
+
+    if(raw_spinlock_try_acquire(&clock_source_lock)) {
+        uint64_t now_nsec = update_nolock();
+        raw_spinlock_release(&clock_source_lock);
+        restore_interrupts(intr_state);
+        return now_nsec;
+    }
+
+    restore_interrupts(intr_state);
+
+    clock_source_t* source = atomic_load(&active_clock_source, ATOMIC_ACQUIRE);
+
+    if(source == nullptr) {
+        return UINT64_C(0);
+    }
+
+    return atomic_load(&source->priv.base, ATOMIC_RELAXED);
 }
 
 void clock_source_update(void)

@@ -45,6 +45,11 @@ int clock_source_remove(clock_source_t* restrict source);
 clock_source_t* clock_source_active(void) __nodiscard;
 
 uint64_t clock_source_now_ns(void) __nodiscard;
+
+/// clock_source_now_ns that never waits for the lock: while someone holds it,
+/// this returns the time of the last update instead, which is all panic output can afford
+uint64_t clock_source_peek_ns(void) __nodiscard;
+
 void clock_source_update(void);
 
 static __always_inline int clock_source_add_hz(clock_source_t* restrict source, uint64_t hz)

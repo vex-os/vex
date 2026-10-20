@@ -6,9 +6,6 @@
 #include <vex/atomic.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
-#include <vex/irq.h>
-#include <vex/kprintf.h>
-#include <vex/limits.h>
 #include <vex/panic.h>
 #include <vex/thread.h>
 
@@ -17,21 +14,8 @@ LIMINE_REQUEST static volatile struct limine_mp_request mp_request = {
     .revision = 0,
 };
 
-static unsigned panic_ipi_vector = 0;
 static struct limine_mp_info* mp_infos[MAX_HARTS];
 static thread_t boot_thread; // this_thread returns this before true threading initializes
-
-static void panic_halt_handler(unsigned number, const hart_context_t* restrict ctx, void* restrict ctxdata)
-{
-    disable_interrupts();
-
-    hart_local_t* hart = this_hart();
-    pr_emerg("stopping hart %hu", hart->index);
-
-    for(;;) {
-        hart_spin();
-    }
-}
 
 static void __noreturn limine_hart_entry(struct limine_mp_info* restrict info)
 {
@@ -95,11 +79,3 @@ static void arch_init_boot_thread(void)
 }
 
 initcall_bsp_early(arch_init_boot_thread, INIT_FIRST);
-
-static void arch_init_panic_ipi(void)
-{
-    panic_ipi_vector = irq_handler_add(UINT_MAX, &panic_halt_handler, nullptr);
-    panic_ipi_vector += ARCH_IRQ_BASE;
-}
-
-initcall_bsp_multicore(arch_init_panic_ipi, INIT_MIDDLE);

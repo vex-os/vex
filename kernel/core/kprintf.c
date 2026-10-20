@@ -1,10 +1,12 @@
 #include <vex/assert.h>
+#include <vex/atomic.h>
 #include <vex/clocksrc.h>
 #include <vex/cmdline.h>
 #include <vex/console.h>
 #include <vex/format.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
+#include <vex/panic.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 #include <vex/strings.h>
@@ -60,10 +62,25 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 {
     stagebuf_t st = { 0 };
 
-    bool intr_state = spinlock_acquire_intr(&kprintf_lock);
+    bool intr_state = disable_interrupts();
+
+    // A panic has stopped the other harts, so a holder of the lock is either stopped or this hart
+    bool locked = !atomic_load_n(&panic_in_progress, ATOMIC_ACQUIRE);
+
+    if(locked) {
+        raw_spinlock_acquire(&kprintf_lock);
+    }
 
     if(sv <= loglevel) {
-        uint64_t timestamp = clock_source_now_ns();
+        uint64_t timestamp;
+
+        if(locked) {
+            timestamp = clock_source_now_ns();
+        }
+        else {
+            timestamp = clock_source_peek_ns();
+        }
+
         uint64_t timestamp_s = timestamp / UINT64_C(1000000000);
         uint64_t timestamp_msx = (timestamp / UINT64_C(100000)) % UINT64_C(10000);
 
@@ -80,7 +97,11 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
         console_write(st.data, st.size);
     }
 
-    spinlock_release_intr(&kprintf_lock, intr_state);
+    if(locked) {
+        raw_spinlock_release(&kprintf_lock);
+    }
+
+    restore_interrupts(intr_state);
 }
 
 static void init_kprintf(void)
