@@ -42,7 +42,8 @@ void arch_thread_setup_kern(thread_t* restrict thread, void* restrict entry, voi
     thread->arch.cr3 = sys_pmap.phys;
 }
 
-void arch_thread_setup_user(thread_t* restrict thread, void* restrict entry, void* restrict user_stack_top, vmspace_t* restrict vmspace)
+void arch_thread_setup_user(thread_t* restrict thread, void* restrict entry, void* restrict user_stack_top, uintptr_t arg, uintptr_t tcb,
+    vmspace_t* restrict vmspace)
 {
     hart_context_t* ctx = thread_context(thread);
     void* fpu_state = fpu_state_of(thread);
@@ -57,10 +58,11 @@ void arch_thread_setup_user(thread_t* restrict thread, void* restrict entry, voi
     ctx->amd64_ss = gdt_selector(GDT_USER_DATA_64, 0, 3);
     ctx->amd64_rip = (uintptr_t)(entry);
     ctx->amd64_rsp = (uintptr_t)(user_stack_top);
+    ctx->amd64_rdi = arg;
     ctx->amd64_rflags = AMD64_RFLAGS_FIXED | AMD64_RFLAGS_IF;
 
     thread->arch.gs_base = nullptr;
-    thread->arch.fs_base = nullptr;
+    thread->arch.fs_base = (void*)(tcb);
     thread->arch.cr3 = vmspace->pmap->phys;
     thread->kernel_rsp = fpu_state;
 }

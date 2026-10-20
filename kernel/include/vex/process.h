@@ -34,7 +34,8 @@ struct process_s {
     vmspace_t* vmspace;
 
     thread_t* threads;
-    uint32_t num_threads;
+    uint32_t num_threads;      // Until reaped, under lock
+    uint32_t num_live_threads; // Until thread_exit, under lock
 
     process_t* children;
     process_t* sibling_next;
@@ -63,6 +64,7 @@ struct process_s {
     file_t** fds;
 };
 
+pid_t process_alloc_id(void) __nodiscard;
 process_t* process_create(process_t* restrict parent) __nodiscard;
 process_t* process_locate(pid_t pid) __nodiscard;
 void process_incref(process_t* process);
@@ -70,6 +72,7 @@ void process_decref(process_t* process);
 
 void process_exit(process_t* process, int exit_code);
 void process_kill(process_t* process, int sig);
+void process_thread_exit(process_t* process, thread_t* thread);
 void process_thread_reaped(process_t* process, thread_t* thread);
 bool process_claim(process_t* process) __nodiscard;
 void process_destroy(process_t* process);

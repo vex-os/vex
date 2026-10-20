@@ -74,6 +74,9 @@ typedef struct vnode_s vnode_t;
 #define SYS_SIGPENDING    __k_SYS_SIGPENDING
 #define SYS_SIGRETURN     __k_SYS_SIGRETURN
 #define SYS_SIGALTSTACK   __k_SYS_SIGALTSTACK
+#define SYS_THREAD_CREATE __k_SYS_THREAD_CREATE
+#define SYS_THREAD_EXIT   __k_SYS_THREAD_EXIT
+#define SYS_GETTID        __k_SYS_GETTID
 
 typedef struct syscall_s syscall_t;
 

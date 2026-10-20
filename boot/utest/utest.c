@@ -103,6 +103,48 @@ static void readback(const char* path)
     syscall1(__k_SYS_CLOSE, fd);
 }
 
+#define THREAD_STACK_SIZE 4096
+
+static _Alignas(16) char thread_stack[THREAD_STACK_SIZE];
+static long tls_block[2];
+
+static volatile int worker_done;
+static volatile long worker_tid;
+static volatile long worker_arg;
+static volatile long worker_tcb_word;
+
+// The entry sees the stack as if it was called, the return address slot left empty
+static long spawn(void (*entry)(long), long arg)
+{
+    long stack_top = (long)(thread_stack + THREAD_STACK_SIZE - 8);
+    return syscall4(__k_SYS_THREAD_CREATE, (long)entry, stack_top, (long)tls_block, arg);
+}
+
+static void __attribute__((noreturn)) worker(long arg)
+{
+    long tcb_word;
+    asm volatile("movq %%fs:0, %0" : "=r"(tcb_word));
+
+    worker_tid = syscall1(__k_SYS_GETTID, 0);
+    worker_arg = arg;
+    worker_tcb_word = tcb_word;
+    worker_done = 1;
+
+    syscall1(__k_SYS_THREAD_EXIT, 0);
+    __builtin_unreachable();
+}
+
+static void __attribute__((noreturn)) finisher(long arg)
+{
+    // Long enough for the main thread to be gone
+    for(int i = 0; i < 100; ++i) {
+        syscall1(__k_SYS_YIELD, 0);
+    }
+
+    syscall1(__k_SYS_EXIT, arg);
+    __builtin_unreachable();
+}
+
 int main(void)
 {
     struct __k_utsname name;
@@ -251,6 +293,46 @@ int main(void)
     printnumber(first.st_atim.tv_nsec != before.st_atim.tv_nsec); // should print 1 on ext2, 0 on FAT
     printnumber(second.st_atim.tv_nsec - first.st_atim.tv_nsec);  // should print 0
     printnumber(second.st_ctim.tv_nsec - before.st_ctim.tv_nsec); // should print 0
+
+    // A second thread gets its own tid, its argument and its TCB
+    long pid = syscall1(__k_SYS_GETPID, 0);
+    printnumber(syscall1(__k_SYS_GETTID, 0) == pid); // should print 1
+
+    tls_block[0] = 0xabc;
+    long tid = spawn(&worker, 42);
+    printnumber(tid > pid); // should print 1
+
+    while(!worker_done) {
+        syscall1(__k_SYS_YIELD, 0);
+    }
+
+    printnumber(worker_tid == tid); // should print 1
+    printnumber(worker_arg);        // should print 42
+    printnumber(worker_tcb_word);   // should print 2748 (0xabc)
+
+    printnumber(syscall4(__k_SYS_THREAD_CREATE, -4096L, (long)(thread_stack + THREAD_STACK_SIZE), 0, 0)); // should print -226 (EINVAL)
+
+    // The process outlives its main thread, and the last thread out sets the exit code
+    long child = syscall1(__k_SYS_FORK, 0);
+
+    if(child == 0) {
+        spawn(&finisher, 7);
+        syscall1(__k_SYS_THREAD_EXIT, 0);
+    }
+
+    int wstatus = -1;
+    printnumber(syscall2(__k_SYS_WAITPID, child, (long)&wstatus) == child); // should print 1
+    printnumber(wstatus);                                                   // should print 1792 (exit code 7)
+
+    child = syscall1(__k_SYS_FORK, 0);
+
+    if(child == 0) {
+        syscall1(__k_SYS_THREAD_EXIT, 0);
+    }
+
+    wstatus = -1;
+    syscall2(__k_SYS_WAITPID, child, (long)&wstatus);
+    printnumber(wstatus); // should print 0, a lone thread leaving is an exit with 0
 
     return 1337;
 }

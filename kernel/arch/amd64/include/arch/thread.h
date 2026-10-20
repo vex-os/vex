@@ -16,7 +16,8 @@ struct arch_thread_s {
 };
 
 void arch_thread_setup_kern(thread_t* restrict thread, void* restrict entry, void* restrict arg);
-void arch_thread_setup_user(thread_t* restrict thread, void* restrict entry, void* restrict user_stack_top, vmspace_t* restrict vmspace);
+void arch_thread_setup_user(thread_t* restrict thread, void* restrict entry, void* restrict user_stack_top, uintptr_t arg, uintptr_t tcb,
+    vmspace_t* restrict vmspace);
 void arch_thread_setup_fork(thread_t* restrict thread, const hart_context_t* restrict ctx, vmspace_t* restrict vmspace);
 void arch_thread_exec(thread_t* restrict thread, vmspace_t* restrict vmspace, uintptr_t entry, uintptr_t user_stack_top);
 void arch_thread_set_tcb(thread_t* restrict thread, uintptr_t tcb);

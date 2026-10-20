@@ -100,16 +100,21 @@ static void recalc_locked(thread_t* restrict thread)
     }
 }
 
+static bool leaving(const thread_t* restrict thread)
+{
+    return (bool)(atomic_load(&thread->pending_work, ATOMIC_ACQUIRE) & THREAD_WORK_EXIT);
+}
+
 static thread_t* choose_thread_locked(process_t* restrict process, sigset_t bit)
 {
     thread_t* self = this_thread();
 
-    if(self->process == process && 0 == (self->sig_blocked & bit)) {
+    if(self->process == process && 0 == (self->sig_blocked & bit) && !leaving(self)) {
         return self;
     }
 
     for(thread_t* thread = process->threads; thread; thread = thread->process_next) {
-        if(0 == (thread->sig_blocked & bit)) {
+        if(0 == (thread->sig_blocked & bit) && !leaving(thread)) {
             return thread;
         }
     }
@@ -257,6 +262,28 @@ int signal_send(process_t* restrict process, thread_t* restrict target, const si
 void signal_send_node(process_t* restrict process, pending_signal_t* restrict node)
 {
     queue_signal(process, nullptr, node->info.si_signo, node);
+}
+
+// A thread leaving the process may have been the one chosen for a process-wide
+// signal; every other thread that could take one looks again, delivery sorts out the rest
+void signal_retarget(process_t* restrict process)
+{
+    signal_actions_t* signal_actions = process->signal_actions;
+
+    bool intr_state = spinlock_acquire_intr(&signal_actions->lock);
+    bool proc_intr_state = spinlock_acquire_intr(&process->lock);
+
+    for(thread_t* thread = process->threads; thread; thread = thread->process_next) {
+        if(leaving(thread) || 0 == (process->sig_pending & ~thread->sig_blocked)) {
+            continue;
+        }
+
+        atomic_fetch_or(&thread->pending_work, THREAD_WORK_SIGNAL, ATOMIC_RELEASE);
+        sched_kick(thread);
+    }
+
+    spinlock_release_intr(&process->lock, proc_intr_state);
+    spinlock_release_intr(&signal_actions->lock, intr_state);
 }
 
 void signal_force(thread_t* restrict thread, const siginfo_t* restrict info)

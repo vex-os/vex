@@ -217,6 +217,12 @@ static void begin_exit(process_t* restrict process, int exit_code, int exit_sign
     release_files(process);
 }
 
+// Threads take their ids from the same counter, so a tid never names another process
+pid_t process_alloc_id(void)
+{
+    return atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);
+}
+
 process_t* process_create(process_t* restrict parent)
 {
     process_t* process = slab_alloc(sizeof(process_t));
@@ -255,7 +261,7 @@ process_t* process_create(process_t* restrict parent)
         process->ppid = parent->pid;
     }
 
-    process->pid = atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);
+    process->pid = process_alloc_id();
     process->refcount = 1;
     process->lock = SPINLOCK_INIT;
     process->fd_lock = SPINLOCK_INIT;
@@ -369,6 +375,27 @@ void process_exit(process_t* process, int exit_code)
 void process_kill(process_t* process, int sig)
 {
     begin_exit(process, 0, sig);
+}
+
+void process_thread_exit(process_t* process, thread_t* thread)
+{
+    bool intr_state = spinlock_acquire_intr(&process->lock);
+
+    process->num_live_threads -= 1;
+
+    bool last = (process->num_live_threads == 0);
+
+    // Marked under the lock so that signals no longer pick this thread
+    atomic_fetch_or(&thread->pending_work, THREAD_WORK_EXIT, ATOMIC_RELEASE);
+
+    spinlock_release_intr(&process->lock, intr_state);
+
+    if(last) {
+        process_exit(process, 0);
+        return;
+    }
+
+    signal_retarget(process);
 }
 
 void process_thread_reaped(process_t* process, thread_t* thread)

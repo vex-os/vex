@@ -407,6 +407,19 @@ static void attach_thread_user(process_t* restrict process, thread_t* restrict t
 
     bool intr_state = spinlock_acquire_intr(&process->lock);
 
+    if(process->threads == nullptr) {
+        thread->tid = process->pid;
+    }
+    else {
+        thread->tid = process_alloc_id();
+    }
+
+    // Seen under the lock that begin_exit walks the threads
+    // under, so a thread added past that walk still exits
+    if(atomic_load_n(&process->exiting, ATOMIC_ACQUIRE)) {
+        atomic_fetch_or(&thread->pending_work, THREAD_WORK_EXIT, ATOMIC_RELEASE);
+    }
+
     thread->process_next = process->threads;
 
     if(process->threads) {
@@ -415,6 +428,7 @@ static void attach_thread_user(process_t* restrict process, thread_t* restrict t
 
     process->threads = thread;
     process->num_threads += 1;
+    process->num_live_threads += 1;
 
     spinlock_release_intr(&process->lock, intr_state);
 }
@@ -496,7 +510,24 @@ thread_t* thread_create_user(process_t* restrict process, uintptr_t entry, uintp
     thread_t* thread = alloc_thread_user(process);
 
     if(thread) {
-        arch_thread_setup_user(thread, (void*)(entry), (void*)(stack_top), process->vmspace);
+        arch_thread_setup_user(thread, (void*)(entry), (void*)(stack_top), 0, 0, process->vmspace);
+        attach_thread_user(process, thread);
+    }
+
+    return thread;
+}
+
+thread_t* thread_create_sibling(const thread_t* restrict creator, uintptr_t entry, uintptr_t stack_top, uintptr_t arg, uintptr_t tcb)
+{
+    process_t* process = creator->process;
+    thread_t* thread = alloc_thread_user(process);
+
+    if(thread) {
+        // Before the thread is attached, or a process-wide signal
+        // could pick it for one that its mask is going to block
+        thread->sig_blocked = creator->sig_blocked;
+
+        arch_thread_setup_user(thread, (void*)(entry), (void*)(stack_top), arg, tcb, process->vmspace);
         attach_thread_user(process, thread);
     }
 

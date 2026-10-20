@@ -121,6 +121,7 @@ void signal_actions_exec(signal_actions_t* restrict signal_actions);
 
 int signal_send(process_t* restrict process, thread_t* restrict target, const siginfo_t* restrict info);
 void signal_send_node(process_t* restrict process, pending_signal_t* restrict node);
+void signal_retarget(process_t* restrict process);
 void signal_force(thread_t* restrict thread, const siginfo_t* restrict info);
 void signal_deliver(hart_context_t* restrict ctx);
 void signal_action(process_t* restrict process, int sig, const sigaction_t* restrict act, sigaction_t* restrict old_action);

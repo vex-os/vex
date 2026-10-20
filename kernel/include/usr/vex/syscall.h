@@ -67,5 +67,8 @@
 #define __k_SYS_SIGPENDING    64
 #define __k_SYS_SIGRETURN     65
 #define __k_SYS_SIGALTSTACK   66
+#define __k_SYS_THREAD_CREATE 67
+#define __k_SYS_THREAD_EXIT   68
+#define __k_SYS_GETTID        69
 
 #endif /* USR_VEX_SYSCALL_H */
