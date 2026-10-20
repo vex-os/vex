@@ -142,10 +142,28 @@ static void queue_signal(struct process* restrict proc, struct thread* restrict 
 
     bool intr_state = spinlock_acquire_intr(&sighand->lock);
 
-    bool blocked = target && 0 != (target->sig_blocked & bit);
+    if(*pending & bit) {
+        spinlock_release_intr(&sighand->lock, intr_state);
+        slab_free(node);
+        return;
+    }
 
-    // A blocked signal stays pending even if ignored: the action may change before it is unblocked
-    if((ignored_locked(proc, sig) && !blocked) || (*pending & bit)) {
+    bool proc_intr_state = spinlock_acquire_intr(&proc->lock);
+
+    struct thread* thrd = target;
+
+    if(thrd == nullptr) {
+        thrd = choose_thread_locked(proc, bit);
+    }
+
+    if(thrd && 0 != (thrd->sig_blocked & bit)) {
+        thrd = nullptr;
+    }
+
+    // Only a signal some thread could take now is dropped as ignored; a blocked one
+    // stays pending, its action may change before it is unblocked, and delivery checks again
+    if(thrd && ignored_locked(proc, sig)) {
+        spinlock_release_intr(&proc->lock, proc_intr_state);
         spinlock_release_intr(&sighand->lock, intr_state);
         slab_free(node);
         return;
@@ -157,15 +175,7 @@ static void queue_signal(struct process* restrict proc, struct thread* restrict 
         queue_append(queue, node);
     }
 
-    bool proc_intr_state = spinlock_acquire_intr(&proc->lock);
-
-    struct thread* thrd = target;
-
-    if(thrd == nullptr) {
-        thrd = choose_thread_locked(proc, bit);
-    }
-
-    if(thrd && 0 == (thrd->sig_blocked & bit)) {
+    if(thrd) {
         atomic_fetch_or(&thrd->pending_work, THREAD_WORK_SIGNAL, ATOMIC_RELEASE);
         sched_kick(thrd);
     }
@@ -273,21 +283,33 @@ void signal_force(struct thread* restrict thrd, const struct k_siginfo* restrict
         memset(action, 0, sizeof(struct k_sigaction));
     }
 
-    thrd->sig_blocked &= ~bit;
+    // Killed right away rather than queued: delivery drops whatever init does not
+    // handle, and a fault let through that way would only fault again
+    bool fatal = action->sa_handler == SIG_DFL && default_kills(sig);
 
-    // The fault's own siginfo replaces whatever was pending for it already
-    drop_locked(&thrd->sig_pending, &thrd->sig_queue, sig, &dropped);
-    thrd->sig_pending |= bit;
+    if(!fatal) {
+        thrd->sig_blocked &= ~bit;
 
-    if(node) {
-        queue_append(&thrd->sig_queue, node);
+        // The fault's own siginfo replaces whatever was pending for it already
+        drop_locked(&thrd->sig_pending, &thrd->sig_queue, sig, &dropped);
+        thrd->sig_pending |= bit;
+
+        if(node) {
+            queue_append(&thrd->sig_queue, node);
+            node = nullptr;
+        }
+
+        recalc_locked(thrd);
     }
-
-    recalc_locked(thrd);
 
     spinlock_release_intr(&sighand->lock, intr_state);
 
+    slab_free(node);
     signal_flush(dropped);
+
+    if(fatal) {
+        process_kill(proc, sig);
+    }
 }
 
 void signal_deliver(struct hart_context* restrict ctx)
@@ -322,6 +344,7 @@ void signal_deliver(struct hart_context* restrict ctx)
     struct k_sigaction action = sighand->actions[sig - 1];
     sigset_t old_mask = thrd->sig_blocked;
     bool caught = action.sa_handler != SIG_DFL && action.sa_handler != SIG_IGN;
+    bool ignored = ignored_locked(proc, sig); // It may have become so while it was blocked
 
     if(caught && (action.sa_flags & SA_RESETHAND)) {
         memset(&sighand->actions[sig - 1], 0, sizeof(struct k_sigaction));
@@ -341,7 +364,7 @@ void signal_deliver(struct hart_context* restrict ctx)
     }
 
     if(!caught) {
-        if(action.sa_handler == SIG_DFL && default_kills(sig)) {
+        if(!ignored) {
             process_kill(proc, sig);
         }
 
