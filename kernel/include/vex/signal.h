@@ -120,9 +120,25 @@ signal_actions_t* signal_actions_create(signal_actions_t* restrict parent) __nod
 void signal_actions_destroy(signal_actions_t* restrict signal_actions);
 void signal_actions_exec(signal_actions_t* restrict signal_actions);
 
+/// Queues an asynchronous signal; SIGKILL ends the process at once, and init
+/// only ever receives signals it handles
+/// \param tid A thread of the process, or zero for whichever thread can take it
+/// \retval 0 Queued, merged with one already pending, or dropped as ignored
+/// \retval -ESRCH No such thread in the process
 int signal_send(process_t* restrict process, pid_t tid, const siginfo_t* restrict info);
+
+/// signal_send to the whole process for senders that cannot allocate,
+/// such as the scheduler; the node is consumed either way
 void signal_send_node(process_t* restrict process, pending_signal_t* restrict node);
+
+/// Called after a thread leaves the process, as it may have been the one chosen
+/// for a process-wide signal; every thread that could take one looks again
 void signal_retarget(process_t* restrict process);
+
+/// Raises a synchronous fault signal in the calling thread: unblocks it, resets a
+/// handler that is ignored or blocked, and kills the process outright when the
+/// action is the default one. Only for faults, as a blocked or ignored fault
+/// signal would return to the faulting instruction forever
 void signal_force(thread_t* restrict thread, const siginfo_t* restrict info);
 void signal_deliver(hart_context_t* restrict ctx);
 void signal_action(process_t* restrict process, int sig, const sigaction_t* restrict act, sigaction_t* restrict old_action);
@@ -132,9 +148,24 @@ void signal_flush(pending_signal_t* restrict queue);
 bool signal_on_altstack(const thread_t* restrict thread, uintptr_t sp) __nodiscard;
 void signal_altstack_get(const thread_t* restrict thread, uintptr_t sp, stack_t* restrict out);
 
+/// Builds a signal frame on the user stack, or on the alternate stack with SA_ONSTACK,
+/// and points the context at the handler; the frame keeps the old context and
+/// old_mask for arch_signal_return. The caller kills the process on failure
+/// \retval 0 The context now enters the handler
+/// \retval -EFAULT The handler, the restorer or the stack is unusable
 int arch_signal_setup(thread_t* restrict thread, hart_context_t* restrict ctx, const sigaction_t* restrict action,
     const siginfo_t* restrict info, sigset_t old_mask);
+
+/// Restores the context from the frame at the user stack pointer, keeping
+/// the flags userspace may not set, and hands back the saved signal mask
+/// \param mask Receives the mask for the caller to apply
+/// \retval 0 The context is restored
+/// \retval -EFAULT The frame is unreadable or invalid
+/// \retval -ENOMEM No memory to check the saved FPU state in
 int arch_signal_return(thread_t* restrict thread, hart_context_t* restrict ctx, sigset_t* restrict mask);
+
+/// Turns a system call rewound to run again into one that returns -EINTR,
+/// for a handler without SA_RESTART interrupting it
 void arch_syscall_interrupted(hart_context_t* restrict ctx);
 
 static __always_inline __nodiscard sigset_t sigbit(int sig)

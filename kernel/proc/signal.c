@@ -286,14 +286,11 @@ int signal_send(process_t* restrict process, pid_t tid, const siginfo_t* restric
     return queue_signal(process, tid, info->si_signo, node);
 }
 
-// For senders that cannot allocate, such as the scheduler; the node is consumed either way
 void signal_send_node(process_t* restrict process, pending_signal_t* restrict node)
 {
     queue_signal(process, 0, node->info.si_signo, node);
 }
 
-// A thread leaving the process may have been the one chosen for a process-wide
-// signal; every other thread that could take one looks again, delivery sorts out the rest
 void signal_retarget(process_t* restrict process)
 {
     signal_actions_t* signal_actions = process->signal_actions;

@@ -90,6 +90,9 @@ static void rq_unlink(thread_t* restrict thread)
     raw_spinlock_release(&runqueue->lock);
 }
 
+// Elsewhere sched_lock comes before the runqueue lock, as in wake_locked, so
+// with the runqueue lock held the thread locks are only tried; a held hart_lock
+// also means another hart is still on the thread's stack, so it can't run here yet
 static thread_t* rq_take_nolock(runqueue_t* restrict runqueue, hart_local_t* restrict hart)
 {
     for(thread_t* thread = runqueue->head; thread; thread = thread->runqueue_next) {
@@ -728,7 +731,7 @@ void preempt_enable(void)
 
 static void sched_init(void)
 {
-    sched_irq_number = irq_handler_add(UINT_MAX, &sched_irq_handler, NULL);
+    sched_irq_number = irq_handler_add(UINT_MAX, &sched_irq_handler, nullptr);
 
     if(sched_irq_number == UINT_MAX) {
         panic("sched: out of irq vectors");

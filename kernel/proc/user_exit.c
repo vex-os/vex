@@ -3,8 +3,6 @@
 #include <vex/signal.h>
 #include <vex/thread.h>
 
-// Runs with interrupts disabled and returns with them disabled, so work
-// posted after the last look still finds the thread before ring 3 does
 void exit_to_user(hart_context_t* restrict ctx)
 {
     thread_t* thread = this_thread();

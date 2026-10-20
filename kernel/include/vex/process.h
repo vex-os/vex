@@ -74,12 +74,23 @@ void process_decref(process_t* process);
 void process_exit(process_t* process, int exit_code);
 void process_kill(process_t* process, int sig);
 void process_thread_exit(process_t* process, thread_t* thread);
+
+/// Makes every other thread of the process exit and waits for them to be reaped,
+/// for exec; the caller is then the only thread, and its tid becomes the pid
+/// \retval 0 The caller is the last thread
+/// \retval -EINTR The process is exiting, or another thread got here first;
+/// the caller is on its way out too
 int process_dethread(process_t* process, thread_t* thread);
+
 bool process_has_thread(process_t* process, pid_t tid) __nodiscard;
 void process_thread_reaped(process_t* process, thread_t* thread);
-bool process_claim(process_t* process) __nodiscard;
-void process_destroy(process_t* process);
 
+/// Hands a zombie to exactly one waiter, who must then call process_destroy
+bool process_claim(process_t* process) __nodiscard;
+
+/// Unlinks a claimed zombie, or a child that never ran, from the process table
+/// and its parent and drops the reference process_create returned, not the caller's
+void process_destroy(process_t* process);
 credentials_t* process_get_cred(process_t* process) __nodiscard;
 void process_set_cred(process_t* process, credentials_t* credentials);
 

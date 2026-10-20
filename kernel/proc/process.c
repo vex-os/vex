@@ -405,8 +405,6 @@ void process_thread_exit(process_t* process, thread_t* thread)
     signal_retarget(process);
 }
 
-// The other threads exit without taking the process along; a process exiting meanwhile
-// or another thread already doing this wins, and the caller is then on its way out too
 int process_dethread(process_t* process, thread_t* thread)
 {
     bool intr_state = spinlock_acquire_intr(&process->lock);
