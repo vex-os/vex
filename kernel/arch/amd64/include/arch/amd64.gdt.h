@@ -41,17 +41,30 @@ struct amd64_tss_descriptor_s {
 } __packed;
 
 struct amd64_gdt_s {
-    amd64_gdt_descriptor_t null;         // GDT_NULL_SEGMENT
-    amd64_gdt_descriptor_t kern_code_16; // GDT_KERN_CODE_16
-    amd64_gdt_descriptor_t kern_data_16; // GDT_KERN_DATA_16
-    amd64_gdt_descriptor_t kern_code_32; // GDT_KERN_CODE_32
-    amd64_gdt_descriptor_t kern_data_32; // GDT_KERN_DATA_32
-    amd64_gdt_descriptor_t kern_code_64; // GDT_KERN_CODE_64
-    amd64_gdt_descriptor_t kern_data_64; // GDT_KERN_DATA_64
-    amd64_gdt_descriptor_t user_data_64; // GDT_USER_DATA_64
-    amd64_gdt_descriptor_t user_code_64; // GDT_USER_CODE_64
-    amd64_tss_descriptor_t tss;          // GDT_TSS
+    amd64_gdt_descriptor_t null;
+    amd64_gdt_descriptor_t kern_code_16;
+    amd64_gdt_descriptor_t kern_data_16;
+    amd64_gdt_descriptor_t kern_code_32;
+    amd64_gdt_descriptor_t kern_data_32;
+    amd64_gdt_descriptor_t kern_code_64;
+    amd64_gdt_descriptor_t kern_data_64;
+    amd64_gdt_descriptor_t user_data_64;
+    amd64_gdt_descriptor_t user_code_64;
+    amd64_tss_descriptor_t tss;
 } __packed;
+
+#define gdt_offset(index) ((index) * sizeof(amd64_gdt_descriptor_t))
+
+static_assert(gdt_offset(GDT_NULL_SEGMENT) == offsetof(amd64_gdt_t, null));
+static_assert(gdt_offset(GDT_KERN_CODE_16) == offsetof(amd64_gdt_t, kern_code_16));
+static_assert(gdt_offset(GDT_KERN_DATA_16) == offsetof(amd64_gdt_t, kern_data_16));
+static_assert(gdt_offset(GDT_KERN_CODE_32) == offsetof(amd64_gdt_t, kern_code_32));
+static_assert(gdt_offset(GDT_KERN_DATA_32) == offsetof(amd64_gdt_t, kern_data_32));
+static_assert(gdt_offset(GDT_KERN_CODE_64) == offsetof(amd64_gdt_t, kern_code_64));
+static_assert(gdt_offset(GDT_KERN_DATA_64) == offsetof(amd64_gdt_t, kern_data_64));
+static_assert(gdt_offset(GDT_USER_DATA_64) == offsetof(amd64_gdt_t, user_data_64));
+static_assert(gdt_offset(GDT_USER_CODE_64) == offsetof(amd64_gdt_t, user_code_64));
+static_assert(gdt_offset(GDT_TSS) == offsetof(amd64_gdt_t, tss));
 
 #define gdt_selector(index, ldt, ring) ((uint16_t)(((ring) & 3) | (((ldt) & 1) << 2) | ((index) << 3)))
 
