@@ -9,6 +9,7 @@ kernel_sources += files(
     'chr_device.c',
     'chr_event.c',
     'chr_name.c',
+    'fb_device.c',
 )
 
 if kconfig.get('CONFIG_PTABLE_GPT', 'n') == 'y'

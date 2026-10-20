@@ -1,0 +1,24 @@
+#pragma once
+
+#include <usr/vex/ioctl.h>
+
+#define IOCTL_DIR_VOID  __k_IOCTL_DIR_VOID
+#define IOCTL_DIR_WRITE __k_IOCTL_DIR_WRITE
+#define IOCTL_DIR_READ  __k_IOCTL_DIR_READ
+#define IOCTL_DIR_RDWR  __k_IOCTL_DIR_RDWR
+
+#define IOCTL_SET_DIR   __k_IOCTL_SET_DIR
+#define IOCTL_SET_SIZE  __k_IOCTL_SET_SIZE
+#define IOCTL_SET_GROUP __k_IOCTL_SET_GROUP
+#define IOCTL_SET_CMD   __k_IOCTL_SET_CMD
+#define IOCTL_SET       __k_IOCTL_SET
+
+#define IOCTL_VOID  __k_IOCTL_VOID
+#define IOCTL_READ  __k_IOCTL_READ
+#define IOCTL_WRITE __k_IOCTL_WRITE
+#define IOCTL_RDWR  __k_IOCTL_RDWR
+
+#define IOCTL_GET_DIR   __k_IOCTL_GET_DIR
+#define IOCTL_GET_SIZE  __k_IOCTL_GET_SIZE
+#define IOCTL_GET_GROUP __k_IOCTL_GET_GROUP
+#define IOCTL_GET_CMD   __k_IOCTL_GET_CMD
