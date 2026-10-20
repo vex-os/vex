@@ -59,6 +59,7 @@ bool cred_exec_secure(const credentials_t* restrict credentials) __nodiscard;
 /// Revision 3 names the uid that counts as root for the capabilities; without user namespaces
 /// only 0 makes sense, so others leave the file without capabilities, as on Linux
 int cred_parse_file_caps(const void* restrict value, size_t size, file_caps_t* restrict out) __nodiscard;
+
 bool cred_in_group(const credentials_t* restrict credentials, gid_t gid) __nodiscard;
 
 int cred_setresuid(credentials_t* restrict credentials, uid_t ruid, uid_t euid, uid_t suid) __nodiscard;

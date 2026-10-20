@@ -67,6 +67,7 @@ struct process_s {
 
 /// Threads take their ids from the same counter, so a tid never names another process
 pid_t process_alloc_id(void) __nodiscard;
+
 process_t* process_create(process_t* restrict parent) __nodiscard;
 process_t* process_locate(pid_t pid) __nodiscard;
 void process_incref(process_t* process);
@@ -78,13 +79,14 @@ void process_thread_exit(process_t* process, thread_t* thread);
 
 /// Makes every other thread of the process exit and waits for them to be reaped,
 /// for exec; the caller is then the only thread, and its tid becomes the pid
-/// @retval 0 The caller is the last thread
-/// @retval -EINTR The process is exiting, or another thread got here first;
-/// the caller is on its way out too
+/// @retval 0       The caller is the last thread
+/// @retval -EINTR  The process is exiting, or another
+/// thread got here first; the caller is on its way out too
 int process_dethread(process_t* process, thread_t* thread);
 
 /// A thread already leaving does not count, signals and lookups treat it as gone
 bool process_has_thread(process_t* process, pid_t tid) __nodiscard;
+
 void process_thread_reaped(process_t* process, thread_t* thread);
 
 /// Hands a zombie to exactly one waiter
@@ -94,6 +96,7 @@ bool process_claim(process_t* process) __nodiscard;
 /// Unlinks a claimed zombie, or a child that never ran, from the process table
 /// and its parent and drops the reference process_create returned, not the caller's
 void process_destroy(process_t* process);
+
 credentials_t* process_get_cred(process_t* process) __nodiscard;
 void process_set_cred(process_t* process, credentials_t* credentials);
 

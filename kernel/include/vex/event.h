@@ -34,13 +34,18 @@ ssize_t event_await(event_t** restrict events, size_t count);
 /// @retval -ENOMEM No memory to register the thread as a listener
 ssize_t event_await_blocking(event_t** restrict events, size_t count);
 
-/// Like event_await_blocking, giving up after the timeout
-/// @retval -ETIMEDOUT No event was triggered in time
+/// Waits until one of the events is triggered, or takes a pending wakeup, for at most the timeout
+/// @return The index of the event in events
+/// @retval -ETIMEDOUT  No event was triggered in time
+/// @retval -ENOMEM     No memory to register the thread as a listener
 ssize_t event_await_timeout(event_t** restrict events, size_t count, uint64_t timeout_nsec);
 
-/// Like event_await_blocking, ending early for pending work such as a signal
-/// @retval -ERESTART Work is pending; a system call returns this as it is
-/// and runs again or fails with EINTR on the way out
+/// Waits until one of the events is triggered, or takes a pending wakeup,
+/// ending early for pending work such as a signal
+/// @return The index of the event in events
+/// @retval -ENOMEM     No memory to register the thread as a listener
+/// @retval -ERESTART   Work is pending; a system call returns this
+/// as it is and runs again or fails with EINTR on the way out
 ssize_t event_await_interruptible(event_t** restrict events, size_t count);
 
 /// Wakes every thread waiting on the event

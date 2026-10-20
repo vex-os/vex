@@ -12,10 +12,16 @@
 
 typedef uint32_t bitmap_t;
 
-// A range runs from bit_a through bit_b, both included
+/// Whether every bit from bit_a through bit_b, both included, is set
 int bitmap_range_isset(const bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
+
+/// Whether every bit from bit_a through bit_b, both included, is clear
 int bitmap_range_isclear(const bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
+
+/// Clears the bits from bit_a through bit_b, both included
 void bitmap_range_clear(bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
+
+/// Sets the bits from bit_a through bit_b, both included
 void bitmap_range_set(bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b);
 
 static __always_inline __nodiscard size_t bitmap_bytecount(size_t bits)

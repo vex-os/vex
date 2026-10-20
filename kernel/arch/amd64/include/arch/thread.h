@@ -37,11 +37,14 @@ void arch_thread_exec(thread_t* restrict thread, vmspace_t* restrict vmspace, ui
 /// Sets the calling thread's thread pointer, effective right away
 void arch_thread_set_tcb(thread_t* restrict thread, uintptr_t tcb);
 
-/// Save and load the thread's state beyond its registers: thread pointers, page tables,
-/// FPU state and, on load, the stack the hart enters the kernel on from user mode
-/// @pre The scheduler calls these around a switch, with interrupts disabled
+/// Saves the thread's state beyond its registers: thread pointers, page tables and FPU state
+/// @pre The scheduler calls this when switching away, with interrupts disabled
 /// and the registers already in the saved context
 void arch_thread_ctx_save(thread_t* restrict thread);
+
+/// Loads what arch_thread_ctx_save saved, and sets the stack
+/// the hart enters the kernel on from user mode
+/// @pre The scheduler calls this when switching to the thread, with interrupts disabled
 void arch_thread_ctx_load(thread_t* restrict thread);
 
 static __always_inline __nodiscard thread_t* this_thread(void)
