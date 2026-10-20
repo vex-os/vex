@@ -20,7 +20,7 @@ typedef struct process_s process_t;
 struct process_s {
     pid_t pid;
     pid_t ppid;
-    int exit_code;
+    int32_t exit_code;
 
     uint32_t refcount;
 
@@ -75,6 +75,7 @@ void process_exit(process_t* process, int exit_code);
 void process_kill(process_t* process, int sig);
 void process_thread_exit(process_t* process, thread_t* thread);
 int process_dethread(process_t* process, thread_t* thread);
+bool process_has_thread(process_t* process, pid_t tid) __nodiscard;
 void process_thread_reaped(process_t* process, thread_t* thread);
 bool process_claim(process_t* process) __nodiscard;
 void process_destroy(process_t* process);

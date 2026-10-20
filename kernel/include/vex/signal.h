@@ -60,6 +60,7 @@ typedef struct thread_s thread_t;
 #define SI_MESGQ      __k_SI_MESGQ
 #define SI_ASYNCIO    __k_SI_ASYNCIO
 #define SI_KERNEL     __k_SI_KERNEL
+#define SI_TKILL      __k_SI_TKILL
 #define ILL_ILLOPC    __k_ILL_ILLOPC
 #define ILL_ILLOPN    __k_ILL_ILLOPN
 #define ILL_ILLADR    __k_ILL_ILLADR
@@ -119,7 +120,7 @@ signal_actions_t* signal_actions_create(signal_actions_t* restrict parent) __nod
 void signal_actions_destroy(signal_actions_t* restrict signal_actions);
 void signal_actions_exec(signal_actions_t* restrict signal_actions);
 
-int signal_send(process_t* restrict process, thread_t* restrict target, const siginfo_t* restrict info);
+int signal_send(process_t* restrict process, pid_t tid, const siginfo_t* restrict info);
 void signal_send_node(process_t* restrict process, pending_signal_t* restrict node);
 void signal_retarget(process_t* restrict process);
 void signal_force(thread_t* restrict thread, const siginfo_t* restrict info);

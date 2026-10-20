@@ -64,6 +64,7 @@ typedef void (*__k_sighandler_t)(int);
 #define __k_SI_MESGQ   (-4)
 #define __k_SI_ASYNCIO (-5)
 #define __k_SI_KERNEL  (-6)
+#define __k_SI_TKILL   (-7)
 
 #define __k_ILL_ILLOPC 1
 #define __k_ILL_ILLOPN 2
@@ -101,15 +102,15 @@ typedef void (*__k_sighandler_t)(int);
 #define __k_CLD_CONTINUED 6
 
 union __k_sigval {
-    int sival_int;
+    __k_int32_t sival_int;
     void* sival_ptr;
 };
 
 struct __k_siginfo {
-    int si_signo;
-    int si_code;
-    int si_errno;
-    int si_status;
+    __k_int32_t si_signo;
+    __k_int32_t si_code;
+    __k_int32_t si_errno;
+    __k_int32_t si_status;
     __k_pid_t si_pid;
     __k_uid_t si_uid;
     void* si_addr;

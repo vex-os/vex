@@ -79,6 +79,7 @@ typedef struct vnode_s vnode_t;
 #define SYS_GETTID        __k_SYS_GETTID
 #define SYS_FUTEX_WAIT    __k_SYS_FUTEX_WAIT
 #define SYS_FUTEX_WAKE    __k_SYS_FUTEX_WAKE
+#define SYS_TGKILL        __k_SYS_TGKILL
 
 typedef struct syscall_s syscall_t;
 

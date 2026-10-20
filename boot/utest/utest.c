@@ -171,8 +171,12 @@ static void __attribute__((noreturn)) ponger(long arg)
     __builtin_unreachable();
 }
 
+// Takes SIGUSR1 even when spawned by a thread that blocks it
 static void __attribute__((noreturn)) sleeper(long arg)
 {
+    __k_sigset_t unblocked = 1UL << (__k_SIGUSR1 - 1);
+    syscall3(__k_SYS_SIGPROCMASK, __k_SIG_UNBLOCK, (long)&unblocked, 0);
+
     interrupted_result = syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 0, 0, 0);
     syscall1(__k_SYS_THREAD_EXIT, 0);
     __builtin_unreachable();
@@ -253,8 +257,11 @@ static int exec_child(char** argv)
     return 42;
 }
 
+static volatile long handled_tid;
+
 static void on_signal(int sig)
 {
+    handled_tid = syscall1(__k_SYS_GETTID, 0);
 }
 
 static void __attribute__((naked)) signal_restorer(void)
@@ -507,6 +514,25 @@ int main(int argc, char** argv)
     }
 
     printnumber(interrupted_result); // should print -225 (EINTR)
+    printnumber(handled_tid != pid); // should print 1, the main thread blocks the signal
+
+    // tgkill: the signal goes to the named thread
+    long sleeper_tid = spawn_joinable(&sleeper, 0);
+
+    while(join_word) {
+        syscall3(__k_SYS_TGKILL, pid, sleeper_tid, __k_SIGUSR1);
+        syscall1(__k_SYS_YIELD, 0);
+    }
+
+    printnumber(handled_tid == sleeper_tid);                    // should print 1
+    printnumber(syscall3(__k_SYS_TGKILL, pid, sleeper_tid, 0)); // should print -270 (ESRCH), joined already
+    printnumber(syscall3(__k_SYS_TGKILL, pid, pid, 0));         // should print 0
+
+    // One the main thread blocks stays pending on it, no other thread takes it
+    syscall3(__k_SYS_TGKILL, pid, pid, __k_SIGUSR1);
+    __k_sigset_t pending = 0;
+    syscall1(__k_SYS_SIGPENDING, (long)&pending);
+    printnumber(pending == blocked); // should print 1
 
     // exec from a secondary thread takes the other threads away and keeps the pid
     long child = syscall1(__k_SYS_FORK, 0);

@@ -72,5 +72,6 @@
 #define __k_SYS_GETTID        69
 #define __k_SYS_FUTEX_WAIT    70
 #define __k_SYS_FUTEX_WAKE    71
+#define __k_SYS_TGKILL        72
 
 #endif /* USR_VEX_SYSCALL_H */

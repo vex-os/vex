@@ -69,18 +69,22 @@ static intptr_t __noreturn sys_thread_exit(const uintptr_t* restrict args)
     thread_t* thread = this_thread();
     process_t* process = thread->process;
 
-    // A joiner may free the stack as soon as it sees the word cleared,
+    if(process == nullptr) {
+        sched_terminate();
+        unreachable();
+    }
+
+    // Out of the process first, so a joiner that sees the word cleared
+    // no longer finds the thread; it may free the stack right then,
     // which is fine: nothing from here on touches user memory
-    if(process && thread->clear_tid) {
+    process_thread_exit(process, thread);
+
+    if(thread->clear_tid) {
         uint32_t cleared = 0;
 
         if(user_copyout(thread->clear_tid, &cleared, sizeof(cleared)) >= 0) {
             futex_wake(process->vmspace, thread->clear_tid, SIZE_MAX);
         }
-    }
-
-    if(process) {
-        process_thread_exit(process, thread);
     }
 
     sched_terminate();

@@ -1,4 +1,5 @@
 #include <vex/atomic.h>
+#include <vex/errno.h>
 #include <vex/page.h>
 #include <vex/process.h>
 #include <vex/pslab.h>
@@ -122,6 +123,17 @@ static thread_t* choose_thread_locked(process_t* restrict process, sigset_t bit)
     return nullptr;
 }
 
+static thread_t* find_thread_locked(process_t* restrict process, pid_t tid)
+{
+    for(thread_t* thread = process->threads; thread; thread = thread->process_next) {
+        if(thread->tid == tid && !leaving(thread)) {
+            return thread;
+        }
+    }
+
+    return nullptr;
+}
+
 static void drop_locked(sigset_t* restrict pending, pending_signal_t** restrict queue, int sig, pending_signal_t** restrict dropped)
 {
     *pending &= ~sigbit(sig);
@@ -132,28 +144,40 @@ static void drop_locked(sigset_t* restrict pending, pending_signal_t** restrict 
     }
 }
 
-static void queue_signal(process_t* restrict process, thread_t* restrict target, int sig, pending_signal_t* restrict node)
+// A target thread is looked up under the locks the signal is queued under,
+// so it cannot be reaped in between; one already leaving counts as gone
+static int queue_signal(process_t* restrict process, pid_t tid, int sig, pending_signal_t* restrict node)
 {
     signal_actions_t* signal_actions = process->signal_actions;
     sigset_t bit = sigbit(sig);
 
+    bool intr_state = spinlock_acquire_intr(&signal_actions->lock);
+    bool proc_intr_state = spinlock_acquire_intr(&process->lock);
+
+    thread_t* target = nullptr;
     sigset_t* pending = &process->sig_pending;
     pending_signal_t** queue = &process->sig_queue;
 
-    if(target) {
+    if(tid) {
+        target = find_thread_locked(process, tid);
+
+        if(target == nullptr) {
+            spinlock_release_intr(&process->lock, proc_intr_state);
+            spinlock_release_intr(&signal_actions->lock, intr_state);
+            slab_free(node);
+            return -ESRCH;
+        }
+
         pending = &target->sig_pending;
         queue = &target->sig_queue;
     }
 
-    bool intr_state = spinlock_acquire_intr(&signal_actions->lock);
-
     if(*pending & bit) {
+        spinlock_release_intr(&process->lock, proc_intr_state);
         spinlock_release_intr(&signal_actions->lock, intr_state);
         slab_free(node);
-        return;
+        return 0;
     }
-
-    bool proc_intr_state = spinlock_acquire_intr(&process->lock);
 
     thread_t* thread = target;
 
@@ -171,7 +195,7 @@ static void queue_signal(process_t* restrict process, thread_t* restrict target,
         spinlock_release_intr(&process->lock, proc_intr_state);
         spinlock_release_intr(&signal_actions->lock, intr_state);
         slab_free(node);
-        return;
+        return 0;
     }
 
     *pending |= bit;
@@ -187,6 +211,8 @@ static void queue_signal(process_t* restrict process, thread_t* restrict target,
 
     spinlock_release_intr(&process->lock, proc_intr_state);
     spinlock_release_intr(&signal_actions->lock, intr_state);
+
+    return 0;
 }
 
 signal_actions_t* signal_actions_create(signal_actions_t* restrict parent)
@@ -235,9 +261,13 @@ void signal_actions_exec(signal_actions_t* restrict signal_actions)
     spinlock_release_intr(&signal_actions->lock, intr_state);
 }
 
-int signal_send(process_t* restrict process, thread_t* restrict target, const siginfo_t* restrict info)
+int signal_send(process_t* restrict process, pid_t tid, const siginfo_t* restrict info)
 {
     if(info->si_signo == SIGKILL) {
+        if(tid && !process_has_thread(process, tid)) {
+            return -ESRCH;
+        }
+
         if(process->pid != INIT_PID) {
             process_kill(process, SIGKILL); // Init is spared for the same reason as in ignored_locked
         }
@@ -253,15 +283,13 @@ int signal_send(process_t* restrict process, thread_t* restrict target, const si
         node->info = *info;
     }
 
-    queue_signal(process, target, info->si_signo, node);
-
-    return 0;
+    return queue_signal(process, tid, info->si_signo, node);
 }
 
 // For senders that cannot allocate, such as the scheduler; the node is consumed either way
 void signal_send_node(process_t* restrict process, pending_signal_t* restrict node)
 {
-    queue_signal(process, nullptr, node->info.si_signo, node);
+    queue_signal(process, 0, node->info.si_signo, node);
 }
 
 // A thread leaving the process may have been the one chosen for a process-wide

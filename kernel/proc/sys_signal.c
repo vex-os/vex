@@ -60,8 +60,59 @@ static intptr_t sys_kill(const uintptr_t* restrict args)
             info.si_pid = sender->pid;
             info.si_uid = thread->credentials->uid;
 
-            retval = signal_send(target, nullptr, &info);
+            retval = signal_send(target, 0, &info);
         }
+    }
+
+    process_decref(target);
+
+    return retval;
+}
+
+static intptr_t sys_tgkill(const uintptr_t* restrict args)
+{
+    pid_t pid = args[0];
+    pid_t tid = args[1];
+    int sig = args[2];
+
+    thread_t* thread = this_thread();
+    process_t* sender = thread->process;
+
+    if(sender == nullptr) {
+        return -ESRCH;
+    }
+
+    if(sig < 0 || sig > NSIG || pid <= 0 || tid <= 0) {
+        return -EINVAL;
+    }
+
+    process_t* target = process_locate(pid);
+
+    if(target == nullptr) {
+        return -ESRCH;
+    }
+
+    credentials_t* target_cred = process_get_cred(target);
+    bool allowed = may_signal(thread->credentials, target_cred);
+    cred_decref(target_cred);
+
+    intptr_t retval = -EPERM;
+
+    if(allowed && sig == 0) {
+        retval = -ESRCH;
+
+        if(process_has_thread(target, tid)) {
+            retval = 0;
+        }
+    }
+    else if(allowed) {
+        siginfo_t info = { 0 };
+        info.si_signo = sig;
+        info.si_code = SI_TKILL;
+        info.si_pid = sender->pid;
+        info.si_uid = thread->credentials->uid;
+
+        retval = signal_send(target, tid, &info);
     }
 
     process_decref(target);
@@ -268,6 +319,7 @@ static intptr_t sys_sigaltstack(const uintptr_t* restrict args)
 }
 
 define_syscall(sys_kill, SYS_KILL);
+define_syscall(sys_tgkill, SYS_TGKILL);
 define_syscall(sys_sigaction, SYS_SIGACTION);
 define_syscall(sys_sigprocmask, SYS_SIGPROCMASK);
 define_syscall(sys_sigpending, SYS_SIGPENDING);

@@ -455,6 +455,24 @@ int process_dethread(process_t* process, thread_t* thread)
     return 0;
 }
 
+// A thread already leaving does not count, signals and lookups treat it as gone
+bool process_has_thread(process_t* process, pid_t tid)
+{
+    bool intr_state = spinlock_acquire_intr(&process->lock);
+    bool found = false;
+
+    for(thread_t* thread = process->threads; thread; thread = thread->process_next) {
+        if(thread->tid == tid && 0 == (atomic_load(&thread->pending_work, ATOMIC_ACQUIRE) & THREAD_WORK_EXIT)) {
+            found = true;
+            break;
+        }
+    }
+
+    spinlock_release_intr(&process->lock, intr_state);
+
+    return found;
+}
+
 void process_thread_reaped(process_t* process, thread_t* thread)
 {
     bool intr_state = spinlock_acquire_intr(&process->lock);
