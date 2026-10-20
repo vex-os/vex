@@ -18,7 +18,9 @@
 extern void amd64_syscall_entry(void);
 
 // SYSRET to a non-canonical RCX faults in ring 0 on Intel, but on the
-// user's stack already; no return address past the user half gets there
+// user's stack already; no return address past the user half gets there.
+// RIP is the one checked: SYSRET only runs when RCX matches it, and after
+// sigreturn RCX is whatever the interrupted code kept in that register
 void __used amd64_syscall_handler(struct hart_context* restrict ctx)
 {
     uint64_t number = ctx->syscall_number;
@@ -28,13 +30,14 @@ void __used amd64_syscall_handler(struct hart_context* restrict ctx)
     struct thread* thrd = this_thread();
     struct process* proc = thrd->proc;
 
-    if(proc && ctx->amd64_rcx >= pmap_user_end(proc->vms->pmap)) {
+    if(proc && ctx->amd64_rip >= pmap_user_end(proc->vms->pmap)) {
         process_kill(proc, SIGSEGV);
         sched_terminate();
         unreachable();
     }
 
-    if((intptr_t)(ctx->syscall_retval) == -ERESTART) {
+    // Sigreturn hands back the interrupted RAX, which may hold -ERESTART by chance
+    if(number != SYS_SIGRETURN && (intptr_t)(ctx->syscall_retval) == -ERESTART) {
         ctx->syscall_number = number;
         ctx->amd64_rip -= SYSCALL_INSN_SIZE;
         ctx->amd64_rcx -= SYSCALL_INSN_SIZE;
