@@ -115,7 +115,8 @@ struct vnode_ops_s {
     int (*mmap)(vnode_t* restrict node, off_t offset, size_t length);
 
     /// Set only by device nodes, whose memory is mapped through it instead of fault. Gives the physical address
-    /// and memory type (a VPROT_CACHE_* value) of the page at offset, which is page aligned, in the device's memory
+    /// and memory type (a VPROT_CACHE_* value) of the page at offset, which is page aligned, in the device's memory.
+    /// Runs under a spinlock, so it can't sleep
     /// @retval -ENXIO The offset is past the end of the device's memory
     int (*resolve_page)(vnode_t* restrict node, off_t offset, uintptr_t* restrict phys, unsigned* restrict cache);
 

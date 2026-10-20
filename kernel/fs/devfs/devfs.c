@@ -170,6 +170,26 @@ void devfs_remove(vfs_t* restrict fs, const char* restrict name)
     }
 }
 
+vnode_t* devfs_find(vfs_t* restrict fs, const char* restrict name)
+{
+    devfs_state_t* state = fs->root->ctxdata;
+    vnode_t* found = nullptr;
+
+    spinlock_acquire(&state->lock);
+
+    for(devfs_node_t* it = state->head; it; it = it->next) {
+        if(0 == strcmp(it->name, name)) {
+            found = it->node;
+            vnode_incref(found);
+            break;
+        }
+    }
+
+    spinlock_release(&state->lock);
+
+    return found;
+}
+
 static void init_devfs(void)
 {
     vfs_driver_add(&devfs_driver);

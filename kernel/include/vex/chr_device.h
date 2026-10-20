@@ -31,7 +31,7 @@ struct chr_device_ops_s {
     int (*mmap)(const chr_device_t* restrict device, off_t offset, size_t length);
 
     /// Gives the physical address and memory type (a VPROT_CACHE_* value) of the page at offset, which is
-    /// page aligned, in the device's memory
+    /// page aligned, in the device's memory. Runs under a spinlock, so it can't sleep
     /// @retval -ENXIO The offset is past the end of the device's memory
     int (*resolve_page)(const chr_device_t* restrict device, off_t offset, uintptr_t* restrict phys, unsigned* restrict cache);
 
@@ -62,7 +62,8 @@ int chr_device_add(chr_device_t* restrict device, chr_name_t* restrict name);
 int chr_device_add_named(chr_device_t* restrict device, const char* restrict name);
 
 /// Takes the device out of the registry and drops the reference it held there; holders of
-/// other references keep the structure, but their calls fail with -ENODEV from now on
+/// other references keep the structure, but their calls fail with -ENODEV from now on,
+/// and a mapping of the device's memory takes SIGBUS on its next access
 /// @pre The driver already fails its own calls with -ENODEV and has woken those that sleep;
 /// a call that passed the check here may still reach it
 /// @post The chr layer calls nothing in the driver but release

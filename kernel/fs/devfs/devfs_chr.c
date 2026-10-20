@@ -4,6 +4,7 @@
 #include <vex/slab.h>
 #include <vex/stat.h>
 #include <vex/string.h>
+#include <vex/vms.h>
 #include <vex/vnode.h>
 
 #include "devfs.h"
@@ -125,6 +126,13 @@ void devfs_chr_event_handler(unsigned event, const chr_device_t* restrict device
     }
 
     if(event == CHR_EVENT_DEVICE_REMOVED) {
+        vnode_t* node = devfs_find(ctxdata, device->name);
+
+        if(node) {
+            vms_revoke(node);
+            vnode_decref(node);
+        }
+
         devfs_remove(ctxdata, device->name);
         return;
     }

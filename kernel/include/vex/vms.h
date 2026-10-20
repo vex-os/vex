@@ -6,6 +6,7 @@
 
 typedef struct file_s file_t;
 typedef struct pmap_s pmap_t;
+typedef struct vnode_s vnode_t;
 
 #define VMS_MMAP_TOP UINT64_C(0x0000600000000000) // Placement without a fixed address searches down from here
 #define VMS_MMAP_MIN UINT64_C(0x0000000000010000) // Keeps null pointer dereferences faulting
@@ -32,6 +33,8 @@ struct vm_region_s {
     bool shared;
     bool may_write;
     bool device;
+    vm_region_t* device_next; // In the list of device regions vms_revoke walks
+    pmap_t* device_pmap;      // The page table of a device region, for vms_revoke
 };
 
 struct vmspace_s {
@@ -60,6 +63,11 @@ int vms_unmap_all(vmspace_t* restrict vmspace);
 int vms_clone(vmspace_t* restrict vmspace, vmspace_t* restrict source);
 
 int vms_fault(vmspace_t* restrict vmspace, uintptr_t virt, unsigned access);
+
+/// Takes the pages of every device region mapping node away, from any address space and without
+/// its vmspace lock, so the next access faults on node again
+/// @pre The node's resolve_page fails from now on, or that fault maps the page back
+void vms_revoke(vnode_t* restrict node);
 
 /// Faults the page in and makes a private one the address space's own, without pinning it
 /// @pre Nothing runs in the address space, as in exec, or the frame may move right away

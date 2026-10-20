@@ -22,9 +22,21 @@
 
 #define FREE_BATCH 64
 
+typedef struct user_access_s user_access_t;
+
+struct user_access_s {
+    uintptr_t pinned; // The frame to put_frame once done, or zero
+    bool device;      // device_regions_lock is held until then
+};
+
 static spinlock_t stale_lock = SPINLOCK_INIT;
 static vm_region_t* stale_regions = nullptr;
 static event_t stale_wakeup;
+
+// Also held from resolving a device page to mapping it, and across a copy through
+// that mapping, so vms_revoke finds the page mapped or comes before it is resolved
+static spinlock_t device_regions_lock = SPINLOCK_INIT;
+static vm_region_t* device_regions = nullptr;
 
 static_assert(sizeof(vm_region_t) <= SLAB_MAX_SIZE);
 static_assert(sizeof(vmspace_t) <= SLAB_MAX_SIZE);
@@ -51,6 +63,37 @@ static bool range_free(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t e
     return true;
 }
 
+static void track_device_region_locked(vmspace_t* restrict vmspace, vm_region_t* restrict region)
+{
+    region->device_pmap = vmspace->pmap;
+    region->device_next = device_regions;
+    device_regions = region;
+}
+
+static void track_device_region(vmspace_t* restrict vmspace, vm_region_t* restrict region)
+{
+    if(region->device) {
+        spinlock_acquire(&device_regions_lock);
+        track_device_region_locked(vmspace, region);
+        spinlock_release(&device_regions_lock);
+    }
+}
+
+static void untrack_device_region(const vm_region_t* restrict region)
+{
+    spinlock_acquire(&device_regions_lock);
+
+    vm_region_t** prev = &device_regions;
+
+    while(*prev != region) {
+        prev = &(*prev)->device_next;
+    }
+
+    *prev = region->device_next;
+
+    spinlock_release(&device_regions_lock);
+}
+
 static void insert_region(vmspace_t* restrict vmspace, vm_region_t* restrict region)
 {
     vm_region_t** prev = &vmspace->regions;
@@ -61,6 +104,8 @@ static void insert_region(vmspace_t* restrict vmspace, vm_region_t* restrict reg
 
     region->next = *prev;
     *prev = region;
+
+    track_device_region(vmspace, region);
 }
 
 static int split_region(vmspace_t* restrict vmspace, uintptr_t virt)
@@ -87,8 +132,18 @@ static int split_region(vmspace_t* restrict vmspace, uintptr_t virt)
     upper->device = region->device;
     upper->next = region->next;
 
+    // Under the lock, so vms_revoke finds the pages above virt in one region or the other
+    if(region->device) {
+        spinlock_acquire(&device_regions_lock);
+    }
+
     region->end = virt;
     region->next = upper;
+
+    if(region->device) {
+        track_device_region_locked(vmspace, upper);
+        spinlock_release(&device_regions_lock);
+    }
 
     return 0;
 }
@@ -188,8 +243,8 @@ static int unshare_locked(vmspace_t* restrict vmspace, const vm_region_t* restri
     return 0;
 }
 
-// Device pages have no pframe, so they stay out of the rmap, and no write
-// faults are needed to track them dirty: they map with the region's vprot
+// Device pages have no pframe, so they stay out of the rmap, and no write faults are needed
+// to track them dirty: they map with the region's vprot. The caller holds device_regions_lock
 static int fault_device_locked(vmspace_t* restrict vmspace, const vm_region_t* restrict region, uintptr_t page)
 {
     if(pmap_resolve_address(vmspace->pmap, page)) {
@@ -221,7 +276,10 @@ static int fault_locked(vmspace_t* restrict vmspace, uintptr_t page, unsigned ac
     }
 
     if(region->device) {
-        return fault_device_locked(vmspace, region, page);
+        spinlock_acquire(&device_regions_lock);
+        int retval = fault_device_locked(vmspace, region, page);
+        spinlock_release(&device_regions_lock);
+        return retval;
     }
 
     for(;;) {
@@ -309,32 +367,53 @@ static bool vms_current(const vmspace_t* restrict vmspace)
     return process && process->vmspace == vmspace;
 }
 
-// Gives where the byte at virt can be reached from the kernel, and in *pinned the frame to put_frame
-// once done with it, or zero. Device memory is neither pinnable nor in the HHDM, so it is reached
-// through the user's own mapping, which the vmspace lock keeps in place
-static void* access_locked(vmspace_t* restrict vmspace, uintptr_t virt, unsigned access, bool exclusive, uintptr_t* restrict pinned)
+// Gives where the byte at virt can be reached from the kernel until access_end, which a non-null
+// result needs. Device memory is neither pinnable nor in the HHDM, so it is reached through the
+// user's own mapping, and device_regions_lock keeps vms_revoke from taking it away meanwhile
+static void* access_begin_locked(vmspace_t* restrict vmspace, uintptr_t virt, unsigned access, bool exclusive, user_access_t* restrict out)
 {
     vm_region_t* region = find_region(vmspace, virt);
 
-    *pinned = 0;
+    out->pinned = 0;
+    out->device = false;
 
     if(region && region->device) {
         // UNDONE: another address space isn't loaded, so its device memory needs a temporary
         // kernel mapping, and the driver's leave, as a read of MMIO registers may have side effects
-        if(!vms_current(vmspace) || fault_locked(vmspace, page_align(virt), access, exclusive) < 0) {
+        if(!vms_current(vmspace) || (region->vprot & access) != access) {
             return nullptr;
         }
+
+        spinlock_acquire(&device_regions_lock);
+
+        if(fault_device_locked(vmspace, region, page_align(virt)) < 0) {
+            spinlock_release(&device_regions_lock);
+            return nullptr;
+        }
+
+        out->device = true;
 
         return (void*)(virt);
     }
 
-    *pinned = pin_locked(vmspace, virt, access, exclusive);
+    out->pinned = pin_locked(vmspace, virt, access, exclusive);
 
-    if(*pinned == 0) {
+    if(out->pinned == 0) {
         return nullptr;
     }
 
-    return (uint8_t*)(phys_to_virt(*pinned)) + page_offset(virt);
+    return (uint8_t*)(phys_to_virt(out->pinned)) + page_offset(virt);
+}
+
+static void access_end(const user_access_t* restrict user_access)
+{
+    if(user_access->device) {
+        spinlock_release(&device_regions_lock);
+    }
+
+    if(user_access->pinned) {
+        put_frame(user_access->pinned);
+    }
 }
 
 static void free_batch(uintptr_t* restrict batch, size_t* restrict count, bool shootdown)
@@ -356,6 +435,8 @@ static void free_batch(uintptr_t* restrict batch, size_t* restrict count, bool s
 
 static void release_device_pages(vmspace_t* restrict vmspace, const vm_region_t* restrict region, bool shootdown)
 {
+    untrack_device_region(region);
+
     bool unmapped = false;
 
     for(uintptr_t page = region->start; page < region->end; page += PAGE_SIZE) {
@@ -810,6 +891,8 @@ int vms_clone(vmspace_t* restrict vmspace, vmspace_t* restrict source)
         *tail = region;
         tail = &region->next;
 
+        track_device_region(vmspace, region);
+
         if(it->device) {
             continue; // The child faults its device pages in itself
         }
@@ -866,6 +949,31 @@ int vms_fault(vmspace_t* restrict vmspace, uintptr_t virt, unsigned access)
     mutex_release(&vmspace->lock);
 
     return retval;
+}
+
+void vms_revoke(vnode_t* restrict node)
+{
+    bool unmapped = false;
+
+    spinlock_acquire(&device_regions_lock);
+
+    for(vm_region_t* it = device_regions; it; it = it->device_next) {
+        if(it->file->node != node) {
+            continue;
+        }
+
+        for(uintptr_t page = it->start; page < it->end; page += PAGE_SIZE) {
+            if(0 == pmap_unmap_noflush(it->device_pmap, page)) {
+                unmapped = true;
+            }
+        }
+    }
+
+    spinlock_release(&device_regions_lock);
+
+    if(unmapped) {
+        tlb_shootdown();
+    }
 }
 
 uintptr_t vms_touch(vmspace_t* restrict vmspace, uintptr_t virt)
@@ -928,8 +1036,8 @@ ssize_t vms_copyin(void* restrict dst, vmspace_t* restrict vmspace, uintptr_t sr
     mutex_acquire(&vmspace->lock);
 
     while(size) {
-        uintptr_t pinned;
-        const uint8_t* page = access_locked(vmspace, src, VPROT_READ, false, &pinned);
+        user_access_t user_access;
+        const uint8_t* page = access_begin_locked(vmspace, src, VPROT_READ, false, &user_access);
 
         if(page == nullptr) {
             mutex_release(&vmspace->lock);
@@ -944,9 +1052,7 @@ ssize_t vms_copyin(void* restrict dst, vmspace_t* restrict vmspace, uintptr_t sr
 
         memcpy(ptr, page, chunk);
 
-        if(pinned) {
-            put_frame(pinned);
-        }
+        access_end(&user_access);
 
         src += chunk;
         ptr += chunk;
@@ -970,11 +1076,11 @@ ssize_t vms_copyin_str(char* restrict dst, vmspace_t* restrict vmspace, uintptr_
     mutex_acquire(&vmspace->lock);
 
     while(remaining) {
-        uintptr_t pinned = 0;
+        user_access_t user_access;
         const char* page = nullptr;
 
         if(src < pmap_user_end(vmspace->pmap)) {
-            page = access_locked(vmspace, src, VPROT_READ, false, &pinned);
+            page = access_begin_locked(vmspace, src, VPROT_READ, false, &user_access);
         }
 
         if(page == nullptr) {
@@ -995,9 +1101,7 @@ ssize_t vms_copyin_str(char* restrict dst, vmspace_t* restrict vmspace, uintptr_
 
             memcpy(ptr, page, len);
 
-            if(pinned) {
-                put_frame(pinned);
-            }
+            access_end(&user_access);
 
             mutex_release(&vmspace->lock);
 
@@ -1006,9 +1110,7 @@ ssize_t vms_copyin_str(char* restrict dst, vmspace_t* restrict vmspace, uintptr_
 
         memcpy(ptr, page, chunk);
 
-        if(pinned) {
-            put_frame(pinned);
-        }
+        access_end(&user_access);
 
         src += chunk;
         ptr += chunk;
@@ -1033,8 +1135,8 @@ ssize_t vms_copyout(vmspace_t* restrict vmspace, uintptr_t dst, const void* rest
     mutex_acquire(&vmspace->lock);
 
     while(size) {
-        uintptr_t pinned;
-        uint8_t* page = access_locked(vmspace, dst, VPROT_WRITE, true, &pinned);
+        user_access_t user_access;
+        uint8_t* page = access_begin_locked(vmspace, dst, VPROT_WRITE, true, &user_access);
 
         if(page == nullptr) {
             mutex_release(&vmspace->lock);
@@ -1049,9 +1151,7 @@ ssize_t vms_copyout(vmspace_t* restrict vmspace, uintptr_t dst, const void* rest
 
         memcpy(page, ptr, chunk);
 
-        if(pinned) {
-            put_frame(pinned);
-        }
+        access_end(&user_access);
 
         dst += chunk;
         ptr += chunk;
