@@ -18,7 +18,9 @@ static_assert(sizeof(devfs_chr_context_t) <= SLAB_MAX_SIZE);
 
 static void devfs_chr_release(vnode_t* restrict node)
 {
-    slab_free(node->ctxdata);
+    devfs_chr_context_t* context = node->ctxdata;
+    chr_device_decref(context->device);
+    slab_free(context);
 }
 
 static ssize_t devfs_chr_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset)
@@ -76,6 +78,8 @@ void devfs_chr_event_handler(unsigned event, const chr_device_t* restrict device
             slab_free(context);
             return;
         }
+
+        chr_device_incref(device); // Dropped by devfs_chr_release
 
         int retval = devfs_insert(ctxdata, device->name, vnode);
 

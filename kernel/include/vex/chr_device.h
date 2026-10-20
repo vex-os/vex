@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vex/atomic.h>
 #include <vex/compiler.h>
 #include <vex/errno.h>
 #include <vex/types.h>
@@ -14,6 +15,8 @@ struct chr_device_ops_s {
     ssize_t (*read)(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size);
     ssize_t (*write)(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size);
     int (*ioctl)(const chr_device_t* restrict device, uint32_t request, uintptr_t argument);
+
+    /// Called once the last reference is gone
     void (*release)(const chr_device_t* restrict device);
 };
 
@@ -21,6 +24,8 @@ struct chr_device_private_s {
     chr_device_t* next;
     chr_name_t* name;
     unsigned name_iterator;
+    unsigned refcount;
+    bool removed;
 };
 
 struct chr_device_s {
@@ -32,7 +37,16 @@ struct chr_device_s {
 
 int chr_device_add(chr_device_t* restrict device, chr_name_t* restrict name);
 int chr_device_add_named(chr_device_t* restrict device, const char* restrict name);
+
+/// Takes the device out of the registry and drops the reference it held there; holders of
+/// other references keep the structure, but their calls fail with -ENODEV from now on
+/// @pre The driver already fails its own calls with -ENODEV and has woken those that sleep;
+/// a call that passed the check here may still reach it
+/// @post The chr layer calls nothing in the driver but release
 int chr_device_remove(chr_device_t* restrict device);
+
+void chr_device_incref(const chr_device_t* restrict device);
+void chr_device_decref(const chr_device_t* restrict device);
 
 const chr_device_t* chr_device_find(const char* restrict name) __nodiscard;
 
@@ -41,6 +55,8 @@ void chr_device_for_each(void (*callback)(const chr_device_t* restrict device, v
 
 static __always_inline ssize_t chr_device_read(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size)
 {
+    if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE))
+        return -ENODEV;
     if(device->ops->read == nullptr)
         return -ENOSYS;
     return device->ops->read(device, offset, buffer, size);
@@ -48,6 +64,8 @@ static __always_inline ssize_t chr_device_read(const chr_device_t* restrict devi
 
 static __always_inline ssize_t chr_device_write(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size)
 {
+    if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE))
+        return -ENODEV;
     if(device->ops->write == nullptr)
         return -ENOSYS;
     return device->ops->write(device, offset, buffer, size);
@@ -55,6 +73,8 @@ static __always_inline ssize_t chr_device_write(const chr_device_t* restrict dev
 
 static __always_inline int chr_device_ioctl(const chr_device_t* restrict device, uint32_t request, uintptr_t argument)
 {
+    if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE))
+        return -ENODEV;
     if(device->ops->ioctl == nullptr)
         return -ENOTTY;
     return device->ops->ioctl(device, request, argument);
