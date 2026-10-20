@@ -89,8 +89,10 @@ struct echfs_vnode_context_s {
 
 extern const vnode_ops_t echfs_vnode_ops;
 
-/// An entry that can't be read looks reserved, which ends any chain through it
+/// @return The block's allocation table entry, or ECHFS_TABLE_RESERVED when the block is past
+/// the end of the volume or its entry can't be read, which ends any chain through it
 uint64_t echfs_block_entry(const echfs_vfs_context_t* restrict context, uintptr_t block) __nodiscard;
+
 uintptr_t echfs_block_alloc(echfs_vfs_context_t* restrict context) __nodiscard;
 void echfs_block_free(echfs_vfs_context_t* restrict context, uintptr_t block);
 void echfs_block_link(echfs_vfs_context_t* restrict context, uintptr_t block, uintptr_t next);

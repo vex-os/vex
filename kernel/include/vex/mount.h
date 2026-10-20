@@ -22,6 +22,7 @@ struct vfs_ops_s {
     /// fs->device is already set, and nullptr for a filesystem without one.
     /// On failure nothing of the filesystem is left behind
     int (*mount)(vfs_t* restrict fs, const blk_device_t* restrict device, const cmdline_t* restrict params);
+
     int (*statvfs)(vfs_t* restrict fs, statvfs_t* restrict out);
 
     /// Fills in a fresh vnode whose fs and ino are set: its type, ctxdata and whatever else the
@@ -31,6 +32,7 @@ struct vfs_ops_s {
     /// Called once the vcache is evicted and no vnode but the root is referenced;
     /// drops the root and frees everything mount set up
     int (*unmount)(vfs_t* restrict fs);
+
     int (*sync)(vfs_t* restrict fs);
 };
 
