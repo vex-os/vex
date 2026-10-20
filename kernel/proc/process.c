@@ -67,6 +67,25 @@ static int grow_fds_locked(struct process* proc, size_t fd)
     return 0;
 }
 
+static void fill_exit_note(struct sigqueue* restrict note, const struct process* restrict child)
+{
+    struct credentials* cred = child->cred;
+
+    struct k_siginfo info = { 0 };
+    info.si_signo = SIGCHLD;
+    info.si_code = CLD_EXITED;
+    info.si_pid = child->pid;
+    info.si_uid = cred->uid;
+    info.si_status = child->exit_code;
+
+    if(child->exit_signal) {
+        info.si_code = CLD_KILLED;
+        info.si_status = child->exit_signal;
+    }
+
+    note->info = info;
+}
+
 static void notify_parent(struct process* restrict proc)
 {
     struct process* parent = process_locate(atomic_load_n(&proc->ppid, ATOMIC_SEQ_CST));
@@ -79,23 +98,8 @@ static void notify_parent(struct process* restrict proc)
 
     // After the event, so a handler's waitpid finds the zombie
     struct sigqueue* note = proc->exit_note;
-    struct credentials* cred = proc->cred;
-
     proc->exit_note = nullptr;
-
-    note->info = (struct k_siginfo) {
-        .si_signo = SIGCHLD,
-        .si_code = CLD_EXITED,
-        .si_pid = proc->pid,
-        .si_uid = cred->uid,
-        .si_status = proc->exit_code,
-    };
-
-    if(proc->exit_signal) {
-        note->info.si_code = CLD_KILLED;
-        note->info.si_status = proc->exit_signal;
-    }
-
+    fill_exit_note(note, proc);
     signal_send_node(parent, note);
 
     process_decref(parent);
@@ -119,14 +123,18 @@ static void reparent_children(struct process* restrict proc)
         spinlock_acquire(&init->lock);
     }
 
-    bool zombie_adopted = false;
+    struct sigqueue* note = nullptr;
     struct process* last = nullptr;
 
     for(struct process* it = proc->children; it; it = it->cnext) {
         atomic_store_n(&it->ppid, init ? INIT_PID : 0, ATOMIC_SEQ_CST);
 
-        if(atomic_load_n(&it->zombie, ATOMIC_SEQ_CST)) {
-            zombie_adopted = true;
+        // A zombie's own SIGCHLD went to this dying process, so init gets one for
+        // it here; SIGCHLDs merge while pending, so the first zombie stands for all
+        if(note == nullptr && atomic_load_n(&it->zombie, ATOMIC_SEQ_CST)) {
+            note = proc->adopt_note;
+            proc->adopt_note = nullptr;
+            fill_exit_note(note, it);
         }
 
         last = it;
@@ -151,8 +159,9 @@ static void reparent_children(struct process* restrict proc)
     spinlock_release_intr(&proc->lock, intr_state);
 
     if(init) {
-        if(zombie_adopted) {
+        if(note) {
             event_trigger(&init->child_exited, true);
+            signal_send_node(init, note);
         }
 
         process_decref(init);
@@ -206,8 +215,10 @@ struct process* process_create(struct process* restrict parent)
 
     proc->sighand = sighand_create(parent_sighand);
     proc->exit_note = slab_alloc(sizeof(struct sigqueue));
+    proc->adopt_note = slab_alloc(sizeof(struct sigqueue));
 
-    if(proc->sighand == nullptr || proc->exit_note == nullptr) {
+    if(proc->sighand == nullptr || proc->exit_note == nullptr || proc->adopt_note == nullptr) {
+        slab_free(proc->adopt_note);
         slab_free(proc->exit_note);
         sighand_destroy(proc->sighand);
         vms_release(proc->vms);
@@ -245,6 +256,7 @@ struct process* process_create(struct process* restrict parent)
 
     if(proc->cwd == nullptr) {
         cred_decref(proc->cred);
+        slab_free(proc->adopt_note);
         slab_free(proc->exit_note);
         sighand_destroy(proc->sighand);
         vms_release(proc->vms);
@@ -314,6 +326,7 @@ void process_decref(struct process* proc)
 
         cred_decref(proc->cred);
         signal_flush(proc->sig_queue);
+        slab_free(proc->adopt_note);
         slab_free(proc->exit_note);
         sighand_destroy(proc->sighand);
         mutex_deinit(&proc->cred_lock);

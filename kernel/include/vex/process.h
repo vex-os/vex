@@ -46,6 +46,7 @@ struct process {
 
     struct sighand* sighand;
     struct sigqueue* exit_note;
+    struct sigqueue* adopt_note;
     sigset_t sig_pending;
     struct sigqueue* sig_queue;
 
