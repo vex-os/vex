@@ -98,9 +98,19 @@ void blk_submit(const blk_device_t* restrict device, blk_request_t* restrict req
 /// @return The request's status
 int blk_submit_wait(const blk_device_t* restrict device, blk_request_t* restrict req);
 
+/// Reads synchronously, in as many requests within the device's limits as the transfer needs
+/// @pre Interrupts are enabled, unless the driver finishes requests before blk_submit returns
 /// @param count Sectors to transfer
-/// @param buffer Kernel memory, split into segments here; blk_write takes the same arguments
+/// @param buffer Any kernel memory; pages the device can't reach by DMA go through a bounce buffer
+/// @retval -ENOMEM No memory for the bounce buffer
 int blk_read(const blk_device_t* restrict device, uintptr_t lba, size_t count, void* restrict buffer);
+
+/// Writes synchronously, in as many requests within the device's limits as the transfer needs
+/// @pre Interrupts are enabled, unless the driver finishes requests before blk_submit returns
+/// @param count Sectors to transfer
+/// @param buffer Any kernel memory; pages the device can't reach by DMA go through a bounce buffer
+/// @retval -ENOMEM No memory for the bounce buffer
 int blk_write(const blk_device_t* restrict device, uintptr_t lba, size_t count, const void* restrict buffer);
+
 int blk_flush(const blk_device_t* restrict device);
 int blk_read_sector_prefix(const blk_device_t* restrict device, uintptr_t lba, void* restrict buffer, size_t size);
