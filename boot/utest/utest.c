@@ -1,4 +1,6 @@
 #include <vex/fcntl.h>
+#include <vex/futex.h>
+#include <vex/signal.h>
 #include <vex/stat.h>
 #include <vex/syscall.h>
 #include <vex/time.h>
@@ -30,6 +32,15 @@ static long syscall4(long num, long a1, long a2, long a3, long a4)
     long ret;
     register long r10 asm("r10") = a4;
     asm volatile("syscall" : "=a"(ret) : "a"(num), "D"(a1), "S"(a2), "d"(a3), "r"(r10) : "rcx", "r11", "memory");
+    return ret;
+}
+
+static long syscall5(long num, long a1, long a2, long a3, long a4, long a5)
+{
+    long ret;
+    register long r10 asm("r10") = a4;
+    register long r8 asm("r8") = a5;
+    asm volatile("syscall" : "=a"(ret) : "a"(num), "D"(a1), "S"(a2), "d"(a3), "r"(r10), "r"(r8) : "rcx", "r11", "memory");
     return ret;
 }
 
@@ -113,11 +124,67 @@ static volatile long worker_tid;
 static volatile long worker_arg;
 static volatile long worker_tcb_word;
 
+static volatile unsigned int join_word;
+
 // The entry sees the stack as if it was called, the return address slot left empty
 static long spawn(void (*entry)(long), long arg)
 {
     long stack_top = (long)(thread_stack + THREAD_STACK_SIZE - 8);
-    return syscall4(__k_SYS_THREAD_CREATE, (long)entry, stack_top, (long)tls_block, arg);
+    return syscall5(__k_SYS_THREAD_CREATE, (long)entry, stack_top, (long)tls_block, arg, 0);
+}
+
+// One joinable thread at a time, they all share thread_stack
+static long spawn_joinable(void (*entry)(long), long arg)
+{
+    long stack_top = (long)(thread_stack + THREAD_STACK_SIZE - 8);
+    join_word = 1;
+    return syscall5(__k_SYS_THREAD_CREATE, (long)entry, stack_top, (long)tls_block, arg, (long)&join_word);
+}
+
+static void join(void)
+{
+    while(join_word) {
+        syscall4(__k_SYS_FUTEX_WAIT, (long)&join_word, 1, 0, 0);
+    }
+}
+
+#define PINGPONG_ROUNDS 1000
+
+static volatile unsigned int turn;
+static volatile long pongs;
+static volatile unsigned int never_changes;
+static volatile long interrupted_result;
+
+static void __attribute__((noreturn)) ponger(long arg)
+{
+    for(long i = 0; i < arg; ++i) {
+        while(turn == 0) {
+            syscall4(__k_SYS_FUTEX_WAIT, (long)&turn, 0, 0, 0);
+        }
+
+        pongs += 1;
+        turn = 0;
+        syscall3(__k_SYS_FUTEX_WAKE, (long)&turn, 1, 0);
+    }
+
+    syscall1(__k_SYS_THREAD_EXIT, 0);
+    __builtin_unreachable();
+}
+
+static void __attribute__((noreturn)) sleeper(long arg)
+{
+    interrupted_result = syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 0, 0, 0);
+    syscall1(__k_SYS_THREAD_EXIT, 0);
+    __builtin_unreachable();
+}
+
+static void on_signal(int sig)
+{
+}
+
+static void __attribute__((naked)) signal_restorer(void)
+{
+    asm volatile("movq %0, %%rax\n\tsyscall" ::"i"(__k_SYS_SIGRETURN));
 }
 
 static void __attribute__((noreturn)) worker(long arg)
@@ -310,7 +377,57 @@ int main(void)
     printnumber(worker_arg);        // should print 42
     printnumber(worker_tcb_word);   // should print 2748 (0xabc)
 
-    printnumber(syscall4(__k_SYS_THREAD_CREATE, -4096L, (long)(thread_stack + THREAD_STACK_SIZE), 0, 0)); // should print -226 (EINVAL)
+    printnumber(syscall5(__k_SYS_THREAD_CREATE, -4096L, (long)(thread_stack + THREAD_STACK_SIZE), 0, 0, 0)); // should print -226 (EINVAL)
+
+    // futex: argument checks and timeouts
+    struct __k_timespec timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_nsec = 10000000;
+    printnumber(syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 1, 0, 0));                // should print -206 (EAGAIN)
+    printnumber(syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 0, (long)&timeout, 0));   // should print -273 (ETIMEDOUT)
+    printnumber(syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes + 1, 0, 0, 0));            // should print -226 (EINVAL)
+    printnumber(syscall4(__k_SYS_FUTEX_WAIT, -4096L, 0, 0, 0));                              // should print -220 (EFAULT)
+    printnumber(syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 0, 0, __k_FUTEX_SHARED)); // should print -253 (ENOSYS)
+    printnumber(syscall3(__k_SYS_FUTEX_WAKE, (long)&never_changes, 1, 0));                   // should print 0
+    timeout.tv_nsec = 0;
+    printnumber(syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 0, (long)&timeout, 0)); // should print -273 (ETIMEDOUT)
+
+    // futex: two threads hand a turn back and forth, then the second is joined through clear_tid
+    spawn_joinable(&ponger, PINGPONG_ROUNDS);
+
+    for(long i = 0; i < PINGPONG_ROUNDS; ++i) {
+        turn = 1;
+        syscall3(__k_SYS_FUTEX_WAKE, (long)&turn, 1, 0);
+
+        while(turn == 1) {
+            syscall4(__k_SYS_FUTEX_WAIT, (long)&turn, 1, 0, 0);
+        }
+    }
+
+    join();
+    printnumber(pongs);     // should print 1000
+    printnumber(join_word); // should print 0
+
+    // futex: a signal interrupts a wait, the main thread keeps it blocked so the sleeper takes it
+    struct __k_sigaction action;
+    action.sa_handler = &on_signal;
+    action.sa_flags = __k_SA_RESTORER;
+    action.sa_restorer = &signal_restorer;
+    action.sa_mask = 0;
+    syscall3(__k_SYS_SIGACTION, __k_SIGUSR1, (long)&action, 0);
+
+    spawn_joinable(&sleeper, 0);
+
+    __k_sigset_t blocked = 1UL << (__k_SIGUSR1 - 1);
+    syscall3(__k_SYS_SIGPROCMASK, __k_SIG_BLOCK, (long)&blocked, 0);
+
+    // Sent until it lands, a signal handled before the wait began would leave the sleeper asleep
+    while(join_word) {
+        syscall2(__k_SYS_KILL, pid, __k_SIGUSR1);
+        syscall1(__k_SYS_YIELD, 0);
+    }
+
+    printnumber(interrupted_result); // should print -225 (EINTR)
 
     // The process outlives its main thread, and the last thread out sets the exit code
     long child = syscall1(__k_SYS_FORK, 0);

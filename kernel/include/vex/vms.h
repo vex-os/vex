@@ -52,6 +52,8 @@ int vms_clone(vmspace_t* restrict vmspace, vmspace_t* restrict source);
 
 int vms_fault(vmspace_t* restrict vmspace, uintptr_t virt, unsigned access);
 uintptr_t vms_touch(vmspace_t* restrict vmspace, uintptr_t virt) __nodiscard;
+uintptr_t vms_pin(vmspace_t* restrict vmspace, uintptr_t virt) __nodiscard;
+void vms_unpin(uintptr_t phys);
 
 ssize_t vms_copyin(void* restrict dst, vmspace_t* restrict vmspace, uintptr_t src, size_t size);
 ssize_t vms_copyin_str(char* restrict dst, vmspace_t* restrict vmspace, uintptr_t src, size_t max_sz);

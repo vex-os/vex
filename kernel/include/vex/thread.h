@@ -76,6 +76,7 @@ struct thread_s {
     pending_signal_t* sig_queue;
     uintptr_t sig_altstack;
     uint32_t sig_altstack_size;
+    uintptr_t clear_tid; // Zeroed and woken as a futex when the thread exits
     void* kstack_top;
 
     arch_thread_t arch;

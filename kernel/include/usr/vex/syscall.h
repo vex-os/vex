@@ -70,5 +70,7 @@
 #define __k_SYS_THREAD_CREATE 67
 #define __k_SYS_THREAD_EXIT   68
 #define __k_SYS_GETTID        69
+#define __k_SYS_FUTEX_WAIT    70
+#define __k_SYS_FUTEX_WAKE    71
 
 #endif /* USR_VEX_SYSCALL_H */

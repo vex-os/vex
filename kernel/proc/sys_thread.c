@@ -1,9 +1,11 @@
 #include <vex/errno.h>
+#include <vex/futex.h>
 #include <vex/pmap.h>
 #include <vex/process.h>
 #include <vex/sched.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
+#include <vex/uaccess.h>
 #include <vex/vms.h>
 
 static intptr_t sys_tcb_set(const uintptr_t* restrict args)
@@ -37,7 +39,11 @@ static intptr_t sys_thread_create(const uintptr_t* restrict args)
 
     uintptr_t user_end = pmap_user_end(process->vmspace->pmap);
 
-    if(args[0] >= user_end || args[1] >= user_end || args[2] >= user_end) {
+    if(args[0] >= user_end || args[1] >= user_end || args[2] >= user_end || args[4] >= user_end) {
+        return -EINVAL;
+    }
+
+    if(args[4] % sizeof(uint32_t)) {
         return -EINVAL;
     }
 
@@ -46,6 +52,8 @@ static intptr_t sys_thread_create(const uintptr_t* restrict args)
     if(created == nullptr) {
         return -ENOMEM;
     }
+
+    created->clear_tid = args[4];
 
     pid_t tid = created->tid; // The thread may be gone by the time sched_enqueue returns
 
@@ -59,9 +67,20 @@ define_syscall(sys_thread_create, SYS_THREAD_CREATE);
 static intptr_t __noreturn sys_thread_exit(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(thread->process) {
-        process_thread_exit(thread->process, thread);
+    // A joiner may free the stack as soon as it sees the word cleared,
+    // which is fine: nothing from here on touches user memory
+    if(process && thread->clear_tid) {
+        uint32_t cleared = 0;
+
+        if(user_copyout(thread->clear_tid, &cleared, sizeof(cleared)) >= 0) {
+            futex_wake(process->vmspace, thread->clear_tid, SIZE_MAX);
+        }
+    }
+
+    if(process) {
+        process_thread_exit(process, thread);
     }
 
     sched_terminate();

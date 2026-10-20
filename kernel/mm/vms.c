@@ -794,6 +794,37 @@ uintptr_t vms_touch(vmspace_t* restrict vmspace, uintptr_t virt)
     return phys;
 }
 
+// A private page is made the process's own first, so the frame stays the
+// one mapped at virt instead of a copy-on-write original a write moves off
+uintptr_t vms_pin(vmspace_t* restrict vmspace, uintptr_t virt)
+{
+    if(virt >= pmap_user_end(vmspace->pmap)) {
+        return 0;
+    }
+
+    mutex_acquire(&vmspace->lock);
+
+    vm_region_t* region = find_region(vmspace, virt);
+    uintptr_t phys = 0;
+
+    if(region) {
+        phys = pin_locked(vmspace, virt, VPROT_READ, !region->shared);
+    }
+
+    mutex_release(&vmspace->lock);
+
+    if(phys) {
+        phys += page_offset(virt);
+    }
+
+    return phys;
+}
+
+void vms_unpin(uintptr_t phys)
+{
+    put_frame(page_align(phys));
+}
+
 ssize_t vms_copyin(void* restrict dst, vmspace_t* restrict vmspace, uintptr_t src, size_t size)
 {
     uint8_t* ptr = dst;
