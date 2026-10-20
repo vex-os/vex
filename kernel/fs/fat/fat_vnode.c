@@ -1118,8 +1118,12 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
         return retval;
     }
 
-    struct fat_timestamp written = { .date = dirent.base.write_date, .time = dirent.base.write_time };
-    struct fat_timestamp accessed = { .date = dirent.base.access_date };
+    struct fat_timestamp written = { 0 };
+    written.date = dirent.base.write_date;
+    written.time = dirent.base.write_time;
+
+    struct fat_timestamp accessed = { 0 };
+    accessed.date = dirent.base.access_date;
 
     fat_time_unpack(&written, &out->st_mtim);
     fat_time_unpack(&accessed, &out->st_atim);

@@ -148,12 +148,11 @@ static int transfer(const struct blk_device* restrict device, unsigned op, uintp
         size_t bytes = chunk * sector_size;
 
         struct blk_segment segments[BLK_MAX_SEGMENTS];
-        struct blk_request req = {
-            .op = op,
-            .lba = lba,
-            .length = bytes,
-            .segments = segments,
-        };
+        struct blk_request req = { 0 };
+        req.op = op;
+        req.lba = lba;
+        req.length = bytes;
+        req.segments = segments;
 
         bool direct = map_segments(device, buffer, bytes, segments, &req.num_segments);
 
@@ -246,6 +245,7 @@ int blk_write(const struct blk_device* restrict device, uintptr_t lba, size_t co
 
 int blk_flush(const struct blk_device* restrict device)
 {
-    struct blk_request req = { .op = BLK_REQ_FLUSH };
+    struct blk_request req = { 0 };
+    req.op = BLK_REQ_FLUSH;
     return blk_submit_wait(device, &req);
 }

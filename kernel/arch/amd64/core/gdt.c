@@ -85,10 +85,9 @@ static void write_gdt(struct amd64_gdt* restrict gdt, const struct amd64_hart_ts
 
 static void load_gdt(const struct amd64_gdt* restrict gdt)
 {
-    struct gdt_register gdtr = {
-        .size = sizeof(struct amd64_gdt) - 1,
-        .offset = (uintptr_t)(gdt),
-    };
+    struct gdt_register gdtr;
+    gdtr.size = sizeof(struct amd64_gdt) - 1;
+    gdtr.offset = (uintptr_t)(gdt);
 
     asm volatile("lgdtq %[gdtr]\n\t"
                  "pushq %[code]\n\t"

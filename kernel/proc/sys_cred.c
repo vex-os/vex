@@ -202,13 +202,12 @@ static intptr_t sys_capget(const uintptr_t* restrict args)
 
     const struct credentials* cred = thrd->cred;
 
-    struct k_caps caps = {
-        .effective = cred->cap_effective,
-        .permitted = cred->cap_permitted,
-        .ambient = cred->cap_ambient,
-        .bounding = cred->cap_bounding,
-        .flags = cred->cap_flags,
-    };
+    struct k_caps caps = { 0 };
+    caps.effective = cred->cap_effective;
+    caps.permitted = cred->cap_permitted;
+    caps.ambient = cred->cap_ambient;
+    caps.bounding = cred->cap_bounding;
+    caps.flags = cred->cap_flags;
 
     ssize_t copied = user_copyout(args[0], &caps, sizeof(caps));
 

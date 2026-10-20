@@ -547,7 +547,11 @@ static int change_block(struct vnode* restrict node, uint8_t index, const char* 
         return -ENOMEM;
     }
 
-    struct ext2_region region = { buffer, buffer + sizeof(struct ext2_xattr_header), buffer + fs_ctx->block_size };
+    struct ext2_region region;
+    region.base = buffer;
+    region.first = buffer + sizeof(struct ext2_xattr_header);
+    region.end = buffer + fs_ctx->block_size;
+
     struct ext2_xattr_header* header = (struct ext2_xattr_header*)(buffer);
     uint32_t refcount = 0;
     int retval = 0;
@@ -615,7 +619,11 @@ static int remove_from_ibody(struct vnode* restrict node, uint8_t index, const c
         return -ENOMEM;
     }
 
-    struct ext2_region region = { buffer, buffer, buffer + length };
+    struct ext2_region region;
+    region.base = buffer;
+    region.first = buffer;
+    region.end = buffer + length;
+
     retval = fcache_dev_read(fs_ctx->devnode, area.first, buffer, length);
 
     uint8_t* last;

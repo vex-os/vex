@@ -104,7 +104,7 @@ int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restric
         return -EFAULT;
     }
 
-    struct sigframe frame = {};
+    struct sigframe frame = { 0 };
     frame.restorer = restorer;
     frame.uc.uc_flags = UC_FPU;
     frame.uc.uc_stack.ss_sp = (void*)(thrd->sig_altstack);

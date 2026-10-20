@@ -140,12 +140,11 @@ static intptr_t sys_mmap(const uintptr_t* restrict args)
         retval = fp->node->fs->readonly ? -EROFS : -EACCES;
     }
     else {
-        struct vm_backing backing = {
-            .node = fp->node,
-            .pgoff = offset / PAGE_SIZE,
-            .shared = shared,
-            .may_write = may_write,
-        };
+        struct vm_backing backing;
+        backing.node = fp->node;
+        backing.pgoff = offset / PAGE_SIZE;
+        backing.shared = shared;
+        backing.may_write = may_write;
 
         retval = place_mapping(proc->vms, addr, length, flags, vprot, &backing);
     }

@@ -419,7 +419,9 @@ static int ahci_identify(struct ahci_port* restrict port, ata_identify_type iden
 {
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
 
-    struct blk_segment segment = { port->dma_phys + DMA_OFFSET_DATABUF, sizeof(ata_identify_type) };
+    struct blk_segment segment;
+    segment.phys = port->dma_phys + DMA_OFFSET_DATABUF;
+    segment.length = sizeof(ata_identify_type);
 
     memset((void*)databuf, 0, sizeof(ata_identify_type));
 
@@ -440,9 +442,11 @@ static int ahci_atapi_identify(struct ahci_port* restrict port, ata_identify_typ
 {
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
 
-    struct blk_segment segment = { port->dma_phys + DMA_OFFSET_DATABUF, sizeof(ata_identify_type) };
+    struct blk_segment segment;
+    segment.phys = port->dma_phys + DMA_OFFSET_DATABUF;
+    segment.length = sizeof(ata_identify_type);
 
-    memset((void*)databuf, 0, sizeof(ata_identify_type));
+    memset((void*)(databuf), 0, sizeof(ata_identify_type));
 
     ahci_setup(port, 0, ATA_CMD_IDENTIFY_ATAPI, 0, &segment, 1, false);
 
@@ -486,7 +490,10 @@ static int ahci_atapi_capacity(struct ahci_port* restrict port, size_t* restrict
     cdb[0] = ATAPI_CMD_READ_CAPACITY_10;
 
     uint8_t result[8];
-    struct blk_segment segment = { port->dma_phys + DMA_OFFSET_DATABUF, sizeof(result) };
+
+    struct blk_segment segment;
+    segment.phys = port->dma_phys + DMA_OFFSET_DATABUF;
+    segment.length = sizeof(result);
 
     memset((void*)databuf, 0, sizeof(result));
 

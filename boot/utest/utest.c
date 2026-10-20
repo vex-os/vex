@@ -214,7 +214,9 @@ int main(void)
     syscall2(__k_SYS_GETTIME, __k_CLOCK_MONOTONIC, (long)&now);
     printnumber(now.tv_sec); // should print a few seconds of uptime
 
-    struct __k_timespec date = { .tv_sec = 1000000000, .tv_nsec = 0 };
+    struct __k_timespec date;
+    date.tv_sec = 1000000000;
+    date.tv_nsec = 0;
     printnumber(syscall2(__k_SYS_SETTIME, __k_CLOCK_MONOTONIC, (long)&date)); // should print -226 (EINVAL)
     printnumber(syscall2(__k_SYS_SETTIME, __k_CLOCK_REALTIME, (long)&date));  // should print 0
     syscall2(__k_SYS_GETTIME, __k_CLOCK_REALTIME, (long)&now);

@@ -35,10 +35,9 @@ static void step_to(const struct k_timespec* restrict time)
     struct k_timespec monotonic;
     timespec_from_nsec(&monotonic, clocksrc_nsec());
 
-    struct k_timespec offset = {
-        .tv_sec = time->tv_sec - monotonic.tv_sec,
-        .tv_nsec = time->tv_nsec - monotonic.tv_nsec,
-    };
+    struct k_timespec offset;
+    offset.tv_sec = time->tv_sec - monotonic.tv_sec;
+    offset.tv_nsec = time->tv_nsec - monotonic.tv_nsec;
 
     if(offset.tv_nsec < 0) {
         offset.tv_nsec += NSEC_PER_SEC;
@@ -146,7 +145,10 @@ static void init_wallclock(void)
     bool rtc_valid = 0 == arch_rtc_read(&rtc_seconds) && seconds_valid(rtc_seconds);
 
     if(response && seconds_valid(response->timestamp)) {
-        struct k_timespec offset = { .tv_sec = response->timestamp, .tv_nsec = 0 };
+        struct k_timespec offset;
+        offset.tv_sec = response->timestamp;
+        offset.tv_nsec = 0;
+
         store_offset(&offset);
 
         inform_date("date at boot is", (time_t)(response->timestamp));
@@ -159,7 +161,9 @@ static void init_wallclock(void)
     }
 
     if(rtc_valid) {
-        struct k_timespec now = { .tv_sec = rtc_seconds, .tv_nsec = 0 };
+        struct k_timespec now;
+        now.tv_sec = rtc_seconds;
+        now.tv_nsec = 0;
         step_to(&now);
 
         inform_date("no date at boot, the RTC says", rtc_seconds);

@@ -161,8 +161,11 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
             panic("ioapic: out of memory");
         }
 
+        struct rte_entry masked = { 0 };
+        masked.masked = 1;
+
         for(uint8_t i = 0; i < controller->gsi_count; ++i) {
-            ioapic_set_rte(data, i, (struct rte_entry) { .masked = 1 });
+            ioapic_set_rte(data, i, masked);
         }
 
         int retval = add_intctl(controller);

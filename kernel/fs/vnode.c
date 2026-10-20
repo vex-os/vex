@@ -429,7 +429,8 @@ static void touch_atime(struct vnode* restrict target)
         return;
     }
 
-    struct vattr attr = { .mask = VATTR_ATIME };
+    struct vattr attr = { 0 };
+    attr.mask = VATTR_ATIME;
     wallclock_get(&attr.atime);
 
     if(atime_due(target, &attr.atime)) {
@@ -1005,7 +1006,9 @@ int vnode_chmod(struct vnode* restrict node, const struct credentials* restrict 
         return -EPERM;
     }
 
-    struct vattr attr = { .mask = VATTR_MODE, .mode = mode & (S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO) };
+    struct vattr attr = { 0 };
+    attr.mask = VATTR_MODE;
+    attr.mode = mode & (S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
 
     // Otherwise anyone could hand out a group they are not in
     if(!cred_in_group(cred, st.st_gid) && !cred_capable(cred, CAP_FSETID)) {
@@ -1140,7 +1143,9 @@ int vnode_remove_privs(struct vnode* restrict node, const struct credentials* re
     bool mode_clear = stripped == (st.st_mode & ~S_IFMT);
 
     if(!mode_clear && !cred_capable(cred, CAP_FSETID)) {
-        struct vattr attr = { .mask = VATTR_MODE, .mode = stripped };
+        struct vattr attr = { 0 };
+        attr.mask = VATTR_MODE;
+        attr.mode = stripped;
         retval = vnode_setattr(node, &attr);
     }
 

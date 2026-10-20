@@ -54,7 +54,12 @@ static intptr_t sys_kill(const uintptr_t* restrict args)
         retval = 0;
 
         if(sig) {
-            struct k_siginfo info = { .si_signo = sig, .si_code = SI_USER, .si_pid = sender->pid, .si_uid = thrd->cred->uid };
+            struct k_siginfo info = { 0 };
+            info.si_signo = sig;
+            info.si_code = SI_USER;
+            info.si_pid = sender->pid;
+            info.si_uid = thrd->cred->uid;
+
             retval = signal_send(target, nullptr, &info);
         }
     }
@@ -213,14 +218,15 @@ static intptr_t sys_sigaltstack(const uintptr_t* restrict args)
     struct hart_context* ctx = thrd->syscall_ctx;
     bool on_altstack = signal_on_altstack(thrd, ctx->syscall_sp);
 
-    struct k_stack old = {
-        .ss_sp = (void*)(thrd->sig_altstack),
-        .ss_size = thrd->sig_altstack_size,
-        .ss_flags = on_altstack ? SS_ONSTACK : 0,
-    };
+    struct k_stack old = { 0 };
+    old.ss_sp = (void*)(thrd->sig_altstack);
+    old.ss_size = thrd->sig_altstack_size;
 
     if(thrd->sig_altstack_size == 0) {
         old.ss_flags = SS_DISABLE;
+    }
+    else if(on_altstack) {
+        old.ss_flags = SS_ONSTACK;
     }
 
     if(user_ss) {

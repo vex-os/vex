@@ -160,12 +160,11 @@ static int map_segment(struct vmspace* restrict vms, struct file* restrict fp, c
     }
 
     if(map_start < file_end) {
-        struct vm_backing backing = {
-            .node = fp->node,
-            .pgoff = (page_align(phdr->p_offset) + map_start - seg_start) / PAGE_SIZE,
-            .shared = false,
-            .may_write = true,
-        };
+        struct vm_backing backing;
+        backing.node = fp->node;
+        backing.pgoff = (page_align(phdr->p_offset) + map_start - seg_start) / PAGE_SIZE;
+        backing.shared = false;
+        backing.may_write = true;
 
         int retval = vms_map(vms, map_start, file_end, vprot, &backing);
 

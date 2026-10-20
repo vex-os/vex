@@ -316,7 +316,9 @@ void signal_deliver(struct hart_context* restrict ctx)
 
     spinlock_release_intr(&sighand->lock, intr_state);
 
-    struct k_siginfo info = { .si_signo = sig, .si_code = SI_KERNEL };
+    struct k_siginfo info = { 0 };
+    info.si_signo = sig;
+    info.si_code = SI_KERNEL;
 
     if(node) {
         info = node->info;

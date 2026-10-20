@@ -87,7 +87,10 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
     int retval = vms_fault(proc->vms, fault, access);
 
     if(retval < 0) {
-        struct k_siginfo info = { .si_signo = SIGSEGV, .si_code = SEGV_MAPERR, .si_addr = (void*)(fault) };
+        struct k_siginfo info = { 0 };
+        info.si_signo = SIGSEGV;
+        info.si_code = SEGV_MAPERR;
+        info.si_addr = (void*)(fault);
 
         if(retval == -EACCES) {
             info.si_code = SEGV_ACCERR;
@@ -250,7 +253,7 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
             unreachable();
         }
 
-        struct k_siginfo info = {};
+        struct k_siginfo info = { 0 };
         user_exception_info(intvec, ctx, &info);
         signal_force(thrd, &info);
 

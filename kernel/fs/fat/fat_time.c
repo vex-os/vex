@@ -39,14 +39,13 @@ void fat_time_unpack(const struct fat_timestamp* restrict stamp, struct k_timesp
     uint16_t date = le16toh(stamp->date);
     uint16_t time = le16toh(stamp->time);
 
-    struct calendar_time calendar = {
-        .year = FAT_YEAR_BASE + (date >> 9),
-        .month = (date >> 5) & 0x0F,
-        .day = date & 0x1F,
-        .hour = time >> 11,
-        .minute = (time >> 5) & 0x3F,
-        .second = (time & 0x1F) * 2,
-    };
+    struct calendar_time calendar;
+    calendar.year = FAT_YEAR_BASE + (date >> 9);
+    calendar.month = (date >> 5) & 0x0F;
+    calendar.day = date & 0x1F;
+    calendar.hour = time >> 11;
+    calendar.minute = (time >> 5) & 0x3F;
+    calendar.second = (time & 0x1F) * 2;
 
     out->tv_sec = 0;
     out->tv_nsec = 0;

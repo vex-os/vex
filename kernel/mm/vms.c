@@ -685,12 +685,11 @@ int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem)
     struct vm_region** tail = &vms->regions;
 
     for(const struct vm_region* it = stem->regions; it; it = it->next) {
-        struct vm_backing backing = {
-            .node = it->node,
-            .pgoff = it->pgoff,
-            .shared = it->shared,
-            .may_write = it->may_write,
-        };
+        struct vm_backing backing;
+        backing.node = it->node;
+        backing.pgoff = it->pgoff;
+        backing.shared = it->shared;
+        backing.may_write = it->may_write;
 
         struct vm_region* region = alloc_region(it->start, it->end, it->vprot, &backing);
 

@@ -158,14 +158,13 @@ int arch_rtc_read(time_t* restrict out)
     bool binary = status_b & RTC_B_BINARY;
     bool pm = 0 == (status_b & RTC_B_24HOUR) && (fields.hour & RTC_HOUR_PM);
 
-    struct calendar_time calendar = {
-        .second = decode(fields.second, binary),
-        .minute = decode(fields.minute, binary),
-        .hour = decode(fields.hour & ~RTC_HOUR_PM, binary),
-        .day = decode(fields.day, binary),
-        .month = decode(fields.month, binary),
-        .year = decode(fields.year, binary),
-    };
+    struct calendar_time calendar;
+    calendar.second = decode(fields.second, binary);
+    calendar.minute = decode(fields.minute, binary);
+    calendar.hour = decode(fields.hour & ~RTC_HOUR_PM, binary);
+    calendar.day = decode(fields.day, binary);
+    calendar.month = decode(fields.month, binary);
+    calendar.year = decode(fields.year, binary);
 
     if(0 == (status_b & RTC_B_24HOUR)) {
         calendar.hour %= 12;

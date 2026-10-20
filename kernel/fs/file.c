@@ -46,7 +46,9 @@ int file_open_node(struct vnode* restrict node, unsigned flags, const struct cre
     }
 
     if((flags & O_TRUNC) && node->nodetype == VNODE_FILE) {
-        struct vattr attr = { .mask = VATTR_SIZE, .size = 0 };
+        struct vattr attr = { 0 };
+        attr.mask = VATTR_SIZE;
+        attr.size = 0;
         retval = vnode_remove_privs(node, cred);
 
         if(retval == 0) {
@@ -238,7 +240,9 @@ int file_truncate(struct file* restrict fp, const struct credentials* restrict c
         return retval;
     }
 
-    struct vattr attr = { .mask = VATTR_SIZE, .size = size };
+    struct vattr attr = { 0 };
+    attr.mask = VATTR_SIZE;
+    attr.size = size;
     return vnode_setattr(fp->node, &attr);
 }
 
