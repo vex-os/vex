@@ -418,7 +418,7 @@ static int ext2_statvfs(vfs_t* restrict fs, statvfs_t* restrict out)
     return 0;
 }
 
-static int ext2_fillnode(vfs_t* restrict fs, vnode_t* restrict node)
+static int ext2_fill_node(vfs_t* restrict fs, vnode_t* restrict node)
 {
     ext2_vfs_context_t* context = fs->ctxdata;
 
@@ -479,7 +479,7 @@ static const vfs_ops_t ext2_vfs_ops = {
     .probe = &ext2_probe,
     .mount = &ext2_mount,
     .statvfs = &ext2_statvfs,
-    .fillnode = &ext2_fillnode,
+    .fill_node = &ext2_fill_node,
     .unmount = &ext2_unmount,
     .sync = &ext2_sync,
 };

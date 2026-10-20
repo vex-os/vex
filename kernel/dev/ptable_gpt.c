@@ -200,7 +200,8 @@ static int gpt_detect(const blk_device_t* restrict device, void** restrict ptdat
     return 0;
 }
 
-static int gpt_readpt(const blk_device_t* restrict device, void* restrict ptdata, unsigned index, blk_partition_table_info_t* restrict out)
+static int gpt_read_table(const blk_device_t* restrict device, void* restrict ptdata, unsigned index,
+    blk_partition_table_info_t* restrict out)
 {
     static const uint8_t null_guid[16] = { 0 }; // FIXME: a GUID library would be nice
 
@@ -256,7 +257,7 @@ static void gpt_release(void* ptdata)
 
 static const blk_partition_table_ops_t gpt_ptable_ops = {
     .detect = &gpt_detect,
-    .readpt = &gpt_readpt,
+    .read_table = &gpt_read_table,
     .release = &gpt_release,
 };
 

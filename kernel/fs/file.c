@@ -52,7 +52,7 @@ int file_open_node(vnode_t* restrict node, unsigned flags, const credentials_t* 
         retval = vnode_remove_privs(node, credentials);
 
         if(retval == 0) {
-            retval = vnode_setattr(node, &attr);
+            retval = vnode_set_attr(node, &attr);
         }
 
         if(retval < 0) {
@@ -252,7 +252,7 @@ int file_truncate(file_t* restrict file, const credentials_t* restrict credentia
     vnode_attr_t attr = { 0 };
     attr.mask = VATTR_SIZE;
     attr.size = size;
-    return vnode_setattr(file->node, &attr);
+    return vnode_set_attr(file->node, &attr);
 }
 
 int file_seek(file_t* restrict file, off_t offset, int origin)

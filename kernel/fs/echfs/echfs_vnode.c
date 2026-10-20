@@ -742,7 +742,7 @@ static int resize_locked(vnode_t* restrict node, off_t size)
     return shrink_locked(node, size);
 }
 
-static int setattr_locked(vnode_t* restrict node, const vnode_attr_t* restrict attr)
+static int set_attr_locked(vnode_t* restrict node, const vnode_attr_t* restrict attr)
 {
     echfs_vnode_context_t* ctx = node->ctxdata;
 
@@ -916,10 +916,10 @@ static int echfs_vnode_stat(vnode_t* restrict node, stat_t* restrict out)
     return retval;
 }
 
-static int echfs_vnode_setattr(vnode_t* restrict node, const vnode_attr_t* restrict attr)
+static int echfs_vnode_set_attr(vnode_t* restrict node, const vnode_attr_t* restrict attr)
 {
     mutex_acquire(fs_lock(node));
-    int retval = setattr_locked(node, attr);
+    int retval = set_attr_locked(node, attr);
     mutex_release(fs_lock(node));
     return retval;
 }
@@ -934,7 +934,7 @@ const vnode_ops_t echfs_vnode_ops = {
     .read = &echfs_vnode_read,
     .write = &echfs_vnode_write,
     .stat = &echfs_vnode_stat,
-    .setattr = &echfs_vnode_setattr,
+    .set_attr = &echfs_vnode_set_attr,
     .fsync = &echfs_vnode_fsync,
     .map_page = &echfs_vnode_map_page,
 };

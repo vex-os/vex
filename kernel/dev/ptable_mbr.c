@@ -76,7 +76,8 @@ static int mbr_detect(const blk_device_t* restrict device, void** restrict ptdat
     return -EINVAL;
 }
 
-static int mbr_readpt(const blk_device_t* restrict device, void* restrict ptdata, unsigned index, blk_partition_table_info_t* restrict out)
+static int mbr_read_table(const blk_device_t* restrict device, void* restrict ptdata, unsigned index,
+    blk_partition_table_info_t* restrict out)
 {
     const mbr_sector_t* mbr = ptdata;
 
@@ -118,7 +119,7 @@ static void mbr_release(void* restrict ptdata)
 
 static const blk_partition_table_ops_t mbr_ops = {
     .detect = &mbr_detect,
-    .readpt = &mbr_readpt,
+    .read_table = &mbr_read_table,
     .release = &mbr_release,
 };
 

@@ -20,7 +20,7 @@ struct blk_partition_table_info_s {
 
 struct blk_partition_table_ops_s {
     int (*detect)(const blk_device_t* restrict device, void** restrict ptdata);
-    int (*readpt)(const blk_device_t* restrict device, void* restrict ptdata, unsigned index, blk_partition_table_info_t* restrict out);
+    int (*read_table)(const blk_device_t* restrict device, void* restrict ptdata, unsigned index, blk_partition_table_info_t* restrict out);
     void (*release)(void* restrict ptdata);
 };
 

@@ -278,7 +278,7 @@ static int statvfs_locked(vfs_t* restrict fs, statvfs_t* restrict out)
     return 0;
 }
 
-static int fillnode_locked(vfs_t* restrict fs, vnode_t* restrict node)
+static int fill_node_locked(vfs_t* restrict fs, vnode_t* restrict node)
 {
     fat_vfs_context_t* context = fs->ctxdata;
 
@@ -368,11 +368,11 @@ static int fat_statvfs(vfs_t* restrict fs, statvfs_t* restrict out)
     return retval;
 }
 
-static int fat_fillnode(vfs_t* restrict fs, vnode_t* restrict node)
+static int fat_fill_node(vfs_t* restrict fs, vnode_t* restrict node)
 {
     fat_vfs_context_t* context = fs->ctxdata;
     mutex_acquire(&context->lock);
-    int retval = fillnode_locked(fs, node);
+    int retval = fill_node_locked(fs, node);
     mutex_release(&context->lock);
     return retval;
 }
@@ -387,7 +387,7 @@ static const vfs_ops_t fat_vfs_ops = {
     .probe = &fat_probe,
     .mount = &fat_mount,
     .statvfs = &fat_statvfs,
-    .fillnode = &fat_fillnode,
+    .fill_node = &fat_fill_node,
     .unmount = &fat_unmount,
     .sync = &fat_sync,
 };

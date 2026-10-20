@@ -169,7 +169,7 @@ static int statvfs_locked(vfs_t* restrict fs, statvfs_t* restrict out)
     return 0;
 }
 
-static int fillnode_locked(vfs_t* restrict fs, vnode_t* restrict node)
+static int fill_node_locked(vfs_t* restrict fs, vnode_t* restrict node)
 {
     echfs_vfs_context_t* context = fs->ctxdata;
 
@@ -237,11 +237,11 @@ static int echfs_statvfs(vfs_t* restrict fs, statvfs_t* restrict out)
     return retval;
 }
 
-static int echfs_fillnode(vfs_t* restrict fs, vnode_t* restrict node)
+static int echfs_fill_node(vfs_t* restrict fs, vnode_t* restrict node)
 {
     echfs_vfs_context_t* context = fs->ctxdata;
     mutex_acquire(&context->lock);
-    int retval = fillnode_locked(fs, node);
+    int retval = fill_node_locked(fs, node);
     mutex_release(&context->lock);
     return retval;
 }
@@ -256,7 +256,7 @@ static const vfs_ops_t echfs_vfs_ops = {
     .probe = &echfs_probe,
     .mount = &echfs_mount,
     .statvfs = &echfs_statvfs,
-    .fillnode = &echfs_fillnode,
+    .fill_node = &echfs_fill_node,
     .unmount = &echfs_unmount,
     .sync = &echfs_sync,
 };

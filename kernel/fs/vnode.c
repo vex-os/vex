@@ -92,8 +92,8 @@ static int lookup_crossed(vnode_t* restrict node, const char* restrict name, vno
         return -ENOMEM;
     }
 
-    if(node->fs->ops->fillnode) {
-        retval = node->fs->ops->fillnode(node->fs, result);
+    if(node->fs->ops->fill_node) {
+        retval = node->fs->ops->fill_node(node->fs, result);
 
         if(retval < 0) {
             slab_free(result);
@@ -426,7 +426,7 @@ static bool atime_due(vnode_t* restrict target, const timespec_t* restrict now)
 
 static void touch_atime(vnode_t* restrict target)
 {
-    if(!ATIME_ON_READ || target->fs->readonly || target->ops->setattr == nullptr) {
+    if(!ATIME_ON_READ || target->fs->readonly || target->ops->set_attr == nullptr) {
         return;
     }
 
@@ -435,7 +435,7 @@ static void touch_atime(vnode_t* restrict target)
     wallclock_get(&attr.atime);
 
     if(atime_due(target, &attr.atime)) {
-        target->ops->setattr(target, &attr);
+        target->ops->set_attr(target, &attr);
     }
 }
 
@@ -597,8 +597,8 @@ static void strip_file_caps(vnode_t* restrict node)
     privs_state_t state;
     privs_snapshot(target, &state);
 
-    if(target->type == VNODE_FILE && target->ops->xattr_remove && !target->fs->readonly && state.caps_state != VNODE_CAPS_NONE) {
-        target->ops->xattr_remove(target, XATTR_SECURITY, XATTR_CAPS_NAME);
+    if(target->type == VNODE_FILE && target->ops->remove_xattr && !target->fs->readonly && state.caps_state != VNODE_CAPS_NONE) {
+        target->ops->remove_xattr(target, XATTR_SECURITY, XATTR_CAPS_NAME);
         privs_changed(target);
     }
 
@@ -942,7 +942,7 @@ int vnode_stat(vnode_t* restrict node, stat_t* restrict out)
     return retval;
 }
 
-int vnode_setattr(vnode_t* restrict node, const vnode_attr_t* restrict request)
+int vnode_set_attr(vnode_t* restrict node, const vnode_attr_t* restrict request)
 {
     kassert(node);
     kassert(request);
@@ -973,11 +973,11 @@ int vnode_setattr(vnode_t* restrict node, const vnode_attr_t* restrict request)
     if(target->fs->readonly) {
         retval = -EROFS;
     }
-    else if(target->ops->setattr == nullptr) {
+    else if(target->ops->set_attr == nullptr) {
         retval = -EPERM;
     }
     else {
-        retval = target->ops->setattr(target, &attr);
+        retval = target->ops->set_attr(target, &attr);
     }
 
     if(retval == 0 && (attr.mask & (VATTR_MODE | VATTR_UID | VATTR_GID))) {
@@ -1014,7 +1014,7 @@ int vnode_chmod(vnode_t* restrict node, const credentials_t* restrict credential
         attr.mode &= ~S_ISGID;
     }
 
-    return vnode_setattr(node, &attr);
+    return vnode_set_attr(node, &attr);
 }
 
 int vnode_chown(vnode_t* restrict node, const credentials_t* restrict credentials, uid_t uid, gid_t gid)
@@ -1067,7 +1067,7 @@ int vnode_chown(vnode_t* restrict node, const credentials_t* restrict credential
         attr.mode = without_privs(st.st_mode);
     }
 
-    retval = vnode_setattr(node, &attr);
+    retval = vnode_set_attr(node, &attr);
 
     if(retval == 0) {
         strip_file_caps(node);
@@ -1145,13 +1145,13 @@ int vnode_remove_privs(vnode_t* restrict node, const credentials_t* restrict cre
         vnode_attr_t attr = { 0 };
         attr.mask = VATTR_MODE;
         attr.mode = stripped;
-        retval = vnode_setattr(node, &attr);
+        retval = vnode_set_attr(node, &attr);
     }
 
-    bool caps_clear = state.caps_state == VNODE_CAPS_NONE || node->ops->xattr_remove == nullptr;
+    bool caps_clear = state.caps_state == VNODE_CAPS_NONE || node->ops->remove_xattr == nullptr;
 
     if(retval == 0 && !caps_clear) {
-        retval = node->ops->xattr_remove(node, XATTR_SECURITY, XATTR_CAPS_NAME);
+        retval = node->ops->remove_xattr(node, XATTR_SECURITY, XATTR_CAPS_NAME);
 
         if(retval == 0) {
             privs_changed(node);
@@ -1235,7 +1235,7 @@ int vnode_utimes(vnode_t* restrict node, const credentials_t* restrict credentia
         }
     }
 
-    return vnode_setattr(node, &attr);
+    return vnode_set_attr(node, &attr);
 }
 
 int vnode_may_delete(vnode_t* restrict dir, const char* restrict name, const credentials_t* restrict credentials)
@@ -1362,7 +1362,7 @@ int vnode_resolve_page(vnode_t* restrict node, uint64_t index, uintptr_t* restri
     return node->ops->resolve_page(node, index, phys, cache);
 }
 
-ssize_t vnode_xattr_get(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name, void* restrict value,
+ssize_t vnode_get_xattr(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name, void* restrict value,
     size_t size)
 {
     kassert(node);
@@ -1385,12 +1385,12 @@ ssize_t vnode_xattr_get(vnode_t* restrict node, const credentials_t* restrict cr
 
     retval = xattr_permission(target, credentials, space, suffix, false);
 
-    if(retval == 0 && target->ops->xattr_get == nullptr) {
+    if(retval == 0 && target->ops->get_xattr == nullptr) {
         retval = -EOPNOTSUPP;
     }
 
     if(retval == 0) {
-        retval = target->ops->xattr_get(target, space, suffix, value, size);
+        retval = target->ops->get_xattr(target, space, suffix, value, size);
     }
 
     vnode_decref(target);
@@ -1398,7 +1398,7 @@ ssize_t vnode_xattr_get(vnode_t* restrict node, const credentials_t* restrict cr
     return retval;
 }
 
-int vnode_xattr_set(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name,
+int vnode_set_xattr(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name,
     const void* restrict value, size_t size, unsigned flags)
 {
     kassert(node);
@@ -1435,12 +1435,12 @@ int vnode_xattr_set(vnode_t* restrict node, const credentials_t* restrict creden
         retval = xattr_permission(target, credentials, space, suffix, true);
     }
 
-    if(retval == 0 && target->ops->xattr_set == nullptr) {
+    if(retval == 0 && target->ops->set_xattr == nullptr) {
         retval = -EOPNOTSUPP;
     }
 
     if(retval == 0) {
-        retval = target->ops->xattr_set(target, space, suffix, value, size, flags);
+        retval = target->ops->set_xattr(target, space, suffix, value, size, flags);
 
         if(is_caps_name(space, suffix)) {
             privs_changed(target);
@@ -1452,7 +1452,7 @@ int vnode_xattr_set(vnode_t* restrict node, const credentials_t* restrict creden
     return retval;
 }
 
-ssize_t vnode_xattr_list(vnode_t* restrict node, const credentials_t* restrict credentials, char* restrict list, size_t size)
+ssize_t vnode_list_xattr(vnode_t* restrict node, const credentials_t* restrict credentials, char* restrict list, size_t size)
 {
     kassert(node);
     kassert(credentials);
@@ -1467,9 +1467,9 @@ ssize_t vnode_xattr_list(vnode_t* restrict node, const credentials_t* restrict c
     bool trusted = cred_capable(credentials, CAP_SYS_ADMIN);
     size_t length = 0;
 
-    for(size_t index = 0; target->ops->xattr_iterate; index += 1) {
+    for(size_t index = 0; target->ops->iterate_xattr; index += 1) {
         xattr_entry_t entry;
-        retval = target->ops->xattr_iterate(target, &entry, index);
+        retval = target->ops->iterate_xattr(target, &entry, index);
 
         if(retval < 0) {
             break;
@@ -1507,7 +1507,7 @@ ssize_t vnode_xattr_list(vnode_t* restrict node, const credentials_t* restrict c
     return length;
 }
 
-int vnode_xattr_remove(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name)
+int vnode_remove_xattr(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name)
 {
     kassert(node);
     kassert(credentials);
@@ -1535,12 +1535,12 @@ int vnode_xattr_remove(vnode_t* restrict node, const credentials_t* restrict cre
         retval = xattr_permission(target, credentials, space, suffix, true);
     }
 
-    if(retval == 0 && target->ops->xattr_remove == nullptr) {
+    if(retval == 0 && target->ops->remove_xattr == nullptr) {
         retval = -EOPNOTSUPP;
     }
 
     if(retval == 0) {
-        retval = target->ops->xattr_remove(target, space, suffix);
+        retval = target->ops->remove_xattr(target, space, suffix);
 
         if(is_caps_name(space, suffix)) {
             privs_changed(target);
@@ -1552,7 +1552,7 @@ int vnode_xattr_remove(vnode_t* restrict node, const credentials_t* restrict cre
     return retval;
 }
 
-ssize_t vnode_caps_get(vnode_t* restrict node, void* restrict value, size_t size)
+ssize_t vnode_get_caps(vnode_t* restrict node, void* restrict value, size_t size)
 {
     kassert(node);
 
@@ -1566,11 +1566,11 @@ ssize_t vnode_caps_get(vnode_t* restrict node, void* restrict value, size_t size
     privs_state_t state;
     privs_snapshot(target, &state);
 
-    if(state.caps_state == VNODE_CAPS_NONE || target->ops->xattr_get == nullptr) {
+    if(state.caps_state == VNODE_CAPS_NONE || target->ops->get_xattr == nullptr) {
         retval = -ENODATA;
     }
     else {
-        retval = target->ops->xattr_get(target, XATTR_SECURITY, XATTR_CAPS_NAME, value, size);
+        retval = target->ops->get_xattr(target, XATTR_SECURITY, XATTR_CAPS_NAME, value, size);
     }
 
     if(retval == -ENODATA) {

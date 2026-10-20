@@ -63,7 +63,7 @@ struct vnode_ops_s {
     /// storage of a file whose last name was removed while it was open
     void (*release)(vnode_t* restrict node);
 
-    /// Finds the inode number only; the VFS takes the vnode from the vcache or builds it through vfs_ops_t.fillnode
+    /// Finds the inode number only; the VFS takes the vnode from the vcache or builds it through vfs_ops_t.fill_node
     int (*lookup)(vnode_t* restrict node, const char* restrict name, ino_t* restrict out);
 
     /// Fills the entry at index, counting entries a reader sees; -ENOENT past the last one
@@ -102,7 +102,7 @@ struct vnode_ops_s {
 
     /// Applies the fields in attr->mask; permission checks are done, and the VFS has
     /// already added the ctime, and the mtime for a size change, unless the caller set them
-    int (*setattr)(vnode_t* restrict node, const vnode_attr_t* restrict attr);
+    int (*set_attr)(vnode_t* restrict node, const vnode_attr_t* restrict attr);
 
     int (*fsync)(vnode_t* restrict node);
 
@@ -120,19 +120,19 @@ struct vnode_ops_s {
 
     /// Gets the namespace as an XATTR space and the name without its prefix; permission
     /// checks are done. A missing attribute is -ENODATA
-    ssize_t (*xattr_get)(vnode_t* restrict node, unsigned space, const char* restrict name, void* restrict value, size_t size);
+    ssize_t (*get_xattr)(vnode_t* restrict node, unsigned space, const char* restrict name, void* restrict value, size_t size);
 
     /// Gets the namespace as an XATTR space and the name without its prefix; permission checks are done
-    int (*xattr_set)(vnode_t* restrict node, unsigned space, const char* restrict name, const void* restrict value, size_t size,
+    int (*set_xattr)(vnode_t* restrict node, unsigned space, const char* restrict name, const void* restrict value, size_t size,
         unsigned flags);
 
     /// Fills the attribute at index, from every namespace, as the VFS hides what the caller may not
     /// see; -ENOENT past the last one
-    int (*xattr_iterate)(vnode_t* restrict node, xattr_entry_t* restrict out, size_t index);
+    int (*iterate_xattr)(vnode_t* restrict node, xattr_entry_t* restrict out, size_t index);
 
     /// Gets the namespace as an XATTR space and the name without its prefix; permission
     /// checks are done. A missing attribute is -ENODATA
-    int (*xattr_remove)(vnode_t* restrict node, unsigned space, const char* restrict name);
+    int (*remove_xattr)(vnode_t* restrict node, unsigned space, const char* restrict name);
 };
 
 struct vnode_s {
@@ -177,7 +177,7 @@ int vnode_stat(vnode_t* restrict node, stat_t* restrict out);
 
 /// Every change made through here is a status change, so the ctime
 /// moves with it unless the caller set one; a new size also modifies
-int vnode_setattr(vnode_t* restrict node, const vnode_attr_t* restrict request);
+int vnode_set_attr(vnode_t* restrict node, const vnode_attr_t* restrict request);
 
 int vnode_chmod(vnode_t* restrict node, const credentials_t* restrict credentials, mode_t mode);
 int vnode_chown(vnode_t* restrict node, const credentials_t* restrict credentials, uid_t uid, gid_t gid);
@@ -190,13 +190,13 @@ int vnode_fsync(vnode_t* restrict node);
 int vnode_map_page(vnode_t* restrict node, uint64_t index, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot);
 int vnode_mmap(vnode_t* restrict node, uint64_t first_page, uint64_t page_count);
 int vnode_resolve_page(vnode_t* restrict node, uint64_t index, uintptr_t* restrict phys, unsigned* restrict cache);
-ssize_t vnode_xattr_get(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name, void* restrict value,
+ssize_t vnode_get_xattr(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name, void* restrict value,
     size_t size);
-int vnode_xattr_set(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name,
+int vnode_set_xattr(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name,
     const void* restrict value, size_t size, unsigned flags);
-ssize_t vnode_xattr_list(vnode_t* restrict node, const credentials_t* restrict credentials, char* restrict list, size_t size);
-int vnode_xattr_remove(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name);
+ssize_t vnode_list_xattr(vnode_t* restrict node, const credentials_t* restrict credentials, char* restrict list, size_t size);
+int vnode_remove_xattr(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name);
 
 /// Skips both the permission check and the trip to
 /// the filesystem once a file is known to have no caps
-ssize_t vnode_caps_get(vnode_t* restrict node, void* restrict value, size_t size);
+ssize_t vnode_get_caps(vnode_t* restrict node, void* restrict value, size_t size);

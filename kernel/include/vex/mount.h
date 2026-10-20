@@ -27,7 +27,7 @@ struct vfs_ops_s {
 
     /// Fills in a fresh vnode whose fs and ino are set: its type, ctxdata and whatever else the
     /// filesystem keeps there; -ENOENT when the number no longer names a file
-    int (*fillnode)(vfs_t* restrict fs, vnode_t* restrict node);
+    int (*fill_node)(vfs_t* restrict fs, vnode_t* restrict node);
 
     /// Called once the vcache is evicted and no vnode but the root is referenced;
     /// drops the root and frees everything mount set up

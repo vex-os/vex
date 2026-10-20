@@ -104,7 +104,7 @@ static void probe_device(const blk_device_t* restrict device)
 
         for(unsigned index = 0;; index += 1) {
             blk_partition_table_info_t info;
-            if(it->ops->readpt(device, ptdata, index, &info)) {
+            if(it->ops->read_table(device, ptdata, index, &info)) {
                 break;
             }
 

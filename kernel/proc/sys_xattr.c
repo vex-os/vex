@@ -79,7 +79,7 @@ static intptr_t sys_getxattrat(const uintptr_t* restrict args)
     ssize_t length = -ENOMEM;
 
     if(size == 0 || value) {
-        length = vnode_xattr_get(node, thread->credentials, name, value, size);
+        length = vnode_get_xattr(node, thread->credentials, name, value, size);
     }
 
     vnode_decref(node);
@@ -147,7 +147,7 @@ static intptr_t sys_setxattrat(const uintptr_t* restrict args)
     retval = resolve(args, flags & RESOLVE_FLAGS, &node);
 
     if(retval == 0) {
-        retval = vnode_xattr_set(node, thread->credentials, name, value, size, flags & (XATTR_CREATE | XATTR_REPLACE));
+        retval = vnode_set_xattr(node, thread->credentials, name, value, size, flags & (XATTR_CREATE | XATTR_REPLACE));
         vnode_decref(node);
     }
 
@@ -194,7 +194,7 @@ static intptr_t sys_listxattrat(const uintptr_t* restrict args)
     ssize_t length = -ENOMEM;
 
     if(size == 0 || list) {
-        length = vnode_xattr_list(node, thread->credentials, list, size);
+        length = vnode_list_xattr(node, thread->credentials, list, size);
     }
 
     vnode_decref(node);
@@ -243,7 +243,7 @@ static intptr_t sys_removexattrat(const uintptr_t* restrict args)
         return retval;
     }
 
-    retval = vnode_xattr_remove(node, thread->credentials, name);
+    retval = vnode_remove_xattr(node, thread->credentials, name);
 
     vnode_decref(node);
 

@@ -1031,7 +1031,7 @@ static int resize_locked(vnode_t* restrict node, off_t size)
     return shrink_locked(node, size);
 }
 
-static int setattr_locked(vnode_t* restrict node, const vnode_attr_t* restrict attr)
+static int set_attr_locked(vnode_t* restrict node, const vnode_attr_t* restrict attr)
 {
     fat_vnode_context_t* context = node->ctxdata;
     fat_vfs_context_t* fs = context->fs_ctx;
@@ -1225,10 +1225,10 @@ static int fat_vnode_stat(vnode_t* restrict node, stat_t* restrict out)
     return retval;
 }
 
-static int fat_vnode_setattr(vnode_t* restrict node, const vnode_attr_t* restrict attr)
+static int fat_vnode_set_attr(vnode_t* restrict node, const vnode_attr_t* restrict attr)
 {
     mutex_acquire(fs_lock(node));
-    int retval = setattr_locked(node, attr);
+    int retval = set_attr_locked(node, attr);
     mutex_release(fs_lock(node));
     return retval;
 }
@@ -1243,7 +1243,7 @@ const vnode_ops_t fat_vnode_ops = {
     .read = &fat_vnode_read,
     .write = &fat_vnode_write,
     .stat = &fat_vnode_stat,
-    .setattr = &fat_vnode_setattr,
+    .set_attr = &fat_vnode_set_attr,
     .fsync = &fat_vnode_fsync,
     .map_page = &fat_vnode_map_page,
 };

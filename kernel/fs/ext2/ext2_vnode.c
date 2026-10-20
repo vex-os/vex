@@ -363,7 +363,7 @@ static int resize_locked(vnode_t* restrict node, uint64_t new_size)
     return retval;
 }
 
-static int setattr_locked(vnode_t* restrict node, const vnode_attr_t* restrict attr)
+static int set_attr_locked(vnode_t* restrict node, const vnode_attr_t* restrict attr)
 {
     ext2_vnode_context_t* ctx = node->ctxdata;
     ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
@@ -1037,10 +1037,10 @@ static int ext2_vnode_stat(vnode_t* restrict node, stat_t* restrict out)
     return 0;
 }
 
-static int ext2_vnode_setattr(vnode_t* restrict node, const vnode_attr_t* restrict attr)
+static int ext2_vnode_set_attr(vnode_t* restrict node, const vnode_attr_t* restrict attr)
 {
     mutex_acquire(fs_lock(node));
-    int retval = setattr_locked(node, attr);
+    int retval = set_attr_locked(node, attr);
     mutex_release(fs_lock(node));
     return retval;
 }
@@ -1071,7 +1071,7 @@ static int ext2_vnode_map_page(vnode_t* restrict node, uint64_t index, pmap_t* r
     return retval;
 }
 
-static ssize_t ext2_vnode_xattr_get(vnode_t* restrict node, unsigned space, const char* restrict name, void* restrict value, size_t size)
+static ssize_t ext2_vnode_get_xattr(vnode_t* restrict node, unsigned space, const char* restrict name, void* restrict value, size_t size)
 {
     mutex_acquire(fs_lock(node));
     ssize_t retval = ext2_xattr_get(node, space, name, value, size);
@@ -1079,7 +1079,7 @@ static ssize_t ext2_vnode_xattr_get(vnode_t* restrict node, unsigned space, cons
     return retval;
 }
 
-static int ext2_vnode_xattr_set(vnode_t* restrict node, unsigned space, const char* restrict name, const void* restrict value, size_t size,
+static int ext2_vnode_set_xattr(vnode_t* restrict node, unsigned space, const char* restrict name, const void* restrict value, size_t size,
     unsigned flags)
 {
     mutex_acquire(fs_lock(node));
@@ -1096,7 +1096,7 @@ static int ext2_vnode_xattr_set(vnode_t* restrict node, unsigned space, const ch
     return retval;
 }
 
-static int ext2_vnode_xattr_iterate(vnode_t* restrict node, xattr_entry_t* restrict out, size_t index)
+static int ext2_vnode_iterate_xattr(vnode_t* restrict node, xattr_entry_t* restrict out, size_t index)
 {
     mutex_acquire(fs_lock(node));
     int retval = ext2_xattr_iterate(node, out, index);
@@ -1104,7 +1104,7 @@ static int ext2_vnode_xattr_iterate(vnode_t* restrict node, xattr_entry_t* restr
     return retval;
 }
 
-static int ext2_vnode_xattr_remove(vnode_t* restrict node, unsigned space, const char* restrict name)
+static int ext2_vnode_remove_xattr(vnode_t* restrict node, unsigned space, const char* restrict name)
 {
     mutex_acquire(fs_lock(node));
 
@@ -1133,11 +1133,11 @@ const vnode_ops_t ext2_vnode_ops = {
     .write = &ext2_vnode_write,
     .readlink = &ext2_vnode_readlink,
     .stat = &ext2_vnode_stat,
-    .setattr = &ext2_vnode_setattr,
+    .set_attr = &ext2_vnode_set_attr,
     .fsync = &ext2_vnode_fsync,
     .map_page = &ext2_vnode_map_page,
-    .xattr_get = &ext2_vnode_xattr_get,
-    .xattr_set = &ext2_vnode_xattr_set,
-    .xattr_iterate = &ext2_vnode_xattr_iterate,
-    .xattr_remove = &ext2_vnode_xattr_remove,
+    .get_xattr = &ext2_vnode_get_xattr,
+    .set_xattr = &ext2_vnode_set_xattr,
+    .iterate_xattr = &ext2_vnode_iterate_xattr,
+    .remove_xattr = &ext2_vnode_remove_xattr,
 };

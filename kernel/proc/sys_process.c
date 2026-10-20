@@ -59,7 +59,7 @@ static int copyin_string_array(uintptr_t user_array, const char** restrict out, 
 static int read_file_caps(vnode_t* restrict node, file_caps_t* restrict out, bool* restrict has_caps)
 {
     vfs_cap_data_t data;
-    ssize_t size = vnode_caps_get(node, &data, sizeof(data));
+    ssize_t size = vnode_get_caps(node, &data, sizeof(data));
 
     *has_caps = false;
 
