@@ -1,7 +1,9 @@
+#include <vex/assert.h>
 #include <vex/atomic.h>
 #include <vex/chr_device.h>
 #include <vex/chr_event.h>
 #include <vex/chr_name.h>
+#include <vex/console.h>
 #include <vex/limits.h>
 #include <vex/spinlock.h>
 #include <vex/sprintf.h>
@@ -28,6 +30,9 @@ static int chr_device_register_internal(chr_device_t* restrict device)
 
     atomic_store(&device->priv.refcount, 1, ATOMIC_RELAXED);
     atomic_store(&device->priv.removed, false, ATOMIC_RELAXED);
+
+    mutex_init(&device->priv.open_lock);
+    device->priv.open_count = 0;
 
     device->priv.next = chr_devices_head;
     chr_devices_head = device;
@@ -73,7 +78,10 @@ int chr_device_remove(chr_device_t* restrict device)
 
             spinlock_release(&chr_devices_lock);
 
+            // Waits out an open or close already in the driver
+            mutex_acquire(&device->priv.open_lock);
             atomic_store(&device->priv.removed, true, ATOMIC_RELEASE);
+            mutex_release(&device->priv.open_lock);
 
             chr_event_notify(CHR_EVENT_DEVICE_REMOVED, device);
 
@@ -102,10 +110,58 @@ void chr_device_decref(const chr_device_t* restrict device)
     chr_device_t* mutable_device = (chr_device_t*)(device);
 
     if(1 == atomic_fetch_sub(&mutable_device->priv.refcount, 1, ATOMIC_ACQ_REL)) {
+        mutex_deinit(&mutable_device->priv.open_lock);
+
         if(device->ops->release) {
             device->ops->release(device);
         }
     }
+}
+
+int chr_device_open(const chr_device_t* restrict device, unsigned flags)
+{
+    chr_device_t* mutable_device = (chr_device_t*)(device);
+    int retval = 0;
+
+    mutex_acquire(&mutable_device->priv.open_lock);
+
+    if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE)) {
+        retval = -ENODEV;
+    }
+    else if(device->priv.open_count == 0) {
+        if(device->console) {
+            console_release(device->console);
+        }
+
+        if(device->ops->open) {
+            retval = device->ops->open(device, flags);
+        }
+    }
+
+    if(retval >= 0) {
+        mutable_device->priv.open_count += 1;
+        retval = 0;
+    }
+
+    mutex_release(&mutable_device->priv.open_lock);
+
+    return retval;
+}
+
+void chr_device_close(const chr_device_t* restrict device)
+{
+    chr_device_t* mutable_device = (chr_device_t*)(device);
+
+    mutex_acquire(&mutable_device->priv.open_lock);
+
+    kassert(device->priv.open_count > 0);
+    mutable_device->priv.open_count -= 1;
+
+    if(device->priv.open_count == 0 && !atomic_load(&device->priv.removed, ATOMIC_ACQUIRE) && device->ops->close) {
+        device->ops->close(device);
+    }
+
+    mutex_release(&mutable_device->priv.open_lock);
 }
 
 const chr_device_t* chr_device_find(const char* restrict name)

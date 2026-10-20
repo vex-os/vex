@@ -3,15 +3,24 @@
 #include <vex/atomic.h>
 #include <vex/compiler.h>
 #include <vex/errno.h>
+#include <vex/mutex.h>
 #include <vex/types.h>
 
 typedef struct chr_name_s chr_name_t;
+typedef struct console_s console_t;
 
 typedef struct chr_device_s chr_device_t;
 typedef struct chr_device_ops_s chr_device_ops_t;
 typedef struct chr_device_private_s chr_device_private_t;
 
 struct chr_device_ops_s {
+    /// Called on the first open, after the device's console is released: the console owns the hardware
+    /// until then, so the driver sets it up here and not at probe. A failure leaves the device to nobody
+    int (*open)(const chr_device_t* restrict device, unsigned flags);
+
+    /// Called on the last close, unless the device was removed while open
+    void (*close)(const chr_device_t* restrict device);
+
     ssize_t (*read)(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size);
     ssize_t (*write)(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size);
     int (*ioctl)(const chr_device_t* restrict device, uint32_t request, uintptr_t argument);
@@ -26,12 +35,15 @@ struct chr_device_private_s {
     unsigned name_iterator;
     unsigned refcount;
     bool removed;
+    mutex_t open_lock; // Serializes open_count with the driver's open and close
+    unsigned open_count;
 };
 
 struct chr_device_s {
     chr_device_private_t priv;
     const chr_device_ops_t* ops;
     char name[64];
+    console_t* console; // Writes to the device until its first open; may be nullptr
     void* ctxdata;
 };
 
@@ -47,6 +59,9 @@ int chr_device_remove(chr_device_t* restrict device);
 
 void chr_device_incref(const chr_device_t* restrict device);
 void chr_device_decref(const chr_device_t* restrict device);
+
+int chr_device_open(const chr_device_t* restrict device, unsigned flags);
+void chr_device_close(const chr_device_t* restrict device);
 
 const chr_device_t* chr_device_find(const char* restrict name) __nodiscard;
 

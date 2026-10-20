@@ -23,6 +23,22 @@ static void devfs_chr_release(vnode_t* restrict node)
     slab_free(context);
 }
 
+static int devfs_chr_open(vnode_t* restrict node, unsigned mode)
+{
+    const devfs_chr_context_t* context = node->ctxdata;
+
+    return chr_device_open(context->device, mode);
+}
+
+static int devfs_chr_close(vnode_t* restrict node)
+{
+    const devfs_chr_context_t* context = node->ctxdata;
+
+    chr_device_close(context->device);
+
+    return 0;
+}
+
 static ssize_t devfs_chr_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset)
 {
     const devfs_chr_context_t* context = node->ctxdata;
@@ -59,6 +75,8 @@ static const vnode_ops_t devfs_chr_ops = {
     .write = &devfs_chr_write,
     .ioctl = &devfs_chr_ioctl,
     .stat = &devfs_chr_stat,
+    .open = &devfs_chr_open,
+    .close = &devfs_chr_close,
 };
 
 void devfs_chr_event_handler(unsigned event, const chr_device_t* restrict device, void* restrict ctxdata)
