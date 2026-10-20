@@ -206,6 +206,10 @@ void __used amd64_isr_handler(hart_context_t* restrict ctx, uint64_t intvec)
 {
     disable_interrupts();
 
+    if(intvec == 0x02) {
+        panic_nmi();
+    }
+
     hart_local_t* hart = this_hart();
 
     // Harts only get set up at the multicore stage

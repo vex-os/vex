@@ -22,6 +22,7 @@
 #define LAPIC_IPI_SPECIFIC  UINT32_C(0x00000000)
 #define LAPIC_IPI_EVERYONE  UINT32_C(0x00084000)
 #define LAPIC_IPI_EXCEPT_ME UINT32_C(0x000C4000)
+#define LAPIC_IPI_NMI       UINT32_C(0x00004400)
 
 uint32_t lapic_read(uint32_t reg);
 void lapic_write(uint32_t reg, uint32_t value);

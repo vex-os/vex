@@ -91,6 +91,10 @@ void arch_start_hart(hart_local_t* restrict hart);
 void hart_setup(hart_local_t* restrict hart);
 void hart_ipi(hart_local_t* restrict target, unsigned irq_number);
 
+/// @note Arrives even while the target has interrupts disabled; the IPI_EVERYONE and IPI_EXCEPT_ME
+/// targets aren't taken, as they would also reach harts that never came online
+void hart_nmi(hart_local_t* restrict target);
+
 static __always_inline void hart_relax(void)
 {
     asm volatile("pause");

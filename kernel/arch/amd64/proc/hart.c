@@ -72,6 +72,13 @@ void hart_ipi(hart_local_t* restrict target, unsigned irq_number)
     lapic_ipi(target->arch.lapic_id, LAPIC_IPI_SPECIFIC, irq_number + ARCH_IRQ_BASE);
 }
 
+void hart_nmi(hart_local_t* restrict target)
+{
+    kassert(target != HART_IPI_EVERYONE && target != HART_IPI_EXCEPT_ME);
+
+    lapic_ipi(target->arch.lapic_id, LAPIC_IPI_NMI, 0);
+}
+
 static void arch_init_boot_thread(void)
 {
     boot_thread.self = &boot_thread;

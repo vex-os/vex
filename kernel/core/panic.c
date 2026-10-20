@@ -1,21 +1,17 @@
 #include <vex/atomic.h>
 #include <vex/console.h>
 #include <vex/hart.h>
-#include <vex/initcall.h>
-#include <vex/irq.h>
 #include <vex/kprintf.h>
-#include <vex/limits.h>
 #include <vex/panic.h>
 
 // Somewhere around a second of pause instructions; the clock source can't time
-// this, as it takes a lock that a hart which ignores the IPI may be holding
+// this, as it takes a lock that a hart which doesn't stop may be holding
 #define STOP_WAIT_SPINS 0x1000000UL
 
 volatile bool panic_in_progress = false;
 
 static bool panic_claimed = false;
 static unsigned long stopped_harts = 0U;
-static unsigned panic_ipi_number = UINT_MAX;
 
 static void __noreturn halt_stopped(void)
 {
@@ -27,52 +23,27 @@ static void __noreturn halt_stopped(void)
     }
 }
 
-static void panic_ipi_irq(unsigned number, const hart_context_t* restrict regs, void* restrict ctxdata)
-{
-    halt_stopped();
-}
-
-// The panicking hart is one of them, unless it panicked before coming online;
-// an AP that does so counts one hart too many and waits out the timeout
-static unsigned long count_other_harts(void)
-{
-    unsigned long online = 0U;
-
-    for(unsigned long i = 0U; i < num_harts; ++i) {
-        unsigned short flags = atomic_load_n(&harts[i].flags, ATOMIC_ACQUIRE);
-
-        if(flags & HART_FLAG_ONLINE) {
-            online += 1U;
-        }
-    }
-
-    if(online == 0U) {
-        return 0U;
-    }
-
-    return online - 1U;
-}
-
-// Returns how many harts are still running
+// Returns how many harts are still running; an NMI rather than an IPI, as a hart
+// may wait with interrupts disabled for this one, say for a TLB shootdown it won't answer
 static unsigned long stop_other_harts(void)
 {
-    unsigned long others = count_other_harts();
+    hart_local_t* self = this_hart();
+    unsigned long others = 0U;
 
-    if(others == 0U || panic_ipi_number == UINT_MAX) {
-        return others;
+    for(unsigned long i = 0U; i < num_harts; ++i) {
+        hart_local_t* hart = &harts[i];
+        unsigned short flags = atomic_load_n(&hart->flags, ATOMIC_ACQUIRE);
+
+        if(hart != self && (flags & HART_FLAG_ONLINE)) {
+            hart_nmi(hart);
+            others += 1U;
+        }
     }
-
-    hart_ipi(HART_IPI_EXCEPT_ME, panic_ipi_number);
 
     unsigned long stopped = 0U;
 
-    for(unsigned long i = 0U; i < STOP_WAIT_SPINS; ++i) {
+    for(unsigned long i = 0U; i < STOP_WAIT_SPINS && stopped < others; ++i) {
         stopped = atomic_load_n(&stopped_harts, ATOMIC_ACQUIRE);
-
-        if(stopped >= others) {
-            return 0U;
-        }
-
         hart_relax();
     }
 
@@ -118,9 +89,9 @@ void __noreturn vpanic_at(const char* restrict file, unsigned long line, const c
     }
 }
 
-static void init_panic_ipi(void)
+void panic_nmi(void)
 {
-    panic_ipi_number = irq_handler_add(UINT_MAX, &panic_ipi_irq, nullptr);
+    if(atomic_load_n(&panic_claimed, ATOMIC_ACQUIRE)) {
+        halt_stopped();
+    }
 }
-
-initcall_bsp_early(init_panic_ipi, INIT_MIDDLE);
