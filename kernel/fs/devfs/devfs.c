@@ -90,7 +90,6 @@ static int devfs_statvfs(vfs_t* restrict fs, statvfs_t* restrict out)
     memset(out, 0, sizeof(statvfs_t));
 
     out->f_files = state->num_devices;
-    out->f_fsid = (uint32_t)(uintptr_t)(fs);
     out->f_namemax = NAME_MAX;
 
     return 0;

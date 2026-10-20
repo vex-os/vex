@@ -2,6 +2,7 @@
 #include <vex/atomic.h>
 #include <vex/blk_device.h>
 #include <vex/cmdline.h>
+#include <vex/dev_name.h>
 #include <vex/fcache.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
@@ -60,6 +61,40 @@ static vfs_driver_t* deduce_driver(const blk_device_t* restrict device)
     return nullptr;
 }
 
+static int set_dev(vfs_t* restrict fs, const blk_device_t* restrict device)
+{
+    fs->unit = nullptr;
+
+    if(device) {
+        fs->dev = device->priv.dev;
+        return 0;
+    }
+
+    int retval = dev_unit_alloc(&dev_prefix_anon, &fs->unit);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    dev_name_t name = {};
+    name.unit = fs->unit;
+    name.index = DEV_NAME_NONE;
+    name.partition = DEV_NAME_NONE;
+
+    fs->dev = dev_name_to_dev(&name);
+
+    return 0;
+}
+
+static void free_fs(vfs_t* restrict fs)
+{
+    if(fs->unit) {
+        dev_unit_free(fs->unit);
+    }
+
+    slab_free(fs);
+}
+
 static int mount_locked(const char* restrict type, const char* restrict path, const blk_device_t* restrict device,
     const char* restrict params)
 {
@@ -107,11 +142,20 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
     fs->ops = driver->ops;
     fs->readonly = false;
 
+    int retval = set_dev(fs, device);
+
+    if(retval < 0) {
+        if(cmdl.buffer)
+            kfree(cmdl.buffer);
+        slab_free(fs);
+        return retval;
+    }
+
     // The driver reads its metadata
     // through the file cache while mounting
     fs->device = device;
 
-    int retval = driver->ops->mount(fs, device, &cmdl);
+    retval = driver->ops->mount(fs, device, &cmdl);
 
     const char* device_name;
 
@@ -134,7 +178,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
     }
 
     if(retval < 0) {
-        slab_free(fs);
+        free_fs(fs);
         return retval;
     }
 
@@ -148,7 +192,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
 
             driver->ops->unmount(fs);
 
-            slab_free(fs);
+            free_fs(fs);
 
             return retval;
         }
@@ -174,7 +218,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
 
         driver->ops->unmount(fs);
 
-        slab_free(fs);
+        free_fs(fs);
 
         return -ENOMEM;
     }
@@ -189,7 +233,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
         driver->ops->unmount(fs);
 
         slab_free(entry);
-        slab_free(fs);
+        free_fs(fs);
 
         return -ENOMEM;
     }
@@ -358,7 +402,7 @@ int vfs_unmount(const char* restrict path)
         blk_device_decref(fs->device);
     }
 
-    slab_free(fs);
+    free_fs(fs);
     kfree(entry->path);
     slab_free(entry);
 
@@ -408,7 +452,13 @@ int vfs_statvfs(vfs_t* restrict fs, statvfs_t* restrict out)
         return -ENOSYS;
     }
 
-    return fs->ops->statvfs(fs, out);
+    int retval = fs->ops->statvfs(fs, out);
+
+    if(retval == 0) {
+        out->f_fsid = (uint32_t)(fs->dev ^ (fs->dev >> 32)); // f_fsid is only 32 bits wide
+    }
+
+    return retval;
 }
 
 vnode_t* vfs_get_root(void)

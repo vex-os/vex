@@ -7,6 +7,7 @@
 
 typedef struct cmdline_s cmdline_t;
 typedef struct blk_device_s blk_device_t;
+typedef struct dev_unit_s dev_unit_t;
 typedef struct vnode_s vnode_t;
 
 typedef struct vfs_s vfs_t;
@@ -43,6 +44,8 @@ struct vfs_s {
     vnode_t* mountpoint;
     vnode_t* root;
     const blk_device_t* device; // Referenced for as long as the filesystem is mounted
+    dev_unit_t* unit;           // Under dev_prefix_anon, for a filesystem without a device
+    dev_t dev;                  // The st_dev of its files
     void* ctxdata;
     bool readonly;    // Set by the driver while mounting
     bool unmounting;  // Under mounts_lock; turns away operations crossing into the filesystem

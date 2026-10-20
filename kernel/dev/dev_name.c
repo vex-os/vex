@@ -16,6 +16,10 @@ static_assert(sizeof(dev_unit_t) <= SLAB_MAX_SIZE);
 
 static spinlock_t dev_units_lock = SPINLOCK_INIT;
 
+dev_prefix_t dev_prefix_anon = {
+    .string = "anon",
+};
+
 dev_prefix_t dev_prefix_ata = {
     .string = "ada",
 };
@@ -45,6 +49,7 @@ dev_prefix_t dev_prefix_fbd = {
 };
 
 static dev_prefix_t* const dev_prefixes[] = {
+    &dev_prefix_anon,
     &dev_prefix_ata,
     &dev_prefix_atapi,
     &dev_prefix_nvme,

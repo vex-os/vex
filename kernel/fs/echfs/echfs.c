@@ -162,7 +162,6 @@ static int statvfs_locked(vfs_t* restrict fs, statvfs_t* restrict out)
     out->f_bfree = free_blocks;
     out->f_bavail = free_blocks;
 
-    out->f_fsid = (uint32_t)(uintptr_t)(fs);
     out->f_flag = ST_NOSUID;
     out->f_namemax = 200;
 

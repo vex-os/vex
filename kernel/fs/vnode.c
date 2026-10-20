@@ -937,6 +937,10 @@ int vnode_stat(vnode_t* restrict node, stat_t* restrict out)
         retval = target->ops->stat(target, out);
     }
 
+    if(retval == 0) {
+        out->st_dev = target->fs->dev;
+    }
+
     vnode_decref(target);
 
     return retval;

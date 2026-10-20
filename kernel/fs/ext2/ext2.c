@@ -399,7 +399,6 @@ static int ext2_statvfs(vfs_t* restrict fs, statvfs_t* restrict out)
     out->f_bfree = free_blocks;
     out->f_files = le32toh(super->s_inodes_count);
     out->f_ffree = le32toh(super->s_free_inodes_count);
-    out->f_fsid = (uint32_t)(uintptr_t)(fs);
     out->f_namemax = EXT2_NAME_LEN;
 
     mutex_release(&context->lock);

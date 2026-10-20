@@ -29,6 +29,7 @@ struct dev_name_s {
     unsigned partition;
 };
 
+extern dev_prefix_t dev_prefix_anon;
 extern dev_prefix_t dev_prefix_ata;
 extern dev_prefix_t dev_prefix_atapi;
 extern dev_prefix_t dev_prefix_nvme;
