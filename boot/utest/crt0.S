@@ -1,3 +1,5 @@
+#include <vex/syscall.h>
+
 .section .text
 
 .globl _start
@@ -11,7 +13,7 @@ _start:
     call main
 
     movq %rax, %rdi             # exit code
-    movq $1, %rax               # SYS_EXIT [vex/syscall.h]
+    movq $__k_SYS_EXIT, %rax
     syscall
 
 .Lspin:
