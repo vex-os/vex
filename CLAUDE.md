@@ -87,7 +87,8 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
     - `@param` only for a parameter whose meaning the name doesn't carry; `@retval` lists return values that mean different things, `@return` describes a single kind of result.
     - Commands use `@`, not `\`. `@note` isn't used; `NOTE:` comments cover that. A command's text wraps onto plain `/// ` lines, not indented under it.
     - The clang cross file builds with `-Wdocumentation`, so a `@param` that drifts from the signature fails the build. Clang doesn't check `@param` on struct fields, so ops tables get prose only.
-    - One rule for a group of prototypes goes in a plain `//` comment above the group, as `///` attaches to the next declaration only.
+    - Every declaration gets its own complete block, even when that repeats a neighbour's: `///` attaches to the next declaration only, and hover tooltips show nothing else, so neither a comment above a group nor a "same as X" helps there.
+    - A documented declaration stands alone, with a blank line above its block and below the declaration, so the block can't be read as covering a neighbour. Undocumented prototypes may stay grouped.
   - Constants and fields get a comment only when it expands a spec name (FAT `BS_*`/`BPB_*`, AHCI registers, ELF), adds units or meaning the name lacks, or states an invariant. Format headers such as `vex/elf.h` keep their full constant tables for future ports, but drop comments that only repeat the name.
   - Use `//` (`#` in assembly and shell), start with a capital letter, and leave off the trailing period. Headers under `include/usr/` are the userspace ABI and must stay ANSI C89/ISO C90, so they use `/* */`.
   - A short note about a single line goes after it, as long as the line still fits the 140-column limit.
