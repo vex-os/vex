@@ -99,6 +99,8 @@ typedef struct pci_driver_private_s pci_driver_private_t;
 
 struct pci_bar_s {
     unsigned type;
+    uintptr_t phys; // memory bar only
+    unsigned vprot; // memory bar only
     union {
         mmio_region_t mmio;
         pmio_region_t pmio;
@@ -211,6 +213,11 @@ void pci_cfg_write16(pci_device_t* restrict device, uintptr_t offset, uint16_t v
 void pci_cfg_write32(pci_device_t* restrict device, uintptr_t offset, uint32_t value);
 
 pci_bar_t* pci_bar_map(pci_device_t* restrict device, unsigned bar_index) __nodiscard;
+
+/// pci_bar_map with a memory type other than uncached, such as VPROT_CACHE_WC for video memory
+/// @pre The BAR isn't mapped yet, or is mapped with the same vprot
+/// @return nullptr also for an I/O BAR
+pci_bar_t* pci_bar_map_vprot(pci_device_t* restrict device, unsigned bar_index, unsigned vprot) __nodiscard;
 void pci_bar_unmap(pci_device_t* restrict device, unsigned bar_index);
 
 uint8_t pci_bar_read8(pci_bar_t* restrict bar, uintptr_t offset);

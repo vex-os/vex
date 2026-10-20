@@ -167,6 +167,68 @@ static uint64_t bar_length(pci_device_t* restrict device, unsigned bar_index)
     return ~mask + 1;
 }
 
+// Two mappings of the same memory with
+// different types are undefined on x86 (PAT)
+// so a BAR has one mapping and every caller gets it
+static pci_bar_t* map_bar(pci_device_t* restrict device, unsigned bar_index, unsigned vprot, bool memory_only)
+{
+    kassert(bar_index < 6);
+
+    pci_bar_t* bar = &device->priv.bars[bar_index];
+
+    if(device->priv.bars_mapped & (1U << bar_index)) {
+        if(bar->type == PCI_BAR_TYPE_PMIO) {
+            return memory_only ? nullptr : bar;
+        }
+
+        kassert(bar->vprot == vprot);
+
+        return bar;
+    }
+
+    uint32_t raw = pci_cfg_read32(device, PCI_CFG_BAR0 + bar_index * 4);
+
+    if(memory_only && (raw & PCI_BAR_IO)) {
+        return nullptr;
+    }
+
+    uint64_t length = bar_length(device, bar_index);
+
+    if(length == 0) {
+        return nullptr;
+    }
+
+    if(raw & PCI_BAR_IO) {
+        bar->type = PCI_BAR_TYPE_PMIO;
+        bar->phys = 0;
+        bar->vprot = VPROT_NONE;
+        bar->pmio.base = raw & PCI_BAR_ADDR_MASK_IO;
+        bar->pmio.length = length;
+        pmio_region_setup(&bar->pmio);
+    }
+    else {
+        uintptr_t phys = bar_address(device, bar_index);
+        void* virt = mmio_map(phys, length, vprot);
+
+        if(virt == nullptr) {
+            return nullptr;
+        }
+
+        bar->type = PCI_BAR_TYPE_MMIO;
+        bar->phys = phys;
+        bar->vprot = vprot;
+        bar->mmio.virt8 = (volatile uint8_t*)(virt);
+        bar->mmio.virt16 = (volatile uint16_t*)(virt);
+        bar->mmio.virt32 = (volatile uint32_t*)(virt);
+        bar->mmio.virt64 = (volatile uint64_t*)(virt);
+        bar->mmio.length = length;
+    }
+
+    device->priv.bars_mapped |= 1U << bar_index;
+
+    return bar;
+}
+
 int pci_bus_add(pci_bus_t* restrict bus)
 {
     mutex_acquire(&pci_mutex);
@@ -336,44 +398,12 @@ void pci_cfg_write32(pci_device_t* restrict device, uintptr_t offset, uint32_t v
 
 pci_bar_t* pci_bar_map(pci_device_t* restrict device, unsigned bar_index)
 {
-    kassert(bar_index < 6);
+    return map_bar(device, bar_index, VPROT_MMIO, false);
+}
 
-    if(device->priv.bars_mapped & (1U << bar_index)) {
-        return &device->priv.bars[bar_index];
-    }
-
-    pci_bar_t* bar = &device->priv.bars[bar_index];
-    uint32_t raw = pci_cfg_read32(device, PCI_CFG_BAR0 + bar_index * 4);
-    uint64_t length = bar_length(device, bar_index);
-
-    if(length == 0) {
-        return nullptr;
-    }
-
-    if(raw & PCI_BAR_IO) {
-        bar->type = PCI_BAR_TYPE_PMIO;
-        bar->pmio.base = raw & PCI_BAR_ADDR_MASK_IO;
-        bar->pmio.length = length;
-        pmio_region_setup(&bar->pmio);
-    }
-    else {
-        void* virt = mmio_map(bar_address(device, bar_index), length, VPROT_MMIO);
-
-        if(virt == nullptr) {
-            return nullptr;
-        }
-
-        bar->type = PCI_BAR_TYPE_MMIO;
-        bar->mmio.virt8 = (volatile uint8_t*)(virt);
-        bar->mmio.virt16 = (volatile uint16_t*)(virt);
-        bar->mmio.virt32 = (volatile uint32_t*)(virt);
-        bar->mmio.virt64 = (volatile uint64_t*)(virt);
-        bar->mmio.length = length;
-    }
-
-    device->priv.bars_mapped |= (1U << bar_index);
-
-    return bar;
+pci_bar_t* pci_bar_map_vprot(pci_device_t* restrict device, unsigned bar_index, unsigned vprot)
+{
+    return map_bar(device, bar_index, vprot, true);
 }
 
 void pci_bar_unmap(pci_device_t* restrict device, unsigned bar_index)
