@@ -57,7 +57,7 @@ static size_t write_int(format_func_t func, void* restrict user, uintmax_t value
     size_t stager = 0;
     size_t counter = 0;
     const char* digits = ((flags & F_UPPERCASE) ? uc_digits : lc_digits);
-    char stage[128] = { 0 };
+    char stage[128] = {};
 
     do {
         stage[stager++] = digits[value % base];

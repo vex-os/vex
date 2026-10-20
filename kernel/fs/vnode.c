@@ -430,7 +430,7 @@ static void touch_atime(vnode_t* restrict target)
         return;
     }
 
-    vnode_attr_t attr = { 0 };
+    vnode_attr_t attr = {};
     attr.mask = VATTR_ATIME;
     wallclock_get(&attr.atime);
 
@@ -1005,7 +1005,7 @@ int vnode_chmod(vnode_t* restrict node, const credentials_t* restrict credential
         return -EPERM;
     }
 
-    vnode_attr_t attr = { 0 };
+    vnode_attr_t attr = {};
     attr.mask = VATTR_MODE;
     attr.mode = mode & (S_ISUID | S_ISGID | S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
 
@@ -1033,7 +1033,7 @@ int vnode_chown(vnode_t* restrict node, const credentials_t* restrict credential
         return retval;
     }
 
-    vnode_attr_t attr = { 0 };
+    vnode_attr_t attr = {};
 
     if(uid != -1 && uid != st.st_uid) {
         attr.mask |= VATTR_UID;
@@ -1142,7 +1142,7 @@ int vnode_remove_privs(vnode_t* restrict node, const credentials_t* restrict cre
     bool mode_clear = stripped == (st.st_mode & ~S_IFMT);
 
     if(!mode_clear && !cred_capable(credentials, CAP_FSETID)) {
-        vnode_attr_t attr = { 0 };
+        vnode_attr_t attr = {};
         attr.mask = VATTR_MODE;
         attr.mode = stripped;
         retval = vnode_set_attr(node, &attr);
@@ -1191,7 +1191,7 @@ int vnode_utimes(vnode_t* restrict node, const credentials_t* restrict credentia
         return -EINVAL;
     }
 
-    vnode_attr_t attr = { 0 };
+    vnode_attr_t attr = {};
     timespec_t now;
     wallclock_get(&now);
 

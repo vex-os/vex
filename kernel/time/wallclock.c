@@ -20,7 +20,7 @@ static volatile __used __section(".limine_requests") struct limine_date_at_boot_
     .revision = 0,
 };
 
-static timespec_t wallclock_offset = { 0 };
+static timespec_t wallclock_offset = {};
 static seqlock_t wallclock_seqlock = SEQLOCK_INIT;
 
 static void store_offset(const timespec_t* restrict offset)

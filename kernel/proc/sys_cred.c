@@ -242,7 +242,7 @@ static intptr_t sys_capget(const uintptr_t* restrict args)
 
     const credentials_t* credentials = thread->credentials;
 
-    caps_t caps = { 0 };
+    caps_t caps = {};
     caps.effective = credentials->cap_effective;
     caps.permitted = credentials->cap_permitted;
     caps.ambient = credentials->cap_ambient;

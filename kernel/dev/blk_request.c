@@ -148,7 +148,7 @@ static int transfer(const blk_device_t* restrict device, unsigned op, uintptr_t 
         size_t bytes = chunk * sector_size;
 
         blk_segment_t segments[BLK_MAX_SEGMENTS];
-        blk_request_t req = { 0 };
+        blk_request_t req = {};
         req.op = op;
         req.lba = lba;
         req.length = bytes;
@@ -245,7 +245,7 @@ int blk_write(const blk_device_t* restrict device, uintptr_t lba, size_t count, 
 
 int blk_flush(const blk_device_t* restrict device)
 {
-    blk_request_t req = { 0 };
+    blk_request_t req = {};
     req.op = BLK_REQ_FLUSH;
     return blk_submit_wait(device, &req);
 }

@@ -70,7 +70,7 @@ static void fill_exit_note(pending_signal_t* restrict note, const process_t* res
 {
     credentials_t* credentials = child->credentials;
 
-    siginfo_t info = { 0 };
+    siginfo_t info = {};
     info.si_signo = SIGCHLD;
     info.si_code = CLD_EXITED;
     info.si_pid = child->pid;

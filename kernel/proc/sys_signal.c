@@ -54,7 +54,7 @@ static intptr_t sys_kill(const uintptr_t* restrict args)
         retval = 0;
 
         if(sig) {
-            siginfo_t info = { 0 };
+            siginfo_t info = {};
             info.si_signo = sig;
             info.si_code = SI_USER;
             info.si_pid = sender->pid;
@@ -108,7 +108,7 @@ static intptr_t sys_tgkill(const uintptr_t* restrict args)
         }
     }
     else if(allowed) {
-        siginfo_t info = { 0 };
+        siginfo_t info = {};
         info.si_signo = sig;
         info.si_code = SI_TKILL;
         info.si_pid = sender->pid;

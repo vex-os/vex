@@ -203,7 +203,7 @@ static int gpt_detect(const blk_device_t* restrict device, void** restrict ptdat
 static int gpt_read_table(const blk_device_t* restrict device, void* restrict ptdata, unsigned index,
     blk_partition_table_info_t* restrict out)
 {
-    static const uint8_t null_guid[16] = { 0 }; // FIXME: a GUID library would be nice
+    static const uint8_t null_guid[16] = {}; // FIXME: a GUID library would be nice
 
     const gpt_ptdata_t* gpt = ptdata;
     uint32_t entry_count = le32toh(gpt->header.entry_count);

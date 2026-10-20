@@ -116,7 +116,7 @@ static void fill_record(const ext2_vfs_context_t* restrict fs_ctx, uint8_t* rest
 static int write_record(vnode_t* restrict dir, uint64_t offset, size_t rec_len, uint32_t ino, const char* restrict name, uint8_t file_type)
 {
     ext2_vnode_context_t* ctx = dir->ctxdata;
-    uint8_t buffer[MAX_REC_LEN] = { 0 };
+    uint8_t buffer[MAX_REC_LEN] = {};
 
     fill_record(ctx->fs_ctx, buffer, rec_len, ino, name, file_type);
 
@@ -265,7 +265,7 @@ int ext2_dirent_add(vnode_t* restrict dir, const char* restrict name, uint32_t i
     }
 
     ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
-    uint8_t record[MAX_REC_LEN] = { 0 };
+    uint8_t record[MAX_REC_LEN] = {};
 
     fill_record(fs_ctx, record, fs_ctx->block_size, ino, name, file_type);
 
@@ -344,7 +344,7 @@ int ext2_dir_init(vnode_t* restrict dir, uint32_t parent_ino)
     ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
     size_t dot_len = ext2_dirent_reclen(1);
     size_t dotdot_len = ext2_dirent_reclen(2);
-    uint8_t records[2 * MIN_REC_LEN] = { 0 };
+    uint8_t records[2 * MIN_REC_LEN] = {};
 
     fill_record(fs_ctx, records, dot_len, (uint32_t)(dir->ino), ".", EXT2_FT_DIR);
     fill_record(fs_ctx, records + dot_len, fs_ctx->block_size - dot_len, parent_ino, "..", EXT2_FT_DIR);

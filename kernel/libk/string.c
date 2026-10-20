@@ -149,7 +149,7 @@ size_t strcspn(const char* restrict str, const char* restrict sym)
 
 char* strerror(int errnum)
 {
-    static char buffer[128] = { 0 };
+    static char buffer[128] = {};
     strerror_r(errnum, buffer, sizeof(buffer));
     return buffer;
 }

@@ -87,7 +87,7 @@ static void page_fault_handler(hart_local_t* restrict hart, hart_context_t* rest
     int retval = vms_fault(process->vmspace, fault, access);
 
     if(retval < 0) {
-        siginfo_t info = { 0 };
+        siginfo_t info = {};
         info.si_signo = SIGSEGV;
         info.si_code = SEGV_MAPERR;
         info.si_addr = (void*)(fault);
@@ -253,7 +253,7 @@ void __used amd64_isr_handler(hart_context_t* restrict ctx, uint64_t intvec)
             unreachable();
         }
 
-        siginfo_t info = { 0 };
+        siginfo_t info = {};
         user_exception_info(intvec, ctx, &info);
         signal_force(thread, &info);
 

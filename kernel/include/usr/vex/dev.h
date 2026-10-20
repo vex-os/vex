@@ -3,8 +3,6 @@
 
 #include <vex/types.h>
 
-/* A device number is its name taken apart: ada0n1p2 is crc32("ada"), unit 0, index 1, partition 2 */
-
 #define __k_DEV_NO_INDEX     ((__k_uint32_t)(0xFFF))
 #define __k_DEV_NO_PARTITION ((__k_uint32_t)(0xFF))
 
@@ -20,7 +18,6 @@
 #define __k_DEV_GET_INDEX(dev)     ((__k_uint32_t)((__k_dev_t)(dev) >> 8) & 0xFFF)
 #define __k_DEV_GET_PARTITION(dev) ((__k_uint32_t)(dev) & 0xFF)
 
-/* What major() and minor() give */
 #define __k_DEV_GET_MAJOR(dev) __k_DEV_GET_PREFIX(dev)
 #define __k_DEV_GET_MINOR(dev) ((__k_uint32_t)((__k_dev_t)(dev) & 0xFFFFFFFF))
 

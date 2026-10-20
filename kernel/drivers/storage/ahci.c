@@ -223,7 +223,8 @@ static void context_decref(ahci_pci_context_t* restrict context)
     }
 }
 
-// The names stay with devices someone still holds, so the units can go before the context
+// The names stay with devices someone still
+// holds, so the units can go before the context
 static void free_units(ahci_pci_context_t* restrict context)
 {
     if(context->ata_unit) {

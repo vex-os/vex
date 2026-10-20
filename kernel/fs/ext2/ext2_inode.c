@@ -138,7 +138,7 @@ static uint32_t block_goal(ext2_vfs_context_t* restrict context, const ext2_inod
 
 static int zero_block(ext2_vfs_context_t* restrict context, uint32_t block)
 {
-    static const uint8_t zeros[1U << EXT2_MIN_BLOCK_LOG_SIZE] = { 0 };
+    static const uint8_t zeros[1U << EXT2_MIN_BLOCK_LOG_SIZE] = {};
 
     uint64_t offset = ext2_block_offset(context, block);
     int retval = 0;
@@ -349,7 +349,7 @@ int ext2_inode_read(ext2_vfs_context_t* restrict context, uint32_t ino, ext2_ino
 
 int ext2_inode_clear(ext2_vfs_context_t* restrict context, uint32_t ino)
 {
-    static const uint8_t zeros[EXT2_GOOD_OLD_INODE_SIZE] = { 0 };
+    static const uint8_t zeros[EXT2_GOOD_OLD_INODE_SIZE] = {};
 
     uint64_t offset;
     int retval = ext2_inode_offset(context, ino, &offset);

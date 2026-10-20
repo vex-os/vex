@@ -116,7 +116,7 @@ static void ioapic_route(interrupt_controller_t* restrict controller, uint32_t g
 {
     ioapic_data_t* data = controller->ctxdata;
 
-    rte_entry_t entry = { 0 };
+    rte_entry_t entry = {};
     entry.vector = vector;
     entry.dest = hart;
     entry.level = (trigger == TRIGGER_LEVEL);
@@ -164,7 +164,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
             panic("ioapic: out of memory");
         }
 
-        rte_entry_t masked = { 0 };
+        rte_entry_t masked = {};
         masked.masked = 1;
 
         for(uint8_t i = 0; i < controller->gsi_count; ++i) {

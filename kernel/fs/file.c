@@ -46,7 +46,7 @@ int file_open_node(vnode_t* restrict node, unsigned flags, const credentials_t* 
     }
 
     if((flags & O_TRUNC) && node->type == VNODE_FILE) {
-        vnode_attr_t attr = { 0 };
+        vnode_attr_t attr = {};
         attr.mask = VATTR_SIZE;
         attr.size = 0;
         retval = vnode_remove_privs(node, credentials);
@@ -249,7 +249,7 @@ int file_truncate(file_t* restrict file, const credentials_t* restrict credentia
         return retval;
     }
 
-    vnode_attr_t attr = { 0 };
+    vnode_attr_t attr = {};
     attr.mask = VATTR_SIZE;
     attr.size = size;
     return vnode_set_attr(file->node, &attr);

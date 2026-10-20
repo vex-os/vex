@@ -406,7 +406,7 @@ void signal_deliver(hart_context_t* restrict ctx)
 
     spinlock_release_intr(&signal_actions->lock, intr_state);
 
-    siginfo_t info = { 0 };
+    siginfo_t info = {};
     info.si_signo = sig;
     info.si_code = SI_KERNEL;
 

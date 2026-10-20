@@ -60,7 +60,7 @@ void kprintf(unsigned sv, const char* restrict fmt, ...)
 
 void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 {
-    stagebuf_t st = { 0 };
+    stagebuf_t st = {};
 
     bool intr_state = disable_interrupts();
 

@@ -173,7 +173,7 @@ static void shortname_build(const char* restrict name, unsigned tail_n, uint8_t 
 
 static bool shortname_pick(const fat_vfs_context_t* restrict fs, uintptr_t dir_cluster, const char* restrict name, uint8_t out[11])
 {
-    bitmap_t taken[32] = { 0 };
+    bitmap_t taken[32] = {};
     fat_dirent_t taken_dirent;
     size_t taken_offset = 0;
 
@@ -1116,11 +1116,11 @@ static int stat_locked(vnode_t* restrict node, stat_t* restrict out)
         return retval;
     }
 
-    fat_timestamp_t written = { 0 };
+    fat_timestamp_t written = {};
     written.date = dirent.base.write_date;
     written.time = dirent.base.write_time;
 
-    fat_timestamp_t accessed = { 0 };
+    fat_timestamp_t accessed = {};
     accessed.date = dirent.base.access_date;
 
     fat_time_unpack(&written, &out->st_mtim);

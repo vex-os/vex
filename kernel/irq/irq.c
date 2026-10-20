@@ -18,7 +18,7 @@ struct irq_entry_s {
 };
 
 static spinlock_t irq_table_lock = SPINLOCK_INIT;
-static irq_entry_t irq_table[IRQ_TABLE_SIZE] = { 0 };
+static irq_entry_t irq_table[IRQ_TABLE_SIZE] = {};
 
 static void claim_nolock(unsigned number, irq_handler_t handler, void* restrict ctxdata)
 {

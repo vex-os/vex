@@ -250,7 +250,7 @@ int cred_parse_file_caps(const void* restrict value, size_t size, file_caps_t* r
     kassert(value);
     kassert(out);
 
-    vfs_cap_data_t data = { 0 };
+    vfs_cap_data_t data = {};
 
     if(size < sizeof(data.magic_etc) || size > sizeof(data)) {
         return -EINVAL;

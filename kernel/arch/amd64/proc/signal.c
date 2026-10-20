@@ -108,7 +108,7 @@ int arch_signal_setup(thread_t* restrict thread, hart_context_t* restrict ctx, c
         return -EFAULT;
     }
 
-    sigframe_t frame = { 0 };
+    sigframe_t frame = {};
     frame.restorer = restorer;
     frame.uc.uc_flags = UC_FPU;
     signal_altstack_get(thread, ctx->amd64_rsp, &frame.uc.uc_stack);
