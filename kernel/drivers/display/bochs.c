@@ -1,5 +1,6 @@
 #include <vex/errno.h>
 #include <vex/fb_device.h>
+#include <vex/fb_edid.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 #include <vex/pci.h>
@@ -11,6 +12,7 @@
 #define BAR_VRAM 0
 #define BAR_MMIO 2
 
+#define MMIO_EDID  0x000 // The base EDID block QEMU makes up for the display
 #define MMIO_VGA   0x400 // Ports 0x3C0-0x3DF
 #define MMIO_DISPI 0x500 // 16-bit registers, one per index
 
@@ -23,6 +25,7 @@
 #define DISPI_YRES       0x02
 #define DISPI_BPP        0x03
 #define DISPI_ENABLE     0x04
+#define DISPI_BANK       0x05
 #define DISPI_VIRT_WIDTH 0x06
 #define DISPI_X_OFFSET   0x08
 #define DISPI_Y_OFFSET   0x09
@@ -31,18 +34,30 @@
 #define DISPI_ID_MAX 0xB0C5
 
 #define DISPI_ENABLED     0x0001
+#define DISPI_GETCAPS     0x0002 // XRES, YRES and BPP read back their limits while set
 #define DISPI_8BIT_DAC    0x0020
 #define DISPI_LFB_ENABLED 0x0040
 
+#define DISPI_MAX_XRES 16000
+#define DISPI_MAX_YRES 12000
+#define DISPI_MAX_BPP  32
+
 #define PALETTE_SIZE 256
+#define MAX_MODES    32
 
 typedef struct bochsfb_s bochsfb_t;
 
 struct bochsfb_s {
     fb_device_t device;
     pci_bar_t* mmio;
+    pci_bar_t* vram;
     spinlock_t dac_lock; // The DAC takes an index, then three data accesses per color
     unsigned dac_bits;
+    bool has_vga; // 8 and 24 bpp need the VGA side, which bochs-display lacks
+    uint32_t max_width;
+    uint32_t max_height;
+    uint32_t max_bpp;
+    vexfb_mode_t modes[MAX_MODES];
 };
 
 static_assert(sizeof(bochsfb_t) <= SLAB_MAX_SIZE);
@@ -52,13 +67,17 @@ static uint16_t dispi_read(pci_bar_t* restrict mmio, unsigned index)
     return pci_bar_read16(mmio, MMIO_DISPI + index * 2);
 }
 
+static void dispi_write(pci_bar_t* restrict mmio, unsigned index, uint16_t value)
+{
+    pci_bar_write16(mmio, MMIO_DISPI + index * 2, value);
+}
+
 static void set_channel(vexfb_channel_t* restrict channel, uint32_t bit_offset, uint32_t bit_length)
 {
     channel->bit_offset = bit_offset;
     channel->bit_length = bit_length;
 }
 
-// Reads the mode the firmware left behind; nothing is changed
 static bool describe(pci_bar_t* restrict mmio, vexfb_info_t* restrict info, uint64_t* restrict offset)
 {
     uint16_t enable = dispi_read(mmio, DISPI_ENABLE);
@@ -74,11 +93,6 @@ static bool describe(pci_bar_t* restrict mmio, vexfb_info_t* restrict info, uint
     switch(bpp) {
         case 8:
             info->palette_size = PALETTE_SIZE;
-            break;
-        case 15:
-            set_channel(&info->red, 10, 5);
-            set_channel(&info->green, 5, 5);
-            set_channel(&info->blue, 0, 5);
             break;
         case 16:
             set_channel(&info->red, 11, 5);
@@ -156,6 +170,58 @@ static int bochsfb_set_palette(const fb_device_t* restrict device, uint32_t firs
     return 0;
 }
 
+static bool mode_supported(const bochsfb_t* restrict bochsfb, const vexfb_mode_t* restrict mode)
+{
+    bool depth_supported = mode->bpp == 16 || mode->bpp == 32 || (bochsfb->has_vga && (mode->bpp == 8 || mode->bpp == 24));
+
+    // DISPI takes widths in steps of 8
+    if(!depth_supported || mode->width == 0 || mode->height == 0 || mode->width % 8) {
+        return false;
+    }
+
+    if(mode->width > bochsfb->max_width || mode->height > bochsfb->max_height || mode->bpp > bochsfb->max_bpp) {
+        return false;
+    }
+
+    return (uint64_t)(mode->width) * (mode->bpp / 8) * mode->height <= bochsfb->vram->mmio.length;
+}
+
+// Nothing but register accesses, as a panic calls this too
+static int bochsfb_set_mode(fb_device_t* restrict device, const vexfb_mode_t* restrict mode)
+{
+    bochsfb_t* bochsfb = device->ctxdata;
+    pci_bar_t* mmio = bochsfb->mmio;
+
+    if(!mode_supported(bochsfb, mode)) {
+        return -EINVAL;
+    }
+
+    uint16_t dac = dispi_read(mmio, DISPI_ENABLE) & DISPI_8BIT_DAC;
+
+    dispi_write(mmio, DISPI_ENABLE, 0);
+    dispi_write(mmio, DISPI_BPP, mode->bpp);
+    dispi_write(mmio, DISPI_XRES, mode->width);
+    dispi_write(mmio, DISPI_YRES, mode->height);
+    dispi_write(mmio, DISPI_BANK, 0);
+    dispi_write(mmio, DISPI_VIRT_WIDTH, mode->width);
+    dispi_write(mmio, DISPI_X_OFFSET, 0);
+    dispi_write(mmio, DISPI_Y_OFFSET, 0);
+    dispi_write(mmio, DISPI_ENABLE, DISPI_ENABLED | DISPI_LFB_ENABLED | dac);
+
+    vexfb_info_t info;
+    uint64_t offset;
+
+    if(!describe(mmio, &info, &offset) || offset + info.size > bochsfb->vram->mmio.length) {
+        return -EIO;
+    }
+
+    device->info = info;
+    device->phys = bochsfb->vram->phys + offset;
+    device->virt = (uint8_t*)(bochsfb->vram->mmio.virt8) + offset;
+
+    return 0;
+}
+
 static void bochsfb_release(const fb_device_t* restrict device)
 {
     slab_free(device->ctxdata);
@@ -164,8 +230,89 @@ static void bochsfb_release(const fb_device_t* restrict device)
 static const fb_device_ops_t bochsfb_ops = {
     .get_palette = &bochsfb_get_palette,
     .set_palette = &bochsfb_set_palette,
+    .set_mode = &bochsfb_set_mode,
     .release = &bochsfb_release,
 };
+
+// Rewriting ENABLE with DISPI_ENABLED still set
+// keeps the mode, rather than setting it again
+static void read_limits(bochsfb_t* restrict bochsfb, const vexfb_info_t* restrict info)
+{
+    pci_bar_t* mmio = bochsfb->mmio;
+    uint16_t enable = dispi_read(mmio, DISPI_ENABLE);
+
+    dispi_write(mmio, DISPI_ENABLE, enable | DISPI_GETCAPS);
+    bochsfb->max_width = dispi_read(mmio, DISPI_XRES);
+    bochsfb->max_height = dispi_read(mmio, DISPI_YRES);
+    bochsfb->max_bpp = dispi_read(mmio, DISPI_BPP);
+    dispi_write(mmio, DISPI_ENABLE, enable);
+
+    // bochs-display reads back the mode instead
+    if(bochsfb->max_width <= info->width && bochsfb->max_height <= info->height) {
+        bochsfb->max_width = DISPI_MAX_XRES;
+        bochsfb->max_height = DISPI_MAX_YRES;
+        bochsfb->max_bpp = DISPI_MAX_BPP;
+    }
+}
+
+static size_t keep_mode(bochsfb_t* restrict bochsfb, size_t count, uint32_t width, uint32_t height, uint32_t bpp, uint32_t flags)
+{
+    vexfb_mode_t mode = {};
+    mode.width = width;
+    mode.height = height;
+    mode.bpp = bpp;
+    mode.flags = flags;
+
+    if(count >= MAX_MODES || !mode_supported(bochsfb, &mode)) {
+        return count;
+    }
+
+    for(size_t i = 0; i < count; ++i) {
+        if(bochsfb->modes[i].width == width && bochsfb->modes[i].height == height) {
+            return count;
+        }
+    }
+
+    bochsfb->modes[count] = mode;
+
+    return count + 1;
+}
+
+// What the EDID suggests, or a list of the usual modes without one, both
+// cut to what the device can set, and the current mode in any case
+static size_t collect_modes(bochsfb_t* restrict bochsfb, const vexfb_info_t* restrict info)
+{
+    static const uint16_t usual_modes[][2] = {
+        { 640, 480 },
+        { 800, 600 },
+        { 1024, 768 },
+        { 1280, 720 },
+        { 1280, 800 },
+        { 1280, 1024 },
+        { 1600, 900 },
+        { 1920, 1080 },
+    };
+
+    uint8_t block[EDID_BLOCK_SIZE];
+    vexfb_mode_t found[MAX_MODES];
+
+    pci_bar_read8s(bochsfb->mmio, MMIO_EDID, block, sizeof(block));
+
+    size_t found_count = fb_edid_parse_modes(block, found, MAX_MODES);
+    size_t count = 0;
+
+    for(size_t i = 0; i < found_count; ++i) {
+        count = keep_mode(bochsfb, count, found[i].width, found[i].height, 32, found[i].flags);
+    }
+
+    if(found_count == 0) {
+        for(size_t i = 0; i < sizeof(usual_modes) / sizeof(usual_modes[0]); ++i) {
+            count = keep_mode(bochsfb, count, usual_modes[i][0], usual_modes[i][1], 32, 0);
+        }
+    }
+
+    return keep_mode(bochsfb, count, info->width, info->height, info->bpp, 0);
+}
 
 static void unmap_bars(pci_device_t* restrict pci_dev)
 {
@@ -196,7 +343,7 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
     vexfb_info_t info;
     uint64_t offset;
 
-    // UNDONE: set a mode of our own once modes can change
+    // UNDONE: set a mode of our own rather than give up
     if(!describe(mmio, &info, &offset)) {
         pr_verbose("bochsfb: no linear framebuffer mode is set");
         unmap_bars(pci_dev);
@@ -221,8 +368,18 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
     memset(bochsfb, 0, sizeof(bochsfb_t));
 
     bochsfb->mmio = mmio;
+    bochsfb->vram = vram;
     bochsfb->dac_lock = SPINLOCK_INIT;
-    bochsfb->dac_bits = (dispi_read(mmio, DISPI_ENABLE) & DISPI_8BIT_DAC) ? 8 : 6;
+    bochsfb->has_vga = pci_dev->class_id == 0x03 && pci_dev->subclass_id == 0x00;
+
+    if(dispi_read(mmio, DISPI_ENABLE) & DISPI_8BIT_DAC) {
+        bochsfb->dac_bits = 8;
+    }
+    else {
+        bochsfb->dac_bits = 6;
+    }
+
+    read_limits(bochsfb, &info);
 
     fb_device_t* device = &bochsfb->device;
     device->ops = &bochsfb_ops;
@@ -230,6 +387,8 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
     device->phys = vram->phys + offset;
     device->cache = VPROT_CACHE_WC;
     device->virt = (uint8_t*)(vram->mmio.virt8) + offset;
+    device->modes = bochsfb->modes;
+    device->mode_count = collect_modes(bochsfb, &info);
     device->ctxdata = bochsfb;
 
     // NOTE: after a successful claim the
@@ -248,7 +407,8 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
 
     pci_dev->ctxdata = bochsfb;
 
-    pr_inform("bochsfb: %s: DISPI 0x%04X, %zu KiB of video memory", device->chr.name, dispi_id, (size_t)(vram->mmio.length / 1024));
+    pr_inform("bochsfb: %s: DISPI 0x%04X, %zu KiB of video memory, up to %ux%u, %u modes listed", device->chr.name, dispi_id,
+        (size_t)(vram->mmio.length / 1024), bochsfb->max_width, bochsfb->max_height, device->mode_count);
 
     return 0;
 }

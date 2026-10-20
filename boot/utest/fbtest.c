@@ -206,7 +206,50 @@ int main(void)
     // should print -210 (EBUSY), the device is already open
     printnumber(syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/fbd0", __k_O_RDWR | __k_O_EXCL, 0));
 
-    // Long enough to look at the screen; the panic after the exit takes it back for fbcons
+    wait_seconds(3);
+
+    struct __k_vexfb_modes modes = { 0, 0, 0 };
+    printnumber(syscall3(__k_SYS_IOCTL, fd, __k_VEXFB_GET_MODES, (long)&modes)); // should print 0
+    printnumber(modes.count > 0);                                                // should print 1
+
+    static struct __k_vexfb_mode list[32];
+    modes.modes = (unsigned long)list;
+    modes.count = 32;
+    printnumber(syscall3(__k_SYS_IOCTL, fd, __k_VEXFB_GET_MODES, (long)&modes)); // should print 0
+    printnumber(list[0].width);
+    printnumber(list[0].height);
+    printnumber(list[0].flags); // should print 1 (VEXFB_MODE_PREFERRED) with QEMU's EDID
+
+    struct __k_vexfb_mode mode = { 1001, 768, 32, 0 };
+    printnumber(syscall3(__k_SYS_IOCTL, fd, __k_VEXFB_SET_MODE, (long)&mode)); // should print -226 (EINVAL), not a step of 8
+
+    mode.width = 1024;
+    printnumber(syscall3(__k_SYS_IOCTL, fd, __k_VEXFB_SET_MODE, (long)&mode)); // should print 0
+    printnumber(syscall3(__k_SYS_IOCTL, fd, __k_VEXFB_GET_INFO, (long)&info)); // should print 0
+    printnumber(info.width);                                                    // should print 1024
+    printnumber(info.height);                                                   // should print 768
+    printnumber(info.pitch);                                                    // should print 4096
+
+    // Through the mapping from before the mode change, which faults in again
+    for(unsigned int y = 0; y < info.height; ++y) {
+        for(unsigned int x = 0; x < info.width; ++x) {
+            put_pixel(fb, x, y, STRIPE_COLOR);
+        }
+    }
+
+    left = (info.width - AMOGUS_WIDTH * AMOGUS_SCALE) / 2;
+    top = (info.height - AMOGUS_HEIGHT * AMOGUS_SCALE) / 2;
+
+    for(unsigned int y = 0; y < AMOGUS_HEIGHT * AMOGUS_SCALE; ++y) {
+        for(unsigned int x = 0; x < AMOGUS_WIDTH * AMOGUS_SCALE; ++x) {
+            put_pixel(fb, left + x, top + y, amogus[(y / AMOGUS_SCALE) * AMOGUS_WIDTH + x / AMOGUS_SCALE]);
+        }
+    }
+
+    printnumber(1); // should print 1, the old mapping still works within the new size
+
+    // Long enough to look at the screen; the panic after the exit brings
+    // back the boot mode and takes the screen back for fbcons
     wait_seconds(10);
 
     return 0;
