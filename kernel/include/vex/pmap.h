@@ -14,6 +14,9 @@ void pmap_release(pmap_t* restrict pmap);
 
 int pmap_map(pmap_t* restrict pmap, uintptr_t virt, uintptr_t phys, unsigned vprot);
 int pmap_map_range(pmap_t* restrict pmap, uintptr_t virt, uintptr_t phys, size_t size, unsigned vprot);
+
+// The noflush variants leave the old translation in TLBs: the caller runs tlb_shootdown
+// before that translation could matter, or knows that no hart ever used it
 int pmap_patch(pmap_t* restrict pmap, uintptr_t virt, unsigned vprot);
 int pmap_patch_noflush(pmap_t* restrict pmap, uintptr_t virt, unsigned vprot);
 int pmap_unmap(pmap_t* restrict pmap, uintptr_t virt);

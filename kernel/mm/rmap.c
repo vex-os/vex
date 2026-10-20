@@ -8,9 +8,6 @@
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 
-// Mappings of one page table only change under its vmspace lock, so a frame
-// found by a lookup still carries the entry unless a walker has taken it since
-
 #define NUM_LOCKS 256
 
 static_assert(sizeof(rmap_entry_t) <= SLAB_MAX_SIZE);

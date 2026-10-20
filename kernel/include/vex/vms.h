@@ -39,8 +39,12 @@ struct vmspace_s {
 };
 
 vmspace_t* vms_create(void) __nodiscard;
+
+/// Frees the address space and its page tables
+/// @pre No hart has them loaded anymore, as nothing flushes the TLB entries they left behind
 void vms_release(vmspace_t* restrict vmspace);
 
+/// @retval -EEXIST The range overlaps an existing mapping; vms_map_replace unmaps it instead
 int vms_map(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end, unsigned vprot, const vm_backing_t* restrict backing);
 int vms_map_replace(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end, unsigned vprot, const vm_backing_t* restrict backing);
 int vms_map_any(vmspace_t* restrict vmspace, size_t size, unsigned vprot, const vm_backing_t* restrict backing, uintptr_t* restrict out);
@@ -51,11 +55,26 @@ int vms_unmap_all(vmspace_t* restrict vmspace);
 int vms_clone(vmspace_t* restrict vmspace, vmspace_t* restrict source);
 
 int vms_fault(vmspace_t* restrict vmspace, uintptr_t virt, unsigned access);
+
+/// Faults the page in and makes a private one the address space's own, without pinning it
+/// @pre Nothing runs in the address space, as in exec, or the frame may move right away
+/// @return The physical address of virt, or zero when it can't be mapped
+
 uintptr_t vms_touch(vmspace_t* restrict vmspace, uintptr_t virt) __nodiscard;
+
+/// Keeps the page at virt in place until vms_unpin. A private page is made the process's own
+/// first, so the frame stays the one mapped at virt instead of a copy-on-write original a write moves off
+/// @return The physical address of virt, or zero when it isn't mapped readable
 uintptr_t vms_pin(vmspace_t* restrict vmspace, uintptr_t virt) __nodiscard;
 void vms_unpin(uintptr_t phys);
 
 ssize_t vms_copyin(void* restrict dst, vmspace_t* restrict vmspace, uintptr_t src, size_t size);
+
+/// Copies a NUL-terminated string of at most max_sz bytes, terminator included
+/// @return The length of the string, without the terminator
+/// @retval -ENAMETOOLONG No terminator within max_sz; dst holds a truncated, terminated copy
+/// @retval -EFAULT Part of the string isn't mapped readable
+/// @retval -EINVAL max_sz is zero
 ssize_t vms_copyin_str(char* restrict dst, vmspace_t* restrict vmspace, uintptr_t src, size_t max_sz);
 ssize_t vms_copyout(vmspace_t* restrict vmspace, uintptr_t dst, const void* restrict src, size_t size);
 ssize_t vms_copyout_str(vmspace_t* restrict vmspace, uintptr_t dst, const char* restrict src, size_t max_sz);

@@ -793,8 +793,6 @@ uintptr_t vms_touch(vmspace_t* restrict vmspace, uintptr_t virt)
     return phys;
 }
 
-// A private page is made the process's own first, so the frame stays the
-// one mapped at virt instead of a copy-on-write original a write moves off
 uintptr_t vms_pin(vmspace_t* restrict vmspace, uintptr_t virt)
 {
     if(virt >= pmap_user_end(vmspace->pmap)) {

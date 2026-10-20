@@ -36,9 +36,6 @@ void tlb_poll(void)
     }
 }
 
-// Callers have already changed the page
-// tables; once this returns no hart can
-// still reach the old translations through its TLB
 void tlb_shootdown(void)
 {
     if(!atomic_load_n(&tlb_ready, ATOMIC_ACQUIRE)) {
