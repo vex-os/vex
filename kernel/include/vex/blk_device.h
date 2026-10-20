@@ -27,6 +27,7 @@ struct blk_segment_s {
     size_t length;
 };
 
+/// Called once per request with status set, possibly before blk_submit returns
 typedef void (*blk_request_done_t)(blk_request_t* restrict req);
 
 struct blk_request_s {
@@ -41,7 +42,11 @@ struct blk_request_s {
 };
 
 struct blk_device_ops_s {
+    /// Gets requests blk_submit has checked against the device's limits and found present;
+    /// finishes each one by setting status and calling done exactly once, failure included
     void (*submit)(const blk_device_t* restrict device, blk_request_t* restrict req);
+
+    /// Called once the last reference is gone
     void (*release)(const blk_device_t* restrict device);
 };
 
@@ -60,8 +65,8 @@ struct blk_device_s {
     size_t sector_size;
     size_t max_transfer;
     size_t max_segments;
-    uintptr_t dma_limit;
-    uintptr_t dma_align;
+    uintptr_t dma_limit; // Highest physical address a segment may reach
+    uintptr_t dma_align; // A mask: segment addresses and lengths have these bits clear
     unsigned partition;
     unsigned flags;
     void* ctxdata;
@@ -70,17 +75,31 @@ struct blk_device_s {
 int blk_device_add_root(blk_device_t* restrict device, blk_name_t* restrict name, unsigned iterator, unsigned index);
 int blk_device_add_part(blk_device_t* restrict device, const blk_device_t* restrict root, unsigned partition);
 int blk_device_add_named(blk_device_t* restrict device);
+
+/// Takes the device out of the registry and drops the reference it held there; holders of
+/// other references keep the structure, but their requests fail with -ENODEV from now on
 int blk_device_remove(blk_device_t* restrict device);
 
 void blk_device_incref(const blk_device_t* restrict device);
 void blk_device_decref(const blk_device_t* restrict device);
 
 const blk_device_t* blk_device_find(const char* restrict name) __nodiscard;
+
+/// @pre The caller holds blk_event_lock, which keeps the device list still
 void blk_device_for_each(void (*callback)(const blk_device_t* restrict device, void* restrict arg), void* restrict arg);
 
+/// Starts the request and returns; done reports the outcome, even for a request
+/// refused right away as -ENODEV or -EINVAL. Segments are physical addresses
+/// within dma_limit and dma_align, the length a multiple of the sector size
 void blk_submit(const blk_device_t* restrict device, blk_request_t* restrict req);
+
+/// blk_submit, then waits for done; replaces whatever done and ctxdata the request had
+/// @pre Interrupts are enabled, unless the driver finishes the request before blk_submit returns
+/// @return The request's status
 int blk_submit_wait(const blk_device_t* restrict device, blk_request_t* restrict req);
 
+/// @param count Sectors to transfer
+/// @param buffer Kernel memory, split into segments here; blk_write takes the same arguments
 int blk_read(const blk_device_t* restrict device, uintptr_t lba, size_t count, void* restrict buffer);
 int blk_write(const blk_device_t* restrict device, uintptr_t lba, size_t count, const void* restrict buffer);
 int blk_flush(const blk_device_t* restrict device);

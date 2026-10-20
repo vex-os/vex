@@ -35,6 +35,8 @@ int chr_device_add_named(chr_device_t* restrict device, const char* restrict nam
 int chr_device_remove(chr_device_t* restrict device);
 
 const chr_device_t* chr_device_find(const char* restrict name) __nodiscard;
+
+/// @pre The caller holds chr_event_lock, which keeps the device list still
 void chr_device_for_each(void (*callback)(const chr_device_t* restrict device, void* restrict arg), void* restrict arg);
 
 static __always_inline ssize_t chr_device_read(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size)
