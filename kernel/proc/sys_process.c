@@ -215,21 +215,28 @@ static intptr_t exec_image(thread_t* restrict thread, char* restrict path, char*
         retval = load_binary(vmspace, file, argv, envp, new_cred, &entry);
     }
 
-    if(retval == 0) {
-        process_set_cred(process, new_cred);
-    }
-    else if(new_cred) {
-        cred_decref(new_cred);
-    }
-
     mutex_release(&process->credentials_lock);
 
     file_close(file);
 
+    // The other threads go only once the new image is in place, and not under the
+    // credentials lock: one of them may be waiting for it and never get to exit
+    if(retval == 0) {
+        retval = process_dethread(process, thread);
+    }
+
     if(retval < 0) {
+        if(new_cred) {
+            cred_decref(new_cred);
+        }
+
         vms_release(vmspace);
         return retval;
     }
+
+    mutex_acquire(&process->credentials_lock);
+    process_set_cred(process, new_cred);
+    mutex_release(&process->credentials_lock);
 
     vmspace_t* old_vms = process->vmspace;
 
@@ -238,6 +245,7 @@ static intptr_t exec_image(thread_t* restrict thread, char* restrict path, char*
     signal_actions_exec(process->signal_actions);
     thread->sig_altstack = 0;
     thread->sig_altstack_size = 0;
+    thread->clear_tid = 0; // An address in the image just left
 
     vms_release(old_vms);
 

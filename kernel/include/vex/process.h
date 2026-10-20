@@ -34,6 +34,7 @@ struct process_s {
     vmspace_t* vmspace;
 
     thread_t* threads;
+    thread_t* exec_thread;     // Waiting in exec for the other threads to go, under lock
     uint32_t num_threads;      // Until reaped, under lock
     uint32_t num_live_threads; // Until thread_exit, under lock
 
@@ -73,6 +74,7 @@ void process_decref(process_t* process);
 void process_exit(process_t* process, int exit_code);
 void process_kill(process_t* process, int sig);
 void process_thread_exit(process_t* process, thread_t* thread);
+int process_dethread(process_t* process, thread_t* thread);
 void process_thread_reaped(process_t* process, thread_t* thread);
 bool process_claim(process_t* process) __nodiscard;
 void process_destroy(process_t* process);

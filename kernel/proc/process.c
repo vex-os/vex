@@ -381,6 +381,13 @@ void process_thread_exit(process_t* process, thread_t* thread)
 {
     bool intr_state = spinlock_acquire_intr(&process->lock);
 
+    // Already going with the whole process or for another thread's exec,
+    // which do their own counting; the last-thread rule is not for it
+    if(atomic_load(&thread->pending_work, ATOMIC_ACQUIRE) & THREAD_WORK_EXIT) {
+        spinlock_release_intr(&process->lock, intr_state);
+        return;
+    }
+
     process->num_live_threads -= 1;
 
     bool last = (process->num_live_threads == 0);
@@ -398,6 +405,56 @@ void process_thread_exit(process_t* process, thread_t* thread)
     signal_retarget(process);
 }
 
+// The other threads exit without taking the process along; a process exiting meanwhile
+// or another thread already doing this wins, and the caller is then on its way out too
+int process_dethread(process_t* process, thread_t* thread)
+{
+    bool intr_state = spinlock_acquire_intr(&process->lock);
+
+    if(atomic_load_n(&process->exiting, ATOMIC_ACQUIRE) || process->exec_thread) {
+        spinlock_release_intr(&process->lock, intr_state);
+        return -EINTR;
+    }
+
+    process->exec_thread = thread;
+
+    for(thread_t* other = process->threads; other; other = other->process_next) {
+        if(other != thread) {
+            atomic_fetch_or(&other->pending_work, THREAD_WORK_EXIT, ATOMIC_RELEASE);
+            sched_kick(other);
+        }
+    }
+
+    // Uninterruptible: an exit meanwhile takes the other threads too,
+    // so the wakeup from process_thread_reaped comes either way
+    while(process->num_threads > 1) {
+        sched_dequeue(thread, false);
+        spinlock_release_intr(&process->lock, intr_state);
+        sched_yield();
+        intr_state = spinlock_acquire_intr(&process->lock);
+    }
+
+    process->exec_thread = nullptr;
+
+    bool exiting = atomic_load_n(&process->exiting, ATOMIC_ACQUIRE);
+
+    if(!exiting) {
+        process->num_live_threads = 1;
+        thread->tid = process->pid;
+    }
+
+    spinlock_release_intr(&process->lock, intr_state);
+
+    if(exiting) {
+        return -EINTR;
+    }
+
+    // A process-wide signal may have been meant for one of the threads gone
+    signal_retarget(process);
+
+    return 0;
+}
+
 void process_thread_reaped(process_t* process, thread_t* thread)
 {
     bool intr_state = spinlock_acquire_intr(&process->lock);
@@ -413,9 +470,20 @@ void process_thread_reaped(process_t* process, thread_t* thread)
         thread->process_next->process_prev = thread->process_prev;
     }
 
-    bool last = (0 == --process->num_threads);
+    process->num_threads -= 1;
+
+    bool last = (process->num_threads == 0);
+    thread_t* exec_thread = nullptr;
+
+    if(process->num_threads == 1) {
+        exec_thread = process->exec_thread;
+    }
 
     spinlock_release_intr(&process->lock, intr_state);
+
+    if(exec_thread) {
+        sched_enqueue(exec_thread);
+    }
 
     if(last) {
         // No thread of the process is on any hart anymore, so

@@ -178,6 +178,81 @@ static void __attribute__((noreturn)) sleeper(long arg)
     __builtin_unreachable();
 }
 
+static _Alignas(16) char spinner_stack[THREAD_STACK_SIZE];
+static volatile int spinner_running;
+static char pid_text[24];
+
+static void __attribute__((noreturn)) spinner(long arg)
+{
+    spinner_running = 1;
+
+    for(;;) {
+        // Busy on its own hart, never entering the kernel
+    }
+}
+
+static void format_number(char* buffer, long number)
+{
+    char digits[24];
+    int count = 0;
+
+    do {
+        digits[count++] = '0' + (number % 10);
+        number /= 10;
+    } while(number > 0);
+
+    for(int i = 0; i < count; ++i) {
+        buffer[i] = digits[count - i - 1];
+    }
+
+    buffer[count] = 0;
+}
+
+static long parse_number(const char* text)
+{
+    long number = 0;
+
+    while(*text >= '0' && *text <= '9') {
+        number = number * 10 + (*text++ - '0');
+    }
+
+    return number;
+}
+
+static int same_string(const char* a, const char* b)
+{
+    while(*a && *a == *b) {
+        a++;
+        b++;
+    }
+
+    return *a == *b;
+}
+
+// Execs from a thread that is not the main one, while one sibling sleeps in a futex
+// and another spins in userspace; the exec has to take both away first
+static void __attribute__((noreturn)) execer(long arg)
+{
+    format_number(pid_text, syscall1(__k_SYS_GETPID, 0));
+
+    const char* argv[] = { "/utest.elf", "exec-child", pid_text, 0 };
+    const char* envp[] = { 0 };
+
+    syscall3(__k_SYS_EXEC, (long)"/utest.elf", (long)argv, (long)envp);
+    syscall1(__k_SYS_EXIT, 99); // The exec failed
+    __builtin_unreachable();
+}
+
+static int exec_child(char** argv)
+{
+    long pid = syscall1(__k_SYS_GETPID, 0);
+
+    printnumber(pid == parse_number(argv[2]));       // should print 1, the process is the same
+    printnumber(syscall1(__k_SYS_GETTID, 0) == pid); // should print 1, the surviving thread took the pid as its tid
+
+    return 42;
+}
+
 static void on_signal(int sig)
 {
 }
@@ -212,8 +287,12 @@ static void __attribute__((noreturn)) finisher(long arg)
     __builtin_unreachable();
 }
 
-int main(void)
+int main(int argc, char** argv)
 {
+    if(argc > 2 && same_string(argv[1], "exec-child")) {
+        return exec_child(argv);
+    }
+
     struct __k_utsname name;
     syscall1(__k_SYS_UNAME, (long)&name);
 
@@ -429,15 +508,36 @@ int main(void)
 
     printnumber(interrupted_result); // should print -225 (EINTR)
 
-    // The process outlives its main thread, and the last thread out sets the exit code
+    // exec from a secondary thread takes the other threads away and keeps the pid
     long child = syscall1(__k_SYS_FORK, 0);
+
+    if(child == 0) {
+        syscall5(__k_SYS_THREAD_CREATE, (long)&spinner, (long)(spinner_stack + THREAD_STACK_SIZE - 8), 0, 0, 0);
+
+        while(!spinner_running) {
+            syscall1(__k_SYS_YIELD, 0);
+        }
+
+        spawn(&execer, 0);
+
+        for(;;) {
+            syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 0, 0, 0);
+        }
+    }
+
+    int wstatus = -1;
+    syscall2(__k_SYS_WAITPID, child, (long)&wstatus);
+    printnumber(wstatus); // should print 10752 (exit code 42)
+
+    // The process outlives its main thread, and the last thread out sets the exit code
+    child = syscall1(__k_SYS_FORK, 0);
 
     if(child == 0) {
         spawn(&finisher, 7);
         syscall1(__k_SYS_THREAD_EXIT, 0);
     }
 
-    int wstatus = -1;
+    wstatus = -1;
     printnumber(syscall2(__k_SYS_WAITPID, child, (long)&wstatus) == child); // should print 1
     printnumber(wstatus);                                                   // should print 1792 (exit code 7)
 
