@@ -1,4 +1,5 @@
 #include <vex/assert.h>
+#include <vex/atomic.h>
 #include <vex/errno.h>
 #include <vex/page.h>
 #include <vex/pframe.h>
@@ -20,6 +21,19 @@ static spinlock_t locks[NUM_LOCKS];
 static spinlock_t* frame_lock(uintptr_t phys)
 {
     return &locks[(phys / PAGE_SIZE) % NUM_LOCKS];
+}
+
+// Pins come and go without the vmspace lock, so only the mappings and the
+// file cache decide whether a write may land in the frame instead of a copy
+static bool sole_mapping_locked(const pframe_t* restrict pframe)
+{
+    const rmap_entry_t* first = pframe->mappings;
+
+    if(first == nullptr || first->next) {
+        return false;
+    }
+
+    return 0 == (atomic_load(&pframe->flags, ATOMIC_ACQUIRE) & PFRAME_CACHE);
 }
 
 static rmap_entry_t* unlink_entry(pframe_t* restrict pframe, pmap_t* restrict pmap, uintptr_t virt)
@@ -162,7 +176,7 @@ uintptr_t rmap_pin(pmap_t* restrict pmap, uintptr_t virt, bool* restrict sole)
 
     if(mapped) {
         if(sole) {
-            *sole = !pframe_shared(pframe);
+            *sole = sole_mapping_locked(pframe);
         }
 
         pframe_incref(pframe);
