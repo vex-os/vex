@@ -143,12 +143,12 @@ static intptr_t sys_mmap(const uintptr_t* restrict args)
         retval = readonly ? -EROFS : -EACCES;
     }
     else {
-        retval = vnode_mmap(file->node, offset / PAGE_SIZE, page_align_up(length) / PAGE_SIZE);
+        retval = vnode_mmap(file->node, offset, page_align_up(length));
 
         if(retval == 0) {
             vm_backing_t backing;
             backing.file = file;
-            backing.file_page = offset / PAGE_SIZE;
+            backing.file_offset = offset;
             backing.shared = shared;
             backing.may_write = may_write;
             backing.device = device;

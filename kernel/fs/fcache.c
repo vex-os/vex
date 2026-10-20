@@ -669,16 +669,20 @@ ssize_t fcache_write(vnode_t* restrict node, fcache_bmap_t bmap, const void* res
     return done;
 }
 
-int fcache_map_page(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t index, off_t size, pmap_t* restrict pmap, uintptr_t virt,
+int fcache_fault(vnode_t* restrict node, fcache_bmap_t bmap, off_t offset, off_t size, pmap_t* restrict pmap, uintptr_t virt,
     unsigned vprot)
 {
+    kassert(0 == page_offset(offset));
+
     if(!sector_size_valid(node->fs->device)) {
         return -EINVAL;
     }
 
-    if(size <= 0 || index > (uint64_t)(size - 1) / PAGE_SIZE) {
+    if(offset < 0 || offset >= size) {
         return -ENXIO;
     }
+
+    uint64_t index = offset / PAGE_SIZE;
 
     bool write = (bool)(vprot & VPROT_WRITE);
 

@@ -25,14 +25,15 @@ struct chr_device_ops_s {
     ssize_t (*write)(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size);
     int (*ioctl)(const chr_device_t* restrict device, uint32_t request, uintptr_t argument);
 
-    /// Checks a mapping of page_count pages of the device's memory from first_page before it is made.
+    /// Checks a mapping of length bytes of the device's memory from offset, both page aligned, before it is made.
     /// Both mmap and resolve_page are nullptr for a device without memory
     /// @retval -ENXIO The range runs past the end of the device's memory
-    int (*mmap)(const chr_device_t* restrict device, uint64_t first_page, uint64_t page_count);
+    int (*mmap)(const chr_device_t* restrict device, off_t offset, size_t length);
 
-    /// Gives the physical address and memory type (a VPROT_CACHE_* value) of page index of the device's memory
-    /// @retval -ENXIO The page is past the end of the device's memory
-    int (*resolve_page)(const chr_device_t* restrict device, uint64_t index, uintptr_t* restrict phys, unsigned* restrict cache);
+    /// Gives the physical address and memory type (a VPROT_CACHE_* value) of the page at offset, which is
+    /// page aligned, in the device's memory
+    /// @retval -ENXIO The offset is past the end of the device's memory
+    int (*resolve_page)(const chr_device_t* restrict device, off_t offset, uintptr_t* restrict phys, unsigned* restrict cache);
 
     /// Called once the last reference is gone
     void (*release)(const chr_device_t* restrict device);
@@ -105,21 +106,21 @@ static __always_inline int chr_device_ioctl(const chr_device_t* restrict device,
     return device->ops->ioctl(device, request, argument);
 }
 
-static __always_inline int chr_device_mmap(const chr_device_t* restrict device, uint64_t first_page, uint64_t page_count)
+static __always_inline int chr_device_mmap(const chr_device_t* restrict device, off_t offset, size_t length)
 {
     if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE))
         return -ENODEV;
     if(device->ops->mmap == nullptr)
         return -ENODEV;
-    return device->ops->mmap(device, first_page, page_count);
+    return device->ops->mmap(device, offset, length);
 }
 
-static __always_inline int chr_device_resolve_page(const chr_device_t* restrict device, uint64_t index, uintptr_t* restrict phys,
+static __always_inline int chr_device_resolve_page(const chr_device_t* restrict device, off_t offset, uintptr_t* restrict phys,
     unsigned* restrict cache)
 {
     if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE))
         return -ENODEV;
     if(device->ops->resolve_page == nullptr)
         return -ENODEV;
-    return device->ops->resolve_page(device, index, phys, cache);
+    return device->ops->resolve_page(device, offset, phys, cache);
 }

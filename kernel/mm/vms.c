@@ -81,7 +81,7 @@ static int split_region(vmspace_t* restrict vmspace, uintptr_t virt)
     upper->end = region->end;
     upper->vprot = region->vprot;
     upper->file = file_dupe(region->file);
-    upper->file_page = region->file_page + (virt - region->start) / PAGE_SIZE;
+    upper->file_offset = region->file_offset + (virt - region->start);
     upper->shared = region->shared;
     upper->may_write = region->may_write;
     upper->device = region->device;
@@ -196,10 +196,10 @@ static int fault_device_locked(vmspace_t* restrict vmspace, const vm_region_t* r
         return 0;
     }
 
-    uint64_t index = region->file_page + (page - region->start) / PAGE_SIZE;
+    off_t offset = region->file_offset + (page - region->start);
     uintptr_t phys;
     unsigned cache;
-    int retval = vnode_resolve_page(region->file->node, index, &phys, &cache);
+    int retval = vnode_resolve_page(region->file->node, offset, &phys, &cache);
 
     if(retval < 0) {
         return retval;
@@ -247,14 +247,14 @@ static int fault_locked(vmspace_t* restrict vmspace, uintptr_t page, unsigned ac
 
         // A private page starts out as the file's own, and a write copies it on the next pass;
         // a shared one only becomes writable through a write fault, which marks it dirty
-        uint64_t index = region->file_page + (page - region->start) / PAGE_SIZE;
+        off_t offset = region->file_offset + (page - region->start);
         unsigned vprot = region->vprot | VPROT_USER;
 
         if(!region->shared || !exclusive) {
             vprot &= ~VPROT_WRITE;
         }
 
-        int retval = vnode_map_page(region->file->node, index, vmspace->pmap, page, vprot);
+        int retval = vnode_fault(region->file->node, offset, vmspace->pmap, page, vprot);
 
         if(retval < 0 || region->shared) {
             return retval;
@@ -485,14 +485,14 @@ static vm_region_t* alloc_region(uintptr_t start, uintptr_t end, unsigned vprot,
     region->end = end;
     region->vprot = vprot & ~VPROT_USER;
     region->file = nullptr;
-    region->file_page = 0;
+    region->file_offset = 0;
     region->shared = false;
     region->may_write = true;
     region->device = false;
 
     if(backing && backing->file) {
         region->file = file_dupe(backing->file);
-        region->file_page = backing->file_page;
+        region->file_offset = backing->file_offset;
         region->shared = backing->shared;
         region->may_write = backing->may_write;
         region->device = backing->device;
@@ -794,7 +794,7 @@ int vms_clone(vmspace_t* restrict vmspace, vmspace_t* restrict source)
     for(const vm_region_t* it = source->regions; it; it = it->next) {
         vm_backing_t backing;
         backing.file = it->file;
-        backing.file_page = it->file_page;
+        backing.file_offset = it->file_offset;
         backing.shared = it->shared;
         backing.may_write = it->may_write;
         backing.device = it->device;

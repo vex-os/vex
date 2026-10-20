@@ -887,12 +887,12 @@ static ssize_t echfs_vnode_write(vnode_t* restrict node, const void* restrict bu
     return retval;
 }
 
-static int echfs_vnode_map_page(vnode_t* restrict node, uint64_t index, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot)
+static int echfs_vnode_fault(vnode_t* restrict node, off_t offset, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot)
 {
     echfs_vnode_context_t* ctx = node->ctxdata;
 
     mutex_acquire(fs_lock(node));
-    int retval = fcache_map_page(node, &echfs_bmap, index, ctx->size, pmap, virt, vprot);
+    int retval = fcache_fault(node, &echfs_bmap, offset, ctx->size, pmap, virt, vprot);
     mutex_release(fs_lock(node));
 
     return retval;
@@ -936,5 +936,5 @@ const vnode_ops_t echfs_vnode_ops = {
     .stat = &echfs_vnode_stat,
     .set_attr = &echfs_vnode_set_attr,
     .fsync = &echfs_vnode_fsync,
-    .map_page = &echfs_vnode_map_page,
+    .fault = &echfs_vnode_fault,
 };

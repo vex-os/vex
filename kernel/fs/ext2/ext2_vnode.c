@@ -1056,7 +1056,7 @@ static int ext2_vnode_fsync(vnode_t* restrict node)
     return retval;
 }
 
-static int ext2_vnode_map_page(vnode_t* restrict node, uint64_t index, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot)
+static int ext2_vnode_fault(vnode_t* restrict node, off_t offset, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot)
 {
     ext2_vnode_context_t* ctx = node->ctxdata;
 
@@ -1065,7 +1065,7 @@ static int ext2_vnode_map_page(vnode_t* restrict node, uint64_t index, pmap_t* r
     }
 
     mutex_acquire(fs_lock(node));
-    int retval = fcache_map_page(node, &ext2_bmap, index, ext2_inode_size(&ctx->inode), pmap, virt, vprot);
+    int retval = fcache_fault(node, &ext2_bmap, offset, ext2_inode_size(&ctx->inode), pmap, virt, vprot);
     mutex_release(fs_lock(node));
 
     return retval;
@@ -1135,7 +1135,7 @@ const vnode_ops_t ext2_vnode_ops = {
     .stat = &ext2_vnode_stat,
     .set_attr = &ext2_vnode_set_attr,
     .fsync = &ext2_vnode_fsync,
-    .map_page = &ext2_vnode_map_page,
+    .fault = &ext2_vnode_fault,
     .get_xattr = &ext2_vnode_get_xattr,
     .set_xattr = &ext2_vnode_set_xattr,
     .iterate_xattr = &ext2_vnode_iterate_xattr,

@@ -1196,12 +1196,12 @@ static ssize_t fat_vnode_write(vnode_t* restrict node, const void* restrict buff
     return retval;
 }
 
-static int fat_vnode_map_page(vnode_t* restrict node, uint64_t index, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot)
+static int fat_vnode_fault(vnode_t* restrict node, off_t offset, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot)
 {
     fat_vnode_context_t* context = node->ctxdata;
 
     mutex_acquire(fs_lock(node));
-    int retval = fcache_map_page(node, &fat_bmap, index, context->size_bytes, pmap, virt, vprot);
+    int retval = fcache_fault(node, &fat_bmap, offset, context->size_bytes, pmap, virt, vprot);
     mutex_release(fs_lock(node));
 
     return retval;
@@ -1245,5 +1245,5 @@ const vnode_ops_t fat_vnode_ops = {
     .stat = &fat_vnode_stat,
     .set_attr = &fat_vnode_set_attr,
     .fsync = &fat_vnode_fsync,
-    .map_page = &fat_vnode_map_page,
+    .fault = &fat_vnode_fault,
 };

@@ -1329,18 +1329,18 @@ int vnode_fsync(vnode_t* restrict node)
     return node->ops->fsync(node);
 }
 
-int vnode_map_page(vnode_t* restrict node, uint64_t index, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot)
+int vnode_fault(vnode_t* restrict node, off_t offset, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot)
 {
     kassert(node);
 
-    if(node->ops->map_page == nullptr) {
+    if(node->ops->fault == nullptr) {
         return -ENODEV;
     }
 
-    return node->ops->map_page(node, index, pmap, virt, vprot);
+    return node->ops->fault(node, offset, pmap, virt, vprot);
 }
 
-int vnode_mmap(vnode_t* restrict node, uint64_t first_page, uint64_t page_count)
+int vnode_mmap(vnode_t* restrict node, off_t offset, size_t length)
 {
     kassert(node);
 
@@ -1348,10 +1348,10 @@ int vnode_mmap(vnode_t* restrict node, uint64_t first_page, uint64_t page_count)
         return 0;
     }
 
-    return node->ops->mmap(node, first_page, page_count);
+    return node->ops->mmap(node, offset, length);
 }
 
-int vnode_resolve_page(vnode_t* restrict node, uint64_t index, uintptr_t* restrict phys, unsigned* restrict cache)
+int vnode_resolve_page(vnode_t* restrict node, off_t offset, uintptr_t* restrict phys, unsigned* restrict cache)
 {
     kassert(node);
 
@@ -1359,7 +1359,7 @@ int vnode_resolve_page(vnode_t* restrict node, uint64_t index, uintptr_t* restri
         return -ENODEV;
     }
 
-    return node->ops->resolve_page(node, index, phys, cache);
+    return node->ops->resolve_page(node, offset, phys, cache);
 }
 
 ssize_t vnode_get_xattr(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name, void* restrict value,

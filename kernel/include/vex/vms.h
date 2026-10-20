@@ -16,7 +16,7 @@ typedef struct vmspace_s vmspace_t;
 
 struct vm_backing_s {
     file_t* file;
-    uint64_t file_page; // File page at the start of the range
+    off_t file_offset; // Of the start of the range, page aligned
     bool shared;
     bool may_write; // Whether a shared mapping can ever be made writable
     bool device;    // Device memory: shared, mapped as the driver says, without pframes
@@ -28,7 +28,7 @@ struct vm_region_s {
     uintptr_t end;     // Page aligned, exclusive
     unsigned vprot;    // Without VPROT_USER, which every user page has
     file_t* file;      // Holds a reference, so the mapping keeps the file open; nullptr for anonymous memory
-    uint64_t file_page;
+    off_t file_offset;
     bool shared;
     bool may_write;
     bool device;

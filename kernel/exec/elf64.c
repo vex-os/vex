@@ -129,7 +129,8 @@ static int map_segment(vmspace_t* restrict vmspace, file_t* restrict file, const
 {
     unsigned vprot = phdr_vprot(phdr->p_flags);
 
-    // File pages are mapped whole at the addresses that hold them
+    // The file is mapped in whole pages, so its offsets
+    // and the addresses must share their place in a page
     if(page_offset(phdr->p_vaddr) != page_offset(phdr->p_offset)) {
         return -ENOEXEC;
     }
@@ -162,7 +163,7 @@ static int map_segment(vmspace_t* restrict vmspace, file_t* restrict file, const
     if(map_start < file_end) {
         vm_backing_t backing;
         backing.file = file;
-        backing.file_page = (page_align(phdr->p_offset) + map_start - seg_start) / PAGE_SIZE;
+        backing.file_offset = page_align(phdr->p_offset) + map_start - seg_start;
         backing.shared = false;
         backing.may_write = true;
         backing.device = false;
