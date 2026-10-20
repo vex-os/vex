@@ -47,6 +47,7 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
 
 ## Conventions
 
+- Headers under `include/usr/` are shared with userspace and must compile as ANSI C89/ISO C90: no `//` comments, `nullptr`, `bool`, `static_assert`, `restrict`, `inline`, designated initializers, or declarations mixed with code. Fixed-width types come from the `__k_`-prefixed typedefs. Only `usr/vex/types.h` touches `<stdint.h>`, and only behind its C23/C++ check.
 - Kernel-private headers use only `#pragma once`. Public headers under `include/usr/` (the userspace ABI) instead use a classic path-derived guard, e.g. `usr/vex/errno.h` → `USR_VEX_ERRNO_H`, closed with `#endif /* USR_VEX_ERRNO_H */`. Never start these names with `_`. Keep the guard in sync if the header is renamed.
 - C23 idioms are used throughout: `nullptr`, `static_assert`, `unreachable()`, `restrict` pointer params.
 - Every kernel type is used through a `_t` typedef. Tags end in `_s`, `_u` or `_e` (`struct thread_s`, `union fat_entry_u`, `enum cpu_feature_e`):
@@ -76,11 +77,16 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
   - An ops or driver table (`static const vnode_ops_t foo_ops = { .read = &foo_read, … }`) sits right after the last function it points to.
   - Function-like macros and `static_assert`s stay next to what they belong to.
   - Headers follow the same order, except that all prototypes come before the `static __always_inline` bodies.
-- Code should document itself through names. Comments are for a non-obvious "why" or an invariant that the code doesn't show, not for restating what it does:
-  - Use `//` (`#` in assembly and shell), start with a capital letter, and leave off the trailing period.
+- Code should document itself through names. A comment is only worth having when it says something the code can't: why it is done this way and not the obvious way, an invariant (locking, ownership, units, range), or an outside requirement (a spec, the Linux ABI, a hardware quirk). Never restate what the code next to it does:
+  - Before writing a comment, try to make it unnecessary: rename (`free_slots` instead of `slots // A set bit means free`), move the code into a function whose name says what it does, or turn the claim into a `static_assert` or `kassert`.
+  - Don't describe a function's algorithm above it. Preconditions and ownership rules that every caller must respect stay at the definition. A guarantee that only some callers rely on goes at those call sites, as the reason the caller is correct.
+  - Constants and fields get a comment only when it expands a spec name (FAT `BS_*`/`BPB_*`, AHCI registers, ELF), adds units or meaning the name lacks, or states an invariant. Format headers such as `vex/elf.h` keep their full constant tables for future ports, but drop comments that only repeat the name.
+  - Use `//` (`#` in assembly and shell), start with a capital letter, and leave off the trailing period. Headers under `include/usr/` are the userspace ABI and must stay ANSI C89/ISO C90, so they use `/* */`.
   - A short note about a single line goes after it, as long as the line still fits the 140-column limit.
   - Wrap longer comments at clause boundaries, at roughly the width of the code they describe (not much shorter).
-  - Don't document functions in headers unless the name is hard to understand and renaming isn't an option. Field comments are fine when they map a field to its spec name (FAT `BS_*`/`BPB_*`, ELF) or state an invariant such as ownership or locking rules.
+  - Tagged comments: `TODO:` is work nobody has planned yet, `UNDONE:` is work whose approach is known but not done, `FIXME:` is either of those where the current behavior is a bug, and `NOTE:` is a remark worth the reader's attention. Repeating NOTE raises the weight: `NOTENOTE:` marks something the surrounding code can't be understood without.
+  - A function or scope left empty on purpose holds a single `// empty` (`/* empty */` in C89 code).
+  - No commented-out code. The jokes and rants already in comments are part of the project's history; leave them alone.
 - `contrib/` is vendored third-party code: Limine, uACPI, kconfiglib, and EDK2 firmware. Each component has a `README.vex` and an `update.sh`. Don't edit it in place; update it through the script.
 - Commit messages use a `<area>: <lowercase summary>` prefix (e.g. `general: some important change`).
 - Don't commit on your own. Leave changes in the working tree for review; commit only when explicitly told to, and only to the active branch.
