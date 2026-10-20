@@ -1,26 +1,11 @@
-comment "Storage"
+menu "Storage"
+source "kernel/drivers/storage/Kconfig"
+endmenu
 
-config AHCI
-    bool "AHCI SATA controllers"
-    default y
-    help
-      SATA disks and ATAPI drives behind an AHCI host
-      bus adapter, the usual controller on PCI(e) machines
+menu "Display"
+source "kernel/drivers/display/Kconfig"
+endmenu
 
-comment "Display"
-
-config BOOTFB
-    bool "Boot framebuffer"
-    default y
-    help
-      The framebuffer the bootloader set up, as fbd0; the
-      framebuffer console prints to it until fbd0 is first opened
-
-comment "Input"
-
-config PS2KBD
-    bool "PS/2 keyboard"
-    default y
-    help
-      Keyboard on the first port of
-      the PS/2 (i8042) controller
+menu "Input"
+source "kernel/drivers/input/Kconfig"
+endmenu

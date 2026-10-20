@@ -1,0 +1,6 @@
+config BOOTFB
+    bool "Boot framebuffer"
+    default y
+    help
+      The framebuffer the bootloader set up, as fbd0; the
+      framebuffer console prints to it until fbd0 is first opened
