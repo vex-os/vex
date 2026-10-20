@@ -2,7 +2,7 @@ kernel_sources += files(
     'idt.c',
     'idts.S',
     'ioapic.c',
-    'ireq.c',
+    'irq.c',
     'isr.c',
     'pic.c',
 )

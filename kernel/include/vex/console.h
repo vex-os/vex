@@ -7,26 +7,29 @@
 #define CONSF_RECALL  0x0001U // Recall the last kprintf history on unblanking
 #define CONSF_BLANKED 0x1000U // The driver is blanked and won't receive write calls
 
-struct console;
-struct console_ops {
-    void (*init)(struct console* restrict cons);
-    void (*write)(struct console* restrict cons, const void* restrict data, size_t size);
-    void (*unblank)(struct console* restrict cons);
+typedef struct console_s console_t;
+typedef struct console_ops_s console_ops_t;
+typedef struct console_private_s console_private_t;
+
+struct console_ops_s {
+    void (*init)(console_t* restrict cons);
+    void (*write)(console_t* restrict cons, const void* restrict data, size_t size);
+    void (*unblank)(console_t* restrict cons);
 };
 
-struct console_private {
-    struct console* next;
+struct console_private_s {
+    console_t* next;
 };
 
-struct console {
-    struct console_private priv;
-    const struct console_ops* ops;
-    const char* identifier;
+struct console_s {
+    console_private_t priv;
+    const console_ops_t* ops;
+    const char* name;
     unsigned consflags;
     void* ctxdata;
 };
 
-int add_console(struct console* restrict cons);
-int remove_console(struct console* restrict cons);
+int console_add(console_t* restrict cons);
+int console_remove(console_t* restrict cons);
 void console_write(const void* restrict data, size_t size);
 void console_unblank(void);

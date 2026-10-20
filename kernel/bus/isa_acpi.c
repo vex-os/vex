@@ -12,17 +12,19 @@
 
 #define ACPI_MAX_ISA_RESOURCES 16
 
-struct parse_context {
-    struct isa_resource resources[ACPI_MAX_ISA_RESOURCES];
+typedef struct parse_context_s parse_context_t;
+
+struct parse_context_s {
+    isa_resource_t resources[ACPI_MAX_ISA_RESOURCES];
     unsigned num_resources;
 };
 
 static uacpi_iteration_decision parse_resource(void* ctxdata, uacpi_resource* acpi_resource)
 {
-    struct parse_context* context = ctxdata;
+    parse_context_t* context = ctxdata;
 
     if(context->num_resources < ACPI_MAX_ISA_RESOURCES) {
-        struct isa_resource* resource = &context->resources[context->num_resources];
+        isa_resource_t* resource = &context->resources[context->num_resources];
 
         if(acpi_resource->type == UACPI_RESOURCE_TYPE_IO) {
             resource->type = ISA_RESOURCE_PMIO;
@@ -46,7 +48,7 @@ static uacpi_iteration_decision parse_resource(void* ctxdata, uacpi_resource* ac
             resource->type = ISA_RESOURCE_IRQ;
             resource->irq.line = acpi_resource->irq.irqs[0];
             resource->irq.gsi = 0;
-            resource->irq.ireq_number = UINT_MAX;
+            resource->irq.irq_number = UINT_MAX;
 
             if(acpi_resource->irq.triggering == UACPI_TRIGGERING_EDGE) {
                 resource->irq.trigger = TRIGGER_EDGE;
@@ -70,7 +72,7 @@ static uacpi_iteration_decision parse_resource(void* ctxdata, uacpi_resource* ac
             resource->type = ISA_RESOURCE_IRQ;
             resource->irq.line = acpi_resource->extended_irq.irqs[0];
             resource->irq.gsi = 0;
-            resource->irq.ireq_number = UINT_MAX;
+            resource->irq.irq_number = UINT_MAX;
 
             if(acpi_resource->extended_irq.triggering == UACPI_TRIGGERING_EDGE) {
                 resource->irq.trigger = TRIGGER_EDGE;
@@ -108,16 +110,16 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
         return UACPI_ITERATION_DECISION_CONTINUE;
     }
 
-    struct isa_device* device = kmalloc(sizeof(struct isa_device));
+    isa_device_t* device = kmalloc(sizeof(isa_device_t));
 
     if(device == nullptr) {
         uacpi_free_namespace_node_info(info);
         return UACPI_ITERATION_DECISION_CONTINUE;
     }
 
-    device->identifier = kstrdup(info->hid.value);
+    device->name = kstrdup(info->hid.value);
 
-    if(device->identifier == nullptr) {
+    if(device->name == nullptr) {
         pr_warning("acpi_isa: out of memory");
 
         uacpi_free_namespace_node_info(info);
@@ -125,21 +127,21 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
         return UACPI_ITERATION_DECISION_CONTINUE;
     }
 
-    struct parse_context context;
+    parse_context_t context;
     context.num_resources = 0;
 
     uacpi_for_each_device_resource(node, "_CRS", parse_resource, &context);
 
-    struct isa_resource* resources = nullptr;
+    isa_resource_t* resources = nullptr;
 
     if(context.num_resources > 0) {
-        resources = kmalloc(sizeof(struct isa_resource) * context.num_resources);
+        resources = kmalloc(sizeof(isa_resource_t) * context.num_resources);
 
         if(resources == nullptr) {
             context.num_resources = 0;
         }
         else {
-            memcpy(resources, context.resources, sizeof(struct isa_resource) * context.num_resources);
+            memcpy(resources, context.resources, sizeof(isa_resource_t) * context.num_resources);
         }
     }
 
@@ -150,9 +152,9 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
     device->priv.acpi_node = node;
     device->ctxdata = nullptr;
 
-    pr_verbose("acpi_isa: found %s: num_resources=%u", device->identifier, context.num_resources);
+    pr_verbose("acpi_isa: found %s: num_resources=%u", device->name, context.num_resources);
 
-    add_isa_device(device);
+    isa_device_add(device);
 
     uacpi_free_namespace_node_info(info);
 

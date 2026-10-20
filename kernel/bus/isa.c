@@ -1,4 +1,4 @@
-#include <arch/ireq.h>
+#include <arch/irq.h>
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
 #include <vex/assert.h>
@@ -13,15 +13,17 @@
 
 #define ISA_IRQ_COUNT 16
 
-struct irq_route_info {
+typedef struct irq_route_info_s irq_route_info_t;
+
+struct irq_route_info_s {
     uint32_t gsi;
     unsigned trigger;
     unsigned polarity;
 };
 
-static struct irq_route_info isa_irq_table[ISA_IRQ_COUNT];
-static struct isa_device* device_head = nullptr;
-static struct isa_driver* driver_head = nullptr;
+static irq_route_info_t isa_irq_table[ISA_IRQ_COUNT];
+static isa_device_t* device_head = nullptr;
+static isa_driver_t* driver_head = nullptr;
 
 static uacpi_iteration_decision isa_iso_madt_callback(uacpi_handle user, struct acpi_entry_hdr* entry)
 {
@@ -50,7 +52,7 @@ static uacpi_iteration_decision isa_iso_madt_callback(uacpi_handle user, struct 
     return UACPI_ITERATION_DECISION_CONTINUE;
 }
 
-static void try_bind_device(struct isa_device* restrict device, struct isa_driver* restrict driver)
+static void try_bind_device(isa_device_t* restrict device, isa_driver_t* restrict driver)
 {
     if(device->priv.driver) {
         return;
@@ -61,9 +63,9 @@ static void try_bind_device(struct isa_device* restrict device, struct isa_drive
     }
 }
 
-int add_isa_device(struct isa_device* restrict device)
+int isa_device_add(isa_device_t* restrict device)
 {
-    for(struct isa_device* it = device_head; it; it = it->priv.next) {
+    for(isa_device_t* it = device_head; it; it = it->priv.next) {
         if(it == device) {
             return -EEXIST;
         }
@@ -72,21 +74,21 @@ int add_isa_device(struct isa_device* restrict device)
     device->priv.next = device_head;
     device_head = device;
 
-    for(struct isa_driver* it = driver_head; it; it = it->priv.next) {
+    for(isa_driver_t* it = driver_head; it; it = it->priv.next) {
         try_bind_device(device, it);
     }
 
     return 0;
 }
 
-int remove_isa_device(struct isa_device* restrict device)
+int isa_device_remove(isa_device_t* restrict device)
 {
     if(device_head == device) {
         device_head = device_head->priv.next;
     }
     else {
-        struct isa_device* it;
-        struct isa_device* prev = nullptr;
+        isa_device_t* it;
+        isa_device_t* prev = nullptr;
 
         for(it = device_head; it; it = it->priv.next) {
             if(it == device) {
@@ -111,9 +113,9 @@ int remove_isa_device(struct isa_device* restrict device)
     return 0;
 }
 
-int add_isa_driver(struct isa_driver* restrict driver)
+int isa_driver_add(isa_driver_t* restrict driver)
 {
-    for(struct isa_driver* it = driver_head; it; it = it->priv.next) {
+    for(isa_driver_t* it = driver_head; it; it = it->priv.next) {
         if(it == driver) {
             return -EEXIST;
         }
@@ -122,21 +124,21 @@ int add_isa_driver(struct isa_driver* restrict driver)
     driver->priv.next = driver_head;
     driver_head = driver;
 
-    for(struct isa_device* it = device_head; it; it = it->priv.next) {
+    for(isa_device_t* it = device_head; it; it = it->priv.next) {
         try_bind_device(it, driver);
     }
 
     return 0;
 }
 
-int remove_isa_driver(struct isa_driver* restrict driver)
+int isa_driver_remove(isa_driver_t* restrict driver)
 {
     if(driver_head == driver) {
         driver_head = driver_head->priv.next;
     }
     else {
-        struct isa_driver* it;
-        struct isa_driver* prev = nullptr;
+        isa_driver_t* it;
+        isa_driver_t* prev = nullptr;
 
         for(it = driver_head; it; it = it->priv.next) {
             if(it == driver) {
@@ -152,7 +154,7 @@ int remove_isa_driver(struct isa_driver* restrict driver)
     }
 
     if(driver->ops->remove) {
-        for(struct isa_device* it = device_head; it; it = it->priv.next) {
+        for(isa_device_t* it = device_head; it; it = it->priv.next) {
             if(it->priv.driver == driver) {
                 if(it->priv.driver->ops->remove)
                     it->priv.driver->ops->remove(it);
@@ -164,7 +166,7 @@ int remove_isa_driver(struct isa_driver* restrict driver)
     return 0;
 }
 
-struct isa_resource* isa_get_resource(struct isa_device* restrict device, unsigned type, unsigned index)
+isa_resource_t* isa_get_resource(isa_device_t* restrict device, unsigned type, unsigned index)
 {
     unsigned found = 0;
 
@@ -179,9 +181,9 @@ struct isa_resource* isa_get_resource(struct isa_device* restrict device, unsign
     return nullptr;
 }
 
-int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_handler_type handler, void* ctxdata)
+int isa_request_irq(isa_device_t* restrict device, unsigned index, irq_handler_t handler, void* ctxdata)
 {
-    struct isa_resource* res = isa_get_resource(device, ISA_RESOURCE_IRQ, index);
+    isa_resource_t* res = isa_get_resource(device, ISA_RESOURCE_IRQ, index);
 
     if(res == nullptr) {
         return -ENODEV;
@@ -189,43 +191,43 @@ int isa_request_irq(struct isa_device* restrict device, unsigned index, ireq_han
 
     isa_irq_route(res->irq.line, &res->irq.gsi, &res->irq.trigger, &res->irq.polarity);
 
-    struct intctl* controller = find_intctl(res->irq.gsi);
+    interrupt_controller_t* controller = interrupt_controller_find(res->irq.gsi);
 
     if(controller == nullptr) {
         return -ENODEV;
     }
 
-    unsigned ireq_number = add_ireq_handler(UINT_MAX, handler, ctxdata);
+    unsigned irq_number = irq_handler_add(UINT_MAX, handler, ctxdata);
 
-    if(ireq_number == UINT_MAX) {
+    if(irq_number == UINT_MAX) {
         return -ENOMEM;
     }
 
-    res->irq.ireq_number = ireq_number;
+    res->irq.irq_number = irq_number;
 
-    intctl_route(controller, res->irq.gsi, ireq_number + ARCH_IREQ_BASE, 0, res->irq.trigger, res->irq.polarity);
-    intctl_unmask(controller, res->irq.gsi);
+    interrupt_controller_route(controller, res->irq.gsi, irq_number + ARCH_IRQ_BASE, 0, res->irq.trigger, res->irq.polarity);
+    interrupt_controller_unmask(controller, res->irq.gsi);
 
     return 0;
 }
 
-void isa_release_irq(struct isa_device* restrict device, unsigned index)
+void isa_release_irq(isa_device_t* restrict device, unsigned index)
 {
-    struct isa_resource* res = isa_get_resource(device, ISA_RESOURCE_IRQ, index);
+    isa_resource_t* res = isa_get_resource(device, ISA_RESOURCE_IRQ, index);
 
     if(res == nullptr) {
         return;
     }
 
-    struct intctl* controller = find_intctl(res->irq.gsi);
+    interrupt_controller_t* controller = interrupt_controller_find(res->irq.gsi);
 
     if(controller) {
-        intctl_mask(controller, res->irq.gsi);
+        interrupt_controller_mask(controller, res->irq.gsi);
     }
 
-    remove_ireq_handler(res->irq.ireq_number);
+    irq_handler_remove(res->irq.irq_number);
 
-    res->irq.ireq_number = UINT_MAX;
+    res->irq.irq_number = UINT_MAX;
 }
 
 void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsigned* out_polarity)

@@ -4,50 +4,50 @@
 #include <vex/uaccess.h>
 #include <vex/vms.h>
 
-ssize_t user_copyin(void* restrict dst, uintptr_t src, size_t sz)
+ssize_t user_copyin(void* restrict dst, uintptr_t src, size_t size)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -EFAULT;
     }
 
-    return vms_copyin(dst, proc->vms, src, sz);
+    return vms_copyin(dst, process->vmspace, src, size);
 }
 
 ssize_t user_copyin_str(char* restrict dst, uintptr_t src, size_t max_sz)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -EFAULT;
     }
 
-    return vms_copyin_str(dst, proc->vms, src, max_sz);
+    return vms_copyin_str(dst, process->vmspace, src, max_sz);
 }
 
-ssize_t user_copyout(uintptr_t dst, const void* restrict src, size_t sz)
+ssize_t user_copyout(uintptr_t dst, const void* restrict src, size_t size)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -EFAULT;
     }
 
-    return vms_copyout(proc->vms, dst, src, sz);
+    return vms_copyout(process->vmspace, dst, src, size);
 }
 
 ssize_t user_copyout_str(uintptr_t dst, const char* restrict src, size_t max_sz)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -EFAULT;
     }
 
-    return vms_copyout_str(proc->vms, dst, src, max_sz);
+    return vms_copyout_str(process->vmspace, dst, src, max_sz);
 }

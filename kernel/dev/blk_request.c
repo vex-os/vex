@@ -11,13 +11,13 @@
 
 #define BLK_MAX_SEGMENTS 32 // Most segments blk_read and blk_write put in one request
 
-static void finish(struct blk_request* restrict req, int status)
+static void finish(blk_request_t* restrict req, int status)
 {
     req->status = status;
     req->done(req);
 }
 
-static bool request_valid(const struct blk_device* restrict device, const struct blk_request* restrict req)
+static bool request_valid(const blk_device_t* restrict device, const blk_request_t* restrict req)
 {
     if(req->op == BLK_REQ_FLUSH) {
         return req->length == 0 && req->num_segments == 0;
@@ -44,7 +44,7 @@ static bool request_valid(const struct blk_device* restrict device, const struct
     size_t total = 0;
 
     for(size_t i = 0; i < req->num_segments; ++i) {
-        const struct blk_segment* segment = &req->segments[i];
+        const blk_segment_t* segment = &req->segments[i];
 
         if(segment->length == 0 || ((segment->phys | segment->length) & device->dma_align)) {
             return false;
@@ -60,13 +60,13 @@ static bool request_valid(const struct blk_device* restrict device, const struct
     return total == req->length;
 }
 
-static void wake_waiter(struct blk_request* restrict req)
+static void wake_waiter(blk_request_t* restrict req)
 {
     event_trigger(req->ctxdata, true);
 }
 
-static bool map_segments(const struct blk_device* restrict device, const uint8_t* restrict buffer, size_t length,
-    struct blk_segment* restrict segments, size_t* restrict num_segments)
+static bool map_segments(const blk_device_t* restrict device, const uint8_t* restrict buffer, size_t length,
+    blk_segment_t* restrict segments, size_t* restrict num_segments)
 {
     size_t count = 0;
 
@@ -105,7 +105,7 @@ static bool map_segments(const struct blk_device* restrict device, const uint8_t
     return true;
 }
 
-static int transfer(const struct blk_device* restrict device, unsigned op, uintptr_t lba, size_t count, uint8_t* restrict buffer)
+static int transfer(const blk_device_t* restrict device, unsigned op, uintptr_t lba, size_t count, uint8_t* restrict buffer)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT)) {
         return -ENODEV;
@@ -147,8 +147,8 @@ static int transfer(const struct blk_device* restrict device, unsigned op, uintp
         size_t chunk = count < max_sectors ? count : max_sectors;
         size_t bytes = chunk * sector_size;
 
-        struct blk_segment segments[BLK_MAX_SEGMENTS];
-        struct blk_request req = { 0 };
+        blk_segment_t segments[BLK_MAX_SEGMENTS];
+        blk_request_t req = { 0 };
         req.op = op;
         req.lba = lba;
         req.length = bytes;
@@ -193,7 +193,7 @@ static int transfer(const struct blk_device* restrict device, unsigned op, uintp
     return retval;
 }
 
-void blk_submit(const struct blk_device* restrict device, struct blk_request* restrict req)
+void blk_submit(const blk_device_t* restrict device, blk_request_t* restrict req)
 {
     if(0 == (device->flags & BLK_FLAG_PRESENT)) {
         finish(req, -ENODEV);
@@ -208,10 +208,10 @@ void blk_submit(const struct blk_device* restrict device, struct blk_request* re
     device->ops->submit(device, req);
 }
 
-int blk_submit_wait(const struct blk_device* restrict device, struct blk_request* restrict req)
+int blk_submit_wait(const blk_device_t* restrict device, blk_request_t* restrict req)
 {
-    struct event done;
-    struct event* evnt = &done;
+    event_t done;
+    event_t* event = &done;
 
     event_init(&done);
 
@@ -220,10 +220,10 @@ int blk_submit_wait(const struct blk_device* restrict device, struct blk_request
 
     blk_submit(device, req);
 
-    if(event_await(&evnt, 1) < 0) {
+    if(event_await(&event, 1) < 0) {
         kassert(interrupt_state());
 
-        while(event_await_blocking(&evnt, 1) < 0) {
+        while(event_await_blocking(&event, 1) < 0) {
             // empty: keep waiting
         }
     }
@@ -233,19 +233,19 @@ int blk_submit_wait(const struct blk_device* restrict device, struct blk_request
     return req->status;
 }
 
-int blk_read(const struct blk_device* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+int blk_read(const blk_device_t* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
     return transfer(device, BLK_REQ_READ, lba, count, buffer);
 }
 
-int blk_write(const struct blk_device* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
+int blk_write(const blk_device_t* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
 {
     return transfer(device, BLK_REQ_WRITE, lba, count, (uint8_t*)(buffer));
 }
 
-int blk_flush(const struct blk_device* restrict device)
+int blk_flush(const blk_device_t* restrict device)
 {
-    struct blk_request req = { 0 };
+    blk_request_t req = { 0 };
     req.op = BLK_REQ_FLUSH;
     return blk_submit_wait(device, &req);
 }

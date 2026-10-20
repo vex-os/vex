@@ -14,7 +14,11 @@
 #define GDT_USER_CODE_64 0x08
 #define GDT_TSS          0x09
 
-struct amd64_gdt_descriptor {
+typedef struct amd64_gdt_descriptor_s amd64_gdt_descriptor_t;
+typedef struct amd64_tss_descriptor_s amd64_tss_descriptor_t;
+typedef struct amd64_gdt_s amd64_gdt_t;
+
+struct amd64_gdt_descriptor_s {
     uint16_t limit_0;
     uint16_t base_0;
     uint8_t base_1;
@@ -24,7 +28,7 @@ struct amd64_gdt_descriptor {
     uint8_t base_2;
 } __packed;
 
-struct amd64_tss_descriptor {
+struct amd64_tss_descriptor_s {
     uint16_t limit_0;
     uint16_t base_0;
     uint8_t base_1;
@@ -36,18 +40,17 @@ struct amd64_tss_descriptor {
     uint32_t reserved;
 } __packed;
 
-// Laid out in GDT_* index order
-struct amd64_gdt {
-    struct amd64_gdt_descriptor null;
-    struct amd64_gdt_descriptor kern_code_16;
-    struct amd64_gdt_descriptor kern_data_16;
-    struct amd64_gdt_descriptor kern_code_32;
-    struct amd64_gdt_descriptor kern_data_32;
-    struct amd64_gdt_descriptor kern_code_64;
-    struct amd64_gdt_descriptor kern_data_64;
-    struct amd64_gdt_descriptor user_data_64;
-    struct amd64_gdt_descriptor user_code_64;
-    struct amd64_tss_descriptor tss;
+struct amd64_gdt_s {
+    amd64_gdt_descriptor_t null;         // GDT_NULL_SEGMENT
+    amd64_gdt_descriptor_t kern_code_16; // GDT_KERN_CODE_16
+    amd64_gdt_descriptor_t kern_data_16; // GDT_KERN_DATA_16
+    amd64_gdt_descriptor_t kern_code_32; // GDT_KERN_CODE_32
+    amd64_gdt_descriptor_t kern_data_32; // GDT_KERN_DATA_32
+    amd64_gdt_descriptor_t kern_code_64; // GDT_KERN_CODE_64
+    amd64_gdt_descriptor_t kern_data_64; // GDT_KERN_DATA_64
+    amd64_gdt_descriptor_t user_data_64; // GDT_USER_DATA_64
+    amd64_gdt_descriptor_t user_code_64; // GDT_USER_CODE_64
+    amd64_tss_descriptor_t tss;          // GDT_TSS
 } __packed;
 
 #define gdt_selector(index, ldt, ring) ((uint16_t)(((ring) & 3) | (((ldt) & 1) << 2) | ((index) << 3)))

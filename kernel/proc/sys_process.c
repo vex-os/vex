@@ -17,18 +17,6 @@
 #include <vex/vms.h>
 #include <vex/wait.h>
 
-static intptr_t __noreturn sys_exit(const uintptr_t* restrict args)
-{
-    struct thread* thrd = this_thread();
-
-    if(thrd->proc) {
-        process_exit(thrd->proc, args[0]);
-    }
-
-    sched_terminate();
-    unreachable();
-}
-
 // Copies a null-terminated array of user strings, packing the strings at cursor
 static int copy_strings(uintptr_t user_array, const char** restrict out, char** restrict cursor, const char* restrict limit)
 {
@@ -69,9 +57,9 @@ static int copy_strings(uintptr_t user_array, const char** restrict out, char** 
     return 0;
 }
 
-static int read_file_caps(struct vnode* restrict node, struct file_caps* restrict out, bool* restrict has_caps)
+static int read_file_caps(vnode_t* restrict node, file_caps_t* restrict out, bool* restrict has_caps)
 {
-    struct k_vfs_cap_data data;
+    vfs_cap_data_t data;
     ssize_t size = vnode_caps_get(node, &data, sizeof(data));
 
     *has_caps = false;
@@ -104,10 +92,10 @@ static int read_file_caps(struct vnode* restrict node, struct file_caps* restric
     return 0;
 }
 
-static int exec_cred(const struct credentials* restrict cred, const struct k_stat* restrict st, const struct file_caps* restrict file,
-    struct credentials** restrict out)
+static int exec_cred(const credentials_t* restrict credentials, const stat_t* restrict st, const file_caps_t* restrict file,
+    credentials_t** restrict out)
 {
-    struct credentials* copy = cred_copy(cred);
+    credentials_t* copy = cred_copy(credentials);
 
     if(copy == nullptr) {
         return -ENOMEM;
@@ -139,7 +127,7 @@ static int exec_cred(const struct credentials* restrict cred, const struct k_sta
     return 0;
 }
 
-static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, char* restrict strings, const uintptr_t* restrict args)
+static intptr_t exec_image(thread_t* restrict thread, char* restrict path, char* restrict strings, const uintptr_t* restrict args)
 {
     ssize_t copied = user_copyin_str(path, args[0], PATH_SIZE);
 
@@ -161,29 +149,29 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
         return retval;
     }
 
-    struct process* proc = thrd->proc;
-    const struct credentials* cred = thrd->cred;
+    process_t* process = thread->process;
+    const credentials_t* credentials = thread->credentials;
 
-    struct vnode* node;
+    vnode_t* node;
     retval = syscall_resolve_at(AT_FDCWD, path, 0, &node);
 
     if(retval < 0) {
         return retval;
     }
 
-    if(node->nodetype != VNODE_FILE) {
+    if(node->type != VNODE_FILE) {
         vnode_decref(node);
         return -EACCES;
     }
 
-    struct k_stat st;
-    retval = vnode_access(node, cred, X_OK);
+    stat_t st;
+    retval = vnode_access(node, credentials, X_OK);
 
     if(retval == 0) {
         retval = vnode_stat(node, &st);
     }
 
-    struct file_caps file_caps;
+    file_caps_t file_caps;
     bool has_caps;
 
     if(retval == 0) {
@@ -195,8 +183,8 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
         return retval;
     }
 
-    struct file* fp;
-    retval = file_open_node(node, O_RDONLY, cred, &fp);
+    file_t* file;
+    retval = file_open_node(node, O_RDONLY, credentials, &file);
 
     if(retval < 0) {
         return retval;
@@ -204,129 +192,59 @@ static intptr_t exec_image(struct thread* restrict thrd, char* restrict path, ch
 
     // Built aside, so a failure leaves
     // the caller running in its old image
-    struct vmspace* vms = vms_create();
+    vmspace_t* vmspace = vms_create();
 
-    if(vms == nullptr) {
-        file_close(fp);
+    if(vmspace == nullptr) {
+        file_close(file);
         return -ENOMEM;
     }
 
-    mutex_acquire(&proc->cred_lock);
+    mutex_acquire(&process->credentials_lock);
 
-    struct credentials* new_cred = nullptr;
-    struct entry_point entry;
+    credentials_t* new_cred = nullptr;
+    binfmt_entry_t entry;
 
     if(has_caps) {
-        retval = exec_cred(proc->cred, &st, &file_caps, &new_cred);
+        retval = exec_cred(process->credentials, &st, &file_caps, &new_cred);
     }
     else {
-        retval = exec_cred(proc->cred, &st, nullptr, &new_cred);
+        retval = exec_cred(process->credentials, &st, nullptr, &new_cred);
     }
 
     if(retval == 0) {
-        retval = load_binary(vms, fp, argv, envp, new_cred, &entry);
+        retval = load_binary(vmspace, file, argv, envp, new_cred, &entry);
     }
 
     if(retval == 0) {
-        process_set_cred(proc, new_cred);
+        process_set_cred(process, new_cred);
     }
     else if(new_cred) {
         cred_decref(new_cred);
     }
 
-    mutex_release(&proc->cred_lock);
+    mutex_release(&process->credentials_lock);
 
-    file_close(fp);
+    file_close(file);
 
     if(retval < 0) {
-        vms_release(vms);
+        vms_release(vmspace);
         return retval;
     }
 
-    struct vmspace* old_vms = proc->vms;
+    vmspace_t* old_vms = process->vmspace;
 
-    proc->vms = vms;
-    arch_thread_exec(thrd, vms, entry.address, entry.ustack);
-    sighand_exec(proc->sighand);
-    thrd->sig_altstack = 0;
-    thrd->sig_altstack_size = 0;
+    process->vmspace = vmspace;
+    arch_thread_exec(thread, vmspace, entry.address, entry.user_stack);
+    signal_actions_exec(process->signal_actions);
+    thread->sig_altstack = 0;
+    thread->sig_altstack_size = 0;
 
     vms_release(old_vms);
 
     return 0;
 }
 
-static intptr_t sys_fork(const uintptr_t* restrict args)
-{
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
-
-    if(proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    struct process* child = process_create(proc);
-
-    if(child == nullptr) {
-        return -ENOMEM;
-    }
-
-    int retval = vms_clone(child->vms, proc->vms);
-
-    if(retval == 0) {
-        retval = copy_fds(child, proc);
-    }
-
-    struct thread* child_thread = nullptr;
-
-    if(retval == 0) {
-        child_thread = create_thread_fork(child, thrd->syscall_ctx);
-
-        if(child_thread == nullptr) {
-            retval = -ENOMEM;
-        }
-    }
-
-    if(retval < 0) {
-        process_destroy(child);
-        return retval;
-    }
-
-    pid_t pid = child->pid;
-
-    child_thread->sig_blocked = thrd->sig_blocked;
-    child_thread->sig_altstack = thrd->sig_altstack;
-    child_thread->sig_altstack_size = thrd->sig_altstack_size;
-
-    sched_enqueue(child_thread);
-
-    return pid;
-}
-
-static intptr_t sys_exec(const uintptr_t* restrict args)
-{
-    struct thread* thrd = this_thread();
-
-    if(thrd->proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    char* path = kmalloc(PATH_SIZE);
-    char* strings = pslab_alloc_virt();
-
-    intptr_t retval = -ENOMEM;
-
-    if(path && strings) {
-        retval = exec_image(thrd, path, strings, args);
-    }
-
-    pslab_free_virt(strings);
-    kfree(path);
-
-    return retval;
-}
-
-static intptr_t collect_child(struct process* restrict target, uintptr_t wstatus)
+static intptr_t collect_child(process_t* restrict target, uintptr_t wstatus)
 {
     int status = W_EXITCODE(target->exit_code, target->exit_signal);
     intptr_t retval = target->pid;
@@ -345,16 +263,16 @@ static intptr_t collect_child(struct process* restrict target, uintptr_t wstatus
     return retval;
 }
 
-static intptr_t wait_any_child(struct process* restrict caller, uintptr_t wstatus)
+static intptr_t wait_any_child(process_t* restrict caller, uintptr_t wstatus)
 {
     for(;;) {
-        struct process* target = nullptr;
+        process_t* target = nullptr;
 
         bool intr_state = spinlock_acquire_intr(&caller->lock);
 
         bool has_children = caller->children != nullptr;
 
-        for(struct process* it = caller->children; it; it = it->cnext) {
+        for(process_t* it = caller->children; it; it = it->sibling_next) {
             if(process_claim(it)) {
                 process_incref(it);
                 target = it;
@@ -374,7 +292,7 @@ static intptr_t wait_any_child(struct process* restrict caller, uintptr_t wstatu
 
         // A child that dies before this
         // wait starts leaves the event pending
-        struct event* child_exited = &caller->child_exited;
+        event_t* child_exited = &caller->child_exited;
         ssize_t result = event_await_interruptible(&child_exited, 1);
 
         if(result < 0) {
@@ -383,13 +301,95 @@ static intptr_t wait_any_child(struct process* restrict caller, uintptr_t wstatu
     }
 }
 
+static intptr_t __noreturn sys_exit(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+
+    if(thread->process) {
+        process_exit(thread->process, args[0]);
+    }
+
+    sched_terminate();
+    unreachable();
+}
+
+static intptr_t sys_fork(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    if(process == nullptr) {
+        return -ENOSYS;
+    }
+
+    process_t* child = process_create(process);
+
+    if(child == nullptr) {
+        return -ENOMEM;
+    }
+
+    int retval = vms_clone(child->vmspace, process->vmspace);
+
+    if(retval == 0) {
+        retval = process_fds_copy(child, process);
+    }
+
+    thread_t* child_thread = nullptr;
+
+    if(retval == 0) {
+        child_thread = thread_create_fork(child, thread->syscall_ctx);
+
+        if(child_thread == nullptr) {
+            retval = -ENOMEM;
+        }
+    }
+
+    if(retval < 0) {
+        process_destroy(child);
+        return retval;
+    }
+
+    pid_t pid = child->pid;
+
+    child_thread->sig_blocked = thread->sig_blocked;
+    child_thread->sig_altstack = thread->sig_altstack;
+    child_thread->sig_altstack_size = thread->sig_altstack_size;
+
+    sched_enqueue(child_thread);
+
+    return pid;
+}
+
+static intptr_t sys_exec(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+
+    if(thread->process == nullptr) {
+        return -ENOSYS;
+    }
+
+    char* path = kmalloc(PATH_SIZE);
+    char* strings = pslab_alloc_virt();
+
+    intptr_t retval = -ENOMEM;
+
+    if(path && strings) {
+        retval = exec_image(thread, path, strings, args);
+    }
+
+    pslab_free_virt(strings);
+    kfree(path);
+
+    return retval;
+}
+
 static intptr_t sys_waitpid(const uintptr_t* restrict args)
 {
     pid_t pid = args[0];
     uintptr_t wstatus = args[1];
 
-    struct thread* thrd = this_thread();
-    struct process* caller = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* caller = thread->process;
 
     if(caller == nullptr) {
         return -ECHILD;
@@ -403,7 +403,7 @@ static intptr_t sys_waitpid(const uintptr_t* restrict args)
         return -EINVAL; // Process groups don't exist yet
     }
 
-    struct process* target = process_locate(pid);
+    process_t* target = process_locate(pid);
 
     if(target == nullptr) {
         return -ESRCH;
@@ -417,8 +417,8 @@ static intptr_t sys_waitpid(const uintptr_t* restrict args)
     // The event fires once, when the last thread is reaped,
     // so a process that is already a zombie has nothing to wait for
     if(!atomic_load_n(&target->zombie, ATOMIC_ACQUIRE)) {
-        struct event* evnt = &target->evnt;
-        ssize_t result = event_await_interruptible(&evnt, 1);
+        event_t* event = &target->event;
+        ssize_t result = event_await_interruptible(&event, 1);
 
         if(result < 0) {
             process_decref(target);
@@ -436,26 +436,26 @@ static intptr_t sys_waitpid(const uintptr_t* restrict args)
 
 static intptr_t sys_getpid(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ESRCH;
     }
 
-    return proc->pid;
+    return process->pid;
 }
 
 static intptr_t sys_getppid(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ESRCH;
     }
 
-    return atomic_load_n(&proc->ppid, ATOMIC_RELAXED);
+    return atomic_load_n(&process->ppid, ATOMIC_RELAXED);
 }
 
 static intptr_t sys_yield(const uintptr_t* restrict args)

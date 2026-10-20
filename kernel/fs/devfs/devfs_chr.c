@@ -8,48 +8,50 @@
 
 #include "devfs.h"
 
-struct devfs_chr_context {
-    const struct chr_device* device;
+typedef struct devfs_chr_context_s devfs_chr_context_t;
+
+struct devfs_chr_context_s {
+    const chr_device_t* device;
 };
 
-static_assert(sizeof(struct devfs_chr_context) <= SLAB_MAX_SIZE);
+static_assert(sizeof(devfs_chr_context_t) <= SLAB_MAX_SIZE);
 
-static void devfs_chr_release(struct vnode* restrict node)
+static void devfs_chr_release(vnode_t* restrict node)
 {
     slab_free(node->ctxdata);
 }
 
-static ssize_t devfs_chr_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
+static ssize_t devfs_chr_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset)
 {
-    const struct devfs_chr_context* context = node->ctxdata;
+    const devfs_chr_context_t* context = node->ctxdata;
 
-    return chr_device_read(context->device, offset, buffer, sz);
+    return chr_device_read(context->device, offset, buffer, size);
 }
 
-static ssize_t devfs_chr_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t devfs_chr_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset)
 {
-    const struct devfs_chr_context* context = node->ctxdata;
+    const devfs_chr_context_t* context = node->ctxdata;
 
-    return chr_device_write(context->device, offset, buffer, sz);
+    return chr_device_write(context->device, offset, buffer, size);
 }
 
-static int devfs_chr_ioctl(struct vnode* restrict node, unsigned request, uintptr_t argument)
+static int devfs_chr_ioctl(vnode_t* restrict node, unsigned request, uintptr_t argument)
 {
-    const struct devfs_chr_context* context = node->ctxdata;
+    const devfs_chr_context_t* context = node->ctxdata;
 
     return chr_device_ioctl(context->device, request, argument);
 }
 
-static int devfs_chr_stat(struct vnode* restrict node, struct k_stat* restrict out)
+static int devfs_chr_stat(vnode_t* restrict node, stat_t* restrict out)
 {
-    memset(out, 0, sizeof(struct k_stat));
+    memset(out, 0, sizeof(stat_t));
 
     out->st_mode = S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
 
     return 0;
 }
 
-static const struct vnode_ops devfs_chr_ops = {
+static const vnode_ops_t devfs_chr_ops = {
     .release = &devfs_chr_release,
     .read = &devfs_chr_read,
     .write = &devfs_chr_write,
@@ -57,10 +59,10 @@ static const struct vnode_ops devfs_chr_ops = {
     .stat = &devfs_chr_stat,
 };
 
-void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict device, void* restrict ctxdata)
+void devfs_chr_event_handler(unsigned event, const chr_device_t* restrict device, void* restrict ctxdata)
 {
     if(event == CHR_EVENT_DEVICE_ADDED) {
-        struct devfs_chr_context* context = slab_alloc(sizeof(struct devfs_chr_context));
+        devfs_chr_context_t* context = slab_alloc(sizeof(devfs_chr_context_t));
 
         if(context == nullptr) {
             return;
@@ -68,14 +70,14 @@ void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict d
 
         context->device = device;
 
-        struct vnode* vnode = vnode_alloc(VNODE_CHAR_DEV, &devfs_chr_ops, context);
+        vnode_t* vnode = vnode_alloc(VNODE_CHAR_DEV, &devfs_chr_ops, context);
 
         if(vnode == nullptr) {
             slab_free(context);
             return;
         }
 
-        int retval = devfs_insert(ctxdata, device->identifier, vnode);
+        int retval = devfs_insert(ctxdata, device->name, vnode);
 
         if(retval < 0) {
             vnode_decref(vnode);
@@ -85,7 +87,7 @@ void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict d
     }
 
     if(event == CHR_EVENT_DEVICE_REMOVED) {
-        devfs_remove(ctxdata, device->identifier);
+        devfs_remove(ctxdata, device->name);
         return;
     }
 }

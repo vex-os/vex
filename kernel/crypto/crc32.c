@@ -1,6 +1,6 @@
 #include <vex/crc32.h>
 
-void crc32_generate_nri(struct crc32_table* restrict table, uint32_t polynomial, uint32_t initial)
+void crc32_table_init(crc32_table_t* restrict table, uint32_t polynomial, uint32_t initial)
 {
     for(uint32_t i = 0; i < CRC32_TABLE_SIZE; ++i) {
         uint32_t value = i << 24;
@@ -20,7 +20,7 @@ void crc32_generate_nri(struct crc32_table* restrict table, uint32_t polynomial,
     table->initial = initial;
 }
 
-void crc32_generate_rfi(struct crc32_table* restrict table, uint32_t polynomial, uint32_t initial)
+void crc32_table_init_refin(crc32_table_t* restrict table, uint32_t polynomial, uint32_t initial)
 {
     for(uint32_t i = 0; i < CRC32_TABLE_SIZE; ++i) {
         uint32_t value = i;
@@ -40,32 +40,32 @@ void crc32_generate_rfi(struct crc32_table* restrict table, uint32_t polynomial,
     table->initial = initial;
 }
 
-uint32_t crc32_get_ext_nro(const struct crc32_table* restrict table, const void* restrict data, size_t sz, uint32_t ext)
+uint32_t crc32_update(const crc32_table_t* restrict table, const void* restrict data, size_t size, uint32_t ext)
 {
     const uint8_t* data_ptr = data;
     uint32_t crc = ~ext;
 
-    for(size_t i = 0; i < sz; ++i)
+    for(size_t i = 0; i < size; ++i)
         crc = table->table[(crc ^ data_ptr[i]) & 0xFF] ^ (crc >> 8);
 
     return crc ^ UINT32_C(0xFFFFFFFF);
 }
 
-uint32_t crc32_get_ext_rfo(const struct crc32_table* restrict table, const void* restrict data, size_t sz, uint32_t ext)
+uint32_t crc32_update_refout(const crc32_table_t* restrict table, const void* restrict data, size_t size, uint32_t ext)
 {
-    uint32_t value = crc32_get_ext_nro(table, data, sz, ext);
+    uint32_t value = crc32_update(table, data, size, ext);
     value = ((value & UINT32_C(0xAAAAAAAA)) >> 1) | ((value & UINT32_C(0x55555555)) << 1);
     value = ((value & UINT32_C(0xCCCCCCCC)) >> 2) | ((value & UINT32_C(0x33333333)) << 2);
     value = ((value & UINT32_C(0xF0F0F0F0)) >> 4) | ((value & UINT32_C(0x0F0F0F0F)) << 4);
     return __builtin_bswap32(value);
 }
 
-uint32_t crc32_get_nro(const struct crc32_table* restrict table, const void* restrict data, size_t sz)
+uint32_t crc32_compute(const crc32_table_t* restrict table, const void* restrict data, size_t size)
 {
-    return crc32_get_ext_nro(table, data, sz, ~table->initial);
+    return crc32_update(table, data, size, ~table->initial);
 }
 
-uint32_t crc32_get_rfo(const struct crc32_table* restrict table, const void* restrict data, size_t sz)
+uint32_t crc32_compute_refout(const crc32_table_t* restrict table, const void* restrict data, size_t size)
 {
-    return crc32_get_ext_rfo(table, data, sz, ~table->initial);
+    return crc32_update_refout(table, data, size, ~table->initial);
 }

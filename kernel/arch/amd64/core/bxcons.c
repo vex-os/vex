@@ -3,35 +3,35 @@
 #include <vex/initcall.h>
 #include <vex/spinlock.h>
 
-static spinlock_type bxcons_lock = SPINLOCK_INIT;
+static spinlock_t bxcons_lock = SPINLOCK_INIT;
 
-static void bxcons_write(struct console* restrict cons, const void* restrict data, size_t size)
+static void bxcons_write(console_t* restrict cons, const void* restrict data, size_t size)
 {
     const char* psz = data;
 
     bool intr_state = spinlock_acquire_intr(&bxcons_lock);
 
     for(size_t i = 0; i < size; ++i) {
-        pmwrite8(0xE9, psz[i]);
+        port_write8(0xE9, psz[i]);
     }
 
     spinlock_release_intr(&bxcons_lock, intr_state);
 }
 
-static const struct console_ops bxcons_ops = {
+static const console_ops_t bxcons_ops = {
     .write = &bxcons_write,
 };
 
-static struct console bxcons_driver = {
+static console_t bxcons_driver = {
     .ops = &bxcons_ops,
-    .identifier = "bxcons",
+    .name = "bxcons",
     .consflags = CONSF_RECALL,
 };
 
 static void arch_init_bxcons(void)
 {
-    if(0xE9 == pmread8(0xE9)) {
-        add_console(&bxcons_driver);
+    if(0xE9 == port_read8(0xE9)) {
+        console_add(&bxcons_driver);
     }
 }
 

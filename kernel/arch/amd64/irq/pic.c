@@ -4,11 +4,6 @@
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 
-#define PIC1_COMMAND 0x0020
-#define PIC1_DATA    0x0021
-#define PIC2_COMMAND 0x00A0
-#define PIC2_DATA    0x00A1
-
 extern void amd64_spur_20(void);
 extern void amd64_spur_21(void);
 extern void amd64_spur_22(void);
@@ -26,7 +21,12 @@ extern void amd64_spur_2D(void);
 extern void amd64_spur_2E(void);
 extern void amd64_spur_2F(void);
 
-void __used amd64_spur_handler(struct hart_context* restrict ctx, uint64_t intvec)
+#define PIC1_COMMAND 0x0020
+#define PIC1_DATA    0x0021
+#define PIC2_COMMAND 0x00A0
+#define PIC2_DATA    0x00A1
+
+void __used amd64_spur_handler(hart_context_t* restrict ctx, uint64_t intvec)
 {
     // <<  Because it's a shit chip >>
     //                  - streaksu
@@ -44,27 +44,27 @@ static void arch_init_pic_bsp(void)
     // so we have to remap both controllers to 0x20..0x2F and never touch
     // these vectors again, the system might probably reboot but whatever
 
-    pmwrite8(PIC1_COMMAND, 0x11);
-    pmwrite8(PIC2_COMMAND, 0x11);
+    port_write8(PIC1_COMMAND, 0x11);
+    port_write8(PIC2_COMMAND, 0x11);
 
-    pmwrite8(PIC1_DATA, 0x20);
-    pmwrite8(PIC2_DATA, 0x28);
+    port_write8(PIC1_DATA, 0x20);
+    port_write8(PIC2_DATA, 0x28);
 
-    pmwrite8(PIC1_DATA, 0x04);
-    pmwrite8(PIC2_DATA, 0x02);
+    port_write8(PIC1_DATA, 0x04);
+    port_write8(PIC2_DATA, 0x02);
 
-    pmwrite8(PIC1_DATA, 0x01);
-    pmwrite8(PIC2_DATA, 0x01);
+    port_write8(PIC1_DATA, 0x01);
+    port_write8(PIC2_DATA, 0x01);
 
-    pmwrite8(PIC1_DATA, 0xFF);
-    pmwrite8(PIC2_DATA, 0xFF);
+    port_write8(PIC1_DATA, 0xFF);
+    port_write8(PIC2_DATA, 0xFF);
 
     // <<  Because it's a shit chip >>
     //                  - streaksu
     for(unsigned vector = 0x00; vector <= 0x10; vector += 1U) {
         if(vector >= 0x08)
-            pmwrite8(PIC2_COMMAND, 0x20);
-        pmwrite8(PIC1_COMMAND, 0x20);
+            port_write8(PIC2_COMMAND, 0x20);
+        port_write8(PIC1_COMMAND, 0x20);
     }
 }
 
@@ -72,22 +72,22 @@ initcall_bsp_arch(arch_init_pic_bsp, INIT_MIDDLE);
 
 static void arch_init_pic_smp(void)
 {
-    set_idt_entry_kern(0x20, false, &amd64_spur_20);
-    set_idt_entry_kern(0x21, false, &amd64_spur_21);
-    set_idt_entry_kern(0x22, false, &amd64_spur_22);
-    set_idt_entry_kern(0x23, false, &amd64_spur_23);
-    set_idt_entry_kern(0x24, false, &amd64_spur_24);
-    set_idt_entry_kern(0x25, false, &amd64_spur_25);
-    set_idt_entry_kern(0x26, false, &amd64_spur_26);
-    set_idt_entry_kern(0x27, false, &amd64_spur_27);
-    set_idt_entry_kern(0x28, false, &amd64_spur_28);
-    set_idt_entry_kern(0x29, false, &amd64_spur_29);
-    set_idt_entry_kern(0x2A, false, &amd64_spur_2A);
-    set_idt_entry_kern(0x2B, false, &amd64_spur_2B);
-    set_idt_entry_kern(0x2C, false, &amd64_spur_2C);
-    set_idt_entry_kern(0x2D, false, &amd64_spur_2D);
-    set_idt_entry_kern(0x2E, false, &amd64_spur_2E);
-    set_idt_entry_kern(0x2F, false, &amd64_spur_2F);
+    idt_set_kernel_gate(0x20, false, &amd64_spur_20);
+    idt_set_kernel_gate(0x21, false, &amd64_spur_21);
+    idt_set_kernel_gate(0x22, false, &amd64_spur_22);
+    idt_set_kernel_gate(0x23, false, &amd64_spur_23);
+    idt_set_kernel_gate(0x24, false, &amd64_spur_24);
+    idt_set_kernel_gate(0x25, false, &amd64_spur_25);
+    idt_set_kernel_gate(0x26, false, &amd64_spur_26);
+    idt_set_kernel_gate(0x27, false, &amd64_spur_27);
+    idt_set_kernel_gate(0x28, false, &amd64_spur_28);
+    idt_set_kernel_gate(0x29, false, &amd64_spur_29);
+    idt_set_kernel_gate(0x2A, false, &amd64_spur_2A);
+    idt_set_kernel_gate(0x2B, false, &amd64_spur_2B);
+    idt_set_kernel_gate(0x2C, false, &amd64_spur_2C);
+    idt_set_kernel_gate(0x2D, false, &amd64_spur_2D);
+    idt_set_kernel_gate(0x2E, false, &amd64_spur_2E);
+    idt_set_kernel_gate(0x2F, false, &amd64_spur_2F);
 }
 
-initcall_smp_ireq(arch_init_pic_smp, INIT_EARLY);
+initcall_smp_irq(arch_init_pic_smp, INIT_EARLY);

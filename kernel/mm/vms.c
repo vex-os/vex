@@ -19,16 +19,16 @@
 
 #define FREE_BATCH 64
 
-static spinlock_type stale_lock = SPINLOCK_INIT;
-static struct vm_region* stale_regions = nullptr;
-static struct event stale_wakeup;
+static spinlock_t stale_lock = SPINLOCK_INIT;
+static vm_region_t* stale_regions = nullptr;
+static event_t stale_wakeup;
 
-static_assert(sizeof(struct vm_region) <= SLAB_MAX_SIZE);
-static_assert(sizeof(struct vmspace) <= SLAB_MAX_SIZE);
+static_assert(sizeof(vm_region_t) <= SLAB_MAX_SIZE);
+static_assert(sizeof(vmspace_t) <= SLAB_MAX_SIZE);
 
-static struct vm_region* find_region(struct vmspace* restrict vms, uintptr_t virt)
+static vm_region_t* find_region(vmspace_t* restrict vmspace, uintptr_t virt)
 {
-    for(struct vm_region* it = vms->regions; it && it->start <= virt; it = it->next) {
+    for(vm_region_t* it = vmspace->regions; it && it->start <= virt; it = it->next) {
         if(virt < it->end) {
             return it;
         }
@@ -37,9 +37,9 @@ static struct vm_region* find_region(struct vmspace* restrict vms, uintptr_t vir
     return nullptr;
 }
 
-static bool range_free(struct vmspace* restrict vms, uintptr_t start, uintptr_t end)
+static bool range_free(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end)
 {
-    for(struct vm_region* it = vms->regions; it && it->start < end; it = it->next) {
+    for(vm_region_t* it = vmspace->regions; it && it->start < end; it = it->next) {
         if(it->end > start) {
             return false;
         }
@@ -48,9 +48,9 @@ static bool range_free(struct vmspace* restrict vms, uintptr_t start, uintptr_t 
     return true;
 }
 
-static void insert_region(struct vmspace* restrict vms, struct vm_region* restrict region)
+static void insert_region(vmspace_t* restrict vmspace, vm_region_t* restrict region)
 {
-    struct vm_region** prev = &vms->regions;
+    vm_region_t** prev = &vmspace->regions;
 
     while(*prev && (*prev)->start < region->start) {
         prev = &(*prev)->next;
@@ -60,15 +60,15 @@ static void insert_region(struct vmspace* restrict vms, struct vm_region* restri
     *prev = region;
 }
 
-static int split_region(struct vmspace* restrict vms, uintptr_t virt)
+static int split_region(vmspace_t* restrict vmspace, uintptr_t virt)
 {
-    struct vm_region* region = find_region(vms, virt);
+    vm_region_t* region = find_region(vmspace, virt);
 
     if(region == nullptr || region->start == virt) {
         return 0;
     }
 
-    struct vm_region* upper = slab_alloc(sizeof(struct vm_region));
+    vm_region_t* upper = slab_alloc(sizeof(vm_region_t));
 
     if(upper == nullptr) {
         return -ENOMEM;
@@ -78,7 +78,7 @@ static int split_region(struct vmspace* restrict vms, uintptr_t virt)
     upper->end = region->end;
     upper->vprot = region->vprot;
     upper->node = region->node;
-    upper->pgoff = region->pgoff + (virt - region->start) / PAGE_SIZE;
+    upper->file_page = region->file_page + (virt - region->start) / PAGE_SIZE;
     upper->shared = region->shared;
     upper->may_write = region->may_write;
     upper->next = region->next;
@@ -93,24 +93,24 @@ static int split_region(struct vmspace* restrict vms, uintptr_t virt)
     return 0;
 }
 
-static bool range_covered(struct vmspace* restrict vms, uintptr_t start, uintptr_t end)
+static bool range_covered(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end)
 {
     uintptr_t covered = start;
 
-    for(struct vm_region* it = find_region(vms, start); it && it->start <= covered && covered < end; it = it->next) {
+    for(vm_region_t* it = find_region(vmspace, start); it && it->start <= covered && covered < end; it = it->next) {
         covered = it->end;
     }
 
     return covered >= end;
 }
 
-static bool range_valid(struct vmspace* restrict vms, uintptr_t start, uintptr_t end)
+static bool range_valid(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end)
 {
     if(page_offset(start) || page_offset(end)) {
         return false;
     }
 
-    return start < end && end <= pmap_user_end(vms->pmap);
+    return start < end && end <= pmap_user_end(vmspace->pmap);
 }
 
 static void put_frame(uintptr_t phys)
@@ -120,7 +120,7 @@ static void put_frame(uintptr_t phys)
     }
 }
 
-static void free_region(struct vm_region* restrict region, bool deferred)
+static void free_region(vm_region_t* restrict region, bool deferred)
 {
     if(region->node == nullptr) {
         slab_free(region);
@@ -141,11 +141,11 @@ static void free_region(struct vm_region* restrict region, bool deferred)
     event_trigger(&stale_wakeup, true);
 }
 
-static int unshare_locked(struct vmspace* restrict vms, const struct vm_region* restrict region, uintptr_t page)
+static int unshare_locked(vmspace_t* restrict vmspace, const vm_region_t* restrict region, uintptr_t page)
 {
     unsigned vprot = region->vprot | VPROT_USER;
     bool sole;
-    uintptr_t phys = rmap_pin(vms->pmap, page, &sole);
+    uintptr_t phys = rmap_pin(vmspace->pmap, page, &sole);
 
     if(phys == 0) {
         return -EAGAIN;
@@ -154,8 +154,8 @@ static int unshare_locked(struct vmspace* restrict vms, const struct vm_region* 
     if(sole) {
         int retval = 0;
 
-        if((pmap_resolve_vprot(vms->pmap, page) & VPROT_WRITE) != (vprot & VPROT_WRITE)) {
-            retval = pmap_patch_noflush(vms->pmap, page, vprot);
+        if((pmap_resolve_vprot(vmspace->pmap, page) & VPROT_WRITE) != (vprot & VPROT_WRITE)) {
+            retval = pmap_patch_noflush(vmspace->pmap, page, vprot);
         }
 
         put_frame(phys);
@@ -172,7 +172,7 @@ static int unshare_locked(struct vmspace* restrict vms, const struct vm_region* 
 
     memcpy(phys_to_virt(copy), phys_to_virt(phys), PAGE_SIZE);
 
-    int retval = rmap_replace(vms->pmap, page, phys, copy, vprot);
+    int retval = rmap_replace(vmspace->pmap, page, phys, copy, vprot);
 
     if(retval < 0) {
         pslab_free_phys(copy);
@@ -188,9 +188,9 @@ static int unshare_locked(struct vmspace* restrict vms, const struct vm_region* 
     return 0;
 }
 
-static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned access, bool exclusive)
+static int fault_locked(vmspace_t* restrict vmspace, uintptr_t page, unsigned access, bool exclusive)
 {
-    struct vm_region* region = find_region(vms, page);
+    vm_region_t* region = find_region(vmspace, page);
 
     if(region == nullptr) {
         return -EFAULT;
@@ -201,14 +201,14 @@ static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned a
     }
 
     for(;;) {
-        bool mapped = pmap_resolve_address(vms->pmap, page);
+        bool mapped = pmap_resolve_address(vmspace->pmap, page);
 
         if(mapped && !exclusive) {
             return 0;
         }
 
         if(mapped && !region->shared) {
-            int retval = unshare_locked(vms, region, page);
+            int retval = unshare_locked(vmspace, region, page);
 
             if(retval != -EAGAIN) {
                 return retval;
@@ -223,14 +223,14 @@ static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned a
 
         // A private page starts out as the file's own, and a write copies it on the next pass;
         // a shared one only becomes writable through a write fault, which marks it dirty
-        uint64_t index = region->pgoff + (page - region->start) / PAGE_SIZE;
+        uint64_t index = region->file_page + (page - region->start) / PAGE_SIZE;
         unsigned vprot = region->vprot | VPROT_USER;
 
         if(!region->shared || !exclusive) {
             vprot &= ~VPROT_WRITE;
         }
 
-        int retval = vnode_map_page(region->node, index, vms->pmap, page, vprot);
+        int retval = vnode_map_page(region->node, index, vmspace->pmap, page, vprot);
 
         if(retval < 0 || region->shared) {
             return retval;
@@ -245,7 +245,7 @@ static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned a
 
     memset(phys_to_virt(phys), 0, PAGE_SIZE);
 
-    int retval = rmap_map(vms->pmap, page, phys, region->vprot | VPROT_USER);
+    int retval = rmap_map(vmspace->pmap, page, phys, region->vprot | VPROT_USER);
 
     if(retval < 0) {
         pslab_free_phys(phys);
@@ -255,17 +255,17 @@ static int fault_locked(struct vmspace* restrict vms, uintptr_t page, unsigned a
     return 0;
 }
 
-static uintptr_t pin_locked(struct vmspace* restrict vms, uintptr_t virt, unsigned access, bool exclusive)
+static uintptr_t pin_locked(vmspace_t* restrict vmspace, uintptr_t virt, unsigned access, bool exclusive)
 {
     uintptr_t page = page_align(virt);
     uintptr_t phys = 0;
 
     while(phys == 0) {
-        if(fault_locked(vms, page, access, exclusive) < 0) {
+        if(fault_locked(vmspace, page, access, exclusive) < 0) {
             return 0;
         }
 
-        phys = rmap_pin(vms->pmap, page, nullptr);
+        phys = rmap_pin(vmspace->pmap, page, nullptr);
     }
 
     return phys;
@@ -288,11 +288,11 @@ static void free_batch(uintptr_t* restrict batch, size_t* restrict count, bool s
     *count = 0;
 }
 
-static void release_pages(struct vmspace* restrict vms, const struct vm_region* restrict region, uintptr_t* restrict batch,
+static void release_pages(vmspace_t* restrict vmspace, const vm_region_t* restrict region, uintptr_t* restrict batch,
     size_t* restrict count, bool shootdown)
 {
     for(uintptr_t page = region->start; page < region->end; page += PAGE_SIZE) {
-        uintptr_t phys = rmap_unmap(vms->pmap, page);
+        uintptr_t phys = rmap_unmap(vmspace->pmap, page);
 
         if(phys == 0) {
             continue;
@@ -307,16 +307,16 @@ static void release_pages(struct vmspace* restrict vms, const struct vm_region* 
     }
 }
 
-static void unmap_all_locked(struct vmspace* restrict vms, bool shootdown, bool deferred)
+static void unmap_all_locked(vmspace_t* restrict vmspace, bool shootdown, bool deferred)
 {
     uintptr_t batch[FREE_BATCH];
     size_t count = 0;
 
-    while(vms->regions) {
-        struct vm_region* region = vms->regions;
-        vms->regions = region->next;
+    while(vmspace->regions) {
+        vm_region_t* region = vmspace->regions;
+        vmspace->regions = region->next;
 
-        release_pages(vms, region, batch, &count, shootdown);
+        release_pages(vmspace, region, batch, &count, shootdown);
         free_region(region, deferred);
     }
 
@@ -324,12 +324,12 @@ static void unmap_all_locked(struct vmspace* restrict vms, bool shootdown, bool 
 }
 
 // Holes in the range are fine, as with munmap
-static int unmap_locked(struct vmspace* restrict vms, uintptr_t start, uintptr_t end)
+static int unmap_locked(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end)
 {
-    int retval = split_region(vms, start);
+    int retval = split_region(vmspace, start);
 
     if(retval == 0) {
-        retval = split_region(vms, end);
+        retval = split_region(vmspace, end);
     }
 
     if(retval < 0) {
@@ -339,10 +339,10 @@ static int unmap_locked(struct vmspace* restrict vms, uintptr_t start, uintptr_t
     uintptr_t batch[FREE_BATCH];
     size_t count = 0;
 
-    struct vm_region** prev = &vms->regions;
+    vm_region_t** prev = &vmspace->regions;
 
     while(*prev && (*prev)->start < end) {
-        struct vm_region* region = *prev;
+        vm_region_t* region = *prev;
 
         if(region->start < start) {
             prev = &region->next;
@@ -351,7 +351,7 @@ static int unmap_locked(struct vmspace* restrict vms, uintptr_t start, uintptr_t
 
         *prev = region->next;
 
-        release_pages(vms, region, batch, &count, true);
+        release_pages(vmspace, region, batch, &count, true);
         free_region(region, false);
     }
 
@@ -361,12 +361,12 @@ static int unmap_locked(struct vmspace* restrict vms, uintptr_t start, uintptr_t
 }
 
 // Picks the highest gap below VMS_MMAP_TOP that fits
-static bool find_gap(struct vmspace* restrict vms, size_t size, uintptr_t* restrict out)
+static bool find_gap(vmspace_t* restrict vmspace, size_t size, uintptr_t* restrict out)
 {
     uintptr_t gap_start = VMS_MMAP_MIN;
     bool found = false;
 
-    for(struct vm_region* it = vms->regions;; it = it->next) {
+    for(vm_region_t* it = vmspace->regions;; it = it->next) {
         uintptr_t gap_end = VMS_MMAP_TOP;
 
         if(it && it->start < VMS_MMAP_TOP) {
@@ -388,9 +388,9 @@ static bool find_gap(struct vmspace* restrict vms, size_t size, uintptr_t* restr
     }
 }
 
-static struct vm_region* alloc_region(uintptr_t start, uintptr_t end, unsigned vprot, const struct vm_backing* restrict backing)
+static vm_region_t* alloc_region(uintptr_t start, uintptr_t end, unsigned vprot, const vm_backing_t* restrict backing)
 {
-    struct vm_region* region = slab_alloc(sizeof(struct vm_region));
+    vm_region_t* region = slab_alloc(sizeof(vm_region_t));
 
     if(region == nullptr) {
         return nullptr;
@@ -400,13 +400,13 @@ static struct vm_region* alloc_region(uintptr_t start, uintptr_t end, unsigned v
     region->end = end;
     region->vprot = vprot & ~VPROT_USER;
     region->node = nullptr;
-    region->pgoff = 0;
+    region->file_page = 0;
     region->shared = false;
     region->may_write = true;
 
     if(backing && backing->node) {
         region->node = backing->node;
-        region->pgoff = backing->pgoff;
+        region->file_page = backing->file_page;
         region->shared = backing->shared;
         region->may_write = backing->may_write;
         vnode_incref(region->node);
@@ -415,177 +415,195 @@ static struct vm_region* alloc_region(uintptr_t start, uintptr_t end, unsigned v
     return region;
 }
 
-struct vmspace* vms_create(void)
+static void __noreturn release_thread(void* restrict arg)
 {
-    struct vmspace* vms = slab_alloc(sizeof(struct vmspace));
+    for(;;) {
+        event_t* wakeup = &stale_wakeup;
+        event_await(&wakeup, 1);
 
-    if(vms == nullptr) {
-        return nullptr;
+        bool intr_state = spinlock_acquire_intr(&stale_lock);
+        vm_region_t* regions = stale_regions;
+        stale_regions = nullptr;
+        spinlock_release_intr(&stale_lock, intr_state);
+
+        while(regions) {
+            vm_region_t* next = regions->next;
+            free_region(regions, false);
+            regions = next;
+        }
     }
-
-    vms->pmap = pmap_create();
-
-    if(vms->pmap == nullptr) {
-        slab_free(vms);
-        return nullptr;
-    }
-
-    vms->regions = nullptr;
-    mutex_init(&vms->lock);
-
-    return vms;
 }
 
-void vms_release(struct vmspace* restrict vms)
+vmspace_t* vms_create(void)
+{
+    vmspace_t* vmspace = slab_alloc(sizeof(vmspace_t));
+
+    if(vmspace == nullptr) {
+        return nullptr;
+    }
+
+    vmspace->pmap = pmap_create();
+
+    if(vmspace->pmap == nullptr) {
+        slab_free(vmspace);
+        return nullptr;
+    }
+
+    vmspace->regions = nullptr;
+    mutex_init(&vmspace->lock);
+
+    return vmspace;
+}
+
+void vms_release(vmspace_t* restrict vmspace)
 {
     // Released only once no hart has these
     // page tables loaded, so no TLB holds their entries
-    unmap_all_locked(vms, false, true);
-    pmap_release(vms->pmap);
-    mutex_deinit(&vms->lock);
-    slab_free(vms);
+    unmap_all_locked(vmspace, false, true);
+    pmap_release(vmspace->pmap);
+    mutex_deinit(&vmspace->lock);
+    slab_free(vmspace);
 }
 
-int vms_map(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot, const struct vm_backing* restrict backing)
+int vms_map(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end, unsigned vprot, const vm_backing_t* restrict backing)
 {
-    if(!range_valid(vms, start, end)) {
+    if(!range_valid(vmspace, start, end)) {
         return -EINVAL;
     }
 
-    struct vm_region* region = alloc_region(start, end, vprot, backing);
+    vm_region_t* region = alloc_region(start, end, vprot, backing);
 
     if(region == nullptr) {
         return -ENOMEM;
     }
 
-    mutex_acquire(&vms->lock);
+    mutex_acquire(&vmspace->lock);
 
-    if(!range_free(vms, start, end)) {
-        mutex_release(&vms->lock);
+    if(!range_free(vmspace, start, end)) {
+        mutex_release(&vmspace->lock);
         free_region(region, false);
         return -EEXIST;
     }
 
-    insert_region(vms, region);
+    insert_region(vmspace, region);
 
-    mutex_release(&vms->lock);
+    mutex_release(&vmspace->lock);
 
     return 0;
 }
 
-int vms_map_replace(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot, const struct vm_backing* restrict backing)
+int vms_map_replace(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end, unsigned vprot, const vm_backing_t* restrict backing)
 {
-    if(!range_valid(vms, start, end)) {
+    if(!range_valid(vmspace, start, end)) {
         return -EINVAL;
     }
 
-    struct vm_region* region = alloc_region(start, end, vprot, backing);
+    vm_region_t* region = alloc_region(start, end, vprot, backing);
 
     if(region == nullptr) {
         return -ENOMEM;
     }
 
-    mutex_acquire(&vms->lock);
+    mutex_acquire(&vmspace->lock);
 
-    int retval = unmap_locked(vms, start, end);
+    int retval = unmap_locked(vmspace, start, end);
 
     if(retval < 0) {
-        mutex_release(&vms->lock);
+        mutex_release(&vmspace->lock);
         free_region(region, false);
         return retval;
     }
 
-    insert_region(vms, region);
+    insert_region(vmspace, region);
 
-    mutex_release(&vms->lock);
+    mutex_release(&vmspace->lock);
 
     return 0;
 }
 
-int vms_map_any(struct vmspace* restrict vms, size_t size, unsigned vprot, const struct vm_backing* restrict backing,
-    uintptr_t* restrict out)
+int vms_map_any(vmspace_t* restrict vmspace, size_t size, unsigned vprot, const vm_backing_t* restrict backing, uintptr_t* restrict out)
 {
     if(size == 0 || page_offset(size)) {
         return -EINVAL;
     }
 
-    struct vm_region* region = alloc_region(0, 0, vprot, backing);
+    vm_region_t* region = alloc_region(0, 0, vprot, backing);
 
     if(region == nullptr) {
         return -ENOMEM;
     }
 
-    mutex_acquire(&vms->lock);
+    mutex_acquire(&vmspace->lock);
 
-    if(!find_gap(vms, size, &region->start)) {
-        mutex_release(&vms->lock);
+    if(!find_gap(vmspace, size, &region->start)) {
+        mutex_release(&vmspace->lock);
         free_region(region, false);
         return -ENOMEM;
     }
 
     region->end = region->start + size;
-    insert_region(vms, region);
+    insert_region(vmspace, region);
 
     *out = region->start;
 
-    mutex_release(&vms->lock);
+    mutex_release(&vmspace->lock);
 
     return 0;
 }
 
-int vms_unmap(struct vmspace* restrict vms, uintptr_t start, uintptr_t end)
+int vms_unmap(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end)
 {
-    if(!range_valid(vms, start, end)) {
+    if(!range_valid(vmspace, start, end)) {
         return -EINVAL;
     }
 
-    mutex_acquire(&vms->lock);
-    int retval = unmap_locked(vms, start, end);
-    mutex_release(&vms->lock);
+    mutex_acquire(&vmspace->lock);
+    int retval = unmap_locked(vmspace, start, end);
+    mutex_release(&vmspace->lock);
 
     return retval;
 }
 
-int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, unsigned vprot)
+int vms_protect(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end, unsigned vprot)
 {
-    if(!range_valid(vms, start, end)) {
+    if(!range_valid(vmspace, start, end)) {
         return -EINVAL;
     }
 
     vprot &= ~VPROT_USER;
 
-    mutex_acquire(&vms->lock);
+    mutex_acquire(&vmspace->lock);
 
-    if(!range_covered(vms, start, end)) {
-        mutex_release(&vms->lock);
+    if(!range_covered(vmspace, start, end)) {
+        mutex_release(&vmspace->lock);
         return -ENOMEM;
     }
 
-    for(struct vm_region* it = find_region(vms, start); it && it->start < end; it = it->next) {
+    for(vm_region_t* it = find_region(vmspace, start); it && it->start < end; it = it->next) {
         if((vprot & VPROT_WRITE) && !it->may_write) {
-            mutex_release(&vms->lock);
+            mutex_release(&vmspace->lock);
             return -EACCES;
         }
     }
 
-    int retval = split_region(vms, start);
+    int retval = split_region(vmspace, start);
 
     if(retval == 0) {
-        retval = split_region(vms, end);
+        retval = split_region(vmspace, end);
     }
 
     if(retval < 0) {
-        mutex_release(&vms->lock);
+        mutex_release(&vmspace->lock);
         return retval;
     }
 
     bool patched = false;
 
-    for(struct vm_region* it = find_region(vms, start); it && it->start < end; it = it->next) {
+    for(vm_region_t* it = find_region(vmspace, start); it && it->start < end; it = it->next) {
         it->vprot = vprot;
 
         for(uintptr_t page = it->start; page < it->end; page += PAGE_SIZE) {
-            uintptr_t phys = pmap_resolve_address(vms->pmap, page);
+            uintptr_t phys = pmap_resolve_address(vmspace->pmap, page);
 
             if(phys == 0) {
                 continue;
@@ -597,13 +615,13 @@ int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, un
                 page_vprot &= ~VPROT_WRITE;
             }
 
-            if(0 == pmap_patch_noflush(vms->pmap, page, page_vprot)) {
+            if(0 == pmap_patch_noflush(vmspace->pmap, page, page_vprot)) {
                 patched = true;
             }
         }
     }
 
-    mutex_release(&vms->lock);
+    mutex_release(&vmspace->lock);
 
     if(patched) {
         tlb_shootdown();
@@ -612,15 +630,15 @@ int vms_protect(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, un
     return 0;
 }
 
-int vms_sync(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, bool wait)
+int vms_sync(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end, bool wait)
 {
-    if(!range_valid(vms, start, end)) {
+    if(!range_valid(vmspace, start, end)) {
         return -EINVAL;
     }
 
-    mutex_acquire(&vms->lock);
-    bool covered = range_covered(vms, start, end);
-    mutex_release(&vms->lock);
+    mutex_acquire(&vmspace->lock);
+    bool covered = range_covered(vmspace, start, end);
+    mutex_release(&vmspace->lock);
 
     if(!covered) {
         return -ENOMEM;
@@ -631,11 +649,11 @@ int vms_sync(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, bool 
 
     // One file at a time, as fsync sleeps on the filesystem
     while(wait && cursor < end) {
-        struct vnode* node = nullptr;
+        vnode_t* node = nullptr;
 
-        mutex_acquire(&vms->lock);
+        mutex_acquire(&vmspace->lock);
 
-        for(struct vm_region* it = vms->regions; it && it->start < end && node == nullptr; it = it->next) {
+        for(vm_region_t* it = vmspace->regions; it && it->start < end && node == nullptr; it = it->next) {
             if(it->end <= cursor) {
                 continue;
             }
@@ -648,7 +666,7 @@ int vms_sync(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, bool 
             }
         }
 
-        mutex_release(&vms->lock);
+        mutex_release(&vmspace->lock);
 
         if(node == nullptr) {
             break;
@@ -665,33 +683,33 @@ int vms_sync(struct vmspace* restrict vms, uintptr_t start, uintptr_t end, bool 
     return retval;
 }
 
-int vms_unmap_all(struct vmspace* restrict vms)
+int vms_unmap_all(vmspace_t* restrict vmspace)
 {
-    mutex_acquire(&vms->lock);
-    unmap_all_locked(vms, true, false);
-    mutex_release(&vms->lock);
+    mutex_acquire(&vmspace->lock);
+    unmap_all_locked(vmspace, true, false);
+    mutex_release(&vmspace->lock);
     return 0;
 }
 
-int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem)
+int vms_clone(vmspace_t* restrict vmspace, vmspace_t* restrict source)
 {
-    kassert(vms->regions == nullptr);
+    kassert(vmspace->regions == nullptr);
 
-    mutex_acquire(&stem->lock);
+    mutex_acquire(&source->lock);
 
     bool patched = false;
     int retval = 0;
 
-    struct vm_region** tail = &vms->regions;
+    vm_region_t** tail = &vmspace->regions;
 
-    for(const struct vm_region* it = stem->regions; it; it = it->next) {
-        struct vm_backing backing;
+    for(const vm_region_t* it = source->regions; it; it = it->next) {
+        vm_backing_t backing;
         backing.node = it->node;
-        backing.pgoff = it->pgoff;
+        backing.file_page = it->file_page;
         backing.shared = it->shared;
         backing.may_write = it->may_write;
 
-        struct vm_region* region = alloc_region(it->start, it->end, it->vprot, &backing);
+        vm_region_t* region = alloc_region(it->start, it->end, it->vprot, &backing);
 
         if(region == nullptr) {
             retval = -ENOMEM;
@@ -705,13 +723,13 @@ int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem)
         unsigned vprot = (it->vprot & ~VPROT_WRITE) | VPROT_USER;
 
         for(uintptr_t page = it->start; page < it->end && retval == 0; page += PAGE_SIZE) {
-            uintptr_t phys = rmap_pin(stem->pmap, page, nullptr);
+            uintptr_t phys = rmap_pin(source->pmap, page, nullptr);
 
             if(phys == 0) {
                 continue;
             }
 
-            retval = rmap_map(vms->pmap, page, phys, vprot);
+            retval = rmap_map(vmspace->pmap, page, phys, vprot);
 
             if(retval < 0) {
                 put_frame(phys);
@@ -719,7 +737,7 @@ int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem)
             }
 
             // Fails only when a walker took the page meanwhile
-            if((it->vprot & VPROT_WRITE) && !it->shared && 0 == pmap_patch_noflush(stem->pmap, page, vprot)) {
+            if((it->vprot & VPROT_WRITE) && !it->shared && 0 == pmap_patch_noflush(source->pmap, page, vprot)) {
                 patched = true;
             }
         }
@@ -733,71 +751,71 @@ int vms_clone(struct vmspace* restrict vms, struct vmspace* restrict stem)
         tlb_shootdown();
     }
 
-    mutex_release(&stem->lock);
+    mutex_release(&source->lock);
 
     if(retval < 0) {
-        vms_unmap_all(vms);
+        vms_unmap_all(vmspace);
     }
 
     return retval;
 }
 
-int vms_fault(struct vmspace* restrict vms, uintptr_t virt, unsigned access)
+int vms_fault(vmspace_t* restrict vmspace, uintptr_t virt, unsigned access)
 {
-    if(virt >= pmap_user_end(vms->pmap)) {
+    if(virt >= pmap_user_end(vmspace->pmap)) {
         return -EFAULT;
     }
 
-    mutex_acquire(&vms->lock);
+    mutex_acquire(&vmspace->lock);
     access &= ~VPROT_USER;
-    int retval = fault_locked(vms, page_align(virt), access, 0 != (access & VPROT_WRITE));
-    mutex_release(&vms->lock);
+    int retval = fault_locked(vmspace, page_align(virt), access, 0 != (access & VPROT_WRITE));
+    mutex_release(&vmspace->lock);
 
     return retval;
 }
 
-uintptr_t vms_touch(struct vmspace* restrict vms, uintptr_t virt)
+uintptr_t vms_touch(vmspace_t* restrict vmspace, uintptr_t virt)
 {
-    if(virt >= pmap_user_end(vms->pmap)) {
+    if(virt >= pmap_user_end(vmspace->pmap)) {
         return 0;
     }
 
-    mutex_acquire(&vms->lock);
+    mutex_acquire(&vmspace->lock);
 
-    uintptr_t phys = pin_locked(vms, virt, VPROT_NONE, true);
+    uintptr_t phys = pin_locked(vmspace, virt, VPROT_NONE, true);
 
     if(phys) {
         put_frame(phys);
         phys += page_offset(virt);
     }
 
-    mutex_release(&vms->lock);
+    mutex_release(&vmspace->lock);
 
     return phys;
 }
 
-ssize_t vms_copyin(void* restrict dst, struct vmspace* restrict vms, uintptr_t src, size_t sz)
+ssize_t vms_copyin(void* restrict dst, vmspace_t* restrict vmspace, uintptr_t src, size_t size)
 {
     uint8_t* ptr = dst;
 
-    if(src >= pmap_user_end(vms->pmap) || sz > pmap_user_end(vms->pmap) - src) {
+    if(src >= pmap_user_end(vmspace->pmap) || size > pmap_user_end(vmspace->pmap) - src) {
         return -EFAULT;
     }
 
-    mutex_acquire(&vms->lock);
+    mutex_acquire(&vmspace->lock);
 
-    while(sz) {
-        uintptr_t src_phys = pin_locked(vms, src, VPROT_READ, false);
+    while(size) {
+        uintptr_t src_phys = pin_locked(vmspace, src, VPROT_READ, false);
 
         if(src_phys == 0) {
-            mutex_release(&vms->lock);
+            mutex_release(&vmspace->lock);
             return -EFAULT;
         }
 
         size_t chunk = PAGE_SIZE - page_offset(src);
 
-        if(chunk > sz) {
-            chunk = sz;
+        if(chunk > size) {
+            chunk = size;
         }
 
         memcpy(ptr, (const uint8_t*)(phys_to_virt(src_phys)) + page_offset(src), chunk);
@@ -805,15 +823,15 @@ ssize_t vms_copyin(void* restrict dst, struct vmspace* restrict vms, uintptr_t s
 
         src += chunk;
         ptr += chunk;
-        sz -= chunk;
+        size -= chunk;
     }
 
-    mutex_release(&vms->lock);
+    mutex_release(&vmspace->lock);
 
     return ptr - (uint8_t*)(dst);
 }
 
-ssize_t vms_copyin_str(char* restrict dst, struct vmspace* restrict vms, uintptr_t src, size_t max_sz)
+ssize_t vms_copyin_str(char* restrict dst, vmspace_t* restrict vmspace, uintptr_t src, size_t max_sz)
 {
     if(max_sz == 0) {
         return -EINVAL;
@@ -822,17 +840,17 @@ ssize_t vms_copyin_str(char* restrict dst, struct vmspace* restrict vms, uintptr
     char* ptr = dst;
     size_t remaining = max_sz;
 
-    mutex_acquire(&vms->lock);
+    mutex_acquire(&vmspace->lock);
 
     while(remaining) {
         uintptr_t src_phys = 0;
 
-        if(src < pmap_user_end(vms->pmap)) {
-            src_phys = pin_locked(vms, src, VPROT_READ, false);
+        if(src < pmap_user_end(vmspace->pmap)) {
+            src_phys = pin_locked(vmspace, src, VPROT_READ, false);
         }
 
         if(src_phys == 0) {
-            mutex_release(&vms->lock);
+            mutex_release(&vmspace->lock);
             return -EFAULT;
         }
 
@@ -851,7 +869,7 @@ ssize_t vms_copyin_str(char* restrict dst, struct vmspace* restrict vms, uintptr
             memcpy(ptr, page, len);
             put_frame(src_phys);
 
-            mutex_release(&vms->lock);
+            mutex_release(&vmspace->lock);
 
             return ptr - dst + len - 1;
         }
@@ -864,35 +882,35 @@ ssize_t vms_copyin_str(char* restrict dst, struct vmspace* restrict vms, uintptr
         remaining -= chunk;
     }
 
-    mutex_release(&vms->lock);
+    mutex_release(&vmspace->lock);
 
     dst[max_sz - 1] = 0x00;
 
     return -ENAMETOOLONG;
 }
 
-ssize_t vms_copyout(struct vmspace* restrict vms, uintptr_t dst, const void* restrict src, size_t sz)
+ssize_t vms_copyout(vmspace_t* restrict vmspace, uintptr_t dst, const void* restrict src, size_t size)
 {
     const uint8_t* ptr = src;
 
-    if(dst >= pmap_user_end(vms->pmap) || sz > pmap_user_end(vms->pmap) - dst) {
+    if(dst >= pmap_user_end(vmspace->pmap) || size > pmap_user_end(vmspace->pmap) - dst) {
         return -EFAULT;
     }
 
-    mutex_acquire(&vms->lock);
+    mutex_acquire(&vmspace->lock);
 
-    while(sz) {
-        uintptr_t dst_phys = pin_locked(vms, dst, VPROT_WRITE, true);
+    while(size) {
+        uintptr_t dst_phys = pin_locked(vmspace, dst, VPROT_WRITE, true);
 
         if(dst_phys == 0) {
-            mutex_release(&vms->lock);
+            mutex_release(&vmspace->lock);
             return -EFAULT;
         }
 
         size_t chunk = PAGE_SIZE - page_offset(dst);
 
-        if(chunk > sz) {
-            chunk = sz;
+        if(chunk > size) {
+            chunk = size;
         }
 
         memcpy((uint8_t*)(phys_to_virt(dst_phys)) + page_offset(dst), ptr, chunk);
@@ -900,15 +918,15 @@ ssize_t vms_copyout(struct vmspace* restrict vms, uintptr_t dst, const void* res
 
         dst += chunk;
         ptr += chunk;
-        sz -= chunk;
+        size -= chunk;
     }
 
-    mutex_release(&vms->lock);
+    mutex_release(&vmspace->lock);
 
     return ptr - (const uint8_t*)(src);
 }
 
-ssize_t vms_copyout_str(struct vmspace* restrict vms, uintptr_t dst, const char* restrict src, size_t max_sz)
+ssize_t vms_copyout_str(vmspace_t* restrict vmspace, uintptr_t dst, const char* restrict src, size_t max_sz)
 {
     if(max_sz == 0) {
         return -EINVAL;
@@ -917,36 +935,17 @@ ssize_t vms_copyout_str(struct vmspace* restrict vms, uintptr_t dst, const char*
     size_t len = strnlen(src, max_sz);
 
     if(len < max_sz) {
-        return vms_copyout(vms, dst, src, len + 1);
+        return vms_copyout(vmspace, dst, src, len + 1);
     }
 
     return -ENAMETOOLONG;
-}
-
-static void __noreturn release_thread(void* restrict arg)
-{
-    for(;;) {
-        struct event* wakeup = &stale_wakeup;
-        event_await(&wakeup, 1);
-
-        bool intr_state = spinlock_acquire_intr(&stale_lock);
-        struct vm_region* regions = stale_regions;
-        stale_regions = nullptr;
-        spinlock_release_intr(&stale_lock, intr_state);
-
-        while(regions) {
-            struct vm_region* next = regions->next;
-            free_region(regions, false);
-            regions = next;
-        }
-    }
 }
 
 static void init_vms(void)
 {
     event_init(&stale_wakeup);
 
-    if(create_thread_kern_enq(&release_thread, nullptr) == nullptr) {
+    if(thread_spawn_kernel(&release_thread, nullptr) == nullptr) {
         panic("vms: out of memory");
     }
 }

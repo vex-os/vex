@@ -31,5 +31,5 @@
 #define VFS_CAP_SIZE_2 __k_VFS_CAP_SIZE_2
 #define VFS_CAP_SIZE_3 __k_VFS_CAP_SIZE_3
 
-#define k_caps         __k_caps
-#define k_vfs_cap_data __k_vfs_cap_data
+typedef struct __k_caps caps_t;
+typedef struct __k_vfs_cap_data vfs_cap_data_t;

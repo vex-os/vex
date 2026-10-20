@@ -19,10 +19,10 @@
 #define PROCTABLE_BUCKETS   1024
 #define PROCESS_SIZE_BUDGET 256
 
-static_assert(sizeof(struct process) <= PROCESS_SIZE_BUDGET);
+static_assert(sizeof(process_t) <= PROCESS_SIZE_BUDGET);
 
-static struct process* proctable[PROCTABLE_BUCKETS];
-static spinlock_type proctable_lock = SPINLOCK_INIT; // Taken with interrupts disabled: the scheduler looks up parents
+static process_t* proctable[PROCTABLE_BUCKETS];
+static spinlock_t proctable_lock = SPINLOCK_INIT; // Taken with interrupts disabled: the scheduler looks up parents
 static pid_t next_pid = INIT_PID;
 
 static __always_inline __nodiscard size_t pid_bucket(pid_t pid)
@@ -30,9 +30,9 @@ static __always_inline __nodiscard size_t pid_bucket(pid_t pid)
     return pid % PROCTABLE_BUCKETS;
 }
 
-static int grow_fds_locked(struct process* proc, size_t fd)
+static int grow_fds_locked(process_t* process, size_t fd)
 {
-    if(fd < proc->max_fds) {
+    if(fd < process->max_fds) {
         return 0;
     }
 
@@ -40,7 +40,7 @@ static int grow_fds_locked(struct process* proc, size_t fd)
         return -EMFILE;
     }
 
-    size_t new_max = proc->max_fds ? proc->max_fds * 2 : 4;
+    size_t new_max = process->max_fds ? process->max_fds * 2 : 4;
 
     while(new_max <= fd) {
         new_max *= 2;
@@ -50,31 +50,31 @@ static int grow_fds_locked(struct process* proc, size_t fd)
         new_max = CONFIG_MAX_FDS;
     }
 
-    struct file** grown = krealloc(proc->fds, new_max * sizeof(struct file*));
+    file_t** grown = krealloc(process->fds, new_max * sizeof(file_t*));
 
     if(grown == nullptr) {
         return -ENOMEM;
     }
 
-    for(size_t i = proc->max_fds; i < new_max; ++i) {
+    for(size_t i = process->max_fds; i < new_max; ++i) {
         grown[i] = nullptr;
     }
 
-    proc->fds = grown;
-    proc->max_fds = new_max;
+    process->fds = grown;
+    process->max_fds = new_max;
 
     return 0;
 }
 
-static void fill_exit_note(struct sigqueue* restrict note, const struct process* restrict child)
+static void fill_exit_note(pending_signal_t* restrict note, const process_t* restrict child)
 {
-    struct credentials* cred = child->cred;
+    credentials_t* credentials = child->credentials;
 
-    struct k_siginfo info = { 0 };
+    siginfo_t info = { 0 };
     info.si_signo = SIGCHLD;
     info.si_code = CLD_EXITED;
     info.si_pid = child->pid;
-    info.si_uid = cred->uid;
+    info.si_uid = credentials->uid;
     info.si_status = child->exit_code;
 
     if(child->exit_signal) {
@@ -85,9 +85,9 @@ static void fill_exit_note(struct sigqueue* restrict note, const struct process*
     note->info = info;
 }
 
-static void notify_parent(struct process* restrict proc)
+static void notify_parent(process_t* restrict process)
 {
-    struct process* parent = process_locate(atomic_load_n(&proc->ppid, ATOMIC_SEQ_CST));
+    process_t* parent = process_locate(atomic_load_n(&process->ppid, ATOMIC_SEQ_CST));
 
     if(parent == nullptr) {
         return;
@@ -96,9 +96,9 @@ static void notify_parent(struct process* restrict proc)
     event_trigger(&parent->child_exited, true);
 
     // After the event, so a handler's waitpid finds the zombie
-    struct sigqueue* note = proc->exit_note;
-    proc->exit_note = nullptr;
-    fill_exit_note(note, proc);
+    pending_signal_t* note = process->exit_note;
+    process->exit_note = nullptr;
+    fill_exit_note(note, process);
     signal_send_node(parent, note);
 
     process_decref(parent);
@@ -107,32 +107,32 @@ static void notify_parent(struct process* restrict proc)
 // Children are moved before their zombie flags are
 // checked while a dying child sets its flag before
 // reading its parent: one side or the other always gets to init
-static void reparent_children(struct process* restrict proc)
+static void reparent_children(process_t* restrict process)
 {
-    struct process* init = process_locate(INIT_PID);
+    process_t* init = process_locate(INIT_PID);
 
-    if(init == proc) {
+    if(init == process) {
         process_decref(init);
         init = nullptr;
     }
 
-    bool intr_state = spinlock_acquire_intr(&proc->lock);
+    bool intr_state = spinlock_acquire_intr(&process->lock);
 
     if(init) {
         spinlock_acquire(&init->lock);
     }
 
-    struct sigqueue* note = nullptr;
-    struct process* last = nullptr;
+    pending_signal_t* note = nullptr;
+    process_t* last = nullptr;
 
-    for(struct process* it = proc->children; it; it = it->cnext) {
+    for(process_t* it = process->children; it; it = it->sibling_next) {
         atomic_store_n(&it->ppid, init ? INIT_PID : 0, ATOMIC_SEQ_CST);
 
         // A zombie's own SIGCHLD went to this dying process, so init gets one for
         // it here; SIGCHLDs merge while pending, so the first zombie stands for all
         if(note == nullptr && atomic_load_n(&it->zombie, ATOMIC_SEQ_CST)) {
-            note = proc->adopt_note;
-            proc->adopt_note = nullptr;
+            note = process->adopt_note;
+            process->adopt_note = nullptr;
             fill_exit_note(note, it);
         }
 
@@ -140,22 +140,22 @@ static void reparent_children(struct process* restrict proc)
     }
 
     if(init && last) {
-        last->cnext = init->children;
+        last->sibling_next = init->children;
 
         if(init->children) {
-            init->children->cprev = last;
+            init->children->sibling_prev = last;
         }
 
-        init->children = proc->children;
+        init->children = process->children;
     }
 
-    proc->children = nullptr;
+    process->children = nullptr;
 
     if(init) {
         spinlock_release(&init->lock);
     }
 
-    spinlock_release_intr(&proc->lock, intr_state);
+    spinlock_release_intr(&process->lock, intr_state);
 
     if(init) {
         if(note) {
@@ -169,20 +169,20 @@ static void reparent_children(struct process* restrict proc)
 
 // Closing may sleep in a filesystem, so this runs in the exiting
 // thread rather than when the scheduler reaps the last thread
-static void release_files(struct process* restrict proc)
+static void release_files(process_t* restrict process)
 {
-    process_set_cwd(proc, nullptr);
+    process_set_cwd(process, nullptr);
 
-    spinlock_acquire(&proc->fd_lock);
+    spinlock_acquire(&process->fd_lock);
 
-    struct file** fds = proc->fds;
-    size_t max_fds = proc->max_fds;
+    file_t** fds = process->fds;
+    size_t max_fds = process->max_fds;
 
-    proc->fds = nullptr;
-    proc->max_fds = 0;
-    proc->num_fds = 0;
+    process->fds = nullptr;
+    process->max_fds = 0;
+    process->num_fds = 0;
 
-    spinlock_release(&proc->fd_lock);
+    spinlock_release(&process->fd_lock);
 
     for(size_t i = 0; i < max_fds; ++i) {
         file_close(fds[i]);
@@ -191,111 +191,137 @@ static void release_files(struct process* restrict proc)
     kfree(fds);
 }
 
-struct process* process_create(struct process* restrict parent)
+static void begin_exit(process_t* restrict process, int exit_code, int exit_signal)
 {
-    struct process* proc = slab_alloc(sizeof(struct process));
+    if(atomic_exchange(&process->exiting, true, ATOMIC_ACQ_REL)) {
+        return;
+    }
 
-    if(proc == nullptr) {
+    pr_verbose("process[%lu]: exiting with exit_code=%d signal=%d", (unsigned long)(process->pid), exit_code, exit_signal);
+
+    process->exit_code = exit_code;
+    process->exit_signal = exit_signal;
+
+    bool intr_state = spinlock_acquire_intr(&process->lock);
+
+    for(thread_t* thread = process->threads; thread; thread = thread->process_next) {
+        atomic_fetch_or(&thread->pending_work, THREAD_WORK_EXIT, ATOMIC_RELEASE);
+
+        sched_kick(thread);
+    }
+
+    spinlock_release_intr(&process->lock, intr_state);
+
+    // A zombie must not keep filesystems
+    // busy until it is waited for
+    release_files(process);
+}
+
+process_t* process_create(process_t* restrict parent)
+{
+    process_t* process = slab_alloc(sizeof(process_t));
+
+    if(process == nullptr) {
         return nullptr;
     }
 
-    proc->vms = vms_create();
+    process->vmspace = vms_create();
 
-    if(proc->vms == nullptr) {
-        slab_free(proc);
+    if(process->vmspace == nullptr) {
+        slab_free(process);
         return nullptr;
     }
 
-    struct sighand* parent_sighand = nullptr;
+    signal_actions_t* parent_actions = nullptr;
 
     if(parent) {
-        parent_sighand = parent->sighand;
+        parent_actions = parent->signal_actions;
     }
 
-    proc->sighand = sighand_create(parent_sighand);
-    proc->exit_note = slab_alloc(sizeof(struct sigqueue));
-    proc->adopt_note = slab_alloc(sizeof(struct sigqueue));
+    process->signal_actions = signal_actions_create(parent_actions);
+    process->exit_note = slab_alloc(sizeof(pending_signal_t));
+    process->adopt_note = slab_alloc(sizeof(pending_signal_t));
 
-    if(proc->sighand == nullptr || proc->exit_note == nullptr || proc->adopt_note == nullptr) {
-        slab_free(proc->adopt_note);
-        slab_free(proc->exit_note);
-        sighand_destroy(proc->sighand);
-        vms_release(proc->vms);
-        slab_free(proc);
+    if(process->signal_actions == nullptr || process->exit_note == nullptr || process->adopt_note == nullptr) {
+        slab_free(process->adopt_note);
+        slab_free(process->exit_note);
+        signal_actions_destroy(process->signal_actions);
+        vms_release(process->vmspace);
+        slab_free(process);
         return nullptr;
     }
 
     if(parent) {
-        proc->ppid = parent->pid;
+        process->ppid = parent->pid;
     }
 
-    proc->pid = atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);
-    proc->refcount = 1;
-    proc->lock = SPINLOCK_INIT;
-    proc->fd_lock = SPINLOCK_INIT;
-    event_init(&proc->evnt);
-    event_init(&proc->child_exited);
-    mutex_init(&proc->cred_lock);
+    process->pid = atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);
+    process->refcount = 1;
+    process->lock = SPINLOCK_INIT;
+    process->fd_lock = SPINLOCK_INIT;
+    event_init(&process->event);
+    event_init(&process->child_exited);
+    mutex_init(&process->credentials_lock);
 
     if(parent) {
-        proc->cred = process_get_cred(parent);
-        proc->umask = atomic_load_n(&parent->umask, ATOMIC_RELAXED);
-        proc->cwd = process_get_cwd(parent);
+        process->credentials = process_get_cred(parent);
+        process->umask = atomic_load_n(&parent->umask, ATOMIC_RELAXED);
+        process->cwd = process_get_cwd(parent);
     }
     else {
-        proc->cred = &sys_cred;
-        cred_incref(&sys_cred);
-        proc->umask = S_IWGRP | S_IWOTH;
-        proc->cwd = nullptr;
+        process->credentials = &kernel_credentials;
+        cred_incref(&kernel_credentials);
+        process->umask = S_IWGRP | S_IWOTH;
+        process->cwd = nullptr;
     }
 
-    if(proc->cwd == nullptr) {
-        proc->cwd = vfs_get_root();
+    if(process->cwd == nullptr) {
+        process->cwd = vfs_get_root();
     }
 
-    if(proc->cwd == nullptr) {
-        cred_decref(proc->cred);
-        slab_free(proc->adopt_note);
-        slab_free(proc->exit_note);
-        sighand_destroy(proc->sighand);
-        vms_release(proc->vms);
-        slab_free(proc);
+    if(process->cwd == nullptr) {
+        cred_decref(process->credentials);
+        slab_free(process->adopt_note);
+        slab_free(process->exit_note);
+        signal_actions_destroy(process->signal_actions);
+        vms_release(process->vmspace);
+        slab_free(process);
         return nullptr;
     }
 
     if(parent) {
         bool intr_state = spinlock_acquire_intr(&parent->lock);
 
-        proc->cnext = parent->children;
+        process->sibling_next = parent->children;
 
         if(parent->children) {
-            parent->children->cprev = proc;
+            parent->children->sibling_prev = process;
         }
 
-        parent->children = proc;
+        parent->children = process;
 
         spinlock_release_intr(&parent->lock, intr_state);
     }
 
-    size_t bucket = pid_bucket(proc->pid);
+    size_t bucket = pid_bucket(process->pid);
 
     bool intr_state = spinlock_acquire_intr(&proctable_lock);
 
-    proc->pnext = proctable[bucket];
-    proctable[bucket] = proc;
+    process->hash_next = proctable[bucket];
+    proctable[bucket] = process;
 
     spinlock_release_intr(&proctable_lock, intr_state);
 
-    return proc;
+    return process;
 }
 
-struct process* process_locate(pid_t pid)
+process_t* process_locate(pid_t pid)
 {
     size_t bucket = pid_bucket(pid);
 
     bool intr_state = spinlock_acquire_intr(&proctable_lock);
 
-    for(struct process* it = proctable[bucket]; it; it = it->pnext) {
+    for(process_t* it = proctable[bucket]; it; it = it->hash_next) {
         if(it->pid == pid) {
             process_incref(it);
             spinlock_release_intr(&proctable_lock, intr_state);
@@ -308,130 +334,104 @@ struct process* process_locate(pid_t pid)
     return nullptr;
 }
 
-void process_incref(struct process* proc)
+void process_incref(process_t* process)
 {
-    atomic_fetch_add(&proc->refcount, 1, ATOMIC_RELAXED);
+    atomic_fetch_add(&process->refcount, 1, ATOMIC_RELAXED);
 }
 
-void process_decref(struct process* proc)
+void process_decref(process_t* process)
 {
-    if(1 == atomic_fetch_sub(&proc->refcount, 1, ATOMIC_ACQ_REL)) {
+    if(1 == atomic_fetch_sub(&process->refcount, 1, ATOMIC_ACQ_REL)) {
         // May run from the scheduler: only interrupt-safe teardown here,
         // everything else was released by process_destroy already
 
-        if(proc->vms) {
-            vms_release(proc->vms); // Never got as far as running a thread
+        if(process->vmspace) {
+            vms_release(process->vmspace); // Never got as far as running a thread
         }
 
-        cred_decref(proc->cred);
-        signal_flush(proc->sig_queue);
-        slab_free(proc->adopt_note);
-        slab_free(proc->exit_note);
-        sighand_destroy(proc->sighand);
-        mutex_deinit(&proc->cred_lock);
-        event_deinit(&proc->evnt);
-        event_deinit(&proc->child_exited);
-        slab_free(proc);
+        cred_decref(process->credentials);
+        signal_flush(process->sig_queue);
+        slab_free(process->adopt_note);
+        slab_free(process->exit_note);
+        signal_actions_destroy(process->signal_actions);
+        mutex_deinit(&process->credentials_lock);
+        event_deinit(&process->event);
+        event_deinit(&process->child_exited);
+        slab_free(process);
     }
 }
 
-static void begin_exit(struct process* restrict proc, int exit_code, int exit_signal)
+void process_exit(process_t* process, int exit_code)
 {
-    if(atomic_exchange(&proc->exiting, true, ATOMIC_ACQ_REL)) {
-        return;
-    }
-
-    pr_verbose("process[%lu]: exiting with exit_code=%d signal=%d", (unsigned long)(proc->pid), exit_code, exit_signal);
-
-    proc->exit_code = exit_code;
-    proc->exit_signal = exit_signal;
-
-    bool intr_state = spinlock_acquire_intr(&proc->lock);
-
-    for(struct thread* thrd = proc->threads; thrd; thrd = thrd->tnext) {
-        atomic_fetch_or(&thrd->pending_work, THREAD_WORK_EXIT, ATOMIC_RELEASE);
-
-        sched_kick(thrd);
-    }
-
-    spinlock_release_intr(&proc->lock, intr_state);
-
-    // A zombie must not keep filesystems
-    // busy until it is waited for
-    release_files(proc);
+    begin_exit(process, exit_code, 0);
 }
 
-void process_exit(struct process* proc, int exit_code)
+void process_kill(process_t* process, int sig)
 {
-    begin_exit(proc, exit_code, 0);
+    begin_exit(process, 0, sig);
 }
 
-void process_kill(struct process* proc, int sig)
+void process_thread_reaped(process_t* process, thread_t* thread)
 {
-    begin_exit(proc, 0, sig);
-}
+    bool intr_state = spinlock_acquire_intr(&process->lock);
 
-void process_thread_reaped(struct process* proc, struct thread* thrd)
-{
-    bool intr_state = spinlock_acquire_intr(&proc->lock);
-
-    if(thrd->tprev) {
-        thrd->tprev->tnext = thrd->tnext;
+    if(thread->process_prev) {
+        thread->process_prev->process_next = thread->process_next;
     }
     else {
-        proc->threads = thrd->tnext;
+        process->threads = thread->process_next;
     }
 
-    if(thrd->tnext) {
-        thrd->tnext->tprev = thrd->tprev;
+    if(thread->process_next) {
+        thread->process_next->process_prev = thread->process_prev;
     }
 
-    bool last = (0 == --proc->num_threads);
+    bool last = (0 == --process->num_threads);
 
-    spinlock_release_intr(&proc->lock, intr_state);
+    spinlock_release_intr(&process->lock, intr_state);
 
     if(last) {
         // No thread of the process is on any hart anymore, so
         // nothing has its page tables loaded and they can go
-        vms_release(proc->vms);
-        proc->vms = nullptr;
+        vms_release(process->vmspace);
+        process->vmspace = nullptr;
 
-        atomic_store_n(&proc->zombie, true, ATOMIC_SEQ_CST);
-        event_trigger(&proc->evnt, true);
+        atomic_store_n(&process->zombie, true, ATOMIC_SEQ_CST);
+        event_trigger(&process->event, true);
 
-        notify_parent(proc);
-        reparent_children(proc);
+        notify_parent(process);
+        reparent_children(process);
     }
 
-    process_decref(proc);
+    process_decref(process);
 }
 
-bool process_claim(struct process* proc)
+bool process_claim(process_t* process)
 {
     bool expected = false;
 
-    if(!atomic_load_n(&proc->zombie, ATOMIC_ACQUIRE)) {
+    if(!atomic_load_n(&process->zombie, ATOMIC_ACQUIRE)) {
         return false;
     }
 
-    return atomic_cmpxchg(&proc->collected, &expected, true, ATOMIC_ACQ_REL, ATOMIC_RELAXED);
+    return atomic_cmpxchg(&process->collected, &expected, true, ATOMIC_ACQ_REL, ATOMIC_RELAXED);
 }
 
-void process_destroy(struct process* proc)
+void process_destroy(process_t* process)
 {
-    size_t bucket = pid_bucket(proc->pid);
+    size_t bucket = pid_bucket(process->pid);
 
     bool intr_state = spinlock_acquire_intr(&proctable_lock);
 
-    struct process* prev = nullptr;
+    process_t* prev = nullptr;
 
-    for(struct process* it = proctable[bucket]; it; it = it->pnext) {
-        if(it == proc) {
+    for(process_t* it = proctable[bucket]; it; it = it->hash_next) {
+        if(it == process) {
             if(prev) {
-                prev->pnext = it->pnext;
+                prev->hash_next = it->hash_next;
             }
             else {
-                proctable[bucket] = it->pnext;
+                proctable[bucket] = it->hash_next;
             }
 
             break;
@@ -442,20 +442,20 @@ void process_destroy(struct process* proc)
 
     spinlock_release_intr(&proctable_lock, intr_state);
 
-    struct process* parent = process_locate(atomic_load_n(&proc->ppid, ATOMIC_SEQ_CST));
+    process_t* parent = process_locate(atomic_load_n(&process->ppid, ATOMIC_SEQ_CST));
 
     if(parent) {
         intr_state = spinlock_acquire_intr(&parent->lock);
 
-        if(proc->cprev) {
-            proc->cprev->cnext = proc->cnext;
+        if(process->sibling_prev) {
+            process->sibling_prev->sibling_next = process->sibling_next;
         }
         else {
-            parent->children = proc->cnext;
+            parent->children = process->sibling_next;
         }
 
-        if(proc->cnext) {
-            proc->cnext->cprev = proc->cprev;
+        if(process->sibling_next) {
+            process->sibling_next->sibling_prev = process->sibling_prev;
         }
 
         spinlock_release_intr(&parent->lock, intr_state);
@@ -463,113 +463,113 @@ void process_destroy(struct process* proc)
         process_decref(parent);
     }
 
-    release_files(proc);
+    release_files(process);
 
-    process_decref(proc);
+    process_decref(process);
 }
 
-struct credentials* process_get_cred(struct process* proc)
+credentials_t* process_get_cred(process_t* process)
 {
-    bool intr_state = spinlock_acquire_intr(&proc->lock);
+    bool intr_state = spinlock_acquire_intr(&process->lock);
 
-    struct credentials* cred = proc->cred;
-    cred_incref(cred);
+    credentials_t* credentials = process->credentials;
+    cred_incref(credentials);
 
-    spinlock_release_intr(&proc->lock, intr_state);
+    spinlock_release_intr(&process->lock, intr_state);
 
-    return cred;
+    return credentials;
 }
 
-void process_set_cred(struct process* proc, struct credentials* cred)
+void process_set_cred(process_t* process, credentials_t* credentials)
 {
-    kassert(mutex_held(&proc->cred_lock));
+    kassert(mutex_held(&process->credentials_lock));
 
-    bool intr_state = spinlock_acquire_intr(&proc->lock);
+    bool intr_state = spinlock_acquire_intr(&process->lock);
 
-    struct credentials* old_cred = proc->cred;
-    atomic_store(&proc->cred, cred, ATOMIC_RELEASE);
+    credentials_t* old_cred = process->credentials;
+    atomic_store(&process->credentials, credentials, ATOMIC_RELEASE);
 
-    spinlock_release_intr(&proc->lock, intr_state);
+    spinlock_release_intr(&process->lock, intr_state);
 
     cred_decref(old_cred);
 }
 
-struct vnode* process_get_cwd(struct process* proc)
+vnode_t* process_get_cwd(process_t* process)
 {
-    bool intr_state = spinlock_acquire_intr(&proc->lock);
+    bool intr_state = spinlock_acquire_intr(&process->lock);
 
-    struct vnode* cwd = proc->cwd;
+    vnode_t* cwd = process->cwd;
 
     if(cwd) {
         vnode_incref(cwd);
     }
 
-    spinlock_release_intr(&proc->lock, intr_state);
+    spinlock_release_intr(&process->lock, intr_state);
 
     return cwd;
 }
 
-void process_set_cwd(struct process* proc, struct vnode* node)
+void process_set_cwd(process_t* process, vnode_t* node)
 {
-    bool intr_state = spinlock_acquire_intr(&proc->lock);
+    bool intr_state = spinlock_acquire_intr(&process->lock);
 
-    struct vnode* old_cwd = proc->cwd;
-    proc->cwd = node;
+    vnode_t* old_cwd = process->cwd;
+    process->cwd = node;
 
-    spinlock_release_intr(&proc->lock, intr_state);
+    spinlock_release_intr(&process->lock, intr_state);
 
     if(old_cwd) {
         vnode_decref(old_cwd);
     }
 }
 
-struct file* dereference_fd(struct process* proc, int fd)
+file_t* process_fd_get(process_t* process, int fd)
 {
-    spinlock_acquire(&proc->fd_lock);
+    spinlock_acquire(&process->fd_lock);
 
-    struct file* fp = nullptr;
+    file_t* file = nullptr;
 
-    if(fd >= 0 && (size_t)(fd) < proc->max_fds) {
-        fp = file_dupe(proc->fds[fd]);
+    if(fd >= 0 && (size_t)(fd) < process->max_fds) {
+        file = file_dupe(process->fds[fd]);
     }
 
-    spinlock_release(&proc->fd_lock);
+    spinlock_release(&process->fd_lock);
 
-    return fp;
+    return file;
 }
 
-int allocate_fd(struct process* proc, struct file* file)
+int process_fd_alloc(process_t* process, file_t* file)
 {
-    spinlock_acquire(&proc->fd_lock);
+    spinlock_acquire(&process->fd_lock);
 
-    for(size_t fd = 0; fd < proc->max_fds; ++fd) {
-        if(proc->fds[fd] == nullptr) {
-            proc->fds[fd] = file;
-            proc->num_fds += 1;
-            spinlock_release(&proc->fd_lock);
+    for(size_t fd = 0; fd < process->max_fds; ++fd) {
+        if(process->fds[fd] == nullptr) {
+            process->fds[fd] = file;
+            process->num_fds += 1;
+            spinlock_release(&process->fd_lock);
             return fd;
         }
     }
 
-    int fd = proc->max_fds;
-    int retval = grow_fds_locked(proc, fd);
+    int fd = process->max_fds;
+    int retval = grow_fds_locked(process, fd);
 
     if(retval < 0) {
-        spinlock_release(&proc->fd_lock);
+        spinlock_release(&process->fd_lock);
         return retval;
     }
 
-    proc->fds[fd] = file;
-    proc->num_fds += 1;
+    process->fds[fd] = file;
+    process->num_fds += 1;
 
-    spinlock_release(&proc->fd_lock);
+    spinlock_release(&process->fd_lock);
 
     return fd;
 }
 
-int duplicate_fd(struct process* proc, int old_fd, int new_fd)
+int process_fd_dup(process_t* process, int old_fd, int new_fd)
 {
-    struct file* copy = dereference_fd(proc, old_fd);
+    file_t* copy = process_fd_get(process, old_fd);
 
     if(copy == nullptr) {
         return -EBADF;
@@ -581,7 +581,7 @@ int duplicate_fd(struct process* proc, int old_fd, int new_fd)
     }
 
     if(new_fd < 0) {
-        int fd = allocate_fd(proc, copy);
+        int fd = process_fd_alloc(process, copy);
 
         if(fd < 0) {
             file_close(copy);
@@ -597,24 +597,24 @@ int duplicate_fd(struct process* proc, int old_fd, int new_fd)
         return -EBADF;
     }
 
-    spinlock_acquire(&proc->fd_lock);
+    spinlock_acquire(&process->fd_lock);
 
-    int retval = grow_fds_locked(proc, new_fd);
+    int retval = grow_fds_locked(process, new_fd);
 
     if(retval < 0) {
-        spinlock_release(&proc->fd_lock);
+        spinlock_release(&process->fd_lock);
         file_close(copy);
         return retval;
     }
 
-    struct file* replaced = proc->fds[new_fd];
-    proc->fds[new_fd] = copy;
+    file_t* replaced = process->fds[new_fd];
+    process->fds[new_fd] = copy;
 
     if(replaced == nullptr) {
-        proc->num_fds += 1;
+        process->num_fds += 1;
     }
 
-    spinlock_release(&proc->fd_lock);
+    spinlock_release(&process->fd_lock);
 
     // Closing may sleep in the filesystem
     // so it happens outside the lock
@@ -623,50 +623,50 @@ int duplicate_fd(struct process* proc, int old_fd, int new_fd)
     return new_fd;
 }
 
-int release_fd(struct process* proc, int fd)
+int process_fd_release(process_t* process, int fd)
 {
-    spinlock_acquire(&proc->fd_lock);
+    spinlock_acquire(&process->fd_lock);
 
-    if(fd < 0 || (size_t)(fd) >= proc->max_fds || proc->fds[fd] == nullptr) {
-        spinlock_release(&proc->fd_lock);
+    if(fd < 0 || (size_t)(fd) >= process->max_fds || process->fds[fd] == nullptr) {
+        spinlock_release(&process->fd_lock);
         return -EBADF;
     }
 
-    struct file* fp = proc->fds[fd];
-    proc->fds[fd] = nullptr;
-    proc->num_fds -= 1;
+    file_t* file = process->fds[fd];
+    process->fds[fd] = nullptr;
+    process->num_fds -= 1;
 
-    spinlock_release(&proc->fd_lock);
+    spinlock_release(&process->fd_lock);
 
-    file_close(fp);
+    file_close(file);
 
     return 0;
 }
 
-int copy_fds(struct process* restrict proc, struct process* restrict stem)
+int process_fds_copy(process_t* restrict process, process_t* restrict source)
 {
-    spinlock_acquire(&stem->fd_lock);
+    spinlock_acquire(&source->fd_lock);
 
-    struct file** fds = nullptr;
+    file_t** fds = nullptr;
 
-    if(stem->max_fds) {
-        fds = kmalloc(stem->max_fds * sizeof(struct file*));
+    if(source->max_fds) {
+        fds = kmalloc(source->max_fds * sizeof(file_t*));
 
         if(fds == nullptr) {
-            spinlock_release(&stem->fd_lock);
+            spinlock_release(&source->fd_lock);
             return -ENOMEM;
         }
 
-        for(size_t i = 0; i < stem->max_fds; ++i) {
-            fds[i] = file_dupe(stem->fds[i]);
+        for(size_t i = 0; i < source->max_fds; ++i) {
+            fds[i] = file_dupe(source->fds[i]);
         }
     }
 
-    proc->fds = fds;
-    proc->max_fds = stem->max_fds;
-    proc->num_fds = stem->num_fds;
+    process->fds = fds;
+    process->max_fds = source->max_fds;
+    process->num_fds = source->num_fds;
 
-    spinlock_release(&stem->fd_lock);
+    spinlock_release(&source->fd_lock);
 
     return 0;
 }

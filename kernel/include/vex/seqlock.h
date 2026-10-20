@@ -7,12 +7,14 @@
 
 #define SEQLOCK_INIT { .sequence = 0, .writer = SPINLOCK_INIT }
 
-struct seqlock {
+typedef struct seqlock_s seqlock_t;
+
+struct seqlock_s {
     unsigned sequence; // Odd while a writer is inside
-    spinlock_type writer;
+    spinlock_t writer;
 };
 
-static __always_inline __nodiscard unsigned seqlock_read_begin(const struct seqlock* restrict lock)
+static __always_inline __nodiscard unsigned seqlock_read_begin(const seqlock_t* restrict lock)
 {
     for(;;) {
         unsigned sequence = atomic_load(&lock->sequence, ATOMIC_ACQUIRE);
@@ -25,14 +27,14 @@ static __always_inline __nodiscard unsigned seqlock_read_begin(const struct seql
     }
 }
 
-static __always_inline __nodiscard bool seqlock_read_retry(const struct seqlock* restrict lock, unsigned sequence)
+static __always_inline __nodiscard bool seqlock_read_retry(const seqlock_t* restrict lock, unsigned sequence)
 {
     atomic_thread_fence(ATOMIC_ACQUIRE);
 
     return sequence != atomic_load(&lock->sequence, ATOMIC_RELAXED);
 }
 
-static __always_inline __nodiscard bool seqlock_write_begin(struct seqlock* restrict lock)
+static __always_inline __nodiscard bool seqlock_write_begin(seqlock_t* restrict lock)
 {
     bool intr_state = spinlock_acquire_intr(&lock->writer);
 
@@ -42,7 +44,7 @@ static __always_inline __nodiscard bool seqlock_write_begin(struct seqlock* rest
     return intr_state;
 }
 
-static __always_inline void seqlock_write_end(struct seqlock* restrict lock, bool intr_state)
+static __always_inline void seqlock_write_end(seqlock_t* restrict lock, bool intr_state)
 {
     atomic_store(&lock->sequence, lock->sequence + 1, ATOMIC_RELEASE);
 

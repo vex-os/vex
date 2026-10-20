@@ -4,7 +4,9 @@
 #include <vex/types.h>
 #include <vex/vprot.h>
 
-struct mmio_region {
+typedef struct mmio_region_s mmio_region_t;
+
+struct mmio_region_s {
     volatile uint8_t* virt8;
     volatile uint16_t* virt16;
     volatile uint32_t* virt32;

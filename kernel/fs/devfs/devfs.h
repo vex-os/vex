@@ -4,26 +4,29 @@
 #include <vex/path.h>
 #include <vex/spinlock.h>
 
-struct blk_device;
-struct chr_device;
-struct vfs;
+typedef struct blk_device_s blk_device_t;
+typedef struct chr_device_s chr_device_t;
+typedef struct vfs_s vfs_t;
 
-struct devfs_node {
+typedef struct devfs_node_s devfs_node_t;
+typedef struct devfs_state_s devfs_state_t;
+
+struct devfs_node_s {
     char name[NAME_SIZE];
-    struct devfs_node* next;
-    struct vnode* node;
+    devfs_node_t* next;
+    vnode_t* node;
 };
 
-struct devfs_state {
-    spinlock_type lock;
-    struct devfs_node* head;
+struct devfs_state_s {
+    spinlock_t lock;
+    devfs_node_t* head;
     size_t num_devices;
 };
 
-extern const struct vnode_ops devfs_dir_ops;
+extern const vnode_ops_t devfs_dir_ops;
 
-extern int devfs_insert(struct vfs* restrict fs, const char* restrict name, struct vnode* restrict node);
-extern void devfs_remove(struct vfs* restrict fs, const char* restrict name);
+extern int devfs_insert(vfs_t* restrict fs, const char* restrict name, vnode_t* restrict node);
+extern void devfs_remove(vfs_t* restrict fs, const char* restrict name);
 
-extern void devfs_blk_event_handler(unsigned event, const struct blk_device* restrict device, void* restrict ctxdata);
-extern void devfs_chr_event_handler(unsigned event, const struct chr_device* restrict device, void* restrict ctxdata);
+extern void devfs_blk_event_handler(unsigned event, const blk_device_t* restrict device, void* restrict ctxdata);
+extern void devfs_chr_event_handler(unsigned event, const chr_device_t* restrict device, void* restrict ctxdata);

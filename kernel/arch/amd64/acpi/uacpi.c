@@ -5,14 +5,16 @@
 #include <vex/hhdm.h>
 #include <vex/kmalloc.h>
 
-struct pmio_range {
+typedef struct pmio_range_s pmio_range_t;
+
+struct pmio_range_s {
     uacpi_io_addr base;
     uacpi_size length;
 };
 
 uacpi_status uacpi_kernel_io_map(uacpi_io_addr base, uacpi_size len, uacpi_handle* out_handle)
 {
-    struct pmio_range* range = kmalloc(sizeof(struct pmio_range));
+    pmio_range_t* range = kmalloc(sizeof(pmio_range_t));
 
     if(range == nullptr) {
         return UACPI_STATUS_OUT_OF_MEMORY;
@@ -33,54 +35,54 @@ void uacpi_kernel_io_unmap(uacpi_handle handle)
 
 uacpi_status uacpi_kernel_io_read8(uacpi_handle handle, uacpi_size off, uacpi_u8* value)
 {
-    struct pmio_range* range = handle;
+    pmio_range_t* range = handle;
 
-    *value = pmread8(range->base + off);
+    *value = port_read8(range->base + off);
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_io_read16(uacpi_handle h, uacpi_size off, uacpi_u16* value)
 {
-    struct pmio_range* range = h;
+    pmio_range_t* range = h;
 
-    *value = pmread16(range->base + off);
+    *value = port_read16(range->base + off);
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_io_read32(uacpi_handle h, uacpi_size off, uacpi_u32* value)
 {
-    struct pmio_range* range = h;
+    pmio_range_t* range = h;
 
-    *value = pmread32(range->base + off);
+    *value = port_read32(range->base + off);
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_io_write8(uacpi_handle h, uacpi_size off, uacpi_u8 value)
 {
-    struct pmio_range* range = h;
+    pmio_range_t* range = h;
 
-    pmwrite8(range->base + off, value);
+    port_write8(range->base + off, value);
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_io_write16(uacpi_handle h, uacpi_size off, uacpi_u16 value)
 {
-    struct pmio_range* range = h;
+    pmio_range_t* range = h;
 
-    pmwrite16(range->base + off, value);
+    port_write16(range->base + off, value);
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_io_write32(uacpi_handle h, uacpi_size off, uacpi_u32 value)
 {
-    struct pmio_range* range = h;
+    pmio_range_t* range = h;
 
-    pmwrite32(range->base + off, value);
+    port_write32(range->base + off, value);
 
     return UACPI_STATUS_OK;
 }

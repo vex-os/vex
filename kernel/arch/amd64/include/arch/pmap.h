@@ -41,29 +41,31 @@
 // and the bootloader expect; entry 4 adds write-combining
 #define AMD64_PAT_VALUE UINT64_C(0x0007040100070406)
 
-typedef uint64_t pmentry_type;
+typedef struct pmap_s pmap_t;
 
-struct pagemap {
-    spinlock_type lock;
+typedef uint64_t pmentry_t;
+
+struct pmap_s {
+    spinlock_t lock;
     unsigned num_levels;
-    pmentry_type* virt;
+    pmentry_t* virt;
     uintptr_t phys;
 };
 
 unsigned pmap_detect_levels(void);
 unsigned pmap_detect_leaf_levels(void);
 
-int arch_pmap_alloc(struct pagemap* restrict pmap) __nodiscard;
-void arch_pmap_free(struct pagemap* restrict pmap);
-void arch_pmap_zero(struct pagemap* restrict pmap);
-void arch_pmap_kcopy(struct pagemap* restrict dest, const struct pagemap* restrict stem);
+int arch_pmap_alloc(pmap_t* restrict pmap) __nodiscard;
+void arch_pmap_free(pmap_t* restrict pmap);
+void arch_pmap_zero(pmap_t* restrict pmap);
+void arch_pmap_kcopy(pmap_t* restrict dest, const pmap_t* restrict source);
 
-static __always_inline __nodiscard pmentry_type* pmap_root(const struct pagemap* restrict pmap, uintptr_t virt)
+static __always_inline __nodiscard pmentry_t* pmap_root(const pmap_t* restrict pmap, uintptr_t virt)
 {
     return pmap->virt;
 }
 
-static __always_inline __nodiscard uintptr_t pmap_user_end(const struct pagemap* restrict pmap)
+static __always_inline __nodiscard uintptr_t pmap_user_end(const pmap_t* restrict pmap)
 {
     return UINT64_C(1) << (PMENTRY_LVL1_SHIFT + PMENTRY_LEVEL_BITS * pmap->num_levels - 1);
 }
@@ -78,14 +80,14 @@ static __always_inline __nodiscard uintptr_t pmentry_level_size(unsigned level)
     return UINT64_C(1) << pmentry_level_shift(level);
 }
 
-static __always_inline __nodiscard pmentry_type amd64_pat_bit(unsigned level)
+static __always_inline __nodiscard pmentry_t amd64_pat_bit(unsigned level)
 {
     if(level > 1)
         return AMD64_PML_PATL;
     return AMD64_PML_PAT;
 }
 
-static __always_inline __nodiscard pmentry_type amd64_pat_bits(unsigned vprot, unsigned level)
+static __always_inline __nodiscard pmentry_t amd64_pat_bits(unsigned vprot, unsigned level)
 {
     switch(vprot & VPROT_CACHE_MASK) {
         case VPROT_CACHE_WT:
@@ -99,7 +101,7 @@ static __always_inline __nodiscard pmentry_type amd64_pat_bits(unsigned vprot, u
     }
 }
 
-static __always_inline __nodiscard unsigned amd64_pat_vprot(pmentry_type entry, unsigned level)
+static __always_inline __nodiscard unsigned amd64_pat_vprot(pmentry_t entry, unsigned level)
 {
     static const unsigned types[8] = {
         VPROT_CACHE_WB,
@@ -124,27 +126,27 @@ static __always_inline __nodiscard unsigned amd64_pat_vprot(pmentry_type entry, 
     return types[index];
 }
 
-static __always_inline __nodiscard bool pmentry_valid(pmentry_type entry)
+static __always_inline __nodiscard bool pmentry_valid(pmentry_t entry)
 {
     return entry & AMD64_PML_PRESENT;
 }
 
-static __always_inline __nodiscard bool pmentry_leaf(pmentry_type entry, unsigned level)
+static __always_inline __nodiscard bool pmentry_leaf(pmentry_t entry, unsigned level)
 {
     return level == 1 || (entry & AMD64_PML_LARGE);
 }
 
-static __always_inline __nodiscard uintptr_t pmentry_address(pmentry_type entry, unsigned level)
+static __always_inline __nodiscard uintptr_t pmentry_address(pmentry_t entry, unsigned level)
 {
     return entry & AMD64_PML_ADDRESS_MASK & ~(pmentry_level_size(level) - 1);
 }
 
-static __always_inline __nodiscard uintptr_t pmentry_table_address(pmentry_type entry)
+static __always_inline __nodiscard uintptr_t pmentry_table_address(pmentry_t entry)
 {
     return entry & AMD64_PML_ADDRESS_MASK;
 }
 
-static __always_inline __nodiscard unsigned pmentry_vprot(pmentry_type entry, unsigned level)
+static __always_inline __nodiscard unsigned pmentry_vprot(pmentry_t entry, unsigned level)
 {
     unsigned vprot = VPROT_READ;
     if(entry & AMD64_PML_WRITE)
@@ -157,9 +159,9 @@ static __always_inline __nodiscard unsigned pmentry_vprot(pmentry_type entry, un
     return vprot;
 }
 
-static __always_inline __nodiscard pmentry_type pmentry_setup(uintptr_t address, unsigned vprot, unsigned level)
+static __always_inline __nodiscard pmentry_t pmentry_setup(uintptr_t address, unsigned vprot, unsigned level)
 {
-    pmentry_type result = PMENTRY_NULL;
+    pmentry_t result = PMENTRY_NULL;
 
     result |= address & AMD64_PML_ADDRESS_MASK;
     result |= AMD64_PML_PRESENT;
@@ -180,12 +182,12 @@ static __always_inline __nodiscard pmentry_type pmentry_setup(uintptr_t address,
     return result;
 }
 
-static __always_inline __nodiscard pmentry_type pmentry_table(uintptr_t address)
+static __always_inline __nodiscard pmentry_t pmentry_table(uintptr_t address)
 {
     return (address & AMD64_PML_ADDRESS_MASK) | AMD64_PML_PRESENT | AMD64_PML_WRITE | AMD64_PML_USER;
 }
 
-static __always_inline void pmap_switch(const struct pagemap* restrict pmap)
+static __always_inline void pmap_switch(const pmap_t* restrict pmap)
 {
     asm volatile("movq %0, %%cr3" ::"r"(pmap->phys) : "memory");
 }

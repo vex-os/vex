@@ -13,11 +13,11 @@
 
 #include "fat.h"
 
-static_assert(sizeof(struct fat_vnode_context) <= SLAB_MAX_SIZE);
+static_assert(sizeof(fat_vnode_context_t) <= SLAB_MAX_SIZE);
 
-static int fat_probe(struct vfs* restrict fs, const struct blk_device* restrict device)
+static int fat_probe(vfs_t* restrict fs, const blk_device_t* restrict device)
 {
-    union fat_extparams boot;
+    fat_extparams_t boot;
 
     int retval = blk_read_sector_prefix(device, 0, &boot, sizeof(boot));
 
@@ -25,7 +25,7 @@ static int fat_probe(struct vfs* restrict fs, const struct blk_device* restrict 
         return retval;
     }
 
-    struct fat_bootparams* base = &boot.fat1X.base;
+    fat_bootparams_t* base = &boot.fat1X.base;
 
     if(base->sector_size == 0 || base->cluster_size == 0) {
         return -ENODEV;
@@ -42,13 +42,13 @@ static int fat_probe(struct vfs* restrict fs, const struct blk_device* restrict 
     return 0;
 }
 
-static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
+static int fat_mount(vfs_t* restrict fs, const blk_device_t* restrict device, const cmdline_t* restrict params)
 {
     if(device == nullptr) {
         return -EINVAL;
     }
 
-    union fat_extparams* boot = kmalloc(sizeof(union fat_extparams));
+    fat_extparams_t* boot = kmalloc(sizeof(fat_extparams_t));
 
     if(boot == nullptr) {
         return -ENOMEM;
@@ -61,7 +61,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         return retval;
     }
 
-    struct fat_bootparams* base = &boot->fat1X.base;
+    fat_bootparams_t* base = &boot->fat1X.base;
 
     size_t sector_size = le16toh(base->sector_size);
 
@@ -147,7 +147,7 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
         }
     }
 
-    struct fat_vfs_context* context = kmalloc(sizeof(struct fat_vfs_context));
+    fat_vfs_context_t* context = kmalloc(sizeof(fat_vfs_context_t));
 
     if(context == nullptr) {
         kfree(boot);
@@ -205,24 +205,24 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
 
     context->fsinfo_invalidated = false;
     context->next_free_hint = 2;
-    context->devnode = fcache_dev_create(fs);
+    context->device_node = fcache_dev_create(fs);
 
     kfree(boot);
 
-    if(context->devnode == nullptr) {
+    if(context->device_node == nullptr) {
         kfree(context);
         return -ENOMEM;
     }
 
-    struct fat_vnode_context* root_context = slab_alloc(sizeof(struct fat_vnode_context));
+    fat_vnode_context_t* root_context = slab_alloc(sizeof(fat_vnode_context_t));
 
     if(root_context == nullptr) {
-        fcache_dev_destroy(context->devnode);
+        fcache_dev_destroy(context->device_node);
         kfree(context);
         return -ENOMEM;
     }
 
-    memset(root_context, 0, sizeof(struct fat_vnode_context));
+    memset(root_context, 0, sizeof(fat_vnode_context_t));
 
     root_context->fs_ctx = context;
     root_context->first_cluster = context->root_cluster;
@@ -230,17 +230,17 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     root_context->cached_cluster = context->root_cluster;
     root_context->cached_cluster_idx = 0;
 
-    struct vnode* root = vnode_alloc(VNODE_DIRECTORY, &fat_vnode_ops, root_context);
+    vnode_t* root = vnode_alloc(VNODE_DIRECTORY, &fat_vnode_ops, root_context);
 
     if(root == nullptr) {
         slab_free(root_context);
-        fcache_dev_destroy(context->devnode);
+        fcache_dev_destroy(context->device_node);
         kfree(context);
         return -ENOMEM;
     }
 
     root->fs = fs;
-    root->nodenumber = 0;
+    root->ino = 0;
 
     fs->root = root;
     fs->ctxdata = context;
@@ -249,11 +249,11 @@ static int fat_mount(struct vfs* restrict fs, const struct blk_device* restrict 
     return 0;
 }
 
-static int statvfs_locked(struct vfs* restrict fs, struct k_statvfs* restrict out)
+static int statvfs_locked(vfs_t* restrict fs, statvfs_t* restrict out)
 {
-    struct fat_vfs_context* context = fs->ctxdata;
+    fat_vfs_context_t* context = fs->ctxdata;
 
-    memset(out, 0, sizeof(struct k_statvfs));
+    memset(out, 0, sizeof(statvfs_t));
 
     size_t free_clusters = fat_cluster_count_free(context);
     size_t total = context->cluster_count;
@@ -278,16 +278,16 @@ static int statvfs_locked(struct vfs* restrict fs, struct k_statvfs* restrict ou
     return 0;
 }
 
-static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
+static int fillnode_locked(vfs_t* restrict fs, vnode_t* restrict node)
 {
-    struct fat_vfs_context* context = fs->ctxdata;
+    fat_vfs_context_t* context = fs->ctxdata;
 
-    ino_t nodenumber = node->nodenumber;
-    uintptr_t lba = nodenumber >> 32;
-    uintptr_t byte_offset = nodenumber & 0xFFFFFFFF;
+    ino_t ino = node->ino;
+    uintptr_t lba = ino >> 32;
+    uintptr_t byte_offset = ino & 0xFFFFFFFF;
 
-    struct fat_dir_entry raw_entry;
-    int retval = fcache_dev_read(context->devnode, lba * context->sector_size + byte_offset, &raw_entry, sizeof(raw_entry));
+    fat_dir_entry_t raw_entry;
+    int retval = fcache_dev_read(context->device_node, lba * context->sector_size + byte_offset, &raw_entry, sizeof(raw_entry));
 
     if(retval < 0) {
         return retval;
@@ -297,14 +297,14 @@ static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
     cluster |= (uintptr_t)le16toh(raw_entry.first_cluster_hi) << 16;
     cluster |= (uintptr_t)le16toh(raw_entry.first_cluster_lo);
 
-    struct fat_vnode_context* node_context = slab_alloc(sizeof(struct fat_vnode_context));
+    fat_vnode_context_t* node_context = slab_alloc(sizeof(fat_vnode_context_t));
 
     if(node_context == nullptr) {
         return -ENOMEM;
     }
 
-    uintptr_t num_entries = context->sector_size / sizeof(union fat_entry);
-    uintptr_t dir_entry_s = byte_offset / sizeof(union fat_entry);
+    uintptr_t num_entries = context->sector_size / sizeof(fat_entry_t);
+    uintptr_t dir_entry_s = byte_offset / sizeof(fat_entry_t);
     uintptr_t dir_lba = lba;
 
     // Recovered from the node number so writes don't have to scan the directory
@@ -337,53 +337,53 @@ static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
     node->ctxdata = node_context;
 
     if(raw_entry.attribute & FAT_ATTR_DIRECTORY) {
-        node->nodetype = VNODE_DIRECTORY;
+        node->type = VNODE_DIRECTORY;
     }
     else {
-        node->nodetype = VNODE_FILE;
+        node->type = VNODE_FILE;
     }
 
     return 0;
 }
 
-static int fat_unmount(struct vfs* restrict fs)
+static int fat_unmount(vfs_t* restrict fs)
 {
-    struct fat_vfs_context* context = fs->ctxdata;
+    fat_vfs_context_t* context = fs->ctxdata;
 
     vnode_decref(fs->root);
 
-    fcache_dev_destroy(context->devnode);
+    fcache_dev_destroy(context->device_node);
     mutex_deinit(&context->lock);
     kfree(context);
 
     return 0;
 }
 
-static int fat_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
+static int fat_statvfs(vfs_t* restrict fs, statvfs_t* restrict out)
 {
-    struct fat_vfs_context* context = fs->ctxdata;
+    fat_vfs_context_t* context = fs->ctxdata;
     mutex_acquire(&context->lock);
     int retval = statvfs_locked(fs, out);
     mutex_release(&context->lock);
     return retval;
 }
 
-static int fat_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
+static int fat_fillnode(vfs_t* restrict fs, vnode_t* restrict node)
 {
-    struct fat_vfs_context* context = fs->ctxdata;
+    fat_vfs_context_t* context = fs->ctxdata;
     mutex_acquire(&context->lock);
     int retval = fillnode_locked(fs, node);
     mutex_release(&context->lock);
     return retval;
 }
 
-static int fat_sync(struct vfs* restrict fs)
+static int fat_sync(vfs_t* restrict fs)
 {
-    struct fat_vfs_context* context = fs->ctxdata;
-    return vnode_fsync(context->devnode);
+    fat_vfs_context_t* context = fs->ctxdata;
+    return vnode_fsync(context->device_node);
 }
 
-static const struct vfs_ops fat_vfs_ops = {
+static const vfs_ops_t fat_vfs_ops = {
     .probe = &fat_probe,
     .mount = &fat_mount,
     .statvfs = &fat_statvfs,
@@ -392,14 +392,14 @@ static const struct vfs_ops fat_vfs_ops = {
     .sync = &fat_sync,
 };
 
-static struct vfs_driver fat_vfs_driver = {
-    .identifier = "fat", // FIXME: figure out aliasing so it's possible to mount via fat, and msdos
+static vfs_driver_t fat_vfs_driver = {
+    .name = "fat", // FIXME: figure out aliasing so it's possible to mount via fat, and msdos
     .ops = &fat_vfs_ops,
 };
 
 static void init_fat(void)
 {
-    add_vfs_driver(&fat_vfs_driver);
+    vfs_driver_add(&fat_vfs_driver);
 }
 
 initcall_bsp_vfs(init_fat, INIT_EARLY);

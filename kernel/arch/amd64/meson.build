@@ -20,7 +20,7 @@ kernel_link_depends += kernel_ldscript
 subdir('acpi')
 subdir('bus')
 subdir('core')
-subdir('ireq')
+subdir('irq')
 subdir('mm')
 subdir('proc')
 subdir('time')

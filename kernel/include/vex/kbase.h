@@ -3,5 +3,5 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-extern uintptr_t kbase_phys;
-extern uintptr_t kbase_virt;
+extern uintptr_t kernel_base_phys;
+extern uintptr_t kernel_base_virt;

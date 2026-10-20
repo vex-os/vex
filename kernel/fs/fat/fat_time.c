@@ -9,7 +9,7 @@
 
 #define FAT_NSEC_PER_HUNDREDTH (NSEC_PER_SEC / 100)
 
-void fat_time_pack(const struct k_timespec* restrict time, struct fat_timestamp* restrict out)
+void fat_time_pack(const timespec_t* restrict time, fat_timestamp_t* restrict out)
 {
     int64_t seconds = time->tv_sec;
     int64_t nsec = time->tv_nsec;
@@ -24,7 +24,7 @@ void fat_time_pack(const struct k_timespec* restrict time, struct fat_timestamp*
         nsec = 0;
     }
 
-    struct calendar_time calendar;
+    calendar_time_t calendar;
     calendar_from_time(seconds, &calendar);
 
     unsigned year = (unsigned)(calendar.year - FAT_YEAR_BASE);
@@ -34,12 +34,12 @@ void fat_time_pack(const struct k_timespec* restrict time, struct fat_timestamp*
     out->tenth = (uint8_t)(calendar.second % 2 * 100 + nsec / FAT_NSEC_PER_HUNDREDTH);
 }
 
-void fat_time_unpack(const struct fat_timestamp* restrict stamp, struct k_timespec* restrict out)
+void fat_time_unpack(const fat_timestamp_t* restrict stamp, timespec_t* restrict out)
 {
     uint16_t date = le16toh(stamp->date);
     uint16_t time = le16toh(stamp->time);
 
-    struct calendar_time calendar;
+    calendar_time_t calendar;
     calendar.year = FAT_YEAR_BASE + (date >> 9);
     calendar.month = (date >> 5) & 0x0F;
     calendar.day = date & 0x1F;

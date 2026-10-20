@@ -3,6 +3,8 @@
 #include <arch/hart.h>
 #include <vex/cpucaps.h>
 
+typedef struct thread_s thread_t;
+
 #ifdef CONFIG_SMP
 #define MAX_HARTS ((unsigned)(CONFIG_MAX_HARTS))
 #else
@@ -20,36 +22,36 @@ enum {
     HART_BRINGUP_PARK,
 };
 
-struct thread;
+typedef struct hart_local_s hart_local_t;
 
-struct hart_local {
+struct hart_local_s {
     unsigned short index;
     unsigned short flags;
 
-    struct thread* curr_thread;
-    struct thread* idle_thread;
-    struct thread* dead_thread;
+    thread_t* curr_thread;
+    thread_t* idle_thread;
+    thread_t* dead_thread;
 
     bool tlb_online;
     uint64_t tlb_flushed;
 
-    struct cpucaps caps;
+    cpucaps_t caps;
     unsigned char bringup;
 
-    struct arch_hart arch;
+    arch_hart_t arch;
 };
 
 static_assert(MAX_HARTS <= 65536);
 
-extern struct hart_local harts[MAX_HARTS];
+extern hart_local_t harts[MAX_HARTS];
 extern unsigned long num_harts;
 
-static __always_inline __nodiscard struct hart_local* boot_hart(void)
+hart_local_t* this_hart(void) __nodiscard;
+
+hart_local_t* hart_register(bool is_boot);
+void hart_park(hart_local_t* restrict hart) __noreturn;
+
+static __always_inline __nodiscard hart_local_t* boot_hart(void)
 {
     return &harts[0];
 }
-
-struct hart_local* this_hart(void) __nodiscard;
-
-struct hart_local* hart_register(bool is_boot);
-void hart_park(struct hart_local* restrict hart) __noreturn;

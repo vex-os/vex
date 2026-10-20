@@ -19,7 +19,9 @@ enum {
 
 #define XATTR_CAPS_NAME "capability" // Within XATTR_SECURITY
 
-struct xattr_entry {
+typedef struct xattr_entry_s xattr_entry_t;
+
+struct xattr_entry_s {
     unsigned space;
     char name[XATTR_NAME_MAX + 1]; // Without the namespace prefix
 };

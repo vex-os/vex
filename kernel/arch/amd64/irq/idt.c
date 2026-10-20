@@ -13,7 +13,10 @@
 #define IDT_RING_3  (0x03 << 5)
 #define IDT_PRESENT (0x01 << 7)
 
-struct idt_entry {
+typedef struct idt_entry_s idt_entry_t;
+typedef struct idt_register_s idt_register_t;
+
+struct idt_entry_s {
     uint16_t offset_0;
     uint16_t selector;
     uint8_t ist_off;
@@ -23,16 +26,16 @@ struct idt_entry {
     uint32_t reserved;
 } __packed;
 
-struct idt_register {
+struct idt_register_s {
     uint16_t size;
     uint64_t offset;
 } __packed;
 
-static struct idt_entry idt[IDT_SIZE];
-static struct idt_register idtr;
-static spinlock_type idt_lock = SPINLOCK_INIT;
+static idt_entry_t idt[IDT_SIZE];
+static idt_register_t idtr;
+static spinlock_t idt_lock = SPINLOCK_INIT;
 
-static void set_entry(struct idt_entry* restrict entry, bool trap, uint16_t selector, const void* restrict pfn)
+static void set_entry(idt_entry_t* restrict entry, bool trap, uint16_t selector, const void* restrict pfn)
 {
     memset(entry, 0, sizeof(*entry));
 
@@ -50,7 +53,7 @@ static void set_entry(struct idt_entry* restrict entry, bool trap, uint16_t sele
     }
 }
 
-void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn)
+void idt_set_kernel_gate(unsigned vector, bool trap, const void* restrict pfn)
 {
     if(vector < IDT_SIZE) {
         spinlock_acquire(&idt_lock);
@@ -60,7 +63,7 @@ void set_idt_entry_kern(unsigned vector, bool trap, const void* restrict pfn)
     }
 }
 
-void set_idt_entry_ist(unsigned vector, unsigned ist, const void* restrict pfn)
+void idt_set_ist_gate(unsigned vector, unsigned ist, const void* restrict pfn)
 {
     if(vector < IDT_SIZE) {
         spinlock_acquire(&idt_lock);
@@ -71,7 +74,7 @@ void set_idt_entry_ist(unsigned vector, unsigned ist, const void* restrict pfn)
     }
 }
 
-void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn)
+void idt_set_user_gate(unsigned vector, bool trap, const void* restrict pfn)
 {
     if(vector < IDT_SIZE) {
         spinlock_acquire(&idt_lock);
@@ -81,11 +84,11 @@ void set_idt_entry_user(unsigned vector, bool trap, const void* restrict pfn)
     }
 }
 
-void unset_idt_entry(unsigned vector)
+void idt_clear_gate(unsigned vector)
 {
     if(vector < IDT_SIZE) {
         spinlock_acquire(&idt_lock);
-        memset(&idt[vector], 0, sizeof(struct idt_entry));
+        memset(&idt[vector], 0, sizeof(idt_entry_t));
         spinlock_release(&idt_lock);
     }
 }

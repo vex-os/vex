@@ -14,13 +14,13 @@
 
 #include "ext2.h"
 
-static struct mutex* fs_lock(struct vnode* restrict node)
+static mutex_t* fs_lock(vnode_t* restrict node)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
     return &ctx->fs_ctx->lock;
 }
 
-static bool is_fast_symlink(const struct ext2_vfs_context* restrict fs_ctx, const struct ext2_inode* restrict inode)
+static bool is_fast_symlink(const ext2_vfs_context_t* restrict fs_ctx, const ext2_inode_t* restrict inode)
 {
     uint32_t xattr_sectors = 0;
 
@@ -31,7 +31,7 @@ static bool is_fast_symlink(const struct ext2_vfs_context* restrict fs_ctx, cons
     return xattr_sectors == le32toh(inode->i_blocks);
 }
 
-static int entry_nodetype(struct ext2_vfs_context* restrict fs_ctx, const struct ext2_dirent* restrict entry, unsigned* restrict out)
+static int entry_nodetype(ext2_vfs_context_t* restrict fs_ctx, const ext2_dirent_t* restrict entry, unsigned* restrict out)
 {
     switch(entry->file_type) {
         case EXT2_FT_REG_FILE:
@@ -54,7 +54,7 @@ static int entry_nodetype(struct ext2_vfs_context* restrict fs_ctx, const struct
             return 0;
     }
 
-    struct ext2_inode inode;
+    ext2_inode_t inode;
     int retval = ext2_inode_read(fs_ctx, entry->ino, &inode);
 
     if(retval < 0) {
@@ -68,9 +68,9 @@ static int entry_nodetype(struct ext2_vfs_context* restrict fs_ctx, const struct
     return 0;
 }
 
-static int lookup_locked(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
+static int lookup_locked(vnode_t* restrict node, const char* restrict name, ino_t* restrict out)
 {
-    if(node->nodetype != VNODE_DIRECTORY) {
+    if(node->type != VNODE_DIRECTORY) {
         return -ENOTDIR;
     }
 
@@ -78,7 +78,7 @@ static int lookup_locked(struct vnode* restrict node, const char* restrict name,
         return -ENAMETOOLONG;
     }
 
-    struct ext2_dirent entry;
+    ext2_dirent_t entry;
     int retval = ext2_dirent_find(node, name, &entry);
 
     if(retval < 0) {
@@ -90,14 +90,14 @@ static int lookup_locked(struct vnode* restrict node, const char* restrict name,
     return 0;
 }
 
-static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
+static int iterate_locked(vnode_t* restrict node, dirent_t* restrict out, size_t index)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_dirent entry;
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_dirent_t entry;
     uint64_t offset = 0;
     size_t visible = 0;
 
-    if(node->nodetype != VNODE_DIRECTORY) {
+    if(node->type != VNODE_DIRECTORY) {
         return -ENOTDIR;
     }
 
@@ -113,15 +113,15 @@ static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict
             continue;
         }
 
-        unsigned nodetype;
-        retval = entry_nodetype(ctx->fs_ctx, &entry, &nodetype);
+        unsigned type;
+        retval = entry_nodetype(ctx->fs_ctx, &entry, &type);
 
         if(retval < 0) {
             return retval;
         }
 
         out->d_ino = entry.ino;
-        out->d_nodetype = nodetype;
+        out->d_nodetype = type;
 
         memset(out->d_name, 0, NAME_SIZE);
         kstrncpy(out->d_name, entry.name, NAME_SIZE);
@@ -130,44 +130,44 @@ static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict
     }
 }
 
-static ssize_t readlink_locked(struct vnode* restrict node, char* restrict buf, size_t sz)
+static ssize_t readlink_locked(vnode_t* restrict node, char* restrict buf, size_t count)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    const struct ext2_inode* inode = &ctx->inode;
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    const ext2_inode_t* inode = &ctx->inode;
     uint64_t size = ext2_inode_size(inode);
 
-    if(node->nodetype != VNODE_SYM_LINK) {
+    if(node->type != VNODE_SYM_LINK) {
         return -EINVAL;
     }
 
-    if(sz > size) {
-        sz = size;
+    if(count > size) {
+        count = size;
     }
 
     if(!is_fast_symlink(ctx->fs_ctx, inode)) {
-        return fcache_read(node, &ext2_bmap, buf, sz, 0, size);
+        return fcache_read(node, &ext2_bmap, buf, count, 0, size);
     }
 
     if(size > sizeof(inode->i_block)) {
         return -EIO;
     }
 
-    memcpy(buf, inode->i_block, sz);
+    memcpy(buf, inode->i_block, count);
 
-    return sz;
+    return count;
 }
 
-static int write_inode_locked(struct vnode* restrict node)
+static int write_inode_locked(vnode_t* restrict node)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    return ext2_inode_write(ctx->fs_ctx, (uint32_t)(node->nodenumber), &ctx->inode);
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    return ext2_inode_write(ctx->fs_ctx, (uint32_t)(node->ino), &ctx->inode);
 }
 
 // The new times reach the disk with the next inode write
-static void touch_locked(struct vnode* restrict node, bool modified)
+static void touch_locked(vnode_t* restrict node, bool modified)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct k_timespec now;
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    timespec_t now;
     wallclock_get(&now);
 
     ext2_inode_set_time(&ctx->inode, EXT2_CTIME, &now);
@@ -177,24 +177,24 @@ static void touch_locked(struct vnode* restrict node, bool modified)
     }
 }
 
-static void touch_dir_locked(struct vnode* restrict dir)
+static void touch_dir_locked(vnode_t* restrict dir)
 {
     touch_locked(dir, true);
     write_inode_locked(dir);
 }
 
-static bool block_mapped_locked(struct vnode* restrict node, uint64_t pos)
+static bool block_mapped_locked(vnode_t* restrict node, uint64_t pos)
 {
-    struct fcache_extent extent;
+    fcache_extent_t extent;
     size_t sector_size = node->fs->device->sector_size;
     return ext2_bmap(node, pos / sector_size, false, &extent) == 0 && extent.mapped;
 }
 
-static ssize_t write_span_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, uint64_t offset)
+static ssize_t write_span_locked(vnode_t* restrict node, const void* restrict buffer, size_t count, uint64_t offset)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
     uint64_t size = ext2_inode_size(&ctx->inode);
-    ssize_t written = fcache_write(node, &ext2_bmap, buffer, sz, offset, size);
+    ssize_t written = fcache_write(node, &ext2_bmap, buffer, count, offset, size);
 
     if(written <= 0 || offset + written <= size) {
         return written;
@@ -213,7 +213,7 @@ static ssize_t write_span_locked(struct vnode* restrict node, const void* restri
     return written;
 }
 
-static int zero_fill_locked(struct vnode* restrict node, uint64_t from, uint64_t to)
+static int zero_fill_locked(vnode_t* restrict node, uint64_t from, uint64_t to)
 {
     void* zeroes = pslab_alloc_virt();
 
@@ -247,9 +247,9 @@ static int zero_fill_locked(struct vnode* restrict node, uint64_t from, uint64_t
     return retval;
 }
 
-static int fill_hole_locked(struct vnode* restrict node, uint64_t pos, uint64_t limit)
+static int fill_hole_locked(vnode_t* restrict node, uint64_t pos, uint64_t limit)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
     size_t block_size = ctx->fs_ctx->block_size;
 
     if(block_mapped_locked(node, pos)) {
@@ -266,9 +266,9 @@ static int fill_hole_locked(struct vnode* restrict node, uint64_t pos, uint64_t 
     return zero_fill_locked(node, start, stop);
 }
 
-static int clear_tail_locked(struct vnode* restrict node, uint64_t size, uint64_t new_size)
+static int clear_tail_locked(vnode_t* restrict node, uint64_t size, uint64_t new_size)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
     size_t block_size = ctx->fs_ctx->block_size;
 
     if(0 == size % block_size || !block_mapped_locked(node, size)) {
@@ -284,21 +284,21 @@ static int clear_tail_locked(struct vnode* restrict node, uint64_t size, uint64_
     return zero_fill_locked(node, size, stop);
 }
 
-static ssize_t write_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t write_locked(vnode_t* restrict node, const void* restrict buffer, size_t count, off_t offset)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
     size_t block_size = ctx->fs_ctx->block_size;
 
     if(offset < 0) {
         return -EINVAL;
     }
 
-    if(sz == 0) {
+    if(count == 0) {
         return 0;
     }
 
     uint64_t size = ext2_inode_size(&ctx->inode);
-    uint64_t end = offset + sz;
+    uint64_t end = offset + count;
     uint64_t limit = size;
 
     if(end > limit) {
@@ -323,7 +323,7 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
         return retval;
     }
 
-    ssize_t written = write_span_locked(node, buffer, sz, offset);
+    ssize_t written = write_span_locked(node, buffer, count, offset);
 
     if(written > 0) {
         touch_locked(node, true);
@@ -337,9 +337,9 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
     return written;
 }
 
-static int resize_locked(struct vnode* restrict node, uint64_t new_size)
+static int resize_locked(vnode_t* restrict node, uint64_t new_size)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
     uint64_t size = ext2_inode_size(&ctx->inode);
     int retval = 0;
 
@@ -363,11 +363,11 @@ static int resize_locked(struct vnode* restrict node, uint64_t new_size)
     return retval;
 }
 
-static int setattr_locked(struct vnode* restrict node, const struct vattr* restrict attr)
+static int setattr_locked(vnode_t* restrict node, const vnode_attr_t* restrict attr)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
-    struct ext2_inode* inode = &ctx->inode;
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
+    ext2_inode_t* inode = &ctx->inode;
 
     if(attr->mask & (VATTR_UID | VATTR_GID)) {
         uid_t uid = ext2_inode_uid(fs_ctx, inode);
@@ -431,9 +431,9 @@ static uint8_t file_type_of(uint16_t mode)
     }
 }
 
-static int add_links_locked(struct vnode* restrict node, int delta)
+static int add_links_locked(vnode_t* restrict node, int delta)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
     int links = le16toh(ctx->inode.i_links_count) + delta;
 
     if(links < 0) {
@@ -445,16 +445,16 @@ static int add_links_locked(struct vnode* restrict node, int delta)
     return write_inode_locked(node);
 }
 
-static void destroy_inode_locked(struct vnode* restrict node)
+static void destroy_inode_locked(vnode_t* restrict node)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
-    struct ext2_inode* inode = &ctx->inode;
-    uint32_t ino = (uint32_t)(node->nodenumber);
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
+    ext2_inode_t* inode = &ctx->inode;
+    uint32_t ino = (uint32_t)(node->ino);
 
-    if(node->nodetype != VNODE_SYM_LINK || !is_fast_symlink(fs_ctx, inode)) {
+    if(node->type != VNODE_SYM_LINK || !is_fast_symlink(fs_ctx, inode)) {
         if(ext2_truncate_blocks(node, 0) < 0) {
-            pr_warning("ext2: %s: failed to free the blocks of inode %u", fs_ctx->device->identifier, ino);
+            pr_warning("ext2: %s: failed to free the blocks of inode %u", fs_ctx->device->name, ino);
         }
     }
 
@@ -468,13 +468,13 @@ static void destroy_inode_locked(struct vnode* restrict node)
     ext2_inode_set_size(fs_ctx, inode, 0);
     inode->i_dtime = htole32((uint32_t)(wallclock_now()));
     write_inode_locked(node);
-    ext2_inode_free(fs_ctx, ino, node->nodetype == VNODE_DIRECTORY);
+    ext2_inode_free(fs_ctx, ino, node->type == VNODE_DIRECTORY);
 }
 
-static int write_link_target_locked(struct vnode* restrict node, const char* restrict target)
+static int write_link_target_locked(vnode_t* restrict node, const char* restrict target)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
     size_t length = strlen(target);
     int retval = 0;
 
@@ -503,16 +503,16 @@ static int write_link_target_locked(struct vnode* restrict node, const char* res
     return retval;
 }
 
-static bool link_target_fits(const struct vnode* restrict node, const char* restrict target)
+static bool link_target_fits(const vnode_t* restrict node, const char* restrict target)
 {
-    const struct ext2_vnode_context* ctx = node->ctxdata;
+    const ext2_vnode_context_t* ctx = node->ctxdata;
 
     return strlen(target) < ctx->fs_ctx->block_size;
 }
 
-static int link_locked(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+static int link_locked(vnode_t* restrict node, const char* restrict name, vnode_t* restrict target)
 {
-    struct ext2_vnode_context* target_ctx = target->ctxdata;
+    ext2_vnode_context_t* target_ctx = target->ctxdata;
 
     uint16_t links = le16toh(target_ctx->inode.i_links_count);
 
@@ -529,7 +529,7 @@ static int link_locked(struct vnode* restrict node, const char* restrict name, s
         return -EMLINK;
     }
 
-    struct ext2_dirent existing;
+    ext2_dirent_t existing;
     int retval = ext2_dirent_find(node, name, &existing);
 
     if(retval == 0) {
@@ -540,7 +540,7 @@ static int link_locked(struct vnode* restrict node, const char* restrict name, s
         return retval;
     }
 
-    retval = ext2_dirent_add(node, name, (uint32_t)(target->nodenumber), file_type_of(le16toh(target_ctx->inode.i_mode)));
+    retval = ext2_dirent_add(node, name, (uint32_t)(target->ino), file_type_of(le16toh(target_ctx->inode.i_mode)));
 
     if(retval < 0) {
         return retval;
@@ -552,16 +552,16 @@ static int link_locked(struct vnode* restrict node, const char* restrict name, s
     return add_links_locked(target, 1);
 }
 
-static int create_locked(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
-    const char* restrict link_target, const struct credentials* restrict cred, struct vnode** restrict out)
+static int create_locked(vnode_t* restrict node, const char* restrict name, unsigned type, mode_t mode, const char* restrict link_target,
+    const credentials_t* restrict credentials, vnode_t** restrict out)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
     bool directory = type == VNODE_DIRECTORY;
 
     *out = nullptr;
 
-    if(node->nodetype != VNODE_DIRECTORY) {
+    if(node->type != VNODE_DIRECTORY) {
         return -ENOTDIR;
     }
 
@@ -577,7 +577,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
         return -EMLINK;
     }
 
-    struct ext2_dirent existing;
+    ext2_dirent_t existing;
     int retval = ext2_dirent_find(node, name, &existing);
 
     if(retval == 0) {
@@ -589,7 +589,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     }
 
     uint16_t inode_mode = mode & ~S_IFMT;
-    gid_t gid = cred->egid;
+    gid_t gid = credentials->egid;
 
     if(directory) {
         inode_mode |= S_IFDIR;
@@ -611,13 +611,13 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
         }
     }
 
-    struct ext2_vnode_context* child_ctx = slab_alloc(sizeof(struct ext2_vnode_context));
+    ext2_vnode_context_t* child_ctx = slab_alloc(sizeof(ext2_vnode_context_t));
 
     if(child_ctx == nullptr) {
         return -ENOMEM;
     }
 
-    memset(child_ctx, 0, sizeof(struct ext2_vnode_context));
+    memset(child_ctx, 0, sizeof(ext2_vnode_context_t));
 
     child_ctx->fs_ctx = fs_ctx;
     child_ctx->inode.i_mode = htole16(inode_mode);
@@ -627,7 +627,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
         child_ctx->inode.i_extra_isize = htole16(EXT2_EXTRA_ISIZE);
     }
 
-    struct k_timespec now;
+    timespec_t now;
     wallclock_get(&now);
 
     ext2_inode_set_time(&child_ctx->inode, EXT2_ATIME, &now);
@@ -639,19 +639,19 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
         child_ctx->inode.i_links_count = htole16(2);
     }
 
-    if(!ext2_inode_set_owner(fs_ctx, &child_ctx->inode, cred->euid, gid)) {
+    if(!ext2_inode_set_owner(fs_ctx, &child_ctx->inode, credentials->euid, gid)) {
         slab_free(child_ctx);
         return -EINVAL;
     }
 
-    uint32_t ino = ext2_inode_alloc(fs_ctx, (uint32_t)(node->nodenumber), directory);
+    uint32_t ino = ext2_inode_alloc(fs_ctx, (uint32_t)(node->ino), directory);
 
     if(ino == 0) {
         slab_free(child_ctx);
         return -ENOSPC;
     }
 
-    struct vnode* child = vnode_alloc(type, &ext2_vnode_ops, child_ctx);
+    vnode_t* child = vnode_alloc(type, &ext2_vnode_ops, child_ctx);
 
     if(child == nullptr) {
         ext2_inode_free(fs_ctx, ino, directory);
@@ -660,14 +660,14 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     }
 
     child->fs = node->fs;
-    child->nodenumber = ino;
+    child->ino = ino;
 
     *out = child;
 
     retval = write_inode_locked(child);
 
     if(retval == 0 && directory) {
-        retval = ext2_dir_init(child, (uint32_t)(node->nodenumber));
+        retval = ext2_dir_init(child, (uint32_t)(node->ino));
     }
 
     if(retval == 0 && type == VNODE_SYM_LINK) {
@@ -698,8 +698,8 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     return retval;
 }
 
-static int find_entry_locked(struct vnode* restrict dir, const char* restrict name, const struct vnode* restrict expected,
-    struct ext2_dirent* restrict out)
+static int find_entry_locked(vnode_t* restrict dir, const char* restrict name, const vnode_t* restrict expected,
+    ext2_dirent_t* restrict out)
 {
     int retval = ext2_dirent_find(dir, name, out);
 
@@ -707,19 +707,19 @@ static int find_entry_locked(struct vnode* restrict dir, const char* restrict na
         return retval;
     }
 
-    if(out->ino != expected->nodenumber) {
+    if(out->ino != expected->ino) {
         return -ENOENT;
     }
 
     return 0;
 }
 
-static int drop_entry_target_locked(struct vnode* restrict target)
+static int drop_entry_target_locked(vnode_t* restrict target)
 {
-    struct ext2_vnode_context* ctx = target->ctxdata;
+    ext2_vnode_context_t* ctx = target->ctxdata;
     int retval;
 
-    if(target->nodetype == VNODE_DIRECTORY) {
+    if(target->type == VNODE_DIRECTORY) {
         ctx->inode.i_links_count = 0;
         retval = write_inode_locked(target);
     }
@@ -736,12 +736,12 @@ static int drop_entry_target_locked(struct vnode* restrict target)
     return retval;
 }
 
-static int unlink_locked(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+static int unlink_locked(vnode_t* restrict node, const char* restrict name, vnode_t* restrict target)
 {
-    struct ext2_dirent entry;
+    ext2_dirent_t entry;
     int retval = find_entry_locked(node, name, target, &entry);
 
-    if(retval == 0 && target->nodetype == VNODE_DIRECTORY) {
+    if(retval == 0 && target->type == VNODE_DIRECTORY) {
         retval = ext2_dir_check_empty(target);
     }
 
@@ -756,7 +756,7 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
     touch_dir_locked(node);
 
     // The removed directory's ".." linked to the parent
-    if(target->nodetype == VNODE_DIRECTORY) {
+    if(target->type == VNODE_DIRECTORY) {
         add_links_locked(node, -1);
     }
 
@@ -765,21 +765,20 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
     return drop_entry_target_locked(target);
 }
 
-static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode* source, struct vnode* newdir, const char* newname,
-    struct vnode* victim)
+static int rename_locked(vnode_t* olddir, const char* oldname, vnode_t* source, vnode_t* newdir, const char* newname, vnode_t* victim)
 {
     if(strlen(newname) > EXT2_NAME_LEN) {
         return -ENAMETOOLONG;
     }
 
-    struct ext2_dirent old_entry;
+    ext2_dirent_t old_entry;
     int retval = find_entry_locked(olddir, oldname, source, &old_entry);
 
     if(retval < 0) {
         return retval;
     }
 
-    struct ext2_dirent new_entry;
+    ext2_dirent_t new_entry;
     retval = ext2_dirent_find(newdir, newname, &new_entry);
 
     if(retval < 0 && retval != -ENOENT) {
@@ -790,14 +789,14 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
         return -EEXIST;
     }
 
-    if(victim && (retval == -ENOENT || new_entry.ino != victim->nodenumber)) {
+    if(victim && (retval == -ENOENT || new_entry.ino != victim->ino)) {
         return -ENOENT;
     }
 
-    struct ext2_vnode_context* source_ctx = source->ctxdata;
-    struct ext2_vnode_context* newdir_ctx = newdir->ctxdata;
-    bool victim_directory = victim && victim->nodetype == VNODE_DIRECTORY;
-    bool moves_directory = source->nodetype == VNODE_DIRECTORY && olddir != newdir;
+    ext2_vnode_context_t* source_ctx = source->ctxdata;
+    ext2_vnode_context_t* newdir_ctx = newdir->ctxdata;
+    bool victim_directory = victim && victim->type == VNODE_DIRECTORY;
+    bool moves_directory = source->type == VNODE_DIRECTORY && olddir != newdir;
 
     if(victim_directory) {
         retval = ext2_dir_check_empty(victim);
@@ -811,7 +810,7 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
         return -EMLINK;
     }
 
-    uint32_t ino = (uint32_t)(source->nodenumber);
+    uint32_t ino = (uint32_t)(source->ino);
     uint8_t file_type = file_type_of(le16toh(source_ctx->inode.i_mode));
 
     if(victim) {
@@ -842,11 +841,11 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
 
     // Links to a directory come from the ".." of its subdirectories
     if(moves_directory) {
-        struct ext2_dirent dotdot;
+        ext2_dirent_t dotdot;
         retval = ext2_dirent_find(source, "..", &dotdot);
 
         if(retval == 0) {
-            retval = ext2_dirent_retarget(source, dotdot.offset, (uint32_t)(newdir->nodenumber), EXT2_FT_DIR);
+            retval = ext2_dirent_retarget(source, dotdot.offset, (uint32_t)(newdir->ino), EXT2_FT_DIR);
         }
 
         add_links_locked(olddir, -1);
@@ -870,9 +869,9 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
     return retval;
 }
 
-static void ext2_vnode_release(struct vnode* restrict node)
+static void ext2_vnode_release(vnode_t* restrict node)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
 
     if(0 == ctx->inode.i_links_count && !node->fs->readonly) {
         mutex_acquire(&ctx->fs_ctx->lock);
@@ -883,7 +882,7 @@ static void ext2_vnode_release(struct vnode* restrict node)
     slab_free(ctx);
 }
 
-static int ext2_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
+static int ext2_vnode_lookup(vnode_t* restrict node, const char* restrict name, ino_t* restrict out)
 {
     mutex_acquire(fs_lock(node));
     int retval = lookup_locked(node, name, out);
@@ -891,7 +890,7 @@ static int ext2_vnode_lookup(struct vnode* restrict node, const char* restrict n
     return retval;
 }
 
-static int ext2_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
+static int ext2_vnode_iterate(vnode_t* restrict node, dirent_t* restrict out, size_t index)
 {
     mutex_acquire(fs_lock(node));
     int retval = iterate_locked(node, out, index);
@@ -899,13 +898,13 @@ static int ext2_vnode_iterate(struct vnode* restrict node, struct k_dirent* rest
     return retval;
 }
 
-static int ext2_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
-    const struct credentials* restrict cred, struct vnode** restrict out)
+static int ext2_vnode_create(vnode_t* restrict node, const char* restrict name, unsigned type, mode_t mode,
+    const credentials_t* restrict credentials, vnode_t** restrict out)
 {
-    struct vnode* created;
+    vnode_t* created;
 
     mutex_acquire(fs_lock(node));
-    int retval = create_locked(node, name, type, mode, nullptr, cred, &created);
+    int retval = create_locked(node, name, type, mode, nullptr, credentials, &created);
     mutex_release(fs_lock(node));
 
     if(retval < 0 && created) {
@@ -919,7 +918,7 @@ static int ext2_vnode_create(struct vnode* restrict node, const char* restrict n
     return retval;
 }
 
-static int ext2_vnode_link(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+static int ext2_vnode_link(vnode_t* restrict node, const char* restrict name, vnode_t* restrict target)
 {
     mutex_acquire(fs_lock(node));
     int retval = link_locked(node, name, target);
@@ -927,17 +926,17 @@ static int ext2_vnode_link(struct vnode* restrict node, const char* restrict nam
     return retval;
 }
 
-static int ext2_vnode_symlink(struct vnode* restrict node, const char* restrict name, const char* restrict target,
-    const struct credentials* restrict cred, struct vnode** restrict out)
+static int ext2_vnode_symlink(vnode_t* restrict node, const char* restrict name, const char* restrict target,
+    const credentials_t* restrict credentials, vnode_t** restrict out)
 {
-    struct vnode* created;
+    vnode_t* created;
 
     if(!link_target_fits(node, target)) {
         return -ENAMETOOLONG;
     }
 
     mutex_acquire(fs_lock(node));
-    int retval = create_locked(node, name, VNODE_SYM_LINK, S_IRWXU | S_IRWXG | S_IRWXO, target, cred, &created);
+    int retval = create_locked(node, name, VNODE_SYM_LINK, S_IRWXU | S_IRWXG | S_IRWXO, target, credentials, &created);
     mutex_release(fs_lock(node));
 
     if(retval < 0 && created) {
@@ -951,7 +950,7 @@ static int ext2_vnode_symlink(struct vnode* restrict node, const char* restrict 
     return retval;
 }
 
-static int ext2_vnode_unlink(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+static int ext2_vnode_unlink(vnode_t* restrict node, const char* restrict name, vnode_t* restrict target)
 {
     mutex_acquire(fs_lock(node));
     int retval = unlink_locked(node, name, target);
@@ -959,8 +958,7 @@ static int ext2_vnode_unlink(struct vnode* restrict node, const char* restrict n
     return retval;
 }
 
-static int ext2_vnode_rename(struct vnode* olddir, const char* oldname, struct vnode* source, struct vnode* newdir, const char* newname,
-    struct vnode* victim)
+static int ext2_vnode_rename(vnode_t* olddir, const char* oldname, vnode_t* source, vnode_t* newdir, const char* newname, vnode_t* victim)
 {
     mutex_acquire(fs_lock(olddir));
     int retval = rename_locked(olddir, oldname, source, newdir, newname, victim);
@@ -968,61 +966,61 @@ static int ext2_vnode_rename(struct vnode* olddir, const char* oldname, struct v
     return retval;
 }
 
-static ssize_t ext2_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
+static ssize_t ext2_vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
 
-    if(node->nodetype == VNODE_DIRECTORY) {
+    if(node->type == VNODE_DIRECTORY) {
         return -EISDIR;
     }
 
-    if(node->nodetype != VNODE_FILE) {
+    if(node->type != VNODE_FILE) {
         return -EINVAL;
     }
 
     mutex_acquire(fs_lock(node));
-    ssize_t retval = fcache_read(node, &ext2_bmap, buffer, sz, offset, ext2_inode_size(&ctx->inode));
+    ssize_t retval = fcache_read(node, &ext2_bmap, buffer, size, offset, ext2_inode_size(&ctx->inode));
     mutex_release(fs_lock(node));
 
     return retval;
 }
 
-static ssize_t ext2_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t ext2_vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset)
 {
-    if(node->nodetype == VNODE_DIRECTORY) {
+    if(node->type == VNODE_DIRECTORY) {
         return -EISDIR;
     }
 
-    if(node->nodetype != VNODE_FILE) {
+    if(node->type != VNODE_FILE) {
         return -EINVAL;
     }
 
     mutex_acquire(fs_lock(node));
-    ssize_t retval = write_locked(node, buffer, sz, offset);
+    ssize_t retval = write_locked(node, buffer, size, offset);
     mutex_release(fs_lock(node));
 
     return retval;
 }
 
-static ssize_t ext2_vnode_readlink(struct vnode* restrict node, char* restrict buf, size_t sz)
+static ssize_t ext2_vnode_readlink(vnode_t* restrict node, char* restrict buf, size_t size)
 {
     mutex_acquire(fs_lock(node));
-    ssize_t retval = readlink_locked(node, buf, sz);
+    ssize_t retval = readlink_locked(node, buf, size);
     mutex_release(fs_lock(node));
     return retval;
 }
 
-static int ext2_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
+static int ext2_vnode_stat(vnode_t* restrict node, stat_t* restrict out)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
-    const struct ext2_inode* inode = &ctx->inode;
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
+    const ext2_inode_t* inode = &ctx->inode;
 
-    memset(out, 0, sizeof(struct k_stat));
+    memset(out, 0, sizeof(stat_t));
 
     mutex_acquire(&fs_ctx->lock);
 
-    out->st_ino = node->nodenumber;
+    out->st_ino = node->ino;
     out->st_mode = le16toh(inode->i_mode);
     out->st_nlink = le16toh(inode->i_links_count);
     out->st_uid = ext2_inode_uid(fs_ctx, inode);
@@ -1039,7 +1037,7 @@ static int ext2_vnode_stat(struct vnode* restrict node, struct k_stat* restrict 
     return 0;
 }
 
-static int ext2_vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr)
+static int ext2_vnode_setattr(vnode_t* restrict node, const vnode_attr_t* restrict attr)
 {
     mutex_acquire(fs_lock(node));
     int retval = setattr_locked(node, attr);
@@ -1047,9 +1045,9 @@ static int ext2_vnode_setattr(struct vnode* restrict node, const struct vattr* r
     return retval;
 }
 
-static int ext2_vnode_fsync(struct vnode* restrict node)
+static int ext2_vnode_fsync(vnode_t* restrict node)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
 
     mutex_acquire(fs_lock(node));
     int retval = fcache_writeback(node, &ext2_bmap, ext2_inode_size(&ctx->inode));
@@ -1058,11 +1056,11 @@ static int ext2_vnode_fsync(struct vnode* restrict node)
     return retval;
 }
 
-static int ext2_vnode_map_page(struct vnode* restrict node, uint64_t index, struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot)
+static int ext2_vnode_map_page(vnode_t* restrict node, uint64_t index, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
 
-    if(node->nodetype != VNODE_FILE) {
+    if(node->type != VNODE_FILE) {
         return -ENODEV;
     }
 
@@ -1073,8 +1071,7 @@ static int ext2_vnode_map_page(struct vnode* restrict node, uint64_t index, stru
     return retval;
 }
 
-static ssize_t ext2_vnode_xattr_get(struct vnode* restrict node, unsigned space, const char* restrict name, void* restrict value,
-    size_t size)
+static ssize_t ext2_vnode_xattr_get(vnode_t* restrict node, unsigned space, const char* restrict name, void* restrict value, size_t size)
 {
     mutex_acquire(fs_lock(node));
     ssize_t retval = ext2_xattr_get(node, space, name, value, size);
@@ -1082,8 +1079,8 @@ static ssize_t ext2_vnode_xattr_get(struct vnode* restrict node, unsigned space,
     return retval;
 }
 
-static int ext2_vnode_xattr_set(struct vnode* restrict node, unsigned space, const char* restrict name, const void* restrict value,
-    size_t size, unsigned flags)
+static int ext2_vnode_xattr_set(vnode_t* restrict node, unsigned space, const char* restrict name, const void* restrict value, size_t size,
+    unsigned flags)
 {
     mutex_acquire(fs_lock(node));
 
@@ -1099,7 +1096,7 @@ static int ext2_vnode_xattr_set(struct vnode* restrict node, unsigned space, con
     return retval;
 }
 
-static int ext2_vnode_xattr_iterate(struct vnode* restrict node, struct xattr_entry* restrict out, size_t index)
+static int ext2_vnode_xattr_iterate(vnode_t* restrict node, xattr_entry_t* restrict out, size_t index)
 {
     mutex_acquire(fs_lock(node));
     int retval = ext2_xattr_iterate(node, out, index);
@@ -1107,7 +1104,7 @@ static int ext2_vnode_xattr_iterate(struct vnode* restrict node, struct xattr_en
     return retval;
 }
 
-static int ext2_vnode_xattr_remove(struct vnode* restrict node, unsigned space, const char* restrict name)
+static int ext2_vnode_xattr_remove(vnode_t* restrict node, unsigned space, const char* restrict name)
 {
     mutex_acquire(fs_lock(node));
 
@@ -1123,7 +1120,7 @@ static int ext2_vnode_xattr_remove(struct vnode* restrict node, unsigned space, 
     return retval;
 }
 
-const struct vnode_ops ext2_vnode_ops = {
+const vnode_ops_t ext2_vnode_ops = {
     .release = &ext2_vnode_release,
     .lookup = &ext2_vnode_lookup,
     .iterate = &ext2_vnode_iterate,

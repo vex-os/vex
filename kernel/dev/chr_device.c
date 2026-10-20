@@ -7,15 +7,15 @@
 #include <vex/string.h>
 #include <vex/strings.h>
 
-static spinlock_type chr_devices_lock = SPINLOCK_INIT;
-static struct chr_device* chr_devices_head = nullptr;
+static spinlock_t chr_devices_lock = SPINLOCK_INIT;
+static chr_device_t* chr_devices_head = nullptr;
 
-static int chr_device_register_internal(struct chr_device* restrict device)
+static int chr_device_register_internal(chr_device_t* restrict device)
 {
     chr_event_lock();
     spinlock_acquire(&chr_devices_lock);
 
-    for(struct chr_device* it = chr_devices_head; it; it = it->priv.next) {
+    for(chr_device_t* it = chr_devices_head; it; it = it->priv.next) {
         if(it == device) {
             spinlock_release(&chr_devices_lock);
             chr_event_unlock();
@@ -35,32 +35,32 @@ static int chr_device_register_internal(struct chr_device* restrict device)
     return 0;
 }
 
-int add_chr_device(struct chr_device* restrict device, struct chr_name* restrict name)
+int chr_device_add(chr_device_t* restrict device, chr_name_t* restrict name)
 {
     device->priv.name = name;
     device->priv.name_iterator = chr_name_increment(name);
 
-    snprintf(device->identifier, sizeof(device->identifier), "%s%u", name->device_prefix, device->priv.name_iterator);
+    snprintf(device->name, sizeof(device->name), "%s%u", name->device_prefix, device->priv.name_iterator);
 
     return chr_device_register_internal(device);
 }
 
-int add_chr_device_named(struct chr_device* restrict device, const char* restrict name)
+int chr_device_add_named(chr_device_t* restrict device, const char* restrict name)
 {
     device->priv.name = nullptr;
     device->priv.name_iterator = 0;
 
-    kstrncpy(device->identifier, name, sizeof(device->identifier));
+    kstrncpy(device->name, name, sizeof(device->name));
 
     return chr_device_register_internal(device);
 }
 
-int remove_chr_device(struct chr_device* restrict device)
+int chr_device_remove(chr_device_t* restrict device)
 {
     chr_event_lock();
     spinlock_acquire(&chr_devices_lock);
 
-    for(struct chr_device** prev = &chr_devices_head; *prev; prev = &(*prev)->priv.next) {
+    for(chr_device_t** prev = &chr_devices_head; *prev; prev = &(*prev)->priv.next) {
         if(*prev == device) {
             *prev = device->priv.next;
             device->priv.next = nullptr;
@@ -81,12 +81,12 @@ int remove_chr_device(struct chr_device* restrict device)
     return -ENODEV;
 }
 
-const struct chr_device* find_chr_device(const char* restrict name)
+const chr_device_t* chr_device_find(const char* restrict name)
 {
     spinlock_acquire(&chr_devices_lock);
 
-    for(struct chr_device* it = chr_devices_head; it; it = it->priv.next) {
-        if(0 == strcmp(it->identifier, name)) {
+    for(chr_device_t* it = chr_devices_head; it; it = it->priv.next) {
+        if(0 == strcmp(it->name, name)) {
             spinlock_release(&chr_devices_lock);
             return it;
         }
@@ -97,10 +97,10 @@ const struct chr_device* find_chr_device(const char* restrict name)
     return nullptr;
 }
 
-void iterate_chr_devices(void (*callback)(const struct chr_device* restrict device, void* restrict arg), void* restrict arg)
+void chr_device_for_each(void (*callback)(const chr_device_t* restrict device, void* restrict arg), void* restrict arg)
 {
-    for(struct chr_device* it = chr_devices_head; it;) {
-        struct chr_device* next = it->priv.next;
+    for(chr_device_t* it = chr_devices_head; it;) {
+        chr_device_t* next = it->priv.next;
         callback(it, arg);
         it = next;
     }

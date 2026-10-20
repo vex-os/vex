@@ -1,4 +1,4 @@
-#include <arch/ireq.h>
+#include <arch/irq.h>
 #include <arch/msi.h>
 #include <vex/assert.h>
 #include <vex/errno.h>
@@ -13,17 +13,17 @@
 
 #define PCI_MAX_BUS_DEVICES 32
 
-static struct mutex pci_mutex = MUTEX_INIT;
-static struct pci_bus* bus_head = nullptr;
-static struct pci_driver* driver_head = nullptr;
+static mutex_t pci_mutex = MUTEX_INIT;
+static pci_bus_t* bus_head = nullptr;
+static pci_driver_t* driver_head = nullptr;
 
-static void device_bind(struct pci_device* restrict device, struct pci_driver* restrict driver)
+static void device_bind(pci_device_t* restrict device, pci_driver_t* restrict driver)
 {
     if(device->priv.driver) {
         return;
     }
 
-    for(const struct pci_driver_id* id = driver->ids; id->vendor_id < 0xFFFF || id->device_id < 0xFFFF; id += 1) {
+    for(const pci_driver_id_t* id = driver->ids; id->vendor_id < 0xFFFF || id->device_id < 0xFFFF; id += 1) {
         bool match;
 
         if(id->vendor_id == 0) {
@@ -41,7 +41,7 @@ static void device_bind(struct pci_device* restrict device, struct pci_driver* r
     }
 }
 
-static void bus_scan(struct pci_bus* restrict bus)
+static void bus_scan(pci_bus_t* restrict bus)
 {
     for(unsigned dev = 0; dev < PCI_MAX_BUS_DEVICES; dev += 1) {
         unsigned vendor_id = bus->ops->read16(bus, dev, 0, PCI_CFG_VENDOR_ID);
@@ -68,7 +68,7 @@ static void bus_scan(struct pci_bus* restrict bus)
             }
 
             unsigned device_id = bus->ops->read16(bus, dev, fn, PCI_CFG_DEVICE_ID);
-            struct pci_device* device = kmalloc(sizeof(struct pci_device));
+            pci_device_t* device = kmalloc(sizeof(pci_device_t));
 
             if(device == nullptr) {
                 continue;
@@ -79,7 +79,7 @@ static void bus_scan(struct pci_bus* restrict bus)
 
             device->priv.next = nullptr;
             device->priv.driver = nullptr;
-            device->priv.ireq_number = UINT_MAX;
+            device->priv.irq_number = UINT_MAX;
             device->priv.bars_mapped = 0;
             device->bus = bus;
             device->index = dev;
@@ -93,16 +93,16 @@ static void bus_scan(struct pci_bus* restrict bus)
             device->priv.next = bus->priv.devices;
             bus->priv.devices = device;
 
-            pr_verbose("pci: found %04X:%04X at %s:%02X:%02X", vendor_id, device_id, bus->identifier, dev, fn);
+            pr_verbose("pci: found %04X:%04X at %s:%02X:%02X", vendor_id, device_id, bus->name, dev, fn);
 
-            for(struct pci_driver* it = driver_head; it; it = it->priv.next) {
+            for(pci_driver_t* it = driver_head; it; it = it->priv.next) {
                 device_bind(device, it);
             }
         }
     }
 }
 
-static uintptr_t bar_address(struct pci_device* restrict device, unsigned bar_index)
+static uintptr_t bar_address(pci_device_t* restrict device, unsigned bar_index)
 {
     uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
     uint32_t raw = pci_cfg_read32(device, offset);
@@ -120,7 +120,7 @@ static uintptr_t bar_address(struct pci_device* restrict device, unsigned bar_in
     return raw & PCI_BAR_ADDR_MASK_MEM;
 }
 
-static uint32_t probe_bar_mask(struct pci_device* restrict device, uintptr_t offset)
+static uint32_t probe_bar_mask(pci_device_t* restrict device, uintptr_t offset)
 {
     uint32_t raw = pci_cfg_read32(device, offset);
     pci_cfg_write32(device, offset, UINT32_C(0xFFFFFFFF));
@@ -129,7 +129,7 @@ static uint32_t probe_bar_mask(struct pci_device* restrict device, uintptr_t off
     return mask;
 }
 
-static uint64_t bar_length(struct pci_device* restrict device, unsigned bar_index)
+static uint64_t bar_length(pci_device_t* restrict device, unsigned bar_index)
 {
     uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
     uint32_t raw = pci_cfg_read32(device, offset);
@@ -167,11 +167,11 @@ static uint64_t bar_length(struct pci_device* restrict device, unsigned bar_inde
     return ~mask + 1;
 }
 
-int add_pci_bus(struct pci_bus* restrict bus)
+int pci_bus_add(pci_bus_t* restrict bus)
 {
     mutex_acquire(&pci_mutex);
 
-    for(struct pci_bus* it = bus_head; it; it = it->priv.next) {
+    for(pci_bus_t* it = bus_head; it; it = it->priv.next) {
         if(it == bus) {
             mutex_release(&pci_mutex);
             return -EEXIST;
@@ -189,11 +189,11 @@ int add_pci_bus(struct pci_bus* restrict bus)
     return 0;
 }
 
-int remove_pci_bus(struct pci_bus* restrict bus)
+int pci_bus_remove(pci_bus_t* restrict bus)
 {
     mutex_acquire(&pci_mutex);
 
-    struct pci_bus** prev = &bus_head;
+    pci_bus_t** prev = &bus_head;
 
     while(*prev && *prev != bus) {
         prev = &(*prev)->priv.next;
@@ -206,8 +206,8 @@ int remove_pci_bus(struct pci_bus* restrict bus)
 
     *prev = bus->priv.next;
 
-    for(struct pci_device* it = bus->priv.devices; it;) {
-        struct pci_device* next = it->priv.next;
+    for(pci_device_t* it = bus->priv.devices; it;) {
+        pci_device_t* next = it->priv.next;
 
         if(it->priv.driver && it->priv.driver->ops->remove) {
             it->priv.driver->ops->remove(it);
@@ -225,11 +225,11 @@ int remove_pci_bus(struct pci_bus* restrict bus)
     return 0;
 }
 
-int add_pci_driver(struct pci_driver* restrict driver)
+int pci_driver_add(pci_driver_t* restrict driver)
 {
     mutex_acquire(&pci_mutex);
 
-    for(struct pci_driver* it = driver_head; it; it = it->priv.next) {
+    for(pci_driver_t* it = driver_head; it; it = it->priv.next) {
         if(it == driver) {
             mutex_release(&pci_mutex);
             return -EEXIST;
@@ -239,8 +239,8 @@ int add_pci_driver(struct pci_driver* restrict driver)
     driver->priv.next = driver_head;
     driver_head = driver;
 
-    for(struct pci_bus* bus = bus_head; bus; bus = bus->priv.next) {
-        for(struct pci_device* it = bus->priv.devices; it; it = it->priv.next) {
+    for(pci_bus_t* bus = bus_head; bus; bus = bus->priv.next) {
+        for(pci_device_t* it = bus->priv.devices; it; it = it->priv.next) {
             device_bind(it, driver);
         }
     }
@@ -250,11 +250,11 @@ int add_pci_driver(struct pci_driver* restrict driver)
     return 0;
 }
 
-int remove_pci_driver(struct pci_driver* restrict driver)
+int pci_driver_remove(pci_driver_t* restrict driver)
 {
     mutex_acquire(&pci_mutex);
 
-    struct pci_driver** prev = &driver_head;
+    pci_driver_t** prev = &driver_head;
 
     while(*prev && *prev != driver) {
         prev = &(*prev)->priv.next;
@@ -267,8 +267,8 @@ int remove_pci_driver(struct pci_driver* restrict driver)
 
     *prev = driver->priv.next;
 
-    for(struct pci_bus* bus = bus_head; bus; bus = bus->priv.next) {
-        for(struct pci_device* it = bus->priv.devices; it; it = it->priv.next) {
+    for(pci_bus_t* bus = bus_head; bus; bus = bus->priv.next) {
+        for(pci_device_t* it = bus->priv.devices; it; it = it->priv.next) {
             if(it->priv.driver == driver) {
                 if(driver->ops->remove) {
                     driver->ops->remove(it);
@@ -284,13 +284,13 @@ int remove_pci_driver(struct pci_driver* restrict driver)
     return 0;
 }
 
-struct pci_device* pci_find(unsigned segment, unsigned bus, unsigned device, unsigned function)
+pci_device_t* pci_find(unsigned segment, unsigned bus, unsigned device, unsigned function)
 {
     mutex_acquire(&pci_mutex);
 
-    for(struct pci_bus* it = bus_head; it; it = it->priv.next) {
+    for(pci_bus_t* it = bus_head; it; it = it->priv.next) {
         if(it->segment == segment && it->index == bus) {
-            for(struct pci_device* dev = it->priv.devices; dev; dev = dev->priv.next) {
+            for(pci_device_t* dev = it->priv.devices; dev; dev = dev->priv.next) {
                 if(dev->index == device && dev->function == function) {
                     mutex_release(&pci_mutex);
                     return dev;
@@ -304,37 +304,37 @@ struct pci_device* pci_find(unsigned segment, unsigned bus, unsigned device, uns
     return nullptr;
 }
 
-uint8_t pci_cfg_read8(struct pci_device* restrict device, uintptr_t offset)
+uint8_t pci_cfg_read8(pci_device_t* restrict device, uintptr_t offset)
 {
     return device->bus->ops->read8(device->bus, device->index, device->function, offset);
 }
 
-uint16_t pci_cfg_read16(struct pci_device* restrict device, uintptr_t offset)
+uint16_t pci_cfg_read16(pci_device_t* restrict device, uintptr_t offset)
 {
     return device->bus->ops->read16(device->bus, device->index, device->function, offset);
 }
 
-uint32_t pci_cfg_read32(struct pci_device* restrict device, uintptr_t offset)
+uint32_t pci_cfg_read32(pci_device_t* restrict device, uintptr_t offset)
 {
     return device->bus->ops->read32(device->bus, device->index, device->function, offset);
 }
 
-void pci_cfg_write8(struct pci_device* restrict device, uintptr_t offset, uint8_t value)
+void pci_cfg_write8(pci_device_t* restrict device, uintptr_t offset, uint8_t value)
 {
     device->bus->ops->write8(device->bus, device->index, device->function, offset, value);
 }
 
-void pci_cfg_write16(struct pci_device* restrict device, uintptr_t offset, uint16_t value)
+void pci_cfg_write16(pci_device_t* restrict device, uintptr_t offset, uint16_t value)
 {
     device->bus->ops->write16(device->bus, device->index, device->function, offset, value);
 }
 
-void pci_cfg_write32(struct pci_device* restrict device, uintptr_t offset, uint32_t value)
+void pci_cfg_write32(pci_device_t* restrict device, uintptr_t offset, uint32_t value)
 {
     device->bus->ops->write32(device->bus, device->index, device->function, offset, value);
 }
 
-struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_index)
+pci_bar_t* pci_bar_map(pci_device_t* restrict device, unsigned bar_index)
 {
     kassert(bar_index < 6);
 
@@ -342,7 +342,7 @@ struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_ind
         return &device->priv.bars[bar_index];
     }
 
-    struct pci_bar* bar = &device->priv.bars[bar_index];
+    pci_bar_t* bar = &device->priv.bars[bar_index];
     uint32_t raw = pci_cfg_read32(device, PCI_CFG_BAR0 + bar_index * 4);
     uint64_t length = bar_length(device, bar_index);
 
@@ -376,12 +376,12 @@ struct pci_bar* pci_bar_map(struct pci_device* restrict device, unsigned bar_ind
     return bar;
 }
 
-void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index)
+void pci_bar_unmap(pci_device_t* restrict device, unsigned bar_index)
 {
     kassert(bar_index < 6);
 
     if(device->priv.bars_mapped & (1U << bar_index)) {
-        struct pci_bar* bar = &device->priv.bars[bar_index];
+        pci_bar_t* bar = &device->priv.bars[bar_index];
 
         if(bar->type == PCI_BAR_TYPE_MMIO) {
             mmio_unmap(bar->mmio.virt8);
@@ -391,34 +391,34 @@ void pci_bar_unmap(struct pci_device* restrict device, unsigned bar_index)
     }
 }
 
-uint8_t pci_bar_read8(struct pci_bar* restrict bar, uintptr_t offset)
+uint8_t pci_bar_read8(pci_bar_t* restrict bar, uintptr_t offset)
 {
     if(bar->type == PCI_BAR_TYPE_PMIO)
         return pmio_read8(&bar->pmio, offset);
     return bar->mmio.virt8[offset];
 }
 
-uint16_t pci_bar_read16(struct pci_bar* restrict bar, uintptr_t offset)
+uint16_t pci_bar_read16(pci_bar_t* restrict bar, uintptr_t offset)
 {
     if(bar->type == PCI_BAR_TYPE_PMIO)
         return pmio_read16(&bar->pmio, offset);
     return bar->mmio.virt16[offset / 2];
 }
 
-uint32_t pci_bar_read32(struct pci_bar* restrict bar, uintptr_t offset)
+uint32_t pci_bar_read32(pci_bar_t* restrict bar, uintptr_t offset)
 {
     if(bar->type == PCI_BAR_TYPE_PMIO)
         return pmio_read32(&bar->pmio, offset);
     return bar->mmio.virt32[offset / 4];
 }
 
-uint64_t pci_bar_read64(struct pci_bar* restrict bar, uintptr_t offset)
+uint64_t pci_bar_read64(pci_bar_t* restrict bar, uintptr_t offset)
 {
     kassert(bar->type == PCI_BAR_TYPE_MMIO);
     return bar->mmio.virt64[offset / 8];
 }
 
-void pci_bar_read8s(struct pci_bar* restrict bar, uintptr_t offset, uint8_t* restrict data, size_t count)
+void pci_bar_read8s(pci_bar_t* restrict bar, uintptr_t offset, uint8_t* restrict data, size_t count)
 {
     if(bar->type == PCI_BAR_TYPE_PMIO) {
         pmio_read8s(&bar->pmio, offset, data, count);
@@ -430,7 +430,7 @@ void pci_bar_read8s(struct pci_bar* restrict bar, uintptr_t offset, uint8_t* res
     }
 }
 
-void pci_bar_read16s(struct pci_bar* restrict bar, uintptr_t offset, uint16_t* restrict data, size_t count)
+void pci_bar_read16s(pci_bar_t* restrict bar, uintptr_t offset, uint16_t* restrict data, size_t count)
 {
     if(bar->type == PCI_BAR_TYPE_PMIO) {
         pmio_read16s(&bar->pmio, offset, data, count);
@@ -442,7 +442,7 @@ void pci_bar_read16s(struct pci_bar* restrict bar, uintptr_t offset, uint16_t* r
     }
 }
 
-void pci_bar_read32s(struct pci_bar* restrict bar, uintptr_t offset, uint32_t* restrict data, size_t count)
+void pci_bar_read32s(pci_bar_t* restrict bar, uintptr_t offset, uint32_t* restrict data, size_t count)
 {
     if(bar->type == PCI_BAR_TYPE_PMIO) {
         pmio_read32s(&bar->pmio, offset, data, count);
@@ -454,7 +454,7 @@ void pci_bar_read32s(struct pci_bar* restrict bar, uintptr_t offset, uint32_t* r
     }
 }
 
-void pci_bar_read64s(struct pci_bar* restrict bar, uintptr_t offset, uint64_t* restrict data, size_t count)
+void pci_bar_read64s(pci_bar_t* restrict bar, uintptr_t offset, uint64_t* restrict data, size_t count)
 {
     kassert(bar->type == PCI_BAR_TYPE_MMIO);
 
@@ -463,7 +463,7 @@ void pci_bar_read64s(struct pci_bar* restrict bar, uintptr_t offset, uint64_t* r
     }
 }
 
-void pci_bar_write8(struct pci_bar* restrict bar, uintptr_t offset, uint8_t value)
+void pci_bar_write8(pci_bar_t* restrict bar, uintptr_t offset, uint8_t value)
 {
     if(bar->type == PCI_BAR_TYPE_PMIO) {
         pmio_write8(&bar->pmio, offset, value);
@@ -473,7 +473,7 @@ void pci_bar_write8(struct pci_bar* restrict bar, uintptr_t offset, uint8_t valu
     }
 }
 
-void pci_bar_write16(struct pci_bar* restrict bar, uintptr_t offset, uint16_t value)
+void pci_bar_write16(pci_bar_t* restrict bar, uintptr_t offset, uint16_t value)
 {
     if(bar->type == PCI_BAR_TYPE_PMIO) {
         pmio_write16(&bar->pmio, offset, value);
@@ -483,7 +483,7 @@ void pci_bar_write16(struct pci_bar* restrict bar, uintptr_t offset, uint16_t va
     }
 }
 
-void pci_bar_write32(struct pci_bar* restrict bar, uintptr_t offset, uint32_t value)
+void pci_bar_write32(pci_bar_t* restrict bar, uintptr_t offset, uint32_t value)
 {
     if(bar->type == PCI_BAR_TYPE_PMIO) {
         pmio_write32(&bar->pmio, offset, value);
@@ -493,14 +493,14 @@ void pci_bar_write32(struct pci_bar* restrict bar, uintptr_t offset, uint32_t va
     }
 }
 
-void pci_bar_write64(struct pci_bar* restrict bar, uintptr_t offset, uint64_t value)
+void pci_bar_write64(pci_bar_t* restrict bar, uintptr_t offset, uint64_t value)
 {
     kassert(bar->type == PCI_BAR_TYPE_MMIO);
 
     bar->mmio.virt64[offset / 8] = value;
 }
 
-void pci_bar_write8s(struct pci_bar* restrict bar, uintptr_t offset, const uint8_t* restrict data, size_t count)
+void pci_bar_write8s(pci_bar_t* restrict bar, uintptr_t offset, const uint8_t* restrict data, size_t count)
 {
     if(bar->type == PCI_BAR_TYPE_PMIO) {
         pmio_write8s(&bar->pmio, offset, data, count);
@@ -512,7 +512,7 @@ void pci_bar_write8s(struct pci_bar* restrict bar, uintptr_t offset, const uint8
     }
 }
 
-void pci_bar_write16s(struct pci_bar* restrict bar, uintptr_t offset, const uint16_t* restrict data, size_t count)
+void pci_bar_write16s(pci_bar_t* restrict bar, uintptr_t offset, const uint16_t* restrict data, size_t count)
 {
     ;
 
@@ -526,7 +526,7 @@ void pci_bar_write16s(struct pci_bar* restrict bar, uintptr_t offset, const uint
     }
 }
 
-void pci_bar_write32s(struct pci_bar* restrict bar, uintptr_t offset, const uint32_t* restrict data, size_t count)
+void pci_bar_write32s(pci_bar_t* restrict bar, uintptr_t offset, const uint32_t* restrict data, size_t count)
 {
     if(bar->type == PCI_BAR_TYPE_PMIO) {
         pmio_write32s(&bar->pmio, offset, data, count);
@@ -538,7 +538,7 @@ void pci_bar_write32s(struct pci_bar* restrict bar, uintptr_t offset, const uint
     }
 }
 
-void pci_bar_write64s(struct pci_bar* restrict bar, uintptr_t offset, const uint64_t* restrict data, size_t count)
+void pci_bar_write64s(pci_bar_t* restrict bar, uintptr_t offset, const uint64_t* restrict data, size_t count)
 {
     kassert(bar->type == PCI_BAR_TYPE_MMIO);
 
@@ -547,7 +547,7 @@ void pci_bar_write64s(struct pci_bar* restrict bar, uintptr_t offset, const uint
     }
 }
 
-uint8_t pci_get_cap(struct pci_device* restrict device, uint8_t cap_id)
+uint8_t pci_get_cap(pci_device_t* restrict device, uint8_t cap_id)
 {
     uint16_t status = pci_cfg_read16(device, PCI_CFG_STATUS);
 
@@ -566,21 +566,21 @@ uint8_t pci_get_cap(struct pci_device* restrict device, uint8_t cap_id)
     return 0;
 }
 
-void pci_enable_busmaster(struct pci_device* restrict device)
+void pci_enable_busmaster(pci_device_t* restrict device)
 {
     uint16_t cmd = pci_cfg_read16(device, PCI_CFG_COMMAND);
 
     pci_cfg_write16(device, PCI_CFG_COMMAND, cmd | PCI_CMD_BUS_MASTER);
 }
 
-void pci_disable_busmaster(struct pci_device* restrict device)
+void pci_disable_busmaster(pci_device_t* restrict device)
 {
     uint16_t cmd = pci_cfg_read16(device, PCI_CFG_COMMAND);
 
     pci_cfg_write16(device, PCI_CFG_COMMAND, cmd & ~(uint16_t)(PCI_CMD_BUS_MASTER));
 }
 
-int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handler, void* restrict ctxdata)
+int pci_request_irq(pci_device_t* restrict device, irq_handler_t handler, void* restrict ctxdata)
 {
     uint8_t cap = pci_get_cap(device, PCI_CAP_MSI);
 
@@ -588,17 +588,17 @@ int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handle
         return -ENODEV;
     }
 
-    unsigned ireq_number = add_ireq_handler(UINT_MAX, handler, ctxdata);
+    unsigned irq_number = irq_handler_add(UINT_MAX, handler, ctxdata);
 
-    if(ireq_number == UINT_MAX) {
+    if(irq_number == UINT_MAX) {
         return -ENOMEM;
     }
 
-    device->priv.ireq_number = ireq_number;
+    device->priv.irq_number = irq_number;
 
     uint64_t address;
     uint32_t data;
-    arch_msi_compose(ireq_number + ARCH_IREQ_BASE, &address, &data);
+    arch_msi_compose(irq_number + ARCH_IRQ_BASE, &address, &data);
 
     uint16_t control = pci_cfg_read16(device, cap + PCI_MSI_CONTROL);
     control &= ~(uint16_t)(PCI_MSI_CONTROL_ENABLE | PCI_MSI_CONTROL_MME);
@@ -629,9 +629,9 @@ int pci_request_irq(struct pci_device* restrict device, ireq_handler_type handle
     return 0;
 }
 
-void pci_release_irq(struct pci_device* restrict device)
+void pci_release_irq(pci_device_t* restrict device)
 {
-    if(device->priv.ireq_number == UINT_MAX) {
+    if(device->priv.irq_number == UINT_MAX) {
         return;
     }
 
@@ -642,7 +642,7 @@ void pci_release_irq(struct pci_device* restrict device)
         pci_cfg_write16(device, cap + PCI_MSI_CONTROL, control & ~(uint16_t)(PCI_MSI_CONTROL_ENABLE));
     }
 
-    remove_ireq_handler(device->priv.ireq_number);
+    irq_handler_remove(device->priv.irq_number);
 
-    device->priv.ireq_number = UINT_MAX;
+    device->priv.irq_number = UINT_MAX;
 }

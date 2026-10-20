@@ -8,13 +8,13 @@
 
 #include "devfs.h"
 
-static int devfs_dir_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
+static int devfs_dir_lookup(vnode_t* restrict node, const char* restrict name, ino_t* restrict out)
 {
-    struct devfs_state* state = node->ctxdata;
+    devfs_state_t* state = node->ctxdata;
 
     spinlock_acquire(&state->lock);
 
-    for(struct devfs_node* it = state->head; it; it = it->next) {
+    for(devfs_node_t* it = state->head; it; it = it->next) {
         if(0 == strcmp(it->name, name)) {
             *out = (ino_t)(uintptr_t)it->node;
             spinlock_release(&state->lock);
@@ -27,18 +27,18 @@ static int devfs_dir_lookup(struct vnode* restrict node, const char* restrict na
     return -ENOENT;
 }
 
-static int devfs_dir_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
+static int devfs_dir_iterate(vnode_t* restrict node, dirent_t* restrict out, size_t index)
 {
-    struct devfs_state* state = node->ctxdata;
+    devfs_state_t* state = node->ctxdata;
     size_t i = 0;
 
     spinlock_acquire(&state->lock);
 
-    for(struct devfs_node* it = state->head; it; it = it->next, i++) {
+    for(devfs_node_t* it = state->head; it; it = it->next, i++) {
         if(i == index) {
             kstrncpy(out->d_name, it->name, sizeof(out->d_name));
             out->d_ino = (ino_t)((uintptr_t)(it->node));
-            out->d_nodetype = it->node->nodetype;
+            out->d_nodetype = it->node->type;
 
             spinlock_release(&state->lock);
 
@@ -51,16 +51,16 @@ static int devfs_dir_iterate(struct vnode* restrict node, struct k_dirent* restr
     return -ENOENT;
 }
 
-static int devfs_dir_stat(struct vnode* restrict node, struct k_stat* restrict out)
+static int devfs_dir_stat(vnode_t* restrict node, stat_t* restrict out)
 {
-    memset(out, 0, sizeof(struct k_stat));
+    memset(out, 0, sizeof(stat_t));
 
     out->st_mode = S_IFDIR | S_IRUSR | S_IXUSR | S_IRGRP | S_IXGRP | S_IROTH | S_IXOTH;
 
     return 0;
 }
 
-const struct vnode_ops devfs_dir_ops = {
+const vnode_ops_t devfs_dir_ops = {
     .lookup = &devfs_dir_lookup,
     .iterate = &devfs_dir_iterate,
     .stat = &devfs_dir_stat,

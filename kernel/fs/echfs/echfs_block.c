@@ -5,29 +5,29 @@
 
 #define SCAN_BATCH 128 // Table entries read at a time when looking for a free block
 
-static uint64_t entry_offset(const struct echfs_vfs_context* restrict context, uintptr_t block)
+static uint64_t entry_offset(const echfs_vfs_context_t* restrict context, uintptr_t block)
 {
     return context->fat_start * context->block_size + block * sizeof(uint64_t);
 }
 
-static void set_entry(struct echfs_vfs_context* restrict context, uintptr_t block, uint64_t value)
+static void set_entry(echfs_vfs_context_t* restrict context, uintptr_t block, uint64_t value)
 {
-    fcache_dev_write(context->devnode, entry_offset(context, block), &value, sizeof(value));
+    fcache_dev_write(context->device_node, entry_offset(context, block), &value, sizeof(value));
 }
 
 // An entry that can't be read looks reserved, which ends any chain through it
-uint64_t echfs_block_entry(const struct echfs_vfs_context* restrict context, uintptr_t block)
+uint64_t echfs_block_entry(const echfs_vfs_context_t* restrict context, uintptr_t block)
 {
     uint64_t value;
 
-    if(block >= context->total_blocks || fcache_dev_read(context->devnode, entry_offset(context, block), &value, sizeof(value)) < 0) {
+    if(block >= context->total_blocks || fcache_dev_read(context->device_node, entry_offset(context, block), &value, sizeof(value)) < 0) {
         return ECHFS_TABLE_RESERVED;
     }
 
     return value;
 }
 
-uintptr_t echfs_block_next(const struct echfs_vfs_context* restrict context, uintptr_t block)
+uintptr_t echfs_block_next(const echfs_vfs_context_t* restrict context, uintptr_t block)
 {
     uint64_t value = echfs_block_entry(context, block);
 
@@ -38,7 +38,7 @@ uintptr_t echfs_block_next(const struct echfs_vfs_context* restrict context, uin
     return value;
 }
 
-uintptr_t echfs_block_alloc(struct echfs_vfs_context* restrict context)
+uintptr_t echfs_block_alloc(echfs_vfs_context_t* restrict context)
 {
     uint64_t batch[SCAN_BATCH];
     uint64_t hint = context->next_free_hint;
@@ -58,7 +58,7 @@ uintptr_t echfs_block_alloc(struct echfs_vfs_context* restrict context)
                 count = end - block;
             }
 
-            if(fcache_dev_read(context->devnode, entry_offset(context, block), batch, count * sizeof(uint64_t)) < 0) {
+            if(fcache_dev_read(context->device_node, entry_offset(context, block), batch, count * sizeof(uint64_t)) < 0) {
                 return UINTPTR_MAX;
             }
 
@@ -75,7 +75,7 @@ uintptr_t echfs_block_alloc(struct echfs_vfs_context* restrict context)
     return UINTPTR_MAX;
 }
 
-void echfs_block_free(struct echfs_vfs_context* restrict context, uintptr_t block)
+void echfs_block_free(echfs_vfs_context_t* restrict context, uintptr_t block)
 {
     if(block >= context->total_blocks) {
         return;
@@ -88,7 +88,7 @@ void echfs_block_free(struct echfs_vfs_context* restrict context, uintptr_t bloc
     }
 }
 
-void echfs_block_link(struct echfs_vfs_context* restrict context, uintptr_t block, uintptr_t next)
+void echfs_block_link(echfs_vfs_context_t* restrict context, uintptr_t block, uintptr_t next)
 {
     if(block >= context->total_blocks) {
         return;

@@ -1,7 +1,9 @@
 #include <vex/format.h>
 #include <vex/sprintf.h>
 
-struct fmtbuf {
+typedef struct fmtbuf_s fmtbuf_t;
+
+struct fmtbuf_s {
     char* data;
     size_t length;
     size_t write;
@@ -9,7 +11,7 @@ struct fmtbuf {
 
 static void vsnprintf_func(int chr, void* restrict arg)
 {
-    struct fmtbuf* ft = arg;
+    fmtbuf_t* ft = arg;
 
     if(ft->data && (ft->write < ft->length)) {
         ft->data[ft->write] = chr;
@@ -18,11 +20,11 @@ static void vsnprintf_func(int chr, void* restrict arg)
     ft->write += 1;
 }
 
-int snprintf(char* restrict str, size_t sz, const char* restrict fmt, ...)
+int snprintf(char* restrict str, size_t size, const char* restrict fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    int r = vsnprintf(str, sz, fmt, ap);
+    int r = vsnprintf(str, size, fmt, ap);
     va_end(ap);
     return r;
 }
@@ -41,11 +43,11 @@ int vsprintf(char* restrict str, const char* restrict fmt, va_list ap)
     return vsnprintf(str, SIZE_MAX, fmt, ap);
 }
 
-int vsnprintf(char* restrict str, size_t sz, const char* restrict fmt, va_list ap)
+int vsnprintf(char* restrict str, size_t size, const char* restrict fmt, va_list ap)
 {
-    struct fmtbuf ft;
+    fmtbuf_t ft;
     ft.data = str;
-    ft.length = sz;
+    ft.length = size;
     ft.write = 0;
 
     int r = vformat(&vsnprintf_func, &ft, fmt, ap);

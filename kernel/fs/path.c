@@ -10,11 +10,11 @@
 
 #define MAX_SYMLINK_DEPTH 8
 
-static int resolve_internal(struct vnode* restrict stem, const char* restrict path, unsigned flags, const struct credentials* restrict cred,
-    struct vnode** restrict out, unsigned depth);
+static int resolve_internal(vnode_t* restrict base_dir, const char* restrict path, unsigned flags,
+    const credentials_t* restrict credentials, vnode_t** restrict out, unsigned depth);
 
-static int follow_symlink(struct vnode* restrict node, struct vnode* restrict link, const char* restrict rest, unsigned flags,
-    const struct credentials* restrict cred, struct vnode** restrict out, unsigned depth)
+static int follow_symlink(vnode_t* restrict node, vnode_t* restrict link, const char* restrict rest, unsigned flags,
+    const credentials_t* restrict credentials, vnode_t** restrict out, unsigned depth)
 {
     if(depth > MAX_SYMLINK_DEPTH) {
         return -ELOOP;
@@ -40,7 +40,7 @@ static int follow_symlink(struct vnode* restrict node, struct vnode* restrict li
 
     target[length] = 0;
 
-    struct vnode* base = nullptr;
+    vnode_t* base = nullptr;
     int retval;
 
     if(target[0] == PATH_SEPARATOR) {
@@ -57,7 +57,7 @@ static int follow_symlink(struct vnode* restrict node, struct vnode* restrict li
         vnode_incref(base);
     }
 
-    struct vnode* resolved = nullptr;
+    vnode_t* resolved = nullptr;
     bool has_rest = rest && *rest;
     unsigned target_flags = flags;
 
@@ -66,10 +66,10 @@ static int follow_symlink(struct vnode* restrict node, struct vnode* restrict li
     }
 
     if(target[0] == PATH_SEPARATOR) {
-        retval = resolve_internal(base, &target[1], target_flags, cred, &resolved, depth + 1);
+        retval = resolve_internal(base, &target[1], target_flags, credentials, &resolved, depth + 1);
     }
     else {
-        retval = resolve_internal(base, target, target_flags, cred, &resolved, depth + 1);
+        retval = resolve_internal(base, target, target_flags, credentials, &resolved, depth + 1);
     }
 
     vnode_decref(base);
@@ -81,7 +81,7 @@ static int follow_symlink(struct vnode* restrict node, struct vnode* restrict li
     }
 
     if(has_rest) {
-        retval = resolve_internal(resolved, rest, flags, cred, out, depth + 1);
+        retval = resolve_internal(resolved, rest, flags, credentials, out, depth + 1);
         vnode_decref(resolved);
         return retval;
     }
@@ -91,17 +91,17 @@ static int follow_symlink(struct vnode* restrict node, struct vnode* restrict li
     return 0;
 }
 
-static int resolve_internal(struct vnode* restrict stem, const char* restrict path, unsigned flags, const struct credentials* restrict cred,
-    struct vnode** restrict out, unsigned depth)
+static int resolve_internal(vnode_t* restrict base_dir, const char* restrict path, unsigned flags,
+    const credentials_t* restrict credentials, vnode_t** restrict out, unsigned depth)
 {
     char component[NAME_SIZE];
 
-    kassert(stem);
+    kassert(base_dir);
     kassert(path);
     kassert(out);
 
     const char* chrptr = path;
-    struct vnode* current = stem;
+    vnode_t* current = base_dir;
 
     vnode_incref(current);
 
@@ -134,12 +134,12 @@ static int resolve_internal(struct vnode* restrict stem, const char* restrict pa
         component[length] = 0;
         chrptr += length;
 
-        if(current->nodetype != VNODE_DIRECTORY) {
+        if(current->type != VNODE_DIRECTORY) {
             vnode_decref(current);
             return -ENOTDIR;
         }
 
-        int retval = vnode_access(current, cred, X_OK);
+        int retval = vnode_access(current, credentials, X_OK);
 
         if(retval < 0) {
             vnode_decref(current);
@@ -151,7 +151,7 @@ static int resolve_internal(struct vnode* restrict stem, const char* restrict pa
         }
 
         if(component[0] == '.' && component[1] == '.' && component[2] == 0) {
-            struct vnode* upper;
+            vnode_t* upper;
 
             if(current->fs && current->fs->root == current) {
                 if(current->fs->mountpoint) {
@@ -178,7 +178,7 @@ static int resolve_internal(struct vnode* restrict stem, const char* restrict pa
             continue;
         }
 
-        struct vnode* next = nullptr;
+        vnode_t* next = nullptr;
         retval = vnode_lookup(current, component, &next);
 
         if(retval < 0) {
@@ -190,8 +190,8 @@ static int resolve_internal(struct vnode* restrict stem, const char* restrict pa
         // requires "link/" to resolve to the directory behind it
         bool is_last = *chrptr == 0;
 
-        if(next->nodetype == VNODE_SYM_LINK && (!is_last || 0 == (flags & PATH_NOFOLLOW))) {
-            retval = follow_symlink(current, next, chrptr, flags, cred, out, depth);
+        if(next->type == VNODE_SYM_LINK && (!is_last || 0 == (flags & PATH_NOFOLLOW))) {
+            retval = follow_symlink(current, next, chrptr, flags, credentials, out, depth);
             vnode_decref(current);
             vnode_decref(next);
             return retval;
@@ -206,35 +206,35 @@ static int resolve_internal(struct vnode* restrict stem, const char* restrict pa
     return 0;
 }
 
-int path_resolve(const char* restrict path, const struct credentials* restrict cred, struct vnode** restrict out)
+int path_resolve(const char* restrict path, const credentials_t* restrict credentials, vnode_t** restrict out)
 {
     kassert(path);
-    kassert(cred);
+    kassert(credentials);
     kassert(out);
 
     if(path[0] != PATH_SEPARATOR) {
         return -EINVAL;
     }
 
-    return path_resolve_at(nullptr, path, 0, cred, out);
+    return path_resolve_at(nullptr, path, 0, credentials, out);
 }
 
-int path_resolve_at(struct vnode* restrict stem, const char* restrict path, unsigned flags, const struct credentials* restrict cred,
-    struct vnode** restrict out)
+int path_resolve_at(vnode_t* restrict base_dir, const char* restrict path, unsigned flags, const credentials_t* restrict credentials,
+    vnode_t** restrict out)
 {
     kassert(path);
-    kassert(cred);
+    kassert(credentials);
     kassert(out);
 
     if(path[0] == 0) {
         return -ENOENT;
     }
 
-    if(stem && path[0] != PATH_SEPARATOR) {
-        return resolve_internal(stem, path, flags, cred, out, 0);
+    if(base_dir && path[0] != PATH_SEPARATOR) {
+        return resolve_internal(base_dir, path, flags, credentials, out, 0);
     }
 
-    struct vnode* root = vfs_get_root();
+    vnode_t* root = vfs_get_root();
 
     if(root == nullptr) {
         return -ENOENT;
@@ -244,18 +244,18 @@ int path_resolve_at(struct vnode* restrict stem, const char* restrict path, unsi
         path += 1;
     }
 
-    int retval = resolve_internal(root, path, flags, cred, out, 0);
+    int retval = resolve_internal(root, path, flags, credentials, out, 0);
 
     vnode_decref(root);
 
     return retval;
 }
 
-int path_resolve_parent_at(struct vnode* restrict stem, const char* restrict path, const struct credentials* restrict cred,
-    struct vnode** restrict out_parent, const char** restrict out_name)
+int path_resolve_parent_at(vnode_t* restrict base_dir, const char* restrict path, const credentials_t* restrict credentials,
+    vnode_t** restrict out_parent, const char** restrict out_name)
 {
     kassert(path);
-    kassert(cred);
+    kassert(credentials);
     kassert(out_parent);
     kassert(out_name);
 
@@ -270,10 +270,10 @@ int path_resolve_parent_at(struct vnode* restrict stem, const char* restrict pat
     int retval;
 
     if(slash == nullptr) {
-        retval = path_resolve_at(stem, ".", 0, cred, out_parent);
+        retval = path_resolve_at(base_dir, ".", 0, credentials, out_parent);
     }
     else if(slash == path) {
-        retval = path_resolve_at(nullptr, "/", 0, cred, out_parent);
+        retval = path_resolve_at(nullptr, "/", 0, credentials, out_parent);
     }
     else {
         size_t dir_length = slash - path;
@@ -292,7 +292,7 @@ int path_resolve_parent_at(struct vnode* restrict stem, const char* restrict pat
 
         dir_path[dir_length] = 0x00;
 
-        retval = path_resolve_at(stem, dir_path, 0, cred, out_parent);
+        retval = path_resolve_at(base_dir, dir_path, 0, credentials, out_parent);
 
         pslab_free_virt(dir_path);
     }
@@ -301,7 +301,7 @@ int path_resolve_parent_at(struct vnode* restrict stem, const char* restrict pat
         return retval;
     }
 
-    if(out_parent[0]->nodetype != VNODE_DIRECTORY) {
+    if(out_parent[0]->type != VNODE_DIRECTORY) {
         vnode_decref(out_parent[0]);
         return -ENOTDIR;
     }

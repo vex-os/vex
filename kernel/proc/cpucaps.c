@@ -8,10 +8,10 @@
 
 #define NAMES_SIZE 256
 
-static struct cpucaps system_caps;
+static cpucaps_t system_caps;
 static bool committed = false;
 
-static void format_names(char* restrict buffer, const struct cpucaps* restrict caps)
+static void format_names(char* restrict buffer, const cpucaps_t* restrict caps)
 {
     size_t length = 0;
 
@@ -37,11 +37,11 @@ static void format_names(char* restrict buffer, const struct cpucaps* restrict c
     }
 }
 
-static bool find_missing(const struct cpucaps* restrict caps, struct cpucaps* restrict missing)
+static bool find_missing(const cpucaps_t* restrict caps, cpucaps_t* restrict missing)
 {
     bool found = false;
 
-    memset(missing, 0, sizeof(struct cpucaps));
+    memset(missing, 0, sizeof(cpucaps_t));
 
     for(size_t i = 0; i < NUM_CPU_FEATURES; ++i) {
         if(arch_cpu_features[i].scope == CPU_SCOPE_REQUIRED && !cpucaps_has(caps, i)) {
@@ -53,7 +53,7 @@ static bool find_missing(const struct cpucaps* restrict caps, struct cpucaps* re
     return found;
 }
 
-bool cpu_has(enum cpu_feature feature)
+bool cpu_has(cpu_feature_t feature)
 {
     kassert(committed);
     kassert(arch_cpu_features[feature].scope != CPU_SCOPE_LOCAL);
@@ -61,10 +61,10 @@ bool cpu_has(enum cpu_feature feature)
     return cpucaps_has(&system_caps, feature);
 }
 
-void cpucaps_init(const struct cpucaps* restrict boot_caps)
+void cpucaps_init(const cpucaps_t* restrict boot_caps)
 {
     char names[NAMES_SIZE];
-    struct cpucaps missing;
+    cpucaps_t missing;
 
     for(size_t i = 0; i < NUM_CPU_FEATURES; ++i) {
         if(arch_cpu_features[i].name == nullptr) {
@@ -86,10 +86,10 @@ void cpucaps_init(const struct cpucaps* restrict boot_caps)
     }
 }
 
-bool cpucaps_merge(const struct cpucaps* restrict caps, unsigned short index)
+bool cpucaps_merge(const cpucaps_t* restrict caps, unsigned short index)
 {
     char names[NAMES_SIZE];
-    struct cpucaps missing;
+    cpucaps_t missing;
 
     kassert(!committed);
 
@@ -99,7 +99,7 @@ bool cpucaps_merge(const struct cpucaps* restrict caps, unsigned short index)
         return false;
     }
 
-    struct cpucaps lost;
+    cpucaps_t lost;
     bool lost_any = false;
 
     for(size_t i = 0; i < CPUCAPS_CHUNKS; ++i) {

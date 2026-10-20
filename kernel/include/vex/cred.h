@@ -4,7 +4,10 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-struct credentials {
+typedef struct credentials_s credentials_t;
+typedef struct file_caps_s file_caps_t;
+
+struct credentials_s {
     unsigned refcount;
 
     uid_t uid;
@@ -21,31 +24,31 @@ struct credentials {
     uint64_t cap_bounding;
     unsigned cap_flags;
 
-    size_t ngroups;
+    size_t num_groups;
     gid_t groups[];
 };
 
-struct file_caps {
+struct file_caps_s {
     uint64_t permitted;
     uint64_t inheritable;
     bool effective;
 };
 
-extern struct credentials sys_cred;
-extern size_t cred_ngroups_max;
+extern credentials_t kernel_credentials;
+extern size_t cred_max_groups;
 
-struct credentials* cred_copy(const struct credentials* restrict cred) __nodiscard;
-struct credentials* cred_copy_ids(const struct credentials* restrict cred, size_t ngroups) __nodiscard;
-void cred_incref(struct credentials* restrict cred);
-void cred_decref(struct credentials* restrict cred);
+credentials_t* cred_copy(const credentials_t* restrict credentials) __nodiscard;
+credentials_t* cred_copy_ids(const credentials_t* restrict credentials, size_t num_groups) __nodiscard;
+void cred_incref(credentials_t* restrict credentials);
+void cred_decref(credentials_t* restrict credentials);
 
-bool cred_capable(const struct credentials* restrict cred, unsigned cap) __nodiscard;
-int cred_setcaps(struct credentials* restrict cred, const struct k_caps* restrict caps) __nodiscard;
-int cred_exec_caps(struct credentials* restrict cred, bool privileged, const struct file_caps* restrict file) __nodiscard;
-bool cred_exec_secure(const struct credentials* restrict cred) __nodiscard;
-int cred_parse_file_caps(const void* restrict value, size_t size, struct file_caps* restrict out) __nodiscard;
-bool cred_in_group(const struct credentials* restrict cred, gid_t gid) __nodiscard;
+bool cred_capable(const credentials_t* restrict credentials, unsigned cap) __nodiscard;
+int cred_setcaps(credentials_t* restrict credentials, const caps_t* restrict caps) __nodiscard;
+int cred_exec_caps(credentials_t* restrict credentials, bool privileged, const file_caps_t* restrict file) __nodiscard;
+bool cred_exec_secure(const credentials_t* restrict credentials) __nodiscard;
+int cred_parse_file_caps(const void* restrict value, size_t size, file_caps_t* restrict out) __nodiscard;
+bool cred_in_group(const credentials_t* restrict credentials, gid_t gid) __nodiscard;
 
-int cred_setresuid(struct credentials* restrict cred, uid_t ruid, uid_t euid, uid_t suid) __nodiscard;
-int cred_setresgid(struct credentials* restrict cred, gid_t rgid, gid_t egid, gid_t sgid) __nodiscard;
-int cred_sort_groups(struct credentials* restrict cred) __nodiscard;
+int cred_setresuid(credentials_t* restrict credentials, uid_t ruid, uid_t euid, uid_t suid) __nodiscard;
+int cred_setresgid(credentials_t* restrict credentials, gid_t rgid, gid_t egid, gid_t sgid) __nodiscard;
+int cred_sort_groups(credentials_t* restrict credentials) __nodiscard;

@@ -7,12 +7,12 @@
 #include <vex/spinlock.h>
 #include <vex/types.h>
 
-struct credentials;
-struct event;
-struct sigqueue;
-struct process;
-struct hart_local;
-struct runqueue;
+typedef struct credentials_s credentials_t;
+typedef struct event_s event_t;
+typedef struct pending_signal_s pending_signal_t;
+typedef struct process_s process_t;
+typedef struct hart_local_s hart_local_t;
+typedef struct runqueue_s runqueue_t;
 
 #define THREAD_WORK_EXIT   UINT32_C(0x00000001)
 #define THREAD_WORK_SIGNAL UINT32_C(0x00000002)
@@ -24,8 +24,14 @@ enum {
     THREAD_DEAD,
 };
 
-struct thread {
-    struct thread* self;
+// The saved context lives at the very top of the kernel stack, where nothing
+// running on that stack reaches, so the thread itself stays small
+#define THREAD_CTX_RESERVE align_ceil(sizeof(hart_context_t), 16)
+
+typedef struct thread_s thread_t;
+
+struct thread_s {
+    thread_t* self;
     void* kernel_rsp;
     void* entry_scratch;
 
@@ -36,56 +42,52 @@ struct thread {
     uint16_t preempt_count; // Spinlocks held, the thread is not preempted while nonzero
     bool syscall_restart;   // The syscall being returned from was rewound to run again
 
-    spinlock_type sched_lock;
-    spinlock_type hart_lock; // Held while the thread is on a hart
-    spinlock_type yield_await;
+    spinlock_t sched_lock;
+    spinlock_t hart_lock; // Held while the thread is on a hart
+    spinlock_t yield_await;
 
-    struct hart_context* syscall_ctx;
+    hart_context_t* syscall_ctx;
 
-    struct hart_local* last_hart;  // The hart this thread runs on or last to be running on
-    struct hart_local* bound_hart; // The hart this thread MUST run on, nullptr otherwise
+    hart_local_t* last_hart;  // The hart this thread runs on or last to be running on
+    hart_local_t* bound_hart; // The hart this thread MUST run on, nullptr otherwise
 
-    struct runqueue* rq;
-    struct thread* rq_next;
-    struct thread* rq_prev;
+    runqueue_t* runqueue;
+    thread_t* runqueue_next;
+    thread_t* runqueue_prev;
 
-    struct event** events;
+    event_t** events;
     uint32_t wakeup_index;
     uint32_t num_events;
     uint32_t max_events;
     uint32_t pending_work; // loaded every return to ring-3
 
     uint64_t wake_deadline;
-    struct thread* wake_next;
+    thread_t* wake_next;
 
     uint64_t timeslice;
 
-    struct process* proc;
-    struct credentials* cred;
-    struct thread* tnext;
-    struct thread* tprev;
+    process_t* process;
+    credentials_t* credentials;
+    thread_t* process_next;
+    thread_t* process_prev;
 
     sigset_t sig_blocked;
     sigset_t sig_pending;
-    struct sigqueue* sig_queue;
+    pending_signal_t* sig_queue;
     uintptr_t sig_altstack;
     uint32_t sig_altstack_size;
     void* kstack_top;
 
-    struct arch_thread arch;
+    arch_thread_t arch;
 };
 
-static_assert((0 * sizeof(uintptr_t)) == offsetof(struct thread, self));
-static_assert((1 * sizeof(uintptr_t)) == offsetof(struct thread, kernel_rsp));
-static_assert((2 * sizeof(uintptr_t)) == offsetof(struct thread, entry_scratch));
+static_assert((0 * sizeof(uintptr_t)) == offsetof(thread_t, self));
+static_assert((1 * sizeof(uintptr_t)) == offsetof(thread_t, kernel_rsp));
+static_assert((2 * sizeof(uintptr_t)) == offsetof(thread_t, entry_scratch));
 
-// The saved context lives at the very top of the kernel stack, where nothing
-// running on that stack reaches, so the thread itself stays small
-#define THREAD_CTX_RESERVE align_ceil(sizeof(struct hart_context), 16)
+void exit_to_user(hart_context_t* restrict ctx);
 
-static __always_inline __nodiscard struct hart_context* thread_ctx(const struct thread* restrict thrd)
+static __always_inline __nodiscard hart_context_t* thread_context(const thread_t* restrict thread)
 {
-    return (struct hart_context*)((uintptr_t)(thrd->kstack_top) - THREAD_CTX_RESERVE);
+    return (hart_context_t*)((uintptr_t)(thread->kstack_top) - THREAD_CTX_RESERVE);
 }
-
-void exit_to_user(struct hart_context* restrict ctx);

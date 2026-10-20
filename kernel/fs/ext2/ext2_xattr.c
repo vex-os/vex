@@ -9,7 +9,7 @@
 
 #include "ext2.h"
 
-#define ENTRY_LEN(name_len) (size_t)((sizeof(struct ext2_xattr_entry) + (name_len) + 3) & ~(size_t)(3))
+#define ENTRY_LEN(name_len) (size_t)((sizeof(ext2_xattr_entry_t) + (name_len) + 3) & ~(size_t)(3))
 #define VALUE_LEN(size)     (size_t)(((size) + 3) & ~(size_t)(3))
 
 #define NAME_HASH_SHIFT  5
@@ -22,15 +22,18 @@ enum {
     NUM_AREAS,
 };
 
+typedef struct ext2_area_s ext2_area_t;
+typedef struct ext2_region_s ext2_region_t;
+
 // Where attributes sit on the device; values count their offsets from base
-struct ext2_area {
+struct ext2_area_s {
     uint64_t base;
     uint64_t first;
     uint64_t end;
 };
 
 // The same layout loaded into memory to change it
-struct ext2_region {
+struct ext2_region_s {
     uint8_t* base;
     uint8_t* first;
     uint8_t* end;
@@ -71,7 +74,7 @@ static uint32_t rotate_xor(uint32_t hash, unsigned shift, uint32_t value)
     return (hash << shift) ^ (hash >> (32 - shift)) ^ value;
 }
 
-static uint32_t hash_entry(const uint8_t* restrict base, const struct ext2_xattr_entry* restrict entry)
+static uint32_t hash_entry(const uint8_t* restrict base, const ext2_xattr_entry_t* restrict entry)
 {
     uint32_t hash = 0;
 
@@ -100,7 +103,7 @@ static bool is_last(const uint8_t* restrict at)
     return word == 0;
 }
 
-static int compare_entry(uint8_t index, const char* restrict name, size_t name_len, const struct ext2_xattr_entry* restrict entry)
+static int compare_entry(uint8_t index, const char* restrict name, size_t name_len, const ext2_xattr_entry_t* restrict entry)
 {
     if(index != entry->e_name_index) {
         return (int)(index) - (int)(entry->e_name_index);
@@ -113,7 +116,7 @@ static int compare_entry(uint8_t index, const char* restrict name, size_t name_l
     return memcmp(name, entry->e_name, name_len);
 }
 
-static int region_check(const struct ext2_region* restrict region, uint8_t** restrict out_last, size_t* restrict out_lowest)
+static int region_check(const ext2_region_t* restrict region, uint8_t** restrict out_last, size_t* restrict out_lowest)
 {
     size_t lowest = region->end - region->base;
     uint8_t* at = region->first;
@@ -127,9 +130,9 @@ static int region_check(const struct ext2_region* restrict region, uint8_t** res
             break;
         }
 
-        const struct ext2_xattr_entry* entry = (const struct ext2_xattr_entry*)(at);
+        const ext2_xattr_entry_t* entry = (const ext2_xattr_entry_t*)(at);
 
-        if(at + sizeof(struct ext2_xattr_entry) > region->end || at + ENTRY_LEN(entry->e_name_len) > region->end || entry->e_value_block) {
+        if(at + sizeof(ext2_xattr_entry_t) > region->end || at + ENTRY_LEN(entry->e_name_len) > region->end || entry->e_value_block) {
             return -EIO;
         }
 
@@ -157,12 +160,12 @@ static int region_check(const struct ext2_region* restrict region, uint8_t** res
     return 0;
 }
 
-static struct ext2_xattr_entry* region_find(const struct ext2_region* restrict region, uint8_t index, const char* restrict name)
+static ext2_xattr_entry_t* region_find(const ext2_region_t* restrict region, uint8_t index, const char* restrict name)
 {
     size_t name_len = strlen(name);
 
     for(uint8_t* at = region->first; !is_last(at);) {
-        struct ext2_xattr_entry* entry = (struct ext2_xattr_entry*)(at);
+        ext2_xattr_entry_t* entry = (ext2_xattr_entry_t*)(at);
 
         if(0 == compare_entry(index, name, name_len, entry)) {
             return entry;
@@ -174,15 +177,14 @@ static struct ext2_xattr_entry* region_find(const struct ext2_region* restrict r
     return nullptr;
 }
 
-static void region_remove(const struct ext2_region* restrict region, struct ext2_xattr_entry* restrict removed, uint8_t* restrict last,
-    size_t lowest)
+static void region_remove(const ext2_region_t* restrict region, ext2_xattr_entry_t* restrict removed, uint8_t* restrict last, size_t lowest)
 {
     size_t value_len = VALUE_LEN(le32toh(removed->e_value_size));
     size_t value_offset = le16toh(removed->e_value_offs);
 
     if(value_len) {
         for(uint8_t* at = region->first; at < last;) {
-            struct ext2_xattr_entry* entry = (struct ext2_xattr_entry*)(at);
+            ext2_xattr_entry_t* entry = (ext2_xattr_entry_t*)(at);
             size_t offset = le16toh(entry->e_value_offs);
 
             if(entry != removed && entry->e_value_size && offset < value_offset) {
@@ -203,7 +205,7 @@ static void region_remove(const struct ext2_region* restrict region, struct ext2
     memset(last + sizeof(uint32_t) - entry_len, 0, entry_len);
 }
 
-static int region_insert(const struct ext2_region* restrict region, uint8_t index, const char* restrict name, const void* restrict value,
+static int region_insert(const ext2_region_t* restrict region, uint8_t index, const char* restrict name, const void* restrict value,
     size_t size)
 {
     uint8_t* last;
@@ -225,7 +227,7 @@ static int region_insert(const struct ext2_region* restrict region, uint8_t inde
     uint8_t* at = region->first;
 
     while(at < last) {
-        const struct ext2_xattr_entry* entry = (const struct ext2_xattr_entry*)(at);
+        const ext2_xattr_entry_t* entry = (const ext2_xattr_entry_t*)(at);
 
         if(compare_entry(index, name, name_len, entry) < 0) {
             break;
@@ -237,7 +239,7 @@ static int region_insert(const struct ext2_region* restrict region, uint8_t inde
     memmove(at + entry_len, at, last + sizeof(uint32_t) - at);
     memset(at, 0, entry_len);
 
-    struct ext2_xattr_entry* entry = (struct ext2_xattr_entry*)(at);
+    ext2_xattr_entry_t* entry = (ext2_xattr_entry_t*)(at);
 
     entry->e_name_len = (uint8_t)(name_len);
     entry->e_name_index = index;
@@ -257,13 +259,13 @@ static int region_insert(const struct ext2_region* restrict region, uint8_t inde
     return 0;
 }
 
-static void rehash_block(const struct ext2_region* restrict region)
+static void rehash_block(const ext2_region_t* restrict region)
 {
-    struct ext2_xattr_header* header = (struct ext2_xattr_header*)(region->base);
+    ext2_xattr_header_t* header = (ext2_xattr_header_t*)(region->base);
     uint32_t hash = 0;
 
     for(uint8_t* at = region->first; !is_last(at);) {
-        const struct ext2_xattr_entry* entry = (const struct ext2_xattr_entry*)(at);
+        const ext2_xattr_entry_t* entry = (const ext2_xattr_entry_t*)(at);
 
         if(entry->e_hash == 0) {
             hash = 0;
@@ -277,7 +279,7 @@ static void rehash_block(const struct ext2_region* restrict region)
     header->h_hash = htole32(hash);
 }
 
-static int ibody_area(struct ext2_vfs_context* restrict fs_ctx, uint32_t ino, struct ext2_area* restrict out)
+static int ibody_area(ext2_vfs_context_t* restrict fs_ctx, uint32_t ino, ext2_area_t* restrict out)
 {
     if(fs_ctx->inode_size <= EXT2_GOOD_OLD_INODE_SIZE) {
         return -ENODATA;
@@ -291,7 +293,7 @@ static int ibody_area(struct ext2_vfs_context* restrict fs_ctx, uint32_t ino, st
     }
 
     uint16_t extra_isize;
-    retval = fcache_dev_read(fs_ctx->devnode, offset + EXT2_GOOD_OLD_INODE_SIZE, &extra_isize, sizeof(extra_isize));
+    retval = fcache_dev_read(fs_ctx->device_node, offset + EXT2_GOOD_OLD_INODE_SIZE, &extra_isize, sizeof(extra_isize));
 
     if(retval < 0) {
         return retval;
@@ -304,7 +306,7 @@ static int ibody_area(struct ext2_vfs_context* restrict fs_ctx, uint32_t ino, st
     }
 
     uint32_t magic;
-    retval = fcache_dev_read(fs_ctx->devnode, offset + start, &magic, sizeof(magic));
+    retval = fcache_dev_read(fs_ctx->device_node, offset + start, &magic, sizeof(magic));
 
     if(retval < 0) {
         return retval;
@@ -321,7 +323,7 @@ static int ibody_area(struct ext2_vfs_context* restrict fs_ctx, uint32_t ino, st
     return 0;
 }
 
-static int block_area(struct ext2_vfs_context* restrict fs_ctx, uint32_t block, struct ext2_area* restrict out)
+static int block_area(ext2_vfs_context_t* restrict fs_ctx, uint32_t block, ext2_area_t* restrict out)
 {
     if(block == 0) {
         return -ENODATA;
@@ -331,16 +333,16 @@ static int block_area(struct ext2_vfs_context* restrict fs_ctx, uint32_t block, 
         return -EIO;
     }
 
-    struct ext2_xattr_header header;
+    ext2_xattr_header_t header;
     uint64_t offset = ext2_block_offset(fs_ctx, block);
-    int retval = fcache_dev_read(fs_ctx->devnode, offset, &header, sizeof(header));
+    int retval = fcache_dev_read(fs_ctx->device_node, offset, &header, sizeof(header));
 
     if(retval < 0) {
         return retval;
     }
 
     if(le32toh(header.h_magic) != EXT2_XATTR_MAGIC || le32toh(header.h_blocks) != 1) {
-        pr_warning("ext2: %s: xattr block %u is broken", fs_ctx->device->identifier, block);
+        pr_warning("ext2: %s: xattr block %u is broken", fs_ctx->device->name, block);
         return -EIO;
     }
 
@@ -351,20 +353,20 @@ static int block_area(struct ext2_vfs_context* restrict fs_ctx, uint32_t block, 
     return 0;
 }
 
-static int node_area(struct vnode* restrict node, unsigned which, struct ext2_area* restrict out)
+static int node_area(vnode_t* restrict node, unsigned which, ext2_area_t* restrict out)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
 
     if(which == AREA_IBODY) {
-        return ibody_area(ctx->fs_ctx, (uint32_t)(node->nodenumber), out);
+        return ibody_area(ctx->fs_ctx, (uint32_t)(node->ino), out);
     }
 
     return block_area(ctx->fs_ctx, le32toh(ctx->inode.i_file_acl), out);
 }
 
 // Leaves the name NUL-terminated; returns zero past the last entry
-static int area_entry(struct ext2_vfs_context* restrict fs_ctx, const struct ext2_area* restrict area, uint64_t at,
-    struct ext2_xattr_entry* restrict entry, char* restrict name)
+static int area_entry(ext2_vfs_context_t* restrict fs_ctx, const ext2_area_t* restrict area, uint64_t at,
+    ext2_xattr_entry_t* restrict entry, char* restrict name)
 {
     uint32_t word;
 
@@ -372,7 +374,7 @@ static int area_entry(struct ext2_vfs_context* restrict fs_ctx, const struct ext
         return -EIO;
     }
 
-    int retval = fcache_dev_read(fs_ctx->devnode, at, &word, sizeof(word));
+    int retval = fcache_dev_read(fs_ctx->device_node, at, &word, sizeof(word));
 
     if(retval < 0) {
         return retval;
@@ -382,11 +384,11 @@ static int area_entry(struct ext2_vfs_context* restrict fs_ctx, const struct ext
         return 0;
     }
 
-    if(at + sizeof(struct ext2_xattr_entry) > area->end) {
+    if(at + sizeof(ext2_xattr_entry_t) > area->end) {
         return -EIO;
     }
 
-    retval = fcache_dev_read(fs_ctx->devnode, at, entry, sizeof(struct ext2_xattr_entry));
+    retval = fcache_dev_read(fs_ctx->device_node, at, entry, sizeof(ext2_xattr_entry_t));
 
     if(retval < 0) {
         return retval;
@@ -402,7 +404,7 @@ static int area_entry(struct ext2_vfs_context* restrict fs_ctx, const struct ext
         return -EIO;
     }
 
-    retval = fcache_dev_read(fs_ctx->devnode, at + sizeof(struct ext2_xattr_entry), name, entry->e_name_len);
+    retval = fcache_dev_read(fs_ctx->device_node, at + sizeof(ext2_xattr_entry_t), name, entry->e_name_len);
 
     if(retval < 0) {
         return retval;
@@ -413,13 +415,13 @@ static int area_entry(struct ext2_vfs_context* restrict fs_ctx, const struct ext
     return 1;
 }
 
-static int find_entry(struct vnode* restrict node, uint8_t index, const char* restrict name, unsigned* restrict out_which,
-    struct ext2_area* restrict out_area, struct ext2_xattr_entry* restrict out_entry)
+static int find_entry(vnode_t* restrict node, uint8_t index, const char* restrict name, unsigned* restrict out_which,
+    ext2_area_t* restrict out_area, ext2_xattr_entry_t* restrict out_entry)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
 
     for(unsigned which = 0; which < NUM_AREAS; which += 1) {
-        struct ext2_area area;
+        ext2_area_t area;
         int retval = node_area(node, which, &area);
 
         if(retval == -ENODATA) {
@@ -455,20 +457,20 @@ static int find_entry(struct vnode* restrict node, uint8_t index, const char* re
 }
 
 // The goal is the start of the inode's group, close to the inode table
-static uint32_t take_xattr_block(struct vnode* restrict node, uint32_t goal)
+static uint32_t take_xattr_block(vnode_t* restrict node, uint32_t goal)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
 
     if(goal == 0) {
-        uint32_t group = ((uint32_t)(node->nodenumber) - 1) / fs_ctx->inodes_per_group;
+        uint32_t group = ((uint32_t)(node->ino) - 1) / fs_ctx->inodes_per_group;
         goal = fs_ctx->first_data_block + group * fs_ctx->blocks_per_group;
     }
 
     return ext2_block_alloc(fs_ctx, goal);
 }
 
-static int enable_ext_attr(struct ext2_vfs_context* restrict fs_ctx)
+static int enable_ext_attr(ext2_vfs_context_t* restrict fs_ctx)
 {
     uint32_t compat = le32toh(fs_ctx->super.s_feature_compat);
 
@@ -482,14 +484,14 @@ static int enable_ext_attr(struct ext2_vfs_context* restrict fs_ctx)
 }
 
 // An emptied block goes away, and a block shared with other inodes is copied before it changes
-static int store_block(struct vnode* restrict node, uint8_t* restrict buffer, uint32_t block, uint32_t refcount)
+static int store_block(vnode_t* restrict node, uint8_t* restrict buffer, uint32_t block, uint32_t refcount)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
-    struct ext2_inode* inode = &ctx->inode;
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
+    ext2_inode_t* inode = &ctx->inode;
     uint32_t sectors = fs_ctx->block_size / 512;
 
-    if(is_last(buffer + sizeof(struct ext2_xattr_header))) {
+    if(is_last(buffer + sizeof(ext2_xattr_header_t))) {
         if(block) {
             ext2_xattr_release(fs_ctx, block);
             inode->i_file_acl = 0;
@@ -500,7 +502,7 @@ static int store_block(struct vnode* restrict node, uint8_t* restrict buffer, ui
     }
 
     if(block && refcount == 1) {
-        return fcache_dev_write(fs_ctx->devnode, ext2_block_offset(fs_ctx, block), buffer, fs_ctx->block_size);
+        return fcache_dev_write(fs_ctx->device_node, ext2_block_offset(fs_ctx, block), buffer, fs_ctx->block_size);
     }
 
     uint32_t taken = take_xattr_block(node, block);
@@ -509,10 +511,10 @@ static int store_block(struct vnode* restrict node, uint8_t* restrict buffer, ui
         return -ENOSPC;
     }
 
-    struct ext2_xattr_header* header = (struct ext2_xattr_header*)(buffer);
+    ext2_xattr_header_t* header = (ext2_xattr_header_t*)(buffer);
     header->h_refcount = htole32(1);
 
-    int retval = fcache_dev_write(fs_ctx->devnode, ext2_block_offset(fs_ctx, taken), buffer, fs_ctx->block_size);
+    int retval = fcache_dev_write(fs_ctx->device_node, ext2_block_offset(fs_ctx, taken), buffer, fs_ctx->block_size);
 
     if(retval == 0) {
         retval = enable_ext_attr(fs_ctx);
@@ -535,11 +537,11 @@ static int store_block(struct vnode* restrict node, uint8_t* restrict buffer, ui
     return 0;
 }
 
-static int change_block(struct vnode* restrict node, uint8_t index, const char* restrict name, const void* restrict value, size_t size,
+static int change_block(vnode_t* restrict node, uint8_t index, const char* restrict name, const void* restrict value, size_t size,
     bool remove)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
     uint32_t block = le32toh(ctx->inode.i_file_acl);
     uint8_t* buffer = kmalloc(fs_ctx->block_size);
 
@@ -547,21 +549,21 @@ static int change_block(struct vnode* restrict node, uint8_t index, const char* 
         return -ENOMEM;
     }
 
-    struct ext2_region region;
+    ext2_region_t region;
     region.base = buffer;
-    region.first = buffer + sizeof(struct ext2_xattr_header);
+    region.first = buffer + sizeof(ext2_xattr_header_t);
     region.end = buffer + fs_ctx->block_size;
 
-    struct ext2_xattr_header* header = (struct ext2_xattr_header*)(buffer);
+    ext2_xattr_header_t* header = (ext2_xattr_header_t*)(buffer);
     uint32_t refcount = 0;
     int retval = 0;
 
     if(block) {
-        struct ext2_area area;
+        ext2_area_t area;
         retval = block_area(fs_ctx, block, &area);
 
         if(retval == 0) {
-            retval = fcache_dev_read(fs_ctx->devnode, area.base, buffer, fs_ctx->block_size);
+            retval = fcache_dev_read(fs_ctx->device_node, area.base, buffer, fs_ctx->block_size);
         }
 
         refcount = le32toh(header->h_refcount);
@@ -580,7 +582,7 @@ static int change_block(struct vnode* restrict node, uint8_t index, const char* 
     }
 
     if(retval == 0) {
-        struct ext2_xattr_entry* old = region_find(&region, index, name);
+        ext2_xattr_entry_t* old = region_find(&region, index, name);
 
         if(old) {
             region_remove(&region, old, last, lowest);
@@ -601,12 +603,12 @@ static int change_block(struct vnode* restrict node, uint8_t index, const char* 
     return retval;
 }
 
-static int remove_from_ibody(struct vnode* restrict node, uint8_t index, const char* restrict name)
+static int remove_from_ibody(vnode_t* restrict node, uint8_t index, const char* restrict name)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
-    struct ext2_area area;
-    int retval = ibody_area(fs_ctx, (uint32_t)(node->nodenumber), &area);
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
+    ext2_area_t area;
+    int retval = ibody_area(fs_ctx, (uint32_t)(node->ino), &area);
 
     if(retval < 0) {
         return retval;
@@ -619,12 +621,12 @@ static int remove_from_ibody(struct vnode* restrict node, uint8_t index, const c
         return -ENOMEM;
     }
 
-    struct ext2_region region;
+    ext2_region_t region;
     region.base = buffer;
     region.first = buffer;
     region.end = buffer + length;
 
-    retval = fcache_dev_read(fs_ctx->devnode, area.first, buffer, length);
+    retval = fcache_dev_read(fs_ctx->device_node, area.first, buffer, length);
 
     uint8_t* last;
     size_t lowest;
@@ -634,11 +636,11 @@ static int remove_from_ibody(struct vnode* restrict node, uint8_t index, const c
     }
 
     if(retval == 0) {
-        struct ext2_xattr_entry* old = region_find(&region, index, name);
+        ext2_xattr_entry_t* old = region_find(&region, index, name);
 
         if(old) {
             region_remove(&region, old, last, lowest);
-            retval = fcache_dev_write(fs_ctx->devnode, area.first, buffer, length);
+            retval = fcache_dev_write(fs_ctx->device_node, area.first, buffer, length);
         }
     }
 
@@ -647,9 +649,9 @@ static int remove_from_ibody(struct vnode* restrict node, uint8_t index, const c
     return retval;
 }
 
-ssize_t ext2_xattr_get(struct vnode* restrict node, unsigned space, const char* restrict name, void* restrict value, size_t size)
+ssize_t ext2_xattr_get(vnode_t* restrict node, unsigned space, const char* restrict name, void* restrict value, size_t size)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
     uint8_t index;
 
     if(!index_of(space, &index)) {
@@ -657,8 +659,8 @@ ssize_t ext2_xattr_get(struct vnode* restrict node, unsigned space, const char* 
     }
 
     unsigned which;
-    struct ext2_area area;
-    struct ext2_xattr_entry entry;
+    ext2_area_t area;
+    ext2_xattr_entry_t entry;
     int retval = find_entry(node, index, name, &which, &area, &entry);
 
     if(retval < 0) {
@@ -676,7 +678,7 @@ ssize_t ext2_xattr_get(struct vnode* restrict node, unsigned space, const char* 
     }
 
     if(length) {
-        retval = fcache_dev_read(ctx->fs_ctx->devnode, area.base + le16toh(entry.e_value_offs), value, length);
+        retval = fcache_dev_read(ctx->fs_ctx->device_node, area.base + le16toh(entry.e_value_offs), value, length);
     }
 
     if(retval < 0) {
@@ -686,13 +688,13 @@ ssize_t ext2_xattr_get(struct vnode* restrict node, unsigned space, const char* 
     return length;
 }
 
-int ext2_xattr_iterate(struct vnode* restrict node, struct xattr_entry* restrict out, size_t index)
+int ext2_xattr_iterate(vnode_t* restrict node, xattr_entry_t* restrict out, size_t index)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
     size_t visible = 0;
 
     for(unsigned which = 0; which < NUM_AREAS; which += 1) {
-        struct ext2_area area;
+        ext2_area_t area;
         int retval = node_area(node, which, &area);
 
         if(retval == -ENODATA) {
@@ -703,7 +705,7 @@ int ext2_xattr_iterate(struct vnode* restrict node, struct xattr_entry* restrict
             return retval;
         }
 
-        struct ext2_xattr_entry entry;
+        ext2_xattr_entry_t entry;
 
         for(uint64_t at = area.first;; at += ENTRY_LEN(entry.e_name_len)) {
             retval = area_entry(ctx->fs_ctx, &area, at, &entry, out->name);
@@ -731,10 +733,10 @@ int ext2_xattr_iterate(struct vnode* restrict node, struct xattr_entry* restrict
     return -ENOENT;
 }
 
-int ext2_xattr_set(struct vnode* restrict node, unsigned space, const char* restrict name, const void* restrict value, size_t size,
+int ext2_xattr_set(vnode_t* restrict node, unsigned space, const char* restrict name, const void* restrict value, size_t size,
     unsigned flags)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
     uint8_t index;
 
     if(!index_of(space, &index)) {
@@ -742,8 +744,8 @@ int ext2_xattr_set(struct vnode* restrict node, unsigned space, const char* rest
     }
 
     unsigned which;
-    struct ext2_area area;
-    struct ext2_xattr_entry entry;
+    ext2_area_t area;
+    ext2_xattr_entry_t entry;
     int found = find_entry(node, index, name, &which, &area, &entry);
 
     if(found < 0 && found != -ENODATA) {
@@ -765,15 +767,15 @@ int ext2_xattr_set(struct vnode* restrict node, unsigned space, const char* rest
     }
 
     if(retval == 0) {
-        retval = ext2_inode_write(ctx->fs_ctx, (uint32_t)(node->nodenumber), &ctx->inode);
+        retval = ext2_inode_write(ctx->fs_ctx, (uint32_t)(node->ino), &ctx->inode);
     }
 
     return retval;
 }
 
-int ext2_xattr_remove(struct vnode* restrict node, unsigned space, const char* restrict name)
+int ext2_xattr_remove(vnode_t* restrict node, unsigned space, const char* restrict name)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
+    ext2_vnode_context_t* ctx = node->ctxdata;
     uint8_t index;
 
     if(!index_of(space, &index)) {
@@ -781,8 +783,8 @@ int ext2_xattr_remove(struct vnode* restrict node, unsigned space, const char* r
     }
 
     unsigned which;
-    struct ext2_area area;
-    struct ext2_xattr_entry entry;
+    ext2_area_t area;
+    ext2_xattr_entry_t entry;
     int retval = find_entry(node, index, name, &which, &area, &entry);
 
     if(retval == 0 && which == AREA_IBODY) {
@@ -793,24 +795,24 @@ int ext2_xattr_remove(struct vnode* restrict node, unsigned space, const char* r
     }
 
     if(retval == 0) {
-        retval = ext2_inode_write(ctx->fs_ctx, (uint32_t)(node->nodenumber), &ctx->inode);
+        retval = ext2_inode_write(ctx->fs_ctx, (uint32_t)(node->ino), &ctx->inode);
     }
 
     return retval;
 }
 
-void ext2_xattr_release(struct ext2_vfs_context* restrict context, uint32_t block)
+void ext2_xattr_release(ext2_vfs_context_t* restrict context, uint32_t block)
 {
-    const char* name = context->device->identifier;
+    const char* name = context->device->name;
 
     if(block < context->first_data_block || block >= le32toh(context->super.s_blocks_count)) {
         pr_warning("ext2: %s: xattr block %u is outside the filesystem", name, block);
         return;
     }
 
-    struct ext2_xattr_header header;
+    ext2_xattr_header_t header;
     uint64_t offset = ext2_block_offset(context, block);
-    int retval = fcache_dev_read(context->devnode, offset, &header, sizeof(header));
+    int retval = fcache_dev_read(context->device_node, offset, &header, sizeof(header));
 
     if(retval == 0 && le32toh(header.h_magic) != EXT2_XATTR_MAGIC) {
         retval = -EIO;
@@ -826,13 +828,13 @@ void ext2_xattr_release(struct ext2_vfs_context* restrict context, uint32_t bloc
     if(refcount > 1) {
         header.h_refcount = htole32(refcount - 1);
 
-        if(fcache_dev_write(context->devnode, offset, &header, sizeof(header)) < 0) {
+        if(fcache_dev_write(context->device_node, offset, &header, sizeof(header)) < 0) {
             pr_warning("ext2: %s: failed to drop a reference to xattr block %u", name, block);
         }
 
         return;
     }
 
-    fcache_forget(context->devnode, offset, context->block_size);
+    fcache_forget(context->device_node, offset, context->block_size);
     ext2_block_free(context, block);
 }

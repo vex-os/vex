@@ -23,18 +23,20 @@
 #define PREDEF_CODE_FLAGS (GDT_READWRITE | GDT_NONSYSTEM | GDT_EXECUTABLE)
 #define PREDEF_DATA_FLAGS (GDT_READWRITE | GDT_NONSYSTEM)
 
-struct gdt_register {
+typedef struct gdt_register_s gdt_register_t;
+
+struct gdt_register_s {
     uint16_t size;
     uint64_t offset;
 } __packed;
 
 // Carries the boot hart until the heap is up and its own GDT
 // can be set up; exceptions before that still need IST stacks
-static struct amd64_gdt boot_gdt;
-static struct amd64_hart_tss boot_tss;
+static amd64_gdt_t boot_gdt;
+static amd64_hart_tss_t boot_tss;
 static uint8_t boot_ist_stacks[3][KSTACK_SIZE] __aligned(16);
 
-static void write_entry_16(struct amd64_gdt_descriptor* restrict entry, uint32_t base, uint16_t limit, uint8_t flags)
+static void write_entry_16(amd64_gdt_descriptor_t* restrict entry, uint32_t base, uint16_t limit, uint8_t flags)
 {
     entry->limit_0 = limit;
     entry->base_0 = base & 0xFFFF;
@@ -43,7 +45,7 @@ static void write_entry_16(struct amd64_gdt_descriptor* restrict entry, uint32_t
     entry->flags_0 = flags | GDT_PRESENT;
 }
 
-static void write_entry_32(struct amd64_gdt_descriptor* restrict entry, uint32_t base, uint32_t limit, uint8_t flags)
+static void write_entry_32(amd64_gdt_descriptor_t* restrict entry, uint32_t base, uint32_t limit, uint8_t flags)
 {
     entry->limit_0 = limit & 0xFFFF;
     entry->limit_1 = (limit >> 16) & 0x0F;
@@ -54,15 +56,15 @@ static void write_entry_32(struct amd64_gdt_descriptor* restrict entry, uint32_t
     entry->flags_1 = GDT_4KIB_UNITS | GDT_32BIT;
 }
 
-static void write_entry_64(struct amd64_gdt_descriptor* restrict entry, uint8_t flags)
+static void write_entry_64(amd64_gdt_descriptor_t* restrict entry, uint8_t flags)
 {
     entry->flags_0 = flags | GDT_PRESENT;
     entry->flags_1 = GDT_64BIT;
 }
 
-static void write_gdt(struct amd64_gdt* restrict gdt, const struct amd64_hart_tss* restrict tss)
+static void write_gdt(amd64_gdt_t* restrict gdt, const amd64_hart_tss_t* restrict tss)
 {
-    memset(gdt, 0, sizeof(struct amd64_gdt));
+    memset(gdt, 0, sizeof(amd64_gdt_t));
 
     write_entry_16(&gdt->kern_code_16, 0x00000000, 0xFFFF, PREDEF_CODE_FLAGS | GDT_RING_0);
     write_entry_16(&gdt->kern_data_16, 0x00000000, 0xFFFF, PREDEF_DATA_FLAGS | GDT_RING_0);
@@ -75,7 +77,7 @@ static void write_gdt(struct amd64_gdt* restrict gdt, const struct amd64_hart_ts
 
     uintptr_t tss_base = (uintptr_t)(tss);
 
-    gdt->tss.limit_0 = sizeof(struct amd64_hart_tss) - 1;
+    gdt->tss.limit_0 = sizeof(amd64_hart_tss_t) - 1;
     gdt->tss.base_0 = (tss_base & 0xFFFF);
     gdt->tss.base_1 = (tss_base >> 16) & 0xFF;
     gdt->tss.base_2 = (tss_base >> 24) & 0xFF;
@@ -83,10 +85,10 @@ static void write_gdt(struct amd64_gdt* restrict gdt, const struct amd64_hart_ts
     gdt->tss.flags = 0x89; // Present, available 64-bit TSS
 }
 
-static void load_gdt(const struct amd64_gdt* restrict gdt)
+static void load_gdt(const amd64_gdt_t* restrict gdt)
 {
-    struct gdt_register gdtr;
-    gdtr.size = sizeof(struct amd64_gdt) - 1;
+    gdt_register_t gdtr;
+    gdtr.size = sizeof(amd64_gdt_t) - 1;
     gdtr.offset = (uintptr_t)(gdt);
 
     asm volatile("lgdtq %[gdtr]\n\t"
@@ -105,19 +107,6 @@ static void load_gdt(const struct amd64_gdt* restrict gdt)
         : "rax", "memory");
 }
 
-static void arch_init_gdt_bsp(void)
-{
-    boot_tss.iopb = sizeof(struct amd64_hart_tss); // No I/O permission bitmap, ring 3 port access faults
-    boot_tss.ist_1 = (uintptr_t)(&boot_ist_stacks[0][KSTACK_SIZE]); // IDT_IST_DOUBLE_FAULT
-    boot_tss.ist_2 = (uintptr_t)(&boot_ist_stacks[1][KSTACK_SIZE]); // IDT_IST_NMI
-    boot_tss.ist_3 = (uintptr_t)(&boot_ist_stacks[2][KSTACK_SIZE]); // IDT_IST_MACHINE_CHECK
-
-    write_gdt(&boot_gdt, &boot_tss);
-    load_gdt(&boot_gdt);
-}
-
-initcall_bsp_arch(arch_init_gdt_bsp, INIT_EARLY);
-
 static uint64_t alloc_ist_stack(void)
 {
     void* top = kstack_alloc();
@@ -129,12 +118,25 @@ static uint64_t alloc_ist_stack(void)
     return (uintptr_t)(top);
 }
 
+static void arch_init_gdt_bsp(void)
+{
+    boot_tss.iopb = sizeof(amd64_hart_tss_t);                       // No I/O permission bitmap, ring 3 port access faults
+    boot_tss.ist_1 = (uintptr_t)(&boot_ist_stacks[0][KSTACK_SIZE]); // IDT_IST_DOUBLE_FAULT
+    boot_tss.ist_2 = (uintptr_t)(&boot_ist_stacks[1][KSTACK_SIZE]); // IDT_IST_NMI
+    boot_tss.ist_3 = (uintptr_t)(&boot_ist_stacks[2][KSTACK_SIZE]); // IDT_IST_MACHINE_CHECK
+
+    write_gdt(&boot_gdt, &boot_tss);
+    load_gdt(&boot_gdt);
+}
+
+initcall_bsp_arch(arch_init_gdt_bsp, INIT_EARLY);
+
 static void arch_init_gdt_smp(void)
 {
-    struct hart_local* hart = this_hart();
+    hart_local_t* hart = this_hart();
 
-    memset(&hart->arch.tss, 0, sizeof(struct amd64_hart_tss));
-    hart->arch.tss.iopb = sizeof(struct amd64_hart_tss); // No I/O permission bitmap, ring 3 port access faults
+    memset(&hart->arch.tss, 0, sizeof(amd64_hart_tss_t));
+    hart->arch.tss.iopb = sizeof(amd64_hart_tss_t); // No I/O permission bitmap, ring 3 port access faults
 
     hart->arch.tss.ist_1 = alloc_ist_stack(); // IDT_IST_DOUBLE_FAULT
     hart->arch.tss.ist_2 = alloc_ist_stack(); // IDT_IST_NMI

@@ -4,6 +4,10 @@
 #include <vex/compiler.h>
 #include <vex/spinlock.h>
 
+typedef struct hart_context_s hart_context_t;
+typedef struct process_s process_t;
+typedef struct thread_s thread_t;
+
 #define SIGHUP    __k_SIGHUP
 #define SIGINT    __k_SIGINT
 #define SIGQUIT   __k_SIGQUIT
@@ -86,53 +90,52 @@
 #define CLD_STOPPED   __k_CLD_STOPPED
 #define CLD_CONTINUED __k_CLD_CONTINUED
 
-#define k_sigaction __k_sigaction
-#define k_siginfo   __k_siginfo
-#define k_stack     __k_stack
-#define k_ucontext  __k_ucontext
-
 #define SS_ONSTACK __k_SS_ONSTACK
 #define SS_DISABLE __k_SS_DISABLE
 #define UC_FPU     __k_UC_FPU
 
+typedef struct signal_actions_s signal_actions_t;
+typedef struct pending_signal_s pending_signal_t;
+
+typedef struct __k_sigaction sigaction_t;
+typedef struct __k_siginfo siginfo_t;
+typedef struct __k_stack stack_t;
+typedef struct __k_ucontext ucontext_t;
+
 typedef __k_sigset_t sigset_t;
 typedef __k_sighandler_t sighandler_t;
+
+struct signal_actions_s {
+    spinlock_t lock;
+    sigaction_t actions[NSIG];
+};
+
+struct pending_signal_s {
+    pending_signal_t* next;
+    siginfo_t info;
+};
+
+signal_actions_t* signal_actions_create(signal_actions_t* restrict parent) __nodiscard;
+void signal_actions_destroy(signal_actions_t* restrict signal_actions);
+void signal_actions_exec(signal_actions_t* restrict signal_actions);
+
+int signal_send(process_t* restrict process, thread_t* restrict target, const siginfo_t* restrict info);
+void signal_send_node(process_t* restrict process, pending_signal_t* restrict node);
+void signal_force(thread_t* restrict thread, const siginfo_t* restrict info);
+void signal_deliver(hart_context_t* restrict ctx);
+void signal_action(process_t* restrict process, int sig, const sigaction_t* restrict act, sigaction_t* restrict old_action);
+sigset_t signal_mask(thread_t* restrict thread, int how, sigset_t set);
+sigset_t signal_pending(thread_t* restrict thread);
+void signal_flush(pending_signal_t* restrict queue);
+bool signal_on_altstack(const thread_t* restrict thread, uintptr_t sp) __nodiscard;
+void signal_altstack_get(const thread_t* restrict thread, uintptr_t sp, stack_t* restrict out);
+
+int arch_signal_setup(thread_t* restrict thread, hart_context_t* restrict ctx, const sigaction_t* restrict action,
+    const siginfo_t* restrict info, sigset_t old_mask);
+int arch_signal_return(thread_t* restrict thread, hart_context_t* restrict ctx, sigset_t* restrict mask);
+void arch_syscall_interrupted(hart_context_t* restrict ctx);
 
 static __always_inline __nodiscard sigset_t sigbit(int sig)
 {
     return (sigset_t)(1) << (sig - 1);
 }
-
-struct sighand {
-    spinlock_type lock;
-    struct k_sigaction actions[NSIG];
-};
-
-struct sigqueue {
-    struct sigqueue* next;
-    struct k_siginfo info;
-};
-
-struct hart_context;
-struct process;
-struct thread;
-
-struct sighand* sighand_create(struct sighand* restrict parent) __nodiscard;
-void sighand_destroy(struct sighand* restrict sighand);
-void sighand_exec(struct sighand* restrict sighand);
-
-int signal_send(struct process* restrict proc, struct thread* restrict target, const struct k_siginfo* restrict info);
-void signal_send_node(struct process* restrict proc, struct sigqueue* restrict node);
-void signal_force(struct thread* restrict thrd, const struct k_siginfo* restrict info);
-void signal_deliver(struct hart_context* restrict ctx);
-void signal_action(struct process* restrict proc, int sig, const struct k_sigaction* restrict act, struct k_sigaction* restrict oact);
-sigset_t signal_mask(struct thread* restrict thrd, int how, sigset_t set);
-sigset_t signal_pending(struct thread* restrict thrd);
-void signal_flush(struct sigqueue* restrict queue);
-bool signal_on_altstack(const struct thread* restrict thrd, uintptr_t sp) __nodiscard;
-void signal_altstack_get(const struct thread* restrict thrd, uintptr_t sp, struct k_stack* restrict out);
-
-int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restrict ctx, const struct k_sigaction* restrict action,
-    const struct k_siginfo* restrict info, sigset_t old_mask);
-int arch_signal_return(struct thread* restrict thrd, struct hart_context* restrict ctx, sigset_t* restrict mask);
-void arch_syscall_interrupted(struct hart_context* restrict ctx);

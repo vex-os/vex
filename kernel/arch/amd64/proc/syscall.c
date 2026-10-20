@@ -12,26 +12,26 @@
 #include <vex/types.h>
 #include <vex/vms.h>
 
+extern void amd64_syscall_entry(void);
+
 #define SYSRET_BASE       gdt_selector(GDT_KERN_DATA_64, 0, 3)
 #define SYSCALL_INSN_SIZE 2
-
-extern void amd64_syscall_entry(void);
 
 // SYSRET to a non-canonical RCX faults in ring 0 on Intel, but on the
 // user's stack already; no return address past the user half gets there.
 // RIP is the one checked: SYSRET only runs when RCX matches it, and after
 // sigreturn RCX is whatever the interrupted code kept in that register
-void __used amd64_syscall_handler(struct hart_context* restrict ctx)
+void __used amd64_syscall_handler(hart_context_t* restrict ctx)
 {
     uint64_t number = ctx->syscall_number;
 
-    dispatch_syscall(ctx);
+    syscall_dispatch(ctx);
 
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc && ctx->amd64_rip >= pmap_user_end(proc->vms->pmap)) {
-        process_kill(proc, SIGSEGV);
+    if(process && ctx->amd64_rip >= pmap_user_end(process->vmspace->pmap)) {
+        process_kill(process, SIGSEGV);
         sched_terminate();
         unreachable();
     }
@@ -41,16 +41,16 @@ void __used amd64_syscall_handler(struct hart_context* restrict ctx)
         ctx->syscall_number = number;
         ctx->amd64_rip -= SYSCALL_INSN_SIZE;
         ctx->amd64_rcx -= SYSCALL_INSN_SIZE;
-        thrd->syscall_restart = true;
+        thread->syscall_restart = true;
     }
 
     disable_interrupts();
     exit_to_user(ctx);
 
-    thrd->syscall_restart = false;
+    thread->syscall_restart = false;
 }
 
-void arch_syscall_interrupted(struct hart_context* restrict ctx)
+void arch_syscall_interrupted(hart_context_t* restrict ctx)
 {
     ctx->syscall_retval = -EINTR;
     ctx->amd64_rip += SYSCALL_INSN_SIZE;

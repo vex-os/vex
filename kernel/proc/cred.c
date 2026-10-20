@@ -12,23 +12,23 @@
 
 static_assert(sizeof(uid_t) == sizeof(gid_t));
 
-struct credentials sys_cred = {
+credentials_t kernel_credentials = {
     .refcount = 1,
     .cap_effective = CAP_FULL_SET,
     .cap_permitted = CAP_FULL_SET,
     .cap_bounding = CAP_FULL_SET,
 };
 
-size_t cred_ngroups_max = CONFIG_NGROUPS_MAX;
+size_t cred_max_groups = CONFIG_NGROUPS_MAX;
 
-static __always_inline __nodiscard size_t cred_size(size_t ngroups)
+static __always_inline __nodiscard size_t cred_size(size_t num_groups)
 {
-    return sizeof(struct credentials) + ngroups * sizeof(gid_t);
+    return sizeof(credentials_t) + num_groups * sizeof(gid_t);
 }
 
-static struct credentials* cred_alloc(size_t ngroups)
+static credentials_t* cred_alloc(size_t num_groups)
 {
-    size_t size = cred_size(ngroups);
+    size_t size = cred_size(num_groups);
 
     if(size <= SLAB_MAX_SIZE) {
         return slab_alloc(size);
@@ -81,22 +81,22 @@ static int check_res(int32_t new_r, int32_t new_e, int32_t new_s, int32_t r, int
     return retval;
 }
 
-static void fixup_caps(struct credentials* restrict cred, uid_t old_r, uid_t old_e, uid_t old_s)
+static void fixup_caps(credentials_t* restrict credentials, uid_t old_r, uid_t old_e, uid_t old_s)
 {
     bool was_root = old_r == 0 || old_e == 0 || old_s == 0;
-    bool is_root = cred->uid == 0 || cred->euid == 0 || cred->suid == 0;
+    bool is_root = credentials->uid == 0 || credentials->euid == 0 || credentials->suid == 0;
 
-    if(was_root && !is_root && 0 == (cred->cap_flags & CAPS_KEEP)) {
-        cred->cap_permitted = 0;
-        cred->cap_ambient = 0;
+    if(was_root && !is_root && 0 == (credentials->cap_flags & CAPS_KEEP)) {
+        credentials->cap_permitted = 0;
+        credentials->cap_ambient = 0;
     }
 
-    if(old_e == 0 && cred->euid) {
-        cred->cap_effective = 0;
+    if(old_e == 0 && credentials->euid) {
+        credentials->cap_effective = 0;
     }
 
-    if(old_e && cred->euid == 0) {
-        cred->cap_effective = cred->cap_permitted;
+    if(old_e && credentials->euid == 0) {
+        credentials->cap_effective = credentials->cap_permitted;
     }
 }
 
@@ -107,77 +107,77 @@ static void apply_id(int32_t* restrict id, int32_t wanted)
     }
 }
 
-struct credentials* cred_copy(const struct credentials* restrict cred)
+credentials_t* cred_copy(const credentials_t* restrict credentials)
 {
-    kassert(cred);
+    kassert(credentials);
 
-    struct credentials* copy = cred_copy_ids(cred, cred->ngroups);
+    credentials_t* copy = cred_copy_ids(credentials, credentials->num_groups);
 
     if(copy) {
-        memcpy(copy->groups, cred->groups, cred->ngroups * sizeof(gid_t));
+        memcpy(copy->groups, credentials->groups, credentials->num_groups * sizeof(gid_t));
     }
 
     return copy;
 }
 
-struct credentials* cred_copy_ids(const struct credentials* restrict cred, size_t ngroups)
+credentials_t* cred_copy_ids(const credentials_t* restrict credentials, size_t num_groups)
 {
-    kassert(cred);
+    kassert(credentials);
 
-    struct credentials* copy = cred_alloc(ngroups);
+    credentials_t* copy = cred_alloc(num_groups);
 
     if(copy == nullptr) {
         return nullptr;
     }
 
-    memcpy(copy, cred, sizeof(struct credentials));
+    memcpy(copy, credentials, sizeof(credentials_t));
     copy->refcount = 1;
-    copy->ngroups = ngroups;
+    copy->num_groups = num_groups;
 
     return copy;
 }
 
-void cred_incref(struct credentials* restrict cred)
+void cred_incref(credentials_t* restrict credentials)
 {
-    kassert(cred);
+    kassert(credentials);
 
-    atomic_fetch_add(&cred->refcount, 1, ATOMIC_RELAXED);
+    atomic_fetch_add(&credentials->refcount, 1, ATOMIC_RELAXED);
 }
 
-void cred_decref(struct credentials* restrict cred)
+void cred_decref(credentials_t* restrict credentials)
 {
-    kassert(cred);
+    kassert(credentials);
 
-    if(1 == atomic_fetch_sub(&cred->refcount, 1, ATOMIC_ACQ_REL)) {
-        kassert(cred != &sys_cred);
+    if(1 == atomic_fetch_sub(&credentials->refcount, 1, ATOMIC_ACQ_REL)) {
+        kassert(credentials != &kernel_credentials);
 
-        if(cred_size(cred->ngroups) <= SLAB_MAX_SIZE) {
-            slab_free(cred);
+        if(cred_size(credentials->num_groups) <= SLAB_MAX_SIZE) {
+            slab_free(credentials);
         }
         else {
-            kfree(cred);
+            kfree(credentials);
         }
     }
 }
 
-bool cred_capable(const struct credentials* restrict cred, unsigned cap)
+bool cred_capable(const credentials_t* restrict credentials, unsigned cap)
 {
-    kassert(cred);
+    kassert(credentials);
     kassert(cap < 64);
 
-    return (bool)(cred->cap_effective & CAP_TO_MASK(cap));
+    return (bool)(credentials->cap_effective & CAP_TO_MASK(cap));
 }
 
-int cred_setcaps(struct credentials* restrict cred, const struct k_caps* restrict caps)
+int cred_setcaps(credentials_t* restrict credentials, const caps_t* restrict caps)
 {
-    kassert(cred);
+    kassert(credentials);
     kassert(caps);
 
     if((caps->flags & ~CAPS_KEEP) || caps->reserved) {
         return -EINVAL;
     }
 
-    if((caps->permitted & ~cred->cap_permitted) || (caps->bounding & ~cred->cap_bounding)) {
+    if((caps->permitted & ~credentials->cap_permitted) || (caps->bounding & ~credentials->cap_bounding)) {
         return -EPERM;
     }
 
@@ -185,11 +185,11 @@ int cred_setcaps(struct credentials* restrict cred, const struct k_caps* restric
         return -EPERM;
     }
 
-    cred->cap_effective = caps->effective;
-    cred->cap_permitted = caps->permitted;
-    cred->cap_ambient = caps->ambient;
-    cred->cap_bounding = caps->bounding;
-    cred->cap_flags = caps->flags;
+    credentials->cap_effective = caps->effective;
+    credentials->cap_permitted = caps->permitted;
+    credentials->cap_ambient = caps->ambient;
+    credentials->cap_bounding = caps->bounding;
+    credentials->cap_flags = caps->flags;
 
     return 0;
 }
@@ -197,26 +197,26 @@ int cred_setcaps(struct credentials* restrict cred, const struct k_caps* restric
 // Called with the ids the program will run with already in place; a privileged program
 // is one whose setuid or setgid bit took effect, file holds its capabilities if it has any;
 // There is no inheritable set, so the file's inheritable set never grants anything
-int cred_exec_caps(struct credentials* restrict cred, bool privileged, const struct file_caps* restrict file)
+int cred_exec_caps(credentials_t* restrict credentials, bool privileged, const file_caps_t* restrict file)
 {
-    kassert(cred);
+    kassert(credentials);
 
     if(privileged || file) {
-        cred->cap_ambient = 0;
+        credentials->cap_ambient = 0;
     }
 
-    cred->cap_flags = 0;
+    credentials->cap_flags = 0;
 
-    if(cred->euid == 0) {
-        cred->cap_permitted = cred->cap_bounding;
-        cred->cap_ambient &= cred->cap_permitted;
-        cred->cap_effective = cred->cap_permitted;
+    if(credentials->euid == 0) {
+        credentials->cap_permitted = credentials->cap_bounding;
+        credentials->cap_ambient &= credentials->cap_permitted;
+        credentials->cap_effective = credentials->cap_permitted;
         return 0;
     }
 
-    cred->cap_permitted = cred->cap_ambient & cred->cap_bounding;
-    cred->cap_ambient &= cred->cap_permitted;
-    cred->cap_effective = cred->cap_ambient;
+    credentials->cap_permitted = credentials->cap_ambient & credentials->cap_bounding;
+    credentials->cap_ambient &= credentials->cap_permitted;
+    credentials->cap_effective = credentials->cap_ambient;
 
     if(file == nullptr) {
         return 0;
@@ -224,14 +224,14 @@ int cred_exec_caps(struct credentials* restrict cred, bool privileged, const str
 
     // A program that counts on all its capabilities being in effect
     // without checking must not start with only some of them
-    if(file->effective && (file->permitted & ~cred->cap_bounding)) {
+    if(file->effective && (file->permitted & ~credentials->cap_bounding)) {
         return -EPERM;
     }
 
-    cred->cap_permitted |= file->permitted & cred->cap_bounding;
+    credentials->cap_permitted |= file->permitted & credentials->cap_bounding;
 
     if(file->effective) {
-        cred->cap_effective = cred->cap_permitted;
+        credentials->cap_effective = credentials->cap_permitted;
     }
 
     return 0;
@@ -239,25 +239,25 @@ int cred_exec_caps(struct credentials* restrict cred, bool privileged, const str
 
 // Tells the new program not to trust what the caller passed it: it runs
 // with other ids, or holds capabilities the caller couldn't hand down itself
-bool cred_exec_secure(const struct credentials* restrict cred)
+bool cred_exec_secure(const credentials_t* restrict credentials)
 {
-    kassert(cred);
+    kassert(credentials);
 
-    if(cred->uid != cred->euid || cred->gid != cred->egid) {
+    if(credentials->uid != credentials->euid || credentials->gid != credentials->egid) {
         return true;
     }
 
-    return cred->uid && (cred->cap_permitted & ~cred->cap_ambient);
+    return credentials->uid && (credentials->cap_permitted & ~credentials->cap_ambient);
 }
 
 // Revision 3 names the uid that counts as root for the capabilities; without user namespaces
 // only 0 makes sense, so others leave the file without capabilities, as on Linux
-int cred_parse_file_caps(const void* restrict value, size_t size, struct file_caps* restrict out)
+int cred_parse_file_caps(const void* restrict value, size_t size, file_caps_t* restrict out)
 {
     kassert(value);
     kassert(out);
 
-    struct k_vfs_cap_data data = { 0 };
+    vfs_cap_data_t data = { 0 };
 
     if(size < sizeof(data.magic_etc) || size > sizeof(data)) {
         return -EINVAL;
@@ -306,25 +306,25 @@ int cred_parse_file_caps(const void* restrict value, size_t size, struct file_ca
     return 0;
 }
 
-bool cred_in_group(const struct credentials* restrict cred, gid_t gid)
+bool cred_in_group(const credentials_t* restrict credentials, gid_t gid)
 {
-    kassert(cred);
+    kassert(credentials);
 
-    if(cred->egid == gid) {
+    if(credentials->egid == gid) {
         return true;
     }
 
     size_t low = 0;
-    size_t high = cred->ngroups;
+    size_t high = credentials->num_groups;
 
     while(low < high) {
         size_t mid = low + (high - low) / 2;
 
-        if(cred->groups[mid] == gid) {
+        if(credentials->groups[mid] == gid) {
             return true;
         }
 
-        if(cred->groups[mid] < gid) {
+        if(credentials->groups[mid] < gid) {
             low = mid + 1;
         }
         else {
@@ -335,59 +335,59 @@ bool cred_in_group(const struct credentials* restrict cred, gid_t gid)
     return false;
 }
 
-int cred_setresuid(struct credentials* restrict cred, uid_t ruid, uid_t euid, uid_t suid)
+int cred_setresuid(credentials_t* restrict credentials, uid_t ruid, uid_t euid, uid_t suid)
 {
-    kassert(cred);
+    kassert(credentials);
 
-    bool capable = cred_capable(cred, CAP_SETUID);
-    int retval = check_res(ruid, euid, suid, cred->uid, cred->euid, cred->suid, capable);
+    bool capable = cred_capable(credentials, CAP_SETUID);
+    int retval = check_res(ruid, euid, suid, credentials->uid, credentials->euid, credentials->suid, capable);
 
     if(retval < 0) {
         return retval;
     }
 
-    uid_t old_r = cred->uid;
-    uid_t old_e = cred->euid;
-    uid_t old_s = cred->suid;
+    uid_t old_r = credentials->uid;
+    uid_t old_e = credentials->euid;
+    uid_t old_s = credentials->suid;
 
-    apply_id(&cred->uid, ruid);
-    apply_id(&cred->euid, euid);
-    apply_id(&cred->suid, suid);
+    apply_id(&credentials->uid, ruid);
+    apply_id(&credentials->euid, euid);
+    apply_id(&credentials->suid, suid);
 
-    fixup_caps(cred, old_r, old_e, old_s);
+    fixup_caps(credentials, old_r, old_e, old_s);
 
     return 0;
 }
 
-int cred_setresgid(struct credentials* restrict cred, gid_t rgid, gid_t egid, gid_t sgid)
+int cred_setresgid(credentials_t* restrict credentials, gid_t rgid, gid_t egid, gid_t sgid)
 {
-    kassert(cred);
+    kassert(credentials);
 
-    bool capable = cred_capable(cred, CAP_SETGID);
-    int retval = check_res(rgid, egid, sgid, cred->gid, cred->egid, cred->sgid, capable);
+    bool capable = cred_capable(credentials, CAP_SETGID);
+    int retval = check_res(rgid, egid, sgid, credentials->gid, credentials->egid, credentials->sgid, capable);
 
     if(retval < 0) {
         return retval;
     }
 
-    apply_id(&cred->gid, rgid);
-    apply_id(&cred->egid, egid);
-    apply_id(&cred->sgid, sgid);
+    apply_id(&credentials->gid, rgid);
+    apply_id(&credentials->egid, egid);
+    apply_id(&credentials->sgid, sgid);
 
     return 0;
 }
 
-int cred_sort_groups(struct credentials* restrict cred)
+int cred_sort_groups(credentials_t* restrict credentials)
 {
-    kassert(cred);
+    kassert(credentials);
 
-    for(size_t i = 0; i < cred->ngroups; ++i) {
-        if(cred->groups[i] < 0) {
+    for(size_t i = 0; i < credentials->num_groups; ++i) {
+        if(credentials->groups[i] < 0) {
             return -EINVAL;
         }
     }
 
-    sort(cred->groups, cred->ngroups, sizeof(gid_t), &compare_gids);
+    sort(credentials->groups, credentials->num_groups, sizeof(gid_t), &compare_gids);
 
     return 0;
 }

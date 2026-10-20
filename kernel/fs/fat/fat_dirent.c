@@ -9,9 +9,9 @@
 
 #include "fat.h"
 
-static int entry_offset(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, uint64_t* restrict out)
+static int entry_offset(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t offset, uint64_t* restrict out)
 {
-    size_t entries_per_sector = context->sector_size / sizeof(union fat_entry);
+    size_t entries_per_sector = context->sector_size / sizeof(fat_entry_t);
     uintptr_t lba;
 
     if(cluster == 0) {
@@ -24,7 +24,7 @@ static int entry_offset(const struct fat_vfs_context* restrict context, uintptr_
         lba = context->data_start - context->rootdir_sectors + sector;
     }
     else {
-        size_t entries_per_cluster = context->cluster_size_b / sizeof(union fat_entry);
+        size_t entries_per_cluster = context->cluster_size_b / sizeof(fat_entry_t);
         size_t cluster_idx = offset / entries_per_cluster;
         size_t entry_idx = offset % entries_per_cluster;
         size_t sector = entry_idx / entries_per_sector;
@@ -40,12 +40,12 @@ static int entry_offset(const struct fat_vfs_context* restrict context, uintptr_
         lba = sector + fat_cluster_lba(context, cluster);
     }
 
-    *out = lba * context->sector_size + sizeof(union fat_entry) * (offset % entries_per_sector);
+    *out = lba * context->sector_size + sizeof(fat_entry_t) * (offset % entries_per_sector);
 
     return 0;
 }
 
-static int read_entry(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, union fat_entry* restrict entry)
+static int read_entry(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t offset, fat_entry_t* restrict entry)
 {
     uint64_t position;
     int retval = entry_offset(context, cluster, offset, &position);
@@ -54,11 +54,10 @@ static int read_entry(const struct fat_vfs_context* restrict context, uintptr_t 
         return retval;
     }
 
-    return fcache_dev_read(context->devnode, position, entry, sizeof(union fat_entry));
+    return fcache_dev_read(context->device_node, position, entry, sizeof(fat_entry_t));
 }
 
-static int write_entry(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
-    const union fat_entry* restrict entry)
+static int write_entry(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t offset, const fat_entry_t* restrict entry)
 {
     uint64_t position;
     int retval = entry_offset(context, cluster, offset, &position);
@@ -67,10 +66,10 @@ static int write_entry(const struct fat_vfs_context* restrict context, uintptr_t
         return retval;
     }
 
-    return fcache_dev_write(context->devnode, position, entry, sizeof(union fat_entry));
+    return fcache_dev_write(context->device_node, position, entry, sizeof(fat_entry_t));
 }
 
-static uint8_t ldir_checksum(const struct fat_dir_entry* restrict entry)
+static uint8_t ldir_checksum(const fat_dir_entry_t* restrict entry)
 {
     uint8_t result = 0;
 
@@ -81,11 +80,10 @@ static uint8_t ldir_checksum(const struct fat_dir_entry* restrict entry)
     return result;
 }
 
-int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t* restrict offset,
-    struct fat_dirent* restrict entry)
+int fat_dirent_read(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t* restrict offset, fat_dirent_t* restrict entry)
 {
-    union fat_entry entry_raw;
-    struct fat_ldir_entry ldirs[FAT_LFN_MAX_SEGMENTS];
+    fat_entry_t entry_raw;
+    fat_ldir_entry_t ldirs[FAT_LFN_MAX_SEGMENTS];
     unsigned int num_ldir = 0;
 
     for(;;) {
@@ -107,7 +105,7 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
         }
 
         if(FAT_ATTR_LONG_NAME == (entry_raw.dir.attribute & FAT_ATTR_LONG_NAME)) {
-            const struct fat_ldir_entry* ldir = &entry_raw.ldir;
+            const fat_ldir_entry_t* ldir = &entry_raw.ldir;
             uint8_t ord = ldir->order & ~UINT8_C(0x40);
 
             if(ord == 0 || ord > FAT_LFN_MAX_SEGMENTS || ldir->type != 0) {
@@ -124,7 +122,7 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
             }
 
             if(num_ldir < FAT_LFN_MAX_SEGMENTS) {
-                memcpy(&ldirs[num_ldir], ldir, sizeof(struct fat_ldir_entry));
+                memcpy(&ldirs[num_ldir], ldir, sizeof(fat_ldir_entry_t));
                 num_ldir += 1;
             }
         }
@@ -136,7 +134,7 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
                 entry_raw.dir.name[0] = FAT_NAME_DELETED;
             }
 
-            memcpy(&entry->base, &entry_raw.dir, sizeof(struct fat_dir_entry));
+            memcpy(&entry->base, &entry_raw.dir, sizeof(fat_dir_entry_t));
 
             if(num_ldir > 0) {
                 uint8_t expected = ldir_checksum(&entry->base);
@@ -161,7 +159,7 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
         bool done = false;
 
         for(unsigned i = num_ldir; i > 0 && !done; --i) {
-            const struct fat_ldir_entry* ldir = &ldirs[i - 1];
+            const fat_ldir_entry_t* ldir = &ldirs[i - 1];
 
             for(unsigned j = 0; j < 5 && name_pos < NAME_SIZE && !done; ++j) {
                 uint16_t ch = le16toh(ldir->name_1[j]);
@@ -219,20 +217,19 @@ int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cl
     return 0;
 }
 
-int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
-    const struct fat_dirent* restrict entry)
+int fat_dirent_write(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t offset, const fat_dirent_t* restrict entry)
 {
     size_t name_length = strnlen(entry->full_name, NAME_MAX);
     uint8_t checksum = ldir_checksum(&entry->base);
     unsigned num_ldir = (name_length + 12) / 13;
-    union fat_entry raw_entry;
+    fat_entry_t raw_entry;
 
     for(unsigned int i = num_ldir; i >= 1; --i) {
         size_t base = 13 * (i - 1);
         size_t pos;
 
-        struct fat_ldir_entry* ldir = &raw_entry.ldir;
-        memset(ldir, 0, sizeof(struct fat_ldir_entry));
+        fat_ldir_entry_t* ldir = &raw_entry.ldir;
+        memset(ldir, 0, sizeof(fat_ldir_entry_t));
 
         ldir->order = i;
         ldir->attr = FAT_ATTR_LONG_NAME;
@@ -291,27 +288,26 @@ int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t c
         }
     }
 
-    memcpy(&raw_entry.dir, &entry->base, sizeof(struct fat_dir_entry));
+    memcpy(&raw_entry.dir, &entry->base, sizeof(fat_dir_entry_t));
 
     return write_entry(context, cluster, offset, &raw_entry);
 }
 
-int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
-    const struct fat_dir_entry* restrict entry)
+int fat_dirent_update(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t offset, const fat_dir_entry_t* restrict entry)
 {
-    union fat_entry raw;
-    memcpy(&raw.dir, entry, sizeof(struct fat_dir_entry));
+    fat_entry_t raw;
+    memcpy(&raw.dir, entry, sizeof(fat_dir_entry_t));
     return write_entry(context, cluster, offset, &raw);
 }
 
-int fat_dirent_remove(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, unsigned num_lfn)
+int fat_dirent_remove(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t offset, unsigned num_lfn)
 {
     kassert(offset >= num_lfn);
 
     // The order byte of a long name entry sits
     // where the first name byte of a short one does
     for(size_t slot = offset - num_lfn; slot <= offset; slot += 1) {
-        union fat_entry raw;
+        fat_entry_t raw;
         int retval = read_entry(context, cluster, slot, &raw);
 
         if(retval < 0) {
@@ -330,9 +326,9 @@ int fat_dirent_remove(const struct fat_vfs_context* restrict context, uintptr_t 
     return 0;
 }
 
-int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset)
+int fat_dirent_alloc(fat_vfs_context_t* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset)
 {
-    union fat_entry raw;
+    fat_entry_t raw;
     unsigned run = 0;
     size_t run_start = 0;
     size_t offset = 0;

@@ -24,7 +24,9 @@
 #define FONT_SCANLINE 0x01 // bytes per line
 #define FONT_MAX_CP   0xFF
 
-struct vt_cell {
+typedef struct vt_cell_s vt_cell_t;
+
+struct vt_cell_s {
     char value;
     bool dirty;
 };
@@ -234,7 +236,7 @@ static uint32_t* fb_32 = nullptr;
 static size_t vt_width = 0U;
 static size_t vt_height = 0U;
 static size_t vt_length = 0U;
-static struct vt_cell* vt_cells = nullptr;
+static vt_cell_t* vt_cells = nullptr;
 
 static size_t cursor_xpos_prev = 0U;
 static size_t cursor_ypos_prev = 0U;
@@ -315,7 +317,7 @@ static void render_cursor(size_t sx, size_t sy)
 
 static void set_cell(size_t index, char value)
 {
-    struct vt_cell* cell = &vt_cells[index];
+    vt_cell_t* cell = &vt_cells[index];
 
     if(cell->value == value) {
         return;
@@ -356,7 +358,7 @@ static void do_newline(void)
 static void do_redraw(void)
 {
     for(size_t i = dirty_first; i <= dirty_last && i < vt_length; ++i) {
-        struct vt_cell* cell = &vt_cells[i];
+        vt_cell_t* cell = &vt_cells[i];
 
         if(cell->dirty) {
             render_cell(i % vt_width, i / vt_width, cell->value);
@@ -368,7 +370,7 @@ static void do_redraw(void)
     dirty_first = SIZE_MAX;
     dirty_last = 0U;
 
-    struct vt_cell* cell = &vt_cells[cursor_ypos_prev * vt_width + cursor_xpos_prev];
+    vt_cell_t* cell = &vt_cells[cursor_ypos_prev * vt_width + cursor_xpos_prev];
     render_cell(cursor_xpos_prev, cursor_ypos_prev, cell->value);
 
     render_cursor(cursor_xpos, cursor_ypos);
@@ -385,7 +387,7 @@ static void do_clear(void)
         }
     }
 
-    memset(vt_cells, 0, vt_length * sizeof(struct vt_cell));
+    memset(vt_cells, 0, vt_length * sizeof(vt_cell_t));
 
     dirty_first = SIZE_MAX;
     dirty_last = 0U;
@@ -438,23 +440,23 @@ static void fbcons_putchar(int character)
     }
 }
 
-static void fbcons_write(struct console* restrict cons, const void* restrict data, size_t sz)
+static void fbcons_write(console_t* restrict cons, const void* restrict data, size_t size)
 {
     const char* psz = data;
 
-    for(size_t i = 0U; i < sz; fbcons_putchar(psz[i++])) {
+    for(size_t i = 0U; i < size; fbcons_putchar(psz[i++])) {
         // empty
     }
 
     do_redraw();
 }
 
-static const struct console_ops fbcons_ops = {
+static const console_ops_t fbcons_ops = {
     .write = &fbcons_write,
 };
 
-static struct console fbcons_driver = {
-    .identifier = "fbcons",
+static console_t fbcons_driver = {
+    .name = "fbcons",
     .consflags = CONSF_RECALL,
     .ops = &fbcons_ops,
 };
@@ -490,7 +492,7 @@ static void init_fbcons(void)
                 vt_height = fb_height / FONT_HEIGHT;
                 vt_length = vt_width * vt_height;
 
-                vt_cells = kmalloc(vt_length * sizeof(struct vt_cell));
+                vt_cells = kmalloc(vt_length * sizeof(vt_cell_t));
 
                 if(vt_cells == nullptr) {
                     panic("fbcons: out of memory: vt_cells");
@@ -503,7 +505,7 @@ static void init_fbcons(void)
 
                 do_clear();
 
-                add_console(&fbcons_driver);
+                console_add(&fbcons_driver);
 
                 return;
             }

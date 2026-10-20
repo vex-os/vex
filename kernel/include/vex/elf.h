@@ -219,40 +219,6 @@
 #define EV_CURRENT UINT32_C(1) // Current version
 #define EV_NUM     UINT32_C(2)
 
-struct elf32_ehdr {
-    uint8_t e_ident[EI_NIDENT];
-    uint16_t e_type;
-    uint16_t e_machine;
-    uint32_t e_version;
-    uint32_t e_entry;
-    uint32_t e_phoff;
-    uint32_t e_shoff;
-    uint32_t e_flags;
-    uint16_t e_ehsize;
-    uint16_t e_phentsize;
-    uint16_t e_phnum;
-    uint16_t e_shentsize;
-    uint16_t e_shnum;
-    uint16_t e_shstrndx;
-} __packed;
-
-struct elf64_ehdr {
-    uint8_t e_ident[EI_NIDENT];
-    uint16_t e_type;
-    uint16_t e_machine;
-    uint32_t e_version;
-    uint64_t e_entry;
-    uint64_t e_phoff;
-    uint64_t e_shoff;
-    uint32_t e_flags;
-    uint16_t e_ehsize;
-    uint16_t e_phentsize;
-    uint16_t e_phnum;
-    uint16_t e_shentsize;
-    uint16_t e_shnum;
-    uint16_t e_shstrndx;
-} __packed;
-
 #define SHT_NULL           UINT32_C(0)          // Section header table entry unused
 #define SHT_PROGBITS       UINT32_C(1)          // Program data
 #define SHT_SYMTAB         UINT32_C(2)          // Symbol table
@@ -306,32 +272,6 @@ struct elf64_ehdr {
 #define SHF_ORDERED          0x40000000 // Special ordering requirement (Solaris).
 #define SHF_EXCLUDE          0x80000000 // Section is excluded unless referenced or allocated (Solaris).
 
-struct elf32_shdr {
-    uint32_t sh_name;
-    uint32_t sh_type;
-    uint32_t sh_flags;
-    uint32_t sh_addr;
-    uint32_t sh_offset;
-    uint32_t sh_size;
-    uint32_t sh_link;
-    uint32_t sh_info;
-    uint32_t sh_addralign;
-    uint32_t sh_entsize;
-} __packed;
-
-struct elf64_shdr {
-    uint32_t sh_name;
-    uint32_t sh_type;
-    uint64_t sh_flags;
-    uint64_t sh_addr;
-    uint64_t sh_offset;
-    uint64_t sh_size;
-    uint32_t sh_link;
-    uint32_t sh_info;
-    uint64_t sh_addralign;
-    uint64_t sh_entsize;
-} __packed;
-
 #define PT_NULL         UINT32_C(0)          // Program header table entry unused
 #define PT_LOAD         UINT32_C(1)          // Loadable program segment
 #define PT_DYNAMIC      UINT32_C(2)          // Dynamic linking information
@@ -359,36 +299,6 @@ struct elf64_shdr {
 #define PF_MASKOS   UINT32_C(0x0FF00000) // OS-specific
 #define PF_MASKPROC UINT32_C(0xF0000000) // Processor-specific
 
-struct elf32_phdr {
-    uint32_t p_type;
-    uint32_t p_offset;
-    uint32_t p_vaddr;
-    uint32_t p_paddr;
-    uint32_t p_filesz;
-    uint32_t p_memsz;
-    uint32_t p_flags;
-    uint32_t p_align;
-} __packed;
-
-struct elf64_phdr {
-    uint32_t p_type;
-    uint32_t p_flags;
-    uint64_t p_offset;
-    uint64_t p_vaddr;
-    uint64_t p_paddr;
-    uint64_t p_filesz;
-    uint64_t p_memsz;
-    uint64_t p_align;
-} __packed;
-
-#define ELF32_ST_BIND(value)      (((uint8_t)(value)) >> 4)
-#define ELF32_ST_TYPE(value)      ((value) & UINT8_C(0x0F))
-#define ELF32_ST_INFO(bind, type) (((bind) << 4) + ((type) & UINT8_C(0x0F)))
-
-#define ELF64_ST_BIND(value)      ELF32_ST_BIND(value)
-#define ELF64_ST_TYPE(value)      ELF32_ST_TYPE(value)
-#define ELF64_ST_INFO(bind, type) ELF32_ST_INFO((bind), (type))
-
 #define STB_LOCAL      0  // Local symbol
 #define STB_GLOBAL     1  // Global symbol
 #define STB_WEAK       2  // Weak symbol
@@ -412,24 +322,6 @@ struct elf64_phdr {
 #define STT_HIOS      12 // End of OS-specific
 #define STT_LOPROC    13 // Start of processor-specific
 #define STT_HIPROC    15 // End of processor-specific
-
-struct elf32_sym {
-    uint32_t st_name;
-    uint32_t st_value;
-    uint32_t st_size;
-    uint8_t st_info;
-    uint8_t st_other;
-    uint16_t st_shndx;
-} __packed;
-
-struct elf64_sym {
-    uint32_t st_name;
-    uint8_t st_info;
-    uint8_t st_other;
-    uint16_t st_shndx;
-    uint64_t st_value;
-    uint64_t st_size;
-} __packed;
 
 #define DT_NULL            0           // Marks end of dynamic section
 #define DT_NEEDED          1           // Name of needed library
@@ -473,22 +365,6 @@ struct elf64_sym {
 #define DT_HIPROC          0x7FFFFFFF  // End of processor-specific
 #define DT_PROCNUM         DT_MIPS_NUM // Most used by any processor
 
-struct elf32_dyn {
-    uint32_t d_tag;
-    union {
-        uint32_t d_val;
-        uint32_t d_ptr;
-    } d_un;
-} __packed;
-
-struct elf64_dyn {
-    uint64_t d_tag;
-    union {
-        uint64_t d_val;
-        uint64_t d_ptr;
-    } d_un;
-} __packed;
-
 #define R_386_NONE     0
 #define R_386_32       2
 #define R_386_PC32     1
@@ -529,28 +405,6 @@ struct elf64_dyn {
 #define R_X86_64_SIZE32    32
 #define R_X86_64_SIZE64    33
 
-struct elf32_rel {
-    uint32_t r_offset;
-    uint32_t r_info;
-} __packed;
-
-struct elf64_rel {
-    uint64_t r_offset;
-    uint64_t r_info;
-} __packed;
-
-struct elf32_rela {
-    uint32_t r_offset;
-    uint32_t r_info;
-    int32_t r_addend;
-} __packed;
-
-struct elf64_rela {
-    uint64_t r_offset;
-    uint64_t r_info;
-    int64_t r_addend;
-} __packed;
-
 #define AT_NULL         0  // End of vector
 #define AT_IGNORE       1  // Entry should be ignored
 #define AT_EXECFD       2  // File descriptor of program
@@ -571,7 +425,169 @@ struct elf64_rela {
 #define AT_SYSINFO      32
 #define AT_SYSINFO_EHDR 33
 
-struct elf64_auxv {
+typedef struct elf32_ehdr_s elf32_ehdr_t;
+typedef struct elf64_ehdr_s elf64_ehdr_t;
+typedef struct elf32_shdr_s elf32_shdr_t;
+typedef struct elf64_shdr_s elf64_shdr_t;
+typedef struct elf32_phdr_s elf32_phdr_t;
+typedef struct elf64_phdr_s elf64_phdr_t;
+typedef struct elf32_sym_s elf32_sym_t;
+typedef struct elf64_sym_s elf64_sym_t;
+typedef struct elf32_dyn_s elf32_dyn_t;
+typedef struct elf64_dyn_s elf64_dyn_t;
+typedef struct elf32_rel_s elf32_rel_t;
+typedef struct elf64_rel_s elf64_rel_t;
+typedef struct elf32_rela_s elf32_rela_t;
+typedef struct elf64_rela_s elf64_rela_t;
+typedef struct elf64_auxv_s elf64_auxv_t;
+
+struct elf32_ehdr_s {
+    uint8_t e_ident[EI_NIDENT];
+    uint16_t e_type;
+    uint16_t e_machine;
+    uint32_t e_version;
+    uint32_t e_entry;
+    uint32_t e_phoff;
+    uint32_t e_shoff;
+    uint32_t e_flags;
+    uint16_t e_ehsize;
+    uint16_t e_phentsize;
+    uint16_t e_phnum;
+    uint16_t e_shentsize;
+    uint16_t e_shnum;
+    uint16_t e_shstrndx;
+} __packed;
+
+struct elf64_ehdr_s {
+    uint8_t e_ident[EI_NIDENT];
+    uint16_t e_type;
+    uint16_t e_machine;
+    uint32_t e_version;
+    uint64_t e_entry;
+    uint64_t e_phoff;
+    uint64_t e_shoff;
+    uint32_t e_flags;
+    uint16_t e_ehsize;
+    uint16_t e_phentsize;
+    uint16_t e_phnum;
+    uint16_t e_shentsize;
+    uint16_t e_shnum;
+    uint16_t e_shstrndx;
+} __packed;
+
+struct elf32_shdr_s {
+    uint32_t sh_name;
+    uint32_t sh_type;
+    uint32_t sh_flags;
+    uint32_t sh_addr;
+    uint32_t sh_offset;
+    uint32_t sh_size;
+    uint32_t sh_link;
+    uint32_t sh_info;
+    uint32_t sh_addralign;
+    uint32_t sh_entsize;
+} __packed;
+
+struct elf64_shdr_s {
+    uint32_t sh_name;
+    uint32_t sh_type;
+    uint64_t sh_flags;
+    uint64_t sh_addr;
+    uint64_t sh_offset;
+    uint64_t sh_size;
+    uint32_t sh_link;
+    uint32_t sh_info;
+    uint64_t sh_addralign;
+    uint64_t sh_entsize;
+} __packed;
+
+struct elf32_phdr_s {
+    uint32_t p_type;
+    uint32_t p_offset;
+    uint32_t p_vaddr;
+    uint32_t p_paddr;
+    uint32_t p_filesz;
+    uint32_t p_memsz;
+    uint32_t p_flags;
+    uint32_t p_align;
+} __packed;
+
+struct elf64_phdr_s {
+    uint32_t p_type;
+    uint32_t p_flags;
+    uint64_t p_offset;
+    uint64_t p_vaddr;
+    uint64_t p_paddr;
+    uint64_t p_filesz;
+    uint64_t p_memsz;
+    uint64_t p_align;
+} __packed;
+
+#define ELF32_ST_BIND(value)      (((uint8_t)(value)) >> 4)
+#define ELF32_ST_TYPE(value)      ((value) & UINT8_C(0x0F))
+#define ELF32_ST_INFO(bind, type) (((bind) << 4) + ((type) & UINT8_C(0x0F)))
+
+#define ELF64_ST_BIND(value)      ELF32_ST_BIND(value)
+#define ELF64_ST_TYPE(value)      ELF32_ST_TYPE(value)
+#define ELF64_ST_INFO(bind, type) ELF32_ST_INFO((bind), (type))
+
+struct elf32_sym_s {
+    uint32_t st_name;
+    uint32_t st_value;
+    uint32_t st_size;
+    uint8_t st_info;
+    uint8_t st_other;
+    uint16_t st_shndx;
+} __packed;
+
+struct elf64_sym_s {
+    uint32_t st_name;
+    uint8_t st_info;
+    uint8_t st_other;
+    uint16_t st_shndx;
+    uint64_t st_value;
+    uint64_t st_size;
+} __packed;
+
+struct elf32_dyn_s {
+    uint32_t d_tag;
+    union {
+        uint32_t d_val;
+        uint32_t d_ptr;
+    } d_un;
+} __packed;
+
+struct elf64_dyn_s {
+    uint64_t d_tag;
+    union {
+        uint64_t d_val;
+        uint64_t d_ptr;
+    } d_un;
+} __packed;
+
+struct elf32_rel_s {
+    uint32_t r_offset;
+    uint32_t r_info;
+} __packed;
+
+struct elf64_rel_s {
+    uint64_t r_offset;
+    uint64_t r_info;
+} __packed;
+
+struct elf32_rela_s {
+    uint32_t r_offset;
+    uint32_t r_info;
+    int32_t r_addend;
+} __packed;
+
+struct elf64_rela_s {
+    uint64_t r_offset;
+    uint64_t r_info;
+    int64_t r_addend;
+} __packed;
+
+struct elf64_auxv_s {
     uint64_t a_type;
     uint64_t a_val;
 } __packed;

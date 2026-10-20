@@ -5,4 +5,4 @@
 #define MINSIGSTKSZ __k_MINSIGSTKSZ
 #define SIGSTKSZ    __k_SIGSTKSZ
 
-#define k_mcontext __k_mcontext
+typedef struct __k_mcontext mcontext_t;

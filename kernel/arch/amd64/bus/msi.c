@@ -5,7 +5,7 @@
 
 void arch_msi_compose(unsigned vector, uint64_t* restrict address, uint32_t* restrict data)
 {
-    const struct hart_local* bsp = boot_hart();
+    const hart_local_t* bsp = boot_hart();
 
     uint32_t lapic_id = bsp->arch.lapic_id;
 

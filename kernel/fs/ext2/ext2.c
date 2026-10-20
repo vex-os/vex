@@ -13,14 +13,14 @@
 
 #include "ext2.h"
 
-static_assert(sizeof(struct ext2_vnode_context) <= SLAB_MAX_SIZE);
+static_assert(sizeof(ext2_vnode_context_t) <= SLAB_MAX_SIZE);
 
-static int read_super(const struct blk_device* restrict device, struct ext2_superblock* restrict out)
+static int read_super(const blk_device_t* restrict device, ext2_superblock_t* restrict out)
 {
     size_t sector_size = device->sector_size;
     uintptr_t lba = EXT2_SUPER_OFFSET / sector_size;
     size_t skip = EXT2_SUPER_OFFSET % sector_size;
-    size_t count = (skip + sizeof(struct ext2_superblock) + sector_size - 1) / sector_size;
+    size_t count = (skip + sizeof(ext2_superblock_t) + sector_size - 1) / sector_size;
 
     uint8_t* buffer = kmalloc(count * sector_size);
 
@@ -31,7 +31,7 @@ static int read_super(const struct blk_device* restrict device, struct ext2_supe
     int retval = blk_read(device, lba, count, buffer);
 
     if(retval == 0) {
-        memcpy(out, buffer + skip, sizeof(struct ext2_superblock));
+        memcpy(out, buffer + skip, sizeof(ext2_superblock_t));
     }
 
     kfree(buffer);
@@ -39,10 +39,10 @@ static int read_super(const struct blk_device* restrict device, struct ext2_supe
     return retval;
 }
 
-static int setup_geometry(struct ext2_vfs_context* restrict context)
+static int setup_geometry(ext2_vfs_context_t* restrict context)
 {
-    const struct ext2_superblock* super = &context->super;
-    const char* name = context->device->identifier;
+    const ext2_superblock_t* super = &context->super;
+    const char* name = context->device->name;
     size_t sector_size = context->device->sector_size;
 
     if(le16toh(super->s_magic) != EXT2_SUPER_MAGIC) {
@@ -136,10 +136,10 @@ static int setup_geometry(struct ext2_vfs_context* restrict context)
     return 0;
 }
 
-static bool must_mount_readonly(const struct ext2_vfs_context* restrict context)
+static bool must_mount_readonly(const ext2_vfs_context_t* restrict context)
 {
-    const struct ext2_superblock* super = &context->super;
-    const char* name = context->device->identifier;
+    const ext2_superblock_t* super = &context->super;
+    const char* name = context->device->name;
 
     if(context->creator_os > EXT2_OS_LITES) {
         pr_notice("ext2: %s: unknown creator OS %u, mounting read-only", name, context->creator_os);
@@ -160,15 +160,15 @@ static bool must_mount_readonly(const struct ext2_vfs_context* restrict context)
     return false;
 }
 
-static bool group_block_valid(const struct ext2_vfs_context* restrict context, uint32_t block, uint32_t count)
+static bool group_block_valid(const ext2_vfs_context_t* restrict context, uint32_t block, uint32_t count)
 {
     uint32_t blocks_count = le32toh(context->super.s_blocks_count);
     return block >= context->first_data_block && block < blocks_count && count <= blocks_count - block;
 }
 
-static int load_groups(struct ext2_vfs_context* restrict context)
+static int load_groups(ext2_vfs_context_t* restrict context)
 {
-    size_t size = context->groups_count * sizeof(struct ext2_group_desc);
+    size_t size = context->groups_count * sizeof(ext2_group_desc_t);
 
     context->groups = kmalloc(size);
 
@@ -176,7 +176,7 @@ static int load_groups(struct ext2_vfs_context* restrict context)
         return -ENOMEM;
     }
 
-    int retval = fcache_dev_read(context->devnode, context->groups_offset, context->groups, size);
+    int retval = fcache_dev_read(context->device_node, context->groups_offset, context->groups, size);
 
     if(retval < 0) {
         return retval;
@@ -186,7 +186,7 @@ static int load_groups(struct ext2_vfs_context* restrict context)
     uint32_t table_blocks = (table_size + context->block_size - 1) / context->block_size;
 
     for(uint32_t i = 0; i < context->groups_count; ++i) {
-        const struct ext2_group_desc* desc = &context->groups[i];
+        const ext2_group_desc_t* desc = &context->groups[i];
 
         bool valid = true;
         valid = valid && group_block_valid(context, le32toh(desc->bg_block_bitmap), 1);
@@ -194,7 +194,7 @@ static int load_groups(struct ext2_vfs_context* restrict context)
         valid = valid && group_block_valid(context, le32toh(desc->bg_inode_table), table_blocks);
 
         if(!valid) {
-            pr_warning("ext2: %s: group %u points outside the filesystem", context->device->identifier, i);
+            pr_warning("ext2: %s: group %u points outside the filesystem", context->device->name, i);
             return -EINVAL;
         }
     }
@@ -202,10 +202,10 @@ static int load_groups(struct ext2_vfs_context* restrict context)
     return 0;
 }
 
-static void free_context(struct ext2_vfs_context* restrict context)
+static void free_context(ext2_vfs_context_t* restrict context)
 {
-    if(context->devnode) {
-        fcache_dev_destroy(context->devnode);
+    if(context->device_node) {
+        fcache_dev_destroy(context->device_node);
     }
 
     if(context->groups) {
@@ -216,9 +216,9 @@ static void free_context(struct ext2_vfs_context* restrict context)
     kfree(context);
 }
 
-static int fill_root(struct vfs* restrict fs, struct ext2_vfs_context* restrict context)
+static int fill_root(vfs_t* restrict fs, ext2_vfs_context_t* restrict context)
 {
-    struct ext2_vnode_context* root_context = slab_alloc(sizeof(struct ext2_vnode_context));
+    ext2_vnode_context_t* root_context = slab_alloc(sizeof(ext2_vnode_context_t));
 
     if(root_context == nullptr) {
         return -ENOMEM;
@@ -234,12 +234,12 @@ static int fill_root(struct vfs* restrict fs, struct ext2_vfs_context* restrict 
     }
 
     if(EXT2_S_IFDIR != (le16toh(root_context->inode.i_mode) & S_IFMT)) {
-        pr_warning("ext2: %s: root inode is not a directory", context->device->identifier);
+        pr_warning("ext2: %s: root inode is not a directory", context->device->name);
         slab_free(root_context);
         return -EINVAL;
     }
 
-    struct vnode* root = vnode_alloc(VNODE_DIRECTORY, &ext2_vnode_ops, root_context);
+    vnode_t* root = vnode_alloc(VNODE_DIRECTORY, &ext2_vnode_ops, root_context);
 
     if(root == nullptr) {
         slab_free(root_context);
@@ -247,21 +247,21 @@ static int fill_root(struct vfs* restrict fs, struct ext2_vfs_context* restrict 
     }
 
     root->fs = fs;
-    root->nodenumber = EXT2_ROOT_INO;
+    root->ino = EXT2_ROOT_INO;
 
     fs->root = root;
 
     return 0;
 }
 
-static int mark_mounted(struct ext2_vfs_context* restrict context)
+static int mark_mounted(ext2_vfs_context_t* restrict context)
 {
-    struct ext2_superblock* super = &context->super;
+    ext2_superblock_t* super = &context->super;
     int16_t max_mnt_count = (int16_t)le16toh(super->s_max_mnt_count);
     uint16_t mnt_count = le16toh(super->s_mnt_count) + 1;
 
     if(max_mnt_count > 0 && mnt_count >= max_mnt_count) {
-        pr_notice("ext2: %s: maximal mount count reached, running e2fsck is recommended", context->device->identifier);
+        pr_notice("ext2: %s: maximal mount count reached, running e2fsck is recommended", context->device->name);
     }
 
     context->mount_state = le16toh(super->s_state);
@@ -273,9 +273,9 @@ static int mark_mounted(struct ext2_vfs_context* restrict context)
     return ext2_super_commit(context);
 }
 
-static int ext2_probe(struct vfs* restrict fs, const struct blk_device* restrict device)
+static int ext2_probe(vfs_t* restrict fs, const blk_device_t* restrict device)
 {
-    struct ext2_superblock* super = kmalloc(sizeof(struct ext2_superblock));
+    ext2_superblock_t* super = kmalloc(sizeof(ext2_superblock_t));
 
     if(super == nullptr) {
         return -ENOMEM;
@@ -292,19 +292,19 @@ static int ext2_probe(struct vfs* restrict fs, const struct blk_device* restrict
     return retval;
 }
 
-static int ext2_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
+static int ext2_mount(vfs_t* restrict fs, const blk_device_t* restrict device, const cmdline_t* restrict params)
 {
     if(device == nullptr) {
         return -EINVAL;
     }
 
-    struct ext2_vfs_context* context = kmalloc(sizeof(struct ext2_vfs_context));
+    ext2_vfs_context_t* context = kmalloc(sizeof(ext2_vfs_context_t));
 
     if(context == nullptr) {
         return -ENOMEM;
     }
 
-    memset(context, 0, sizeof(struct ext2_vfs_context));
+    memset(context, 0, sizeof(ext2_vfs_context_t));
 
     mutex_init(&context->lock);
 
@@ -325,12 +325,12 @@ static int ext2_mount(struct vfs* restrict fs, const struct blk_device* restrict
     uint16_t state = le16toh(context->super.s_state);
 
     if(0 == (state & EXT2_VALID_FS) || (state & EXT2_ERROR_FS)) {
-        pr_warning("ext2: %s: filesystem was not cleanly unmounted or has errors, running e2fsck is recommended", device->identifier);
+        pr_warning("ext2: %s: filesystem was not cleanly unmounted or has errors, running e2fsck is recommended", device->name);
     }
 
-    context->devnode = fcache_dev_create(fs);
+    context->device_node = fcache_dev_create(fs);
 
-    if(context->devnode == nullptr) {
+    if(context->device_node == nullptr) {
         free_context(context);
         return -ENOMEM;
     }
@@ -362,9 +362,9 @@ static int ext2_mount(struct vfs* restrict fs, const struct blk_device* restrict
     return 0;
 }
 
-static int ext2_unmount(struct vfs* restrict fs)
+static int ext2_unmount(vfs_t* restrict fs)
 {
-    struct ext2_vfs_context* context = fs->ctxdata;
+    ext2_vfs_context_t* context = fs->ctxdata;
 
     vnode_decref(fs->root);
 
@@ -372,7 +372,7 @@ static int ext2_unmount(struct vfs* restrict fs)
         context->super.s_state = htole16(context->mount_state);
 
         if(ext2_super_commit(context) < 0) {
-            pr_warning("ext2: %s: failed to mark the filesystem clean", context->device->identifier);
+            pr_warning("ext2: %s: failed to mark the filesystem clean", context->device->name);
         }
     }
 
@@ -381,12 +381,12 @@ static int ext2_unmount(struct vfs* restrict fs)
     return 0;
 }
 
-static int ext2_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
+static int ext2_statvfs(vfs_t* restrict fs, statvfs_t* restrict out)
 {
-    struct ext2_vfs_context* context = fs->ctxdata;
-    const struct ext2_superblock* super = &context->super;
+    ext2_vfs_context_t* context = fs->ctxdata;
+    const ext2_superblock_t* super = &context->super;
 
-    memset(out, 0, sizeof(struct k_statvfs));
+    memset(out, 0, sizeof(statvfs_t));
 
     mutex_acquire(&context->lock);
 
@@ -418,15 +418,15 @@ static int ext2_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
     return 0;
 }
 
-static int ext2_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
+static int ext2_fillnode(vfs_t* restrict fs, vnode_t* restrict node)
 {
-    struct ext2_vfs_context* context = fs->ctxdata;
+    ext2_vfs_context_t* context = fs->ctxdata;
 
-    if(node->nodenumber > UINT32_MAX) {
+    if(node->ino > UINT32_MAX) {
         return -ENOENT;
     }
 
-    struct ext2_vnode_context* node_context = slab_alloc(sizeof(struct ext2_vnode_context));
+    ext2_vnode_context_t* node_context = slab_alloc(sizeof(ext2_vnode_context_t));
 
     if(node_context == nullptr) {
         return -ENOMEM;
@@ -435,7 +435,7 @@ static int ext2_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
     node_context->fs_ctx = context;
 
     mutex_acquire(&context->lock);
-    int retval = ext2_inode_read(context, (uint32_t)node->nodenumber, &node_context->inode);
+    int retval = ext2_inode_read(context, (uint32_t)node->ino, &node_context->inode);
     mutex_release(&context->lock);
 
     if(retval == 0 && 0 == le16toh(node_context->inode.i_links_count)) {
@@ -443,7 +443,7 @@ static int ext2_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
     }
 
     if(retval == 0) {
-        retval = ext2_inode_nodetype(le16toh(node_context->inode.i_mode), &node->nodetype);
+        retval = ext2_inode_nodetype(le16toh(node_context->inode.i_mode), &node->type);
     }
 
     if(retval < 0) {
@@ -456,26 +456,26 @@ static int ext2_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
     return 0;
 }
 
-static int ext2_sync(struct vfs* restrict fs)
+static int ext2_sync(vfs_t* restrict fs)
 {
-    struct ext2_vfs_context* context = fs->ctxdata;
-    return vnode_fsync(context->devnode);
+    ext2_vfs_context_t* context = fs->ctxdata;
+    return vnode_fsync(context->device_node);
 }
 
-int ext2_super_commit(struct ext2_vfs_context* restrict context)
+int ext2_super_commit(ext2_vfs_context_t* restrict context)
 {
     context->super.s_wtime = htole32((uint32_t)(wallclock_now()));
 
-    return fcache_dev_write(context->devnode, EXT2_SUPER_OFFSET, &context->super, sizeof(struct ext2_superblock));
+    return fcache_dev_write(context->device_node, EXT2_SUPER_OFFSET, &context->super, sizeof(ext2_superblock_t));
 }
 
-int ext2_group_commit(struct ext2_vfs_context* restrict context, uint32_t group)
+int ext2_group_commit(ext2_vfs_context_t* restrict context, uint32_t group)
 {
-    uint64_t offset = context->groups_offset + (uint64_t)group * sizeof(struct ext2_group_desc);
-    return fcache_dev_write(context->devnode, offset, &context->groups[group], sizeof(struct ext2_group_desc));
+    uint64_t offset = context->groups_offset + (uint64_t)group * sizeof(ext2_group_desc_t);
+    return fcache_dev_write(context->device_node, offset, &context->groups[group], sizeof(ext2_group_desc_t));
 }
 
-static const struct vfs_ops ext2_vfs_ops = {
+static const vfs_ops_t ext2_vfs_ops = {
     .probe = &ext2_probe,
     .mount = &ext2_mount,
     .statvfs = &ext2_statvfs,
@@ -484,14 +484,14 @@ static const struct vfs_ops ext2_vfs_ops = {
     .sync = &ext2_sync,
 };
 
-static struct vfs_driver ext2_vfs_driver = {
-    .identifier = "ext2",
+static vfs_driver_t ext2_vfs_driver = {
+    .name = "ext2",
     .ops = &ext2_vfs_ops,
 };
 
 static void init_ext2(void)
 {
-    add_vfs_driver(&ext2_vfs_driver);
+    vfs_driver_add(&ext2_vfs_driver);
 }
 
 initcall_bsp_vfs(init_ext2, INIT_EARLY);

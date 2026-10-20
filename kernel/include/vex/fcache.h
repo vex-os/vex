@@ -5,20 +5,23 @@
 #include <vex/radix.h>
 #include <vex/types.h>
 
-struct pagemap;
-struct vfs;
-struct vnode;
+typedef struct pmap_s pmap_t;
+typedef struct vfs_s vfs_t;
+typedef struct vnode_s vnode_t;
 
-struct fcache {
-    struct mutex lock;
-    struct radix tree;
+typedef struct fcache_s fcache_t;
+typedef struct fcache_extent_s fcache_extent_t;
+
+struct fcache_s {
+    mutex_t lock;
+    radix_tree_t tree;
     size_t num_pages;
     size_t num_dirty;
     bool queued;
-    struct vnode* dirty_next;
+    vnode_t* dirty_next;
 };
 
-struct fcache_extent {
+struct fcache_extent_s {
     uint64_t lba;
     size_t count;
     bool mapped;
@@ -26,23 +29,23 @@ struct fcache_extent {
 
 // Called from within the fcache call the filesystem made,
 // with whatever locks the filesystem took around that call
-typedef int (*fcache_bmap_type)(struct vnode* restrict node, uint64_t sector, bool create, struct fcache_extent* restrict out);
+typedef int (*fcache_bmap_t)(vnode_t* restrict node, uint64_t sector, bool create, fcache_extent_t* restrict out);
 
-void fcache_init(struct fcache* restrict cache);
-void fcache_deinit(struct fcache* restrict cache);
+void fcache_init(fcache_t* restrict cache);
+void fcache_deinit(fcache_t* restrict cache);
 
-ssize_t fcache_read(struct vnode* restrict node, fcache_bmap_type bmap, void* restrict buffer, size_t sz, off_t offset, off_t size);
-ssize_t fcache_write(struct vnode* restrict node, fcache_bmap_type bmap, const void* restrict buffer, size_t sz, off_t offset, off_t size);
-int fcache_map_page(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t index, off_t size, struct pagemap* restrict pmap,
-    uintptr_t virt, unsigned vprot);
-int fcache_writeback(struct vnode* restrict node, fcache_bmap_type bmap, off_t size);
-void fcache_truncate(struct vnode* restrict node, off_t size);
-void fcache_forget(struct vnode* restrict node, uint64_t offset, uint64_t length);
+ssize_t fcache_read(vnode_t* restrict node, fcache_bmap_t bmap, void* restrict buffer, size_t count, off_t offset, off_t file_size);
+ssize_t fcache_write(vnode_t* restrict node, fcache_bmap_t bmap, const void* restrict buffer, size_t count, off_t offset, off_t file_size);
+int fcache_map_page(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t index, off_t size, pmap_t* restrict pmap, uintptr_t virt,
+    unsigned vprot);
+int fcache_writeback(vnode_t* restrict node, fcache_bmap_t bmap, off_t size);
+void fcache_truncate(vnode_t* restrict node, off_t size);
+void fcache_forget(vnode_t* restrict node, uint64_t offset, uint64_t length);
 
-int fcache_sync(struct vfs* restrict fs); // nullptr syncs all filesystems
+int fcache_sync(vfs_t* restrict fs); // nullptr syncs all filesystems
 size_t fcache_reclaim(size_t count);
 
-struct vnode* fcache_dev_create(struct vfs* restrict fs) __nodiscard;
-void fcache_dev_destroy(struct vnode* restrict devnode);
-int fcache_dev_read(struct vnode* restrict devnode, uint64_t offset, void* restrict buffer, size_t sz);
-int fcache_dev_write(struct vnode* restrict devnode, uint64_t offset, const void* restrict buffer, size_t sz);
+vnode_t* fcache_dev_create(vfs_t* restrict fs) __nodiscard;
+void fcache_dev_destroy(vnode_t* restrict device_node);
+int fcache_dev_read(vnode_t* restrict device_node, uint64_t offset, void* restrict buffer, size_t size);
+int fcache_dev_write(vnode_t* restrict device_node, uint64_t offset, const void* restrict buffer, size_t size);

@@ -5,9 +5,9 @@
 #include <vex/slab.h>
 #include <vex/thread.h>
 
-static_assert(sizeof(struct mutex) <= SLAB_MAX_SIZE);
+static_assert(sizeof(mutex_t) <= SLAB_MAX_SIZE);
 
-void mutex_init(struct mutex* restrict mtx)
+void mutex_init(mutex_t* restrict mtx)
 {
     mtx->lock = SPINLOCK_INIT;
     mtx->owner = nullptr;
@@ -16,7 +16,7 @@ void mutex_init(struct mutex* restrict mtx)
     event_init(&mtx->released);
 }
 
-void mutex_deinit(struct mutex* restrict mtx)
+void mutex_deinit(mutex_t* restrict mtx)
 {
     kassert(mtx->owner == nullptr);
     kassert(mtx->num_waiters == 0);
@@ -24,9 +24,9 @@ void mutex_deinit(struct mutex* restrict mtx)
     event_deinit(&mtx->released);
 }
 
-bool mutex_try_acquire(struct mutex* restrict mtx)
+bool mutex_try_acquire(mutex_t* restrict mtx)
 {
-    struct thread* self = this_thread();
+    thread_t* self = this_thread();
 
     bool intr_state = spinlock_acquire_intr(&mtx->lock);
 
@@ -43,9 +43,9 @@ bool mutex_try_acquire(struct mutex* restrict mtx)
     return acquired;
 }
 
-void mutex_acquire(struct mutex* restrict mtx)
+void mutex_acquire(mutex_t* restrict mtx)
 {
-    struct thread* self = this_thread();
+    thread_t* self = this_thread();
 
     bool intr_state = spinlock_acquire_intr(&mtx->lock);
 
@@ -65,7 +65,7 @@ void mutex_acquire(struct mutex* restrict mtx)
         mtx->num_waiters += 1;
         spinlock_release_intr(&mtx->lock, intr_state);
 
-        struct event* released = &mtx->released;
+        event_t* released = &mtx->released;
         event_await_blocking(&released, 1);
 
         intr_state = spinlock_acquire_intr(&mtx->lock);
@@ -77,7 +77,7 @@ void mutex_acquire(struct mutex* restrict mtx)
     spinlock_release_intr(&mtx->lock, intr_state);
 }
 
-void mutex_release(struct mutex* restrict mtx)
+void mutex_release(mutex_t* restrict mtx)
 {
     bool intr_state = spinlock_acquire_intr(&mtx->lock);
 
@@ -96,7 +96,7 @@ void mutex_release(struct mutex* restrict mtx)
     }
 }
 
-bool mutex_held(const struct mutex* restrict mtx)
+bool mutex_held(const mutex_t* restrict mtx)
 {
     return atomic_load(&mtx->owner, ATOMIC_RELAXED) == this_thread();
 }

@@ -2,24 +2,26 @@
 
 #include <vex/blk_device.h>
 
-typedef uint8_t atapi_cdb_type[12];
-
-struct atapi_device;
-struct atapi_device_ops {
-    void (*submit_packet)(const struct atapi_device* restrict device, const atapi_cdb_type cdb, struct blk_request* restrict req);
-    void (*release)(const struct atapi_device* restrict device);
-};
-
 #define ATAPI_FLAG_WRITABLE 0x0001 // Device supports write commands
 
-struct atapi_device {
-    struct blk_device base;
-    const struct atapi_device_ops* ops;
+typedef struct atapi_device_s atapi_device_t;
+typedef struct atapi_device_ops_s atapi_device_ops_t;
+
+typedef uint8_t atapi_cdb_t[12];
+
+struct atapi_device_ops_s {
+    void (*submit_packet)(const atapi_device_t* restrict device, const atapi_cdb_t cdb, blk_request_t* restrict req);
+    void (*release)(const atapi_device_t* restrict device);
+};
+
+struct atapi_device_s {
+    blk_device_t base;
+    const atapi_device_ops_t* ops;
     unsigned flags;
     void* ctxdata;
 };
 
-#define ATAPI_DEVICE_FROM_BLK(device) ((struct atapi_device*)(device))
+#define ATAPI_DEVICE_FROM_BLK(device) ((atapi_device_t*)(device))
 
-int add_atapi_device(struct atapi_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index);
-void remove_atapi_device(struct atapi_device* restrict device);
+int atapi_device_add(atapi_device_t* restrict device, blk_name_t* restrict name, unsigned iterator, unsigned index);
+void atapi_device_remove(atapi_device_t* restrict device);

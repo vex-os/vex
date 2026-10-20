@@ -9,7 +9,7 @@
 #include <vex/thread.h>
 #include <vex/tlb.h>
 
-struct hart_local harts[MAX_HARTS];
+hart_local_t harts[MAX_HARTS];
 unsigned long num_harts = 1U;
 
 static unsigned long ignored_harts = 0U;
@@ -17,7 +17,7 @@ static unsigned long usable_harts = 1U;
 static volatile unsigned long probed_harts = 0U;
 static volatile unsigned long ready_harts = 0U;
 
-static void bring_online(struct hart_local* restrict hart)
+static void bring_online(hart_local_t* restrict hart)
 {
     hart_setup(hart);
 
@@ -30,7 +30,7 @@ static void bring_online(struct hart_local* restrict hart)
     atomic_fetch_add(&ready_harts, 1, ATOMIC_RELEASE);
 }
 
-static void __noreturn run_idle(struct hart_local* restrict hart)
+static void __noreturn run_idle(hart_local_t* restrict hart)
 {
     pmap_switch(&sys_pmap);
 
@@ -43,16 +43,16 @@ static void __noreturn run_idle(struct hart_local* restrict hart)
     }
 }
 
-struct hart_local* this_hart(void)
+hart_local_t* this_hart(void)
 {
-    struct thread* thrd = this_thread();
+    thread_t* thread = this_thread();
 
-    return thrd->last_hart;
+    return thread->last_hart;
 }
 
-struct hart_local* hart_register(bool is_boot)
+hart_local_t* hart_register(bool is_boot)
 {
-    struct hart_local* hart;
+    hart_local_t* hart;
 
     if(is_boot) {
         hart = &harts[0];
@@ -77,7 +77,7 @@ struct hart_local* hart_register(bool is_boot)
     return hart;
 }
 
-void hart_park(struct hart_local* restrict hart)
+void hart_park(hart_local_t* restrict hart)
 {
     arch_cpucaps_probe(&hart->caps);
 
@@ -115,7 +115,7 @@ static void init_harts(void)
 #endif
     }
 
-    struct hart_local* bsp = boot_hart();
+    hart_local_t* bsp = boot_hart();
 
     arch_cpucaps_probe(&bsp->caps);
 

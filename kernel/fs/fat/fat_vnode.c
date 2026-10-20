@@ -19,17 +19,17 @@
 
 #include "fat.h"
 
-static ino_t fat_nodenumber(const struct fat_vfs_context* restrict fs, uintptr_t dir_cluster, size_t index)
+static ino_t fat_nodenumber(const fat_vfs_context_t* restrict fs, uintptr_t dir_cluster, size_t index)
 {
-    size_t num_entries = fs->sector_size / sizeof(union fat_entry);
-    uintptr_t entry_offset = index % num_entries * sizeof(union fat_entry);
+    size_t num_entries = fs->sector_size / sizeof(fat_entry_t);
+    uintptr_t entry_offset = index % num_entries * sizeof(fat_entry_t);
     uintptr_t lba;
 
     if(dir_cluster == 0) {
         lba = fs->data_start - fs->rootdir_sectors + index / num_entries;
     }
     else {
-        size_t cluster_entries = fs->cluster_size_b / sizeof(union fat_entry);
+        size_t cluster_entries = fs->cluster_size_b / sizeof(fat_entry_t);
         size_t cluster_idx = index / cluster_entries;
         uintptr_t cluster = dir_cluster;
 
@@ -171,13 +171,13 @@ static void shortname_build(const char* restrict name, unsigned tail_n, uint8_t 
     }
 }
 
-static bool shortname_pick(const struct fat_vfs_context* restrict fs, uintptr_t dir_cluster, const char* restrict name, uint8_t out[11])
+static bool shortname_pick(const fat_vfs_context_t* restrict fs, uintptr_t dir_cluster, const char* restrict name, uint8_t out[11])
 {
-    bitmap_type taken[32] = { 0 };
-    struct fat_dirent taken_dirent;
+    bitmap_t taken[32] = { 0 };
+    fat_dirent_t taken_dirent;
     size_t taken_offset = 0;
 
-    static_assert(sizeof(taken) * sizeof(bitmap_type) * CHAR_BIT > 999);
+    static_assert(sizeof(taken) * sizeof(bitmap_t) * CHAR_BIT > 999);
 
     while(0 == fat_dirent_read(fs, dir_cluster, &taken_offset, &taken_dirent)) {
         int tilde = -1;
@@ -222,8 +222,8 @@ static bool shortname_pick(const struct fat_vfs_context* restrict fs, uintptr_t 
     return false;
 }
 
-static int find_entry(const struct fat_vfs_context* restrict fs, uintptr_t dir_cluster, const char* restrict name,
-    struct fat_dirent* restrict out, size_t* restrict out_offset)
+static int find_entry(const fat_vfs_context_t* restrict fs, uintptr_t dir_cluster, const char* restrict name, fat_dirent_t* restrict out,
+    size_t* restrict out_offset)
 {
     size_t offset = 0;
 
@@ -241,7 +241,7 @@ static int find_entry(const struct fat_vfs_context* restrict fs, uintptr_t dir_c
     }
 }
 
-static void free_chain(struct fat_vfs_context* restrict fs, uintptr_t cluster)
+static void free_chain(fat_vfs_context_t* restrict fs, uintptr_t cluster)
 {
     while(cluster != 0 && cluster != UINTPTR_MAX) {
         uintptr_t next = fat_cluster_next(fs, cluster);
@@ -250,20 +250,20 @@ static void free_chain(struct fat_vfs_context* restrict fs, uintptr_t cluster)
     }
 }
 
-static bool has_entry(const struct vnode* restrict node)
+static bool has_entry(const vnode_t* restrict node)
 {
-    const struct fat_vnode_context* context = node->ctxdata;
+    const fat_vnode_context_t* context = node->ctxdata;
 
-    if(node->nodetype == VNODE_DIRECTORY && context->first_cluster == context->fs_ctx->root_cluster) {
+    if(node->type == VNODE_DIRECTORY && context->first_cluster == context->fs_ctx->root_cluster) {
         return false;
     }
 
     return !context->unlinked;
 }
 
-static void stamp_new_entry(struct fat_dir_entry* restrict entry, const struct k_timespec* restrict now)
+static void stamp_new_entry(fat_dir_entry_t* restrict entry, const timespec_t* restrict now)
 {
-    struct fat_timestamp stamp;
+    fat_timestamp_t stamp;
     fat_time_pack(now, &stamp);
 
     entry->create_date = stamp.date;
@@ -274,17 +274,16 @@ static void stamp_new_entry(struct fat_dir_entry* restrict entry, const struct k
     entry->access_date = stamp.date;
 }
 
-static int update_entry_locked(struct vnode* restrict node, const struct k_timespec* restrict atime,
-    const struct k_timespec* restrict mtime)
+static int update_entry_locked(vnode_t* restrict node, const timespec_t* restrict atime, const timespec_t* restrict mtime)
 {
-    struct fat_vnode_context* context = node->ctxdata;
-    struct fat_vfs_context* fs = context->fs_ctx;
+    fat_vnode_context_t* context = node->ctxdata;
+    fat_vfs_context_t* fs = context->fs_ctx;
 
     if(!has_entry(node)) {
         return 0;
     }
 
-    struct fat_dirent dirent;
+    fat_dirent_t dirent;
     size_t dir_off = context->dir_offset;
     int retval = fat_dirent_read(fs, context->dir_cluster, &dir_off, &dirent);
 
@@ -292,10 +291,10 @@ static int update_entry_locked(struct vnode* restrict node, const struct k_times
         return retval;
     }
 
-    struct fat_dir_entry entry = dirent.base;
-    struct fat_timestamp stamp;
+    fat_dir_entry_t entry = dirent.base;
+    fat_timestamp_t stamp;
 
-    if(node->nodetype == VNODE_FILE) {
+    if(node->type == VNODE_FILE) {
         entry.file_size = htole32(context->size_bytes);
     }
 
@@ -317,7 +316,7 @@ static int update_entry_locked(struct vnode* restrict node, const struct k_times
     return fat_dirent_update(fs, context->dir_cluster, context->dir_offset, &entry);
 }
 
-static void touch_dir_locked(struct vnode* restrict dir, const struct k_timespec* restrict now)
+static void touch_dir_locked(vnode_t* restrict dir, const timespec_t* restrict now)
 {
     int retval = update_entry_locked(dir, nullptr, now);
 
@@ -326,9 +325,9 @@ static void touch_dir_locked(struct vnode* restrict dir, const struct k_timespec
     }
 }
 
-static void fat_vnode_release(struct vnode* restrict node)
+static void fat_vnode_release(vnode_t* restrict node)
 {
-    struct fat_vnode_context* context = node->ctxdata;
+    fat_vnode_context_t* context = node->ctxdata;
 
     // Held open past unlink, the clusters
     // stay until the last user is gone
@@ -341,10 +340,10 @@ static void fat_vnode_release(struct vnode* restrict node)
     slab_free(context);
 }
 
-static int lookup_locked(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
+static int lookup_locked(vnode_t* restrict node, const char* restrict name, ino_t* restrict out)
 {
-    struct fat_vnode_context* context = node->ctxdata;
-    struct fat_dirent dirent;
+    fat_vnode_context_t* context = node->ctxdata;
+    fat_dirent_t dirent;
     size_t offset;
 
     int retval = find_entry(context->fs_ctx, context->first_cluster, name, &dirent, &offset);
@@ -358,10 +357,10 @@ static int lookup_locked(struct vnode* restrict node, const char* restrict name,
     return 0;
 }
 
-static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
+static int iterate_locked(vnode_t* restrict node, dirent_t* restrict out, size_t index)
 {
-    struct fat_vnode_context* context = node->ctxdata;
-    struct fat_dirent entry;
+    fat_vnode_context_t* context = node->ctxdata;
+    fat_dirent_t entry;
     size_t offset = 0;
     size_t visible = 0;
 
@@ -399,10 +398,10 @@ static int iterate_locked(struct vnode* restrict node, struct k_dirent* restrict
     unreachable();
 }
 
-static int create_locked(struct vnode* restrict node, const char* restrict name, unsigned type, struct vnode** restrict out)
+static int create_locked(vnode_t* restrict node, const char* restrict name, unsigned type, vnode_t** restrict out)
 {
-    struct fat_vnode_context* context = node->ctxdata;
-    struct fat_vfs_context* fs = context->fs_ctx;
+    fat_vnode_context_t* context = node->ctxdata;
+    fat_vfs_context_t* fs = context->fs_ctx;
 
     if(fs->param_readonly) {
         return -EROFS;
@@ -438,8 +437,8 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
         }
     }
 
-    struct fat_dirent dirent;
-    memset(&dirent, 0, sizeof(struct fat_dirent));
+    fat_dirent_t dirent;
+    memset(&dirent, 0, sizeof(fat_dirent_t));
 
     if(!shortname_pick(fs, context->first_cluster, name, dirent.base.name)) {
         if(first_cluster)
@@ -460,7 +459,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     dirent.base.first_cluster_lo = htole16(first_cluster & 0xFFFF);
     dirent.base.file_size = 0;
 
-    struct k_timespec now;
+    timespec_t now;
     wallclock_get(&now);
     stamp_new_entry(&dirent.base, &now);
 
@@ -473,8 +472,8 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     }
 
     if(type == VNODE_DIRECTORY) {
-        union fat_entry dot_entry;
-        memset(&dot_entry, 0, sizeof(union fat_entry));
+        fat_entry_t dot_entry;
+        memset(&dot_entry, 0, sizeof(fat_entry_t));
 
         dot_entry.dir.attribute = FAT_ATTR_DIRECTORY;
         stamp_new_entry(&dot_entry.dir, &now);
@@ -513,7 +512,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
         }
     }
 
-    struct fat_vnode_context* ctx = slab_alloc(sizeof(struct fat_vnode_context));
+    fat_vnode_context_t* ctx = slab_alloc(sizeof(fat_vnode_context_t));
 
     if(ctx == nullptr) {
         fat_cluster_free(fs, first_cluster);
@@ -528,7 +527,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     ctx->cached_cluster = first_cluster;
     ctx->cached_cluster_idx = 0;
 
-    struct vnode* vnode = vnode_alloc(type, &fat_vnode_ops, ctx);
+    vnode_t* vnode = vnode_alloc(type, &fat_vnode_ops, ctx);
 
     if(vnode == nullptr) {
         slab_free(ctx);
@@ -537,7 +536,7 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     }
 
     vnode->fs = node->fs;
-    vnode->nodenumber = fat_nodenumber(fs, context->first_cluster, slot_offset + num_lfn);
+    vnode->ino = fat_nodenumber(fs, context->first_cluster, slot_offset + num_lfn);
 
     *out = vnode;
 
@@ -546,9 +545,9 @@ static int create_locked(struct vnode* restrict node, const char* restrict name,
     return 0;
 }
 
-static int check_empty(const struct fat_vfs_context* restrict fs, uintptr_t cluster)
+static int check_empty(const fat_vfs_context_t* restrict fs, uintptr_t cluster)
 {
-    struct fat_dirent dirent;
+    fat_dirent_t dirent;
     size_t offset = 0;
 
     for(;;) {
@@ -572,17 +571,17 @@ static int check_empty(const struct fat_vfs_context* restrict fs, uintptr_t clus
     }
 }
 
-static int unlink_locked(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+static int unlink_locked(vnode_t* restrict node, const char* restrict name, vnode_t* restrict target)
 {
-    struct fat_vnode_context* context = node->ctxdata;
-    struct fat_vnode_context* target_context = target->ctxdata;
-    struct fat_vfs_context* fs = context->fs_ctx;
+    fat_vnode_context_t* context = node->ctxdata;
+    fat_vnode_context_t* target_context = target->ctxdata;
+    fat_vfs_context_t* fs = context->fs_ctx;
 
     if(fs->param_readonly) {
         return -EROFS;
     }
 
-    if(target->nodetype == VNODE_DIRECTORY) {
+    if(target->type == VNODE_DIRECTORY) {
         int retval = check_empty(fs, target_context->first_cluster);
 
         if(retval < 0) {
@@ -590,7 +589,7 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
         }
     }
 
-    struct fat_dirent dirent;
+    fat_dirent_t dirent;
     size_t entry_offset;
     int retval = find_entry(fs, context->first_cluster, name, &dirent, &entry_offset);
 
@@ -600,7 +599,7 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
 
     // The name was looked up without the lock
     // held, so it may have been replaced since
-    if(fat_nodenumber(fs, context->first_cluster, entry_offset) != target->nodenumber) {
+    if(fat_nodenumber(fs, context->first_cluster, entry_offset) != target->ino) {
         return -ENOENT;
     }
 
@@ -613,16 +612,16 @@ static int unlink_locked(struct vnode* restrict node, const char* restrict name,
     target_context->unlinked = true;
     vcache_remove(target);
 
-    struct k_timespec now;
+    timespec_t now;
     wallclock_get(&now);
     touch_dir_locked(node, &now);
 
     return 0;
 }
 
-static int set_dotdot(struct fat_vfs_context* restrict fs, uintptr_t dir_cluster, uintptr_t parent_cluster)
+static int set_dotdot(fat_vfs_context_t* restrict fs, uintptr_t dir_cluster, uintptr_t parent_cluster)
 {
-    struct fat_dirent dotdot;
+    fat_dirent_t dotdot;
     size_t offset = 1;
     int retval = fat_dirent_read(fs, dir_cluster, &offset, &dotdot);
 
@@ -646,19 +645,18 @@ static int set_dotdot(struct fat_vfs_context* restrict fs, uintptr_t dir_cluster
     return fat_dirent_update(fs, dir_cluster, 1, &dotdot.base);
 }
 
-static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode* source, struct vnode* newdir, const char* newname,
-    struct vnode* victim)
+static int rename_locked(vnode_t* olddir, const char* oldname, vnode_t* source, vnode_t* newdir, const char* newname, vnode_t* victim)
 {
-    struct fat_vnode_context* old_context = olddir->ctxdata;
-    struct fat_vnode_context* new_context = newdir->ctxdata;
-    struct fat_vnode_context* source_context = source->ctxdata;
-    struct fat_vfs_context* fs = old_context->fs_ctx;
+    fat_vnode_context_t* old_context = olddir->ctxdata;
+    fat_vnode_context_t* new_context = newdir->ctxdata;
+    fat_vnode_context_t* source_context = source->ctxdata;
+    fat_vfs_context_t* fs = old_context->fs_ctx;
 
     if(fs->param_readonly) {
         return -EROFS;
     }
 
-    struct fat_dirent old_entry;
+    fat_dirent_t old_entry;
     size_t old_offset;
     int retval = find_entry(fs, old_context->first_cluster, oldname, &old_entry, &old_offset);
 
@@ -668,11 +666,11 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
 
     // Both names were looked up without the lock
     // held, so either may have been replaced since
-    if(fat_nodenumber(fs, old_context->first_cluster, old_offset) != source->nodenumber) {
+    if(fat_nodenumber(fs, old_context->first_cluster, old_offset) != source->ino) {
         return -ENOENT;
     }
 
-    struct fat_dirent victim_entry;
+    fat_dirent_t victim_entry;
     size_t victim_offset;
     retval = find_entry(fs, new_context->first_cluster, newname, &victim_entry, &victim_offset);
 
@@ -685,12 +683,12 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
     }
 
     if(victim) {
-        if(retval == -ENOENT || fat_nodenumber(fs, new_context->first_cluster, victim_offset) != victim->nodenumber) {
+        if(retval == -ENOENT || fat_nodenumber(fs, new_context->first_cluster, victim_offset) != victim->ino) {
             return -ENOENT;
         }
 
-        if(victim->nodetype == VNODE_DIRECTORY) {
-            struct fat_vnode_context* victim_context = victim->ctxdata;
+        if(victim->type == VNODE_DIRECTORY) {
+            fat_vnode_context_t* victim_context = victim->ctxdata;
             retval = check_empty(fs, victim_context->first_cluster);
 
             if(retval < 0) {
@@ -699,9 +697,9 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
         }
     }
 
-    struct fat_dirent entry;
-    memset(&entry, 0, sizeof(struct fat_dirent));
-    memcpy(&entry.base, &old_entry.base, sizeof(struct fat_dir_entry));
+    fat_dirent_t entry;
+    memset(&entry, 0, sizeof(fat_dirent_t));
+    memcpy(&entry.base, &old_entry.base, sizeof(fat_dir_entry_t));
     kstrncpy(entry.full_name, newname, NAME_SIZE);
 
     if(!shortname_pick(fs, new_context->first_cluster, newname, entry.base.name)) {
@@ -739,7 +737,7 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
         pr_error("fat: rename: removing the old entry failed (%d)", retval);
     }
 
-    if(source->nodetype == VNODE_DIRECTORY && olddir != newdir) {
+    if(source->type == VNODE_DIRECTORY && olddir != newdir) {
         retval = set_dotdot(fs, source_context->first_cluster, new_context->first_cluster);
 
         if(retval < 0) {
@@ -748,7 +746,7 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
     }
 
     if(victim) {
-        struct fat_vnode_context* victim_context = victim->ctxdata;
+        fat_vnode_context_t* victim_context = victim->ctxdata;
         victim_context->unlinked = true;
         vcache_remove(victim);
     }
@@ -758,7 +756,7 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
 
     vcache_rekey(source, fat_nodenumber(fs, new_context->first_cluster, new_offset));
 
-    struct k_timespec now;
+    timespec_t now;
     wallclock_get(&now);
     touch_dir_locked(olddir, &now);
 
@@ -769,10 +767,10 @@ static int rename_locked(struct vnode* olddir, const char* oldname, struct vnode
     return 0;
 }
 
-static int chain_cluster(struct vnode* restrict node, size_t cluster_index, bool create, uintptr_t* restrict out)
+static int chain_cluster(vnode_t* restrict node, size_t cluster_index, bool create, uintptr_t* restrict out)
 {
-    struct fat_vnode_context* context = node->ctxdata;
-    struct fat_vfs_context* fs = context->fs_ctx;
+    fat_vnode_context_t* context = node->ctxdata;
+    fat_vfs_context_t* fs = context->fs_ctx;
 
     if(context->first_cluster == 0) {
         if(!create) {
@@ -788,7 +786,7 @@ static int chain_cluster(struct vnode* restrict node, size_t cluster_index, bool
         // An unlinked file's entry slot
         // may belong to another file by now
         if(!context->unlinked) {
-            struct fat_dirent dirent;
+            fat_dirent_t dirent;
             size_t dir_off = context->dir_offset;
             int retval = fat_dirent_read(fs, context->dir_cluster, &dir_off, &dirent);
 
@@ -848,10 +846,10 @@ static int chain_cluster(struct vnode* restrict node, size_t cluster_index, bool
     return 0;
 }
 
-static int fat_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct fcache_extent* restrict out)
+static int fat_bmap(vnode_t* restrict node, uint64_t sector, bool create, fcache_extent_t* restrict out)
 {
-    struct fat_vnode_context* context = node->ctxdata;
-    struct fat_vfs_context* fs = context->fs_ctx;
+    fat_vnode_context_t* context = node->ctxdata;
+    fat_vfs_context_t* fs = context->fs_ctx;
 
     if(fs->sector_size != fs->device->sector_size) {
         return -EIO;
@@ -872,28 +870,28 @@ static int fat_bmap(struct vnode* restrict node, uint64_t sector, bool create, s
     return 0;
 }
 
-static ssize_t read_locked(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
+static ssize_t read_locked(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset)
 {
-    struct fat_vnode_context* context = node->ctxdata;
+    fat_vnode_context_t* context = node->ctxdata;
 
-    return fcache_read(node, &fat_bmap, buffer, sz, offset, context->size_bytes);
+    return fcache_read(node, &fat_bmap, buffer, size, offset, context->size_bytes);
 }
 
-static ssize_t write_span_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t write_span_locked(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset)
 {
-    struct fat_vnode_context* context = node->ctxdata;
-    struct fat_vfs_context* fs = context->fs_ctx;
+    fat_vnode_context_t* context = node->ctxdata;
+    fat_vfs_context_t* fs = context->fs_ctx;
 
     if(fs->param_readonly) {
         return -EROFS;
     }
 
     // A FAT file size is a 32-bit field
-    if(offset < 0 || (uint64_t)(offset) + sz > UINT32_MAX) {
+    if(offset < 0 || (uint64_t)(offset) + size > UINT32_MAX) {
         return -EFBIG;
     }
 
-    ssize_t written = fcache_write(node, &fat_bmap, buffer, sz, offset, context->size_bytes);
+    ssize_t written = fcache_write(node, &fat_bmap, buffer, size, offset, context->size_bytes);
 
     if(written <= 0) {
         return written;
@@ -903,14 +901,14 @@ static ssize_t write_span_locked(struct vnode* restrict node, const void* restri
         context->size_bytes = offset + written;
     }
 
-    struct k_timespec now;
+    timespec_t now;
     wallclock_get(&now);
     update_entry_locked(node, nullptr, &now);
 
     return written;
 }
 
-static int zero_fill_locked(struct vnode* restrict node, off_t from, off_t to)
+static int zero_fill_locked(vnode_t* restrict node, off_t from, off_t to)
 {
     void* zeroes = pslab_alloc_virt();
 
@@ -946,9 +944,9 @@ static int zero_fill_locked(struct vnode* restrict node, off_t from, off_t to)
 
 // Bytes past the end of the file may hold stale data
 // in the last cluster, so a gap is zeroed out on disk
-static ssize_t write_locked(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t write_locked(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset)
 {
-    struct fat_vnode_context* context = node->ctxdata;
+    fat_vnode_context_t* context = node->ctxdata;
 
     if(offset > context->size_bytes) {
         int retval = zero_fill_locked(node, context->size_bytes, offset);
@@ -958,13 +956,13 @@ static ssize_t write_locked(struct vnode* restrict node, const void* restrict bu
         }
     }
 
-    return write_span_locked(node, buffer, sz, offset);
+    return write_span_locked(node, buffer, size, offset);
 }
 
-static int shrink_locked(struct vnode* restrict node, size_t size)
+static int shrink_locked(vnode_t* restrict node, size_t size)
 {
-    struct fat_vnode_context* context = node->ctxdata;
-    struct fat_vfs_context* fs = context->fs_ctx;
+    fat_vnode_context_t* context = node->ctxdata;
+    fat_vfs_context_t* fs = context->fs_ctx;
 
     // Dirty pages past the new end must not
     // reach clusters that are freed below
@@ -1003,7 +1001,7 @@ static int shrink_locked(struct vnode* restrict node, size_t size)
         return 0;
     }
 
-    struct fat_dirent dirent;
+    fat_dirent_t dirent;
     size_t dir_off = context->dir_offset;
     int retval = fat_dirent_read(fs, context->dir_cluster, &dir_off, &dirent);
 
@@ -1018,9 +1016,9 @@ static int shrink_locked(struct vnode* restrict node, size_t size)
     return fat_dirent_update(fs, context->dir_cluster, context->dir_offset, &dirent.base);
 }
 
-static int resize_locked(struct vnode* restrict node, off_t size)
+static int resize_locked(vnode_t* restrict node, off_t size)
 {
-    struct fat_vnode_context* context = node->ctxdata;
+    fat_vnode_context_t* context = node->ctxdata;
 
     if(size > UINT32_MAX) {
         return -EFBIG; // A FAT file size is a 32-bit field
@@ -1033,10 +1031,10 @@ static int resize_locked(struct vnode* restrict node, off_t size)
     return shrink_locked(node, size);
 }
 
-static int setattr_locked(struct vnode* restrict node, const struct vattr* restrict attr)
+static int setattr_locked(vnode_t* restrict node, const vnode_attr_t* restrict attr)
 {
-    struct fat_vnode_context* context = node->ctxdata;
-    struct fat_vfs_context* fs = context->fs_ctx;
+    fat_vnode_context_t* context = node->ctxdata;
+    fat_vfs_context_t* fs = context->fs_ctx;
 
     // FAT has nowhere to keep a mode or an owner; with quiet,
     // the change is dropped instead of failing, as with vfat on Linux
@@ -1061,8 +1059,8 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
     }
 
     // FAT keeps no change time, so VATTR_CTIME has nowhere to go
-    const struct k_timespec* atime = nullptr;
-    const struct k_timespec* mtime = nullptr;
+    const timespec_t* atime = nullptr;
+    const timespec_t* mtime = nullptr;
 
     if(attr->mask & VATTR_ATIME) {
         atime = &attr->atime;
@@ -1075,14 +1073,14 @@ static int setattr_locked(struct vnode* restrict node, const struct vattr* restr
     return update_entry_locked(node, atime, mtime);
 }
 
-static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
+static int stat_locked(vnode_t* restrict node, stat_t* restrict out)
 {
-    struct fat_vnode_context* context = node->ctxdata;
-    struct fat_vfs_context* fs = context->fs_ctx;
+    fat_vnode_context_t* context = node->ctxdata;
+    fat_vfs_context_t* fs = context->fs_ctx;
 
-    memset(out, 0, sizeof(struct k_stat));
+    memset(out, 0, sizeof(stat_t));
 
-    out->st_ino = node->nodenumber;
+    out->st_ino = node->ino;
     out->st_uid = fs->param_uid;
     out->st_gid = fs->param_gid;
     out->st_size = context->size_bytes;
@@ -1099,7 +1097,7 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
 
     mode_t perm_bits = rw_bits | S_IXUSR | S_IXGRP | S_IXOTH;
 
-    if(node->nodetype == VNODE_DIRECTORY) {
+    if(node->type == VNODE_DIRECTORY) {
         out->st_mode = S_IFDIR | perm_bits;
     }
     else {
@@ -1110,7 +1108,7 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
         return 0;
     }
 
-    struct fat_dirent dirent;
+    fat_dirent_t dirent;
     size_t dir_off = context->dir_offset;
     int retval = fat_dirent_read(fs, context->dir_cluster, &dir_off, &dirent);
 
@@ -1118,11 +1116,11 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
         return retval;
     }
 
-    struct fat_timestamp written = { 0 };
+    fat_timestamp_t written = { 0 };
     written.date = dirent.base.write_date;
     written.time = dirent.base.write_time;
 
-    struct fat_timestamp accessed = { 0 };
+    fat_timestamp_t accessed = { 0 };
     accessed.date = dirent.base.access_date;
 
     fat_time_unpack(&written, &out->st_mtim);
@@ -1135,13 +1133,13 @@ static int stat_locked(struct vnode* restrict node, struct k_stat* restrict out)
     return 0;
 }
 
-static struct mutex* fs_lock(struct vnode* restrict node)
+static mutex_t* fs_lock(vnode_t* restrict node)
 {
-    struct fat_vnode_context* context = node->ctxdata;
+    fat_vnode_context_t* context = node->ctxdata;
     return &context->fs_ctx->lock;
 }
 
-static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict name, ino_t* restrict out)
+static int fat_vnode_lookup(vnode_t* restrict node, const char* restrict name, ino_t* restrict out)
 {
     mutex_acquire(fs_lock(node));
     int retval = lookup_locked(node, name, out);
@@ -1149,7 +1147,7 @@ static int fat_vnode_lookup(struct vnode* restrict node, const char* restrict na
     return retval;
 }
 
-static int fat_vnode_iterate(struct vnode* restrict node, struct k_dirent* restrict out, size_t index)
+static int fat_vnode_iterate(vnode_t* restrict node, dirent_t* restrict out, size_t index)
 {
     mutex_acquire(fs_lock(node));
     int retval = iterate_locked(node, out, index);
@@ -1157,7 +1155,7 @@ static int fat_vnode_iterate(struct vnode* restrict node, struct k_dirent* restr
     return retval;
 }
 
-static int fat_vnode_unlink(struct vnode* restrict node, const char* restrict name, struct vnode* restrict target)
+static int fat_vnode_unlink(vnode_t* restrict node, const char* restrict name, vnode_t* restrict target)
 {
     mutex_acquire(fs_lock(node));
     int retval = unlink_locked(node, name, target);
@@ -1165,8 +1163,7 @@ static int fat_vnode_unlink(struct vnode* restrict node, const char* restrict na
     return retval;
 }
 
-static int fat_vnode_rename(struct vnode* olddir, const char* oldname, struct vnode* source, struct vnode* newdir, const char* newname,
-    struct vnode* victim)
+static int fat_vnode_rename(vnode_t* olddir, const char* oldname, vnode_t* source, vnode_t* newdir, const char* newname, vnode_t* victim)
 {
     mutex_acquire(fs_lock(olddir));
     int retval = rename_locked(olddir, oldname, source, newdir, newname, victim);
@@ -1174,8 +1171,8 @@ static int fat_vnode_rename(struct vnode* olddir, const char* oldname, struct vn
     return retval;
 }
 
-static int fat_vnode_create(struct vnode* restrict node, const char* restrict name, unsigned type, mode_t mode,
-    const struct credentials* restrict cred, struct vnode** restrict out)
+static int fat_vnode_create(vnode_t* restrict node, const char* restrict name, unsigned type, mode_t mode,
+    const credentials_t* restrict credentials, vnode_t** restrict out)
 {
     mutex_acquire(fs_lock(node));
     int retval = create_locked(node, name, type, out);
@@ -1183,25 +1180,25 @@ static int fat_vnode_create(struct vnode* restrict node, const char* restrict na
     return retval;
 }
 
-static ssize_t fat_vnode_read(struct vnode* restrict node, void* restrict buffer, size_t sz, off_t offset)
+static ssize_t fat_vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset)
 {
     mutex_acquire(fs_lock(node));
-    ssize_t retval = read_locked(node, buffer, sz, offset);
+    ssize_t retval = read_locked(node, buffer, size, offset);
     mutex_release(fs_lock(node));
     return retval;
 }
 
-static ssize_t fat_vnode_write(struct vnode* restrict node, const void* restrict buffer, size_t sz, off_t offset)
+static ssize_t fat_vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset)
 {
     mutex_acquire(fs_lock(node));
-    ssize_t retval = write_locked(node, buffer, sz, offset);
+    ssize_t retval = write_locked(node, buffer, size, offset);
     mutex_release(fs_lock(node));
     return retval;
 }
 
-static int fat_vnode_map_page(struct vnode* restrict node, uint64_t index, struct pagemap* restrict pmap, uintptr_t virt, unsigned vprot)
+static int fat_vnode_map_page(vnode_t* restrict node, uint64_t index, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot)
 {
-    struct fat_vnode_context* context = node->ctxdata;
+    fat_vnode_context_t* context = node->ctxdata;
 
     mutex_acquire(fs_lock(node));
     int retval = fcache_map_page(node, &fat_bmap, index, context->size_bytes, pmap, virt, vprot);
@@ -1210,9 +1207,9 @@ static int fat_vnode_map_page(struct vnode* restrict node, uint64_t index, struc
     return retval;
 }
 
-static int fat_vnode_fsync(struct vnode* restrict node)
+static int fat_vnode_fsync(vnode_t* restrict node)
 {
-    struct fat_vnode_context* context = node->ctxdata;
+    fat_vnode_context_t* context = node->ctxdata;
 
     mutex_acquire(fs_lock(node));
     int retval = fcache_writeback(node, &fat_bmap, context->size_bytes);
@@ -1220,7 +1217,7 @@ static int fat_vnode_fsync(struct vnode* restrict node)
     return retval;
 }
 
-static int fat_vnode_stat(struct vnode* restrict node, struct k_stat* restrict out)
+static int fat_vnode_stat(vnode_t* restrict node, stat_t* restrict out)
 {
     mutex_acquire(fs_lock(node));
     int retval = stat_locked(node, out);
@@ -1228,7 +1225,7 @@ static int fat_vnode_stat(struct vnode* restrict node, struct k_stat* restrict o
     return retval;
 }
 
-static int fat_vnode_setattr(struct vnode* restrict node, const struct vattr* restrict attr)
+static int fat_vnode_setattr(vnode_t* restrict node, const vnode_attr_t* restrict attr)
 {
     mutex_acquire(fs_lock(node));
     int retval = setattr_locked(node, attr);
@@ -1236,7 +1233,7 @@ static int fat_vnode_setattr(struct vnode* restrict node, const struct vattr* re
     return retval;
 }
 
-const struct vnode_ops fat_vnode_ops = {
+const vnode_ops_t fat_vnode_ops = {
     .release = &fat_vnode_release,
     .lookup = &fat_vnode_lookup,
     .iterate = &fat_vnode_iterate,

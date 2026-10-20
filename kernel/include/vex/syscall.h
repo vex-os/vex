@@ -4,6 +4,10 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
+typedef struct file_s file_t;
+typedef struct hart_context_s hart_context_t;
+typedef struct vnode_s vnode_t;
+
 #define SYS_EXIT          __k_SYS_EXIT
 #define SYS_FORK          __k_SYS_FORK
 #define SYS_EXEC          __k_SYS_EXEC
@@ -71,28 +75,26 @@
 #define SYS_SIGRETURN     __k_SYS_SIGRETURN
 #define SYS_SIGALTSTACK   __k_SYS_SIGALTSTACK
 
-struct file;
-struct hart_context;
-struct vnode;
+typedef struct syscall_s syscall_t;
 
-struct syscall {
+struct syscall_s {
     intptr_t (*function)(const uintptr_t* restrict args);
-    const char* identifier;
+    const char* name;
     unsigned long number;
 };
 
-#define define_syscall(sc_function, sc_number)                                            \
-    static const __used __section(".syscalls") struct syscall __syscall_##sc_function = { \
-        .function = &(sc_function),                                                       \
-        .identifier = #sc_function,                                                       \
-        .number = (sc_number),                                                            \
+#define define_syscall(sc_function, sc_number)                                       \
+    static const __used __section(".syscalls") syscall_t __syscall_##sc_function = { \
+        .function = &(sc_function),                                                  \
+        .name = #sc_function,                                                        \
+        .number = (sc_number),                                                       \
     }
 
-extern const struct syscall unsorted_syscalls_start[];
-extern const struct syscall unsorted_syscalls_end[];
+extern const syscall_t unsorted_syscalls_start[];
+extern const syscall_t unsorted_syscalls_end[];
 
-void dispatch_syscall(struct hart_context* restrict regs);
+void syscall_dispatch(hart_context_t* restrict regs);
 
-intptr_t syscall_with_fd(const uintptr_t* restrict args, intptr_t (*op)(struct file* restrict fp, const uintptr_t* restrict args));
-int syscall_dirfd(int dirfd, const char* restrict path, struct vnode** restrict out) __nodiscard;
-int syscall_resolve_at(int dirfd, const char* restrict path, unsigned flags, struct vnode** restrict out) __nodiscard;
+intptr_t syscall_with_fd(const uintptr_t* restrict args, intptr_t (*op)(file_t* restrict file, const uintptr_t* restrict args));
+int syscall_dirfd(int dirfd, const char* restrict path, vnode_t** restrict out) __nodiscard;
+int syscall_resolve_at(int dirfd, const char* restrict path, unsigned flags, vnode_t** restrict out) __nodiscard;

@@ -34,9 +34,9 @@ static unsigned prot_to_vprot(uintptr_t prot)
 
 // Rounds the length up to whole pages, failing
 // on zero or on a range past the user half
-static bool user_range(struct vmspace* restrict vms, uintptr_t start, uintptr_t length, uintptr_t* restrict end)
+static bool user_range(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t length, uintptr_t* restrict end)
 {
-    uintptr_t user_end = pmap_user_end(vms->pmap);
+    uintptr_t user_end = pmap_user_end(vmspace->pmap);
 
     if(length == 0 || page_offset(start) || start >= user_end || length > user_end - start) {
         return false;
@@ -47,17 +47,17 @@ static bool user_range(struct vmspace* restrict vms, uintptr_t start, uintptr_t 
     return *end <= user_end;
 }
 
-static intptr_t place_mapping(struct vmspace* restrict vms, uintptr_t addr, uintptr_t length, uintptr_t flags, unsigned vprot,
-    const struct vm_backing* restrict backing)
+static intptr_t place_mapping(vmspace_t* restrict vmspace, uintptr_t addr, uintptr_t length, uintptr_t flags, unsigned vprot,
+    const vm_backing_t* restrict backing)
 {
     uintptr_t end;
 
     if(flags & MAP_FIXED) {
-        if(!user_range(vms, addr, length, &end)) {
+        if(!user_range(vmspace, addr, length, &end)) {
             return -EINVAL;
         }
 
-        int retval = vms_map_replace(vms, addr, end, vprot, backing);
+        int retval = vms_map_replace(vmspace, addr, end, vprot, backing);
 
         if(retval < 0) {
             return retval;
@@ -67,12 +67,12 @@ static intptr_t place_mapping(struct vmspace* restrict vms, uintptr_t addr, uint
     }
 
     // The address is a hint taken when it is free
-    if(addr && user_range(vms, addr, length, &end) && 0 == vms_map(vms, addr, end, vprot, backing)) {
+    if(addr && user_range(vmspace, addr, length, &end) && 0 == vms_map(vmspace, addr, end, vprot, backing)) {
         return addr;
     }
 
     uintptr_t placed;
-    int retval = vms_map_any(vms, page_align_up(length), vprot, backing, &placed);
+    int retval = vms_map_any(vmspace, page_align_up(length), vprot, backing, &placed);
 
     if(retval < 0) {
         return retval;
@@ -83,10 +83,10 @@ static intptr_t place_mapping(struct vmspace* restrict vms, uintptr_t addr, uint
 
 static intptr_t sys_mmap(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
@@ -96,7 +96,7 @@ static intptr_t sys_mmap(const uintptr_t* restrict args)
     uintptr_t flags = args[3];
     uintptr_t offset = args[5];
 
-    if(length == 0 || length > pmap_user_end(proc->vms->pmap) || (prot & ~KNOWN_PROT) || (flags & ~KNOWN_FLAGS)) {
+    if(length == 0 || length > pmap_user_end(process->vmspace->pmap) || (prot & ~KNOWN_PROT) || (flags & ~KNOWN_FLAGS)) {
         return -EINVAL;
     }
 
@@ -113,100 +113,100 @@ static intptr_t sys_mmap(const uintptr_t* restrict args)
             return -ENOSYS; // Shared anonymous memory only differs from private across fork
         }
 
-        return place_mapping(proc->vms, addr, length, flags, vprot, nullptr);
+        return place_mapping(process->vmspace, addr, length, flags, vprot, nullptr);
     }
 
     if(page_offset(offset) || (off_t)(offset) < 0) {
         return -EINVAL;
     }
 
-    struct file* fp = dereference_fd(proc, args[4]);
+    file_t* file = process_fd_get(process, args[4]);
 
-    if(fp == nullptr) {
+    if(file == nullptr) {
         return -EBADF;
     }
 
     bool shared = sharing == MAP_SHARED;
-    bool may_write = !shared || ((fp->flags & O_WRONLY) && !fp->node->fs->readonly);
+    bool may_write = !shared || ((file->flags & O_WRONLY) && !file->node->fs->readonly);
     intptr_t retval;
 
-    if(fp->node->nodetype != VNODE_FILE) {
+    if(file->node->type != VNODE_FILE) {
         retval = -ENODEV;
     }
-    else if(0 == (fp->flags & O_RDONLY)) {
+    else if(0 == (file->flags & O_RDONLY)) {
         retval = -EACCES;
     }
     else if((prot & PROT_WRITE) && !may_write) {
-        retval = fp->node->fs->readonly ? -EROFS : -EACCES;
+        retval = file->node->fs->readonly ? -EROFS : -EACCES;
     }
     else {
-        struct vm_backing backing;
-        backing.node = fp->node;
-        backing.pgoff = offset / PAGE_SIZE;
+        vm_backing_t backing;
+        backing.node = file->node;
+        backing.file_page = offset / PAGE_SIZE;
         backing.shared = shared;
         backing.may_write = may_write;
 
-        retval = place_mapping(proc->vms, addr, length, flags, vprot, &backing);
+        retval = place_mapping(process->vmspace, addr, length, flags, vprot, &backing);
     }
 
-    file_close(fp);
+    file_close(file);
 
     return retval;
 }
 
 static intptr_t sys_munmap(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
     uintptr_t end;
 
-    if(!user_range(proc->vms, args[0], args[1], &end)) {
+    if(!user_range(process->vmspace, args[0], args[1], &end)) {
         return -EINVAL;
     }
 
-    return vms_unmap(proc->vms, args[0], end);
+    return vms_unmap(process->vmspace, args[0], end);
 }
 
 static intptr_t sys_mprotect(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
     uintptr_t end;
 
-    if(!user_range(proc->vms, args[0], args[1], &end) || (args[2] & ~KNOWN_PROT)) {
+    if(!user_range(process->vmspace, args[0], args[1], &end) || (args[2] & ~KNOWN_PROT)) {
         return -EINVAL;
     }
 
-    return vms_protect(proc->vms, args[0], end, prot_to_vprot(args[2]));
+    return vms_protect(process->vmspace, args[0], end, prot_to_vprot(args[2]));
 }
 
 static intptr_t sys_msync(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
     uintptr_t flags = args[2];
     uintptr_t end;
 
-    if(!user_range(proc->vms, args[0], args[1], &end) || (flags & ~KNOWN_SYNC) || ((flags & MS_ASYNC) && (flags & MS_SYNC))) {
+    if(!user_range(process->vmspace, args[0], args[1], &end) || (flags & ~KNOWN_SYNC) || ((flags & MS_ASYNC) && (flags & MS_SYNC))) {
         return -EINVAL;
     }
 
-    return vms_sync(proc->vms, args[0], end, 0 != (flags & MS_SYNC));
+    return vms_sync(process->vmspace, args[0], end, 0 != (flags & MS_SYNC));
 }
 
 define_syscall(sys_mmap, SYS_MMAP);

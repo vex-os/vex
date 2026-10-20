@@ -7,15 +7,17 @@
 #include <vex/signal.h>
 #include <vex/spinlock.h>
 
+typedef struct file_s file_t;
+typedef struct pending_signal_s pending_signal_t;
+typedef struct thread_s thread_t;
+typedef struct vmspace_s vmspace_t;
+typedef struct vnode_s vnode_t;
+
 #define INIT_PID 1
 
-struct file;
-struct sigqueue;
-struct thread;
-struct vmspace;
-struct vnode;
+typedef struct process_s process_t;
 
-struct process {
+struct process_s {
     pid_t pid;
     pid_t ppid;
     int exit_code;
@@ -27,59 +29,59 @@ struct process {
     bool exiting;
     uint8_t exit_signal;
 
-    spinlock_type lock;
+    spinlock_t lock;
 
-    struct vmspace* vms;
+    vmspace_t* vmspace;
 
-    struct thread* threads;
+    thread_t* threads;
     uint32_t num_threads;
 
-    struct process* children;
-    struct process* cnext;
-    struct process* cprev;
+    process_t* children;
+    process_t* sibling_next;
+    process_t* sibling_prev;
 
-    struct process* pnext;
+    process_t* hash_next;
 
-    struct event evnt;
-    struct event child_exited;
+    event_t event;
+    event_t child_exited;
 
-    struct credentials* cred;
-    struct mutex cred_lock;
+    credentials_t* credentials;
+    mutex_t credentials_lock;
 
-    struct sighand* sighand;
-    struct sigqueue* exit_note;
-    struct sigqueue* adopt_note;
+    signal_actions_t* signal_actions;
+    pending_signal_t* exit_note;
+    pending_signal_t* adopt_note;
     sigset_t sig_pending;
-    struct sigqueue* sig_queue;
+    pending_signal_t* sig_queue;
 
-    struct vnode* cwd;
+    vnode_t* cwd;
     mode_t umask;
 
-    spinlock_type fd_lock;
+    spinlock_t fd_lock;
     uint32_t num_fds;
     uint32_t max_fds;
-    struct file** fds;
+    file_t** fds;
 };
 
-struct process* process_create(struct process* restrict parent) __nodiscard;
-struct process* process_locate(pid_t pid) __nodiscard;
-void process_incref(struct process* proc);
-void process_decref(struct process* proc);
+process_t* process_create(process_t* restrict parent) __nodiscard;
+process_t* process_locate(pid_t pid) __nodiscard;
+void process_incref(process_t* process);
+void process_decref(process_t* process);
 
-void process_exit(struct process* proc, int exit_code);
-void process_kill(struct process* proc, int sig);
-void process_thread_reaped(struct process* proc, struct thread* thrd);
-bool process_claim(struct process* proc) __nodiscard;
-void process_destroy(struct process* proc);
+void process_exit(process_t* process, int exit_code);
+void process_kill(process_t* process, int sig);
+void process_thread_reaped(process_t* process, thread_t* thread);
+bool process_claim(process_t* process) __nodiscard;
+void process_destroy(process_t* process);
 
-struct credentials* process_get_cred(struct process* proc) __nodiscard;
-void process_set_cred(struct process* proc, struct credentials* cred);
+credentials_t* process_get_cred(process_t* process) __nodiscard;
+void process_set_cred(process_t* process, credentials_t* credentials);
 
-struct vnode* process_get_cwd(struct process* proc) __nodiscard;
-void process_set_cwd(struct process* proc, struct vnode* node);
+vnode_t* process_get_cwd(process_t* process) __nodiscard;
+void process_set_cwd(process_t* process, vnode_t* node);
 
-struct file* dereference_fd(struct process* proc, int fd) __nodiscard;
-int allocate_fd(struct process* proc, struct file* file) __nodiscard;
-int duplicate_fd(struct process* proc, int old_fd, int new_fd) __nodiscard;
-int release_fd(struct process* proc, int fd);
-int copy_fds(struct process* restrict proc, struct process* restrict stem) __nodiscard;
+file_t* process_fd_get(process_t* process, int fd) __nodiscard;
+int process_fd_alloc(process_t* process, file_t* file) __nodiscard;
+int process_fd_dup(process_t* process, int old_fd, int new_fd) __nodiscard;
+int process_fd_release(process_t* process, int fd);
+int process_fds_copy(process_t* restrict process, process_t* restrict source) __nodiscard;

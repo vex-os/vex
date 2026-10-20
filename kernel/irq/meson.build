@@ -1,4 +1,4 @@
 kernel_sources += files(
     'intctl.c',
-    'ireq.c',
+    'irq.c',
 )

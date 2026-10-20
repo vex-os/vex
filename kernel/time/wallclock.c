@@ -20,22 +20,22 @@ static volatile __used __section(".limine_requests") struct limine_date_at_boot_
     .revision = 0,
 };
 
-static struct k_timespec wallclock_offset = { 0 };
-static struct seqlock wallclock_seqlock = SEQLOCK_INIT;
+static timespec_t wallclock_offset = { 0 };
+static seqlock_t wallclock_seqlock = SEQLOCK_INIT;
 
-static void store_offset(const struct k_timespec* restrict offset)
+static void store_offset(const timespec_t* restrict offset)
 {
     bool intr_state = seqlock_write_begin(&wallclock_seqlock);
     wallclock_offset = *offset;
     seqlock_write_end(&wallclock_seqlock, intr_state);
 }
 
-static void step_to(const struct k_timespec* restrict time)
+static void step_to(const timespec_t* restrict time)
 {
-    struct k_timespec monotonic;
-    timespec_from_nsec(&monotonic, clocksrc_nsec());
+    timespec_t monotonic;
+    timespec_from_nsec(&monotonic, clock_source_now_ns());
 
-    struct k_timespec offset;
+    timespec_t offset;
     offset.tv_sec = time->tv_sec - monotonic.tv_sec;
     offset.tv_nsec = time->tv_nsec - monotonic.tv_nsec;
 
@@ -49,7 +49,7 @@ static void step_to(const struct k_timespec* restrict time)
 
 static void inform_date(const char* restrict source, time_t seconds)
 {
-    struct calendar_time calendar;
+    calendar_time_t calendar;
     calendar_from_time(seconds, &calendar);
 
     pr_inform("wallclock: %s %04lld-%02u-%02u %02u:%02u:%02u UTC", source, calendar.year, calendar.month, calendar.day, calendar.hour,
@@ -63,7 +63,7 @@ static bool seconds_valid(int64_t seconds)
 
 static void check_rtc_drift(time_t rtc_seconds)
 {
-    struct k_timespec now;
+    timespec_t now;
     wallclock_get(&now);
 
     long long drift = (long long)(rtc_seconds - now.tv_sec);
@@ -86,9 +86,9 @@ static void check_rtc_drift(time_t rtc_seconds)
     }
 }
 
-void wallclock_get(struct k_timespec* restrict out)
+void wallclock_get(timespec_t* restrict out)
 {
-    struct k_timespec offset;
+    timespec_t offset;
     unsigned sequence;
 
     do {
@@ -96,8 +96,8 @@ void wallclock_get(struct k_timespec* restrict out)
         offset = wallclock_offset;
     } while(seqlock_read_retry(&wallclock_seqlock, sequence));
 
-    struct k_timespec monotonic;
-    timespec_from_nsec(&monotonic, clocksrc_nsec());
+    timespec_t monotonic;
+    timespec_from_nsec(&monotonic, clock_source_now_ns());
 
     out->tv_sec = offset.tv_sec + monotonic.tv_sec;
     out->tv_nsec = offset.tv_nsec + monotonic.tv_nsec;
@@ -108,7 +108,7 @@ void wallclock_get(struct k_timespec* restrict out)
     }
 }
 
-int wallclock_set(const struct k_timespec* restrict time)
+int wallclock_set(const timespec_t* restrict time)
 {
     if(!seconds_valid(time->tv_sec)) {
         return -EINVAL;
@@ -133,7 +133,7 @@ int wallclock_set(const struct k_timespec* restrict time)
 
 time_t wallclock_now(void)
 {
-    struct k_timespec now;
+    timespec_t now;
     wallclock_get(&now);
     return now.tv_sec;
 }
@@ -145,7 +145,7 @@ static void init_wallclock(void)
     bool rtc_valid = 0 == arch_rtc_read(&rtc_seconds) && seconds_valid(rtc_seconds);
 
     if(response && seconds_valid(response->timestamp)) {
-        struct k_timespec offset;
+        timespec_t offset;
         offset.tv_sec = response->timestamp;
         offset.tv_nsec = 0;
 
@@ -161,7 +161,7 @@ static void init_wallclock(void)
     }
 
     if(rtc_valid) {
-        struct k_timespec now;
+        timespec_t now;
         now.tv_sec = rtc_seconds;
         now.tv_nsec = 0;
         step_to(&now);

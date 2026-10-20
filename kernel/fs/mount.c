@@ -14,30 +14,32 @@
 #include <vex/vcache.h>
 #include <vex/vnode.h>
 
-struct mount_entry {
-    struct mount_entry* next;
-    struct vfs* fs;
+typedef struct mount_entry_s mount_entry_t;
+
+struct mount_entry_s {
+    mount_entry_t* next;
+    vfs_t* fs;
     char* path;
 };
 
-static_assert(sizeof(struct vfs) <= SLAB_MAX_SIZE);
-static_assert(sizeof(struct vfs_driver) <= SLAB_MAX_SIZE);
+static_assert(sizeof(vfs_t) <= SLAB_MAX_SIZE);
+static_assert(sizeof(vfs_driver_t) <= SLAB_MAX_SIZE);
 
-static spinlock_type drivers_lock = SPINLOCK_INIT;
-static struct vfs_driver* drivers_head = nullptr;
+static spinlock_t drivers_lock = SPINLOCK_INIT;
+static vfs_driver_t* drivers_head = nullptr;
 
 // The list only changes with both held, so either one is enough to walk it
-static struct mutex mounts_mutex = MUTEX_INIT;
-static spinlock_type mounts_lock = SPINLOCK_INIT;
-static struct mount_entry* mounts_head = nullptr;
-static struct vnode* vfs_root = nullptr;
+static mutex_t mounts_mutex = MUTEX_INIT;
+static spinlock_t mounts_lock = SPINLOCK_INIT;
+static mount_entry_t* mounts_head = nullptr;
+static vnode_t* vfs_root = nullptr;
 
-static struct vfs_driver* find_driver(const char* restrict name)
+static vfs_driver_t* find_driver(const char* restrict name)
 {
-    struct vfs_driver* it;
+    vfs_driver_t* it;
 
     for(it = drivers_head; it; it = it->priv.next) {
-        if(0 == strcmp(it->identifier, name)) {
+        if(0 == strcmp(it->name, name)) {
             return it;
         }
     }
@@ -45,9 +47,9 @@ static struct vfs_driver* find_driver(const char* restrict name)
     return nullptr;
 }
 
-static struct vfs_driver* deduce_driver(const struct blk_device* restrict device)
+static vfs_driver_t* deduce_driver(const blk_device_t* restrict device)
 {
-    struct vfs_driver* it;
+    vfs_driver_t* it;
 
     for(it = drivers_head; it; it = it->priv.next) {
         if(it->ops->probe && it->ops->probe(nullptr, device) == 0) {
@@ -58,7 +60,7 @@ static struct vfs_driver* deduce_driver(const struct blk_device* restrict device
     return nullptr;
 }
 
-static int mount_locked(const char* restrict type, const char* restrict path, const struct blk_device* restrict device,
+static int mount_locked(const char* restrict type, const char* restrict path, const blk_device_t* restrict device,
     const char* restrict params)
 {
     if(path == nullptr) {
@@ -67,7 +69,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
 
     spinlock_acquire(&drivers_lock);
 
-    struct vfs_driver* driver;
+    vfs_driver_t* driver;
 
     if(type == nullptr) {
         driver = deduce_driver(device);
@@ -82,7 +84,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
         return -ENOENT;
     }
 
-    struct cmdline cmdl;
+    cmdline_t cmdl;
     cmdl.buffer = nullptr;
     cmdl.length = 0;
 
@@ -94,7 +96,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
         }
     }
 
-    struct vfs* fs = slab_alloc(sizeof(struct vfs));
+    vfs_t* fs = slab_alloc(sizeof(vfs_t));
 
     if(fs == nullptr) {
         if(cmdl.buffer)
@@ -117,14 +119,14 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
         device_name = "null";
     }
     else {
-        device_name = device->identifier;
+        device_name = device->name;
     }
 
     if(retval == 0) {
-        pr_verbose("vfs: mount %s: mountpoint=%s device=%s", driver->identifier, path, device_name);
+        pr_verbose("vfs: mount %s: mountpoint=%s device=%s", driver->name, path, device_name);
     }
     else {
-        pr_verbose("vfs: %s: failed to mount: %s; mountpoint=%s device=%s", driver->identifier, strerror(retval), path, device_name);
+        pr_verbose("vfs: %s: failed to mount: %s; mountpoint=%s device=%s", driver->name, strerror(retval), path, device_name);
     }
 
     if(cmdl.buffer) {
@@ -136,10 +138,10 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
         return retval;
     }
 
-    struct vnode* mountpoint = nullptr;
+    vnode_t* mountpoint = nullptr;
 
     if(path[0] != PATH_SEPARATOR || path[1] != 0) {
-        retval = path_resolve(path, &sys_cred, &mountpoint);
+        retval = path_resolve(path, &kernel_credentials, &mountpoint);
 
         if(retval < 0) {
             vcache_evict(fs);
@@ -159,11 +161,11 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
         vnode_incref(vfs_root);
     }
     else {
-        mountpoint->fs_mounted = fs;
+        mountpoint->mounted_fs = fs;
         fs->mountpoint = mountpoint;
     }
 
-    struct mount_entry* entry = slab_alloc(sizeof(struct mount_entry));
+    mount_entry_t* entry = slab_alloc(sizeof(mount_entry_t));
 
     if(entry == nullptr) {
         spinlock_release(&mounts_lock);
@@ -205,7 +207,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
     return 0;
 }
 
-int add_vfs_driver(struct vfs_driver* restrict driver)
+int vfs_driver_add(vfs_driver_t* restrict driver)
 {
     if(driver == nullptr || driver->ops == nullptr) {
         return -EINVAL;
@@ -215,13 +217,13 @@ int add_vfs_driver(struct vfs_driver* restrict driver)
         return -EINVAL;
     }
 
-    if(driver->identifier == nullptr || driver->identifier[0] == 0) {
+    if(driver->name == nullptr || driver->name[0] == 0) {
         return -EINVAL;
     }
 
     spinlock_acquire(&drivers_lock);
 
-    if(find_driver(driver->identifier)) {
+    if(find_driver(driver->name)) {
         spinlock_release(&drivers_lock);
         return -EEXIST;
     }
@@ -234,9 +236,9 @@ int add_vfs_driver(struct vfs_driver* restrict driver)
     return 0;
 }
 
-int remove_vfs_driver(struct vfs_driver* restrict driver)
+int vfs_driver_remove(vfs_driver_t* restrict driver)
 {
-    struct vfs_driver** prev;
+    vfs_driver_t** prev;
 
     if(driver == nullptr) {
         return -EINVAL;
@@ -261,7 +263,7 @@ int remove_vfs_driver(struct vfs_driver* restrict driver)
     return -ENOENT;
 }
 
-int vfs_mount(const char* restrict type, const char* restrict path, const struct blk_device* restrict device, const char* restrict params)
+int vfs_mount(const char* restrict type, const char* restrict path, const blk_device_t* restrict device, const char* restrict params)
 {
     mutex_acquire(&mounts_mutex);
     int retval = mount_locked(type, path, device, params);
@@ -275,20 +277,20 @@ int vfs_unmount(const char* restrict path)
 
     mutex_acquire(&mounts_mutex);
 
-    struct mount_entry** prev = &mounts_head;
+    mount_entry_t** prev = &mounts_head;
 
     while(*prev && (*prev)->path && 0 != strcmp((*prev)->path, path)) {
         prev = &(*prev)->next;
     }
 
-    struct mount_entry* entry = *prev;
+    mount_entry_t* entry = *prev;
 
     if(entry == nullptr) {
         mutex_release(&mounts_mutex);
         return -ENOENT;
     }
 
-    struct vfs* fs = entry->fs;
+    vfs_t* fs = entry->fs;
     bool is_root = vfs_root == fs->root;
 
     // Operations that crossed in before the flag was set
@@ -326,10 +328,10 @@ int vfs_unmount(const char* restrict path)
 
     *prev = entry->next;
 
-    struct vnode* mountpoint = fs->mountpoint;
+    vnode_t* mountpoint = fs->mountpoint;
 
     if(mountpoint) {
-        mountpoint->fs_mounted = nullptr;
+        mountpoint->mounted_fs = nullptr;
         fs->mountpoint = nullptr;
     }
 
@@ -365,7 +367,7 @@ int vfs_unmount(const char* restrict path)
     return 0;
 }
 
-int vfs_sync_fs(struct vfs* restrict fs)
+int vfs_sync_fs(vfs_t* restrict fs)
 {
     int retval = fcache_sync(fs);
 
@@ -384,7 +386,7 @@ int vfs_sync_all(void)
 
     mutex_acquire(&mounts_mutex);
 
-    for(struct mount_entry* entry = mounts_head; entry; entry = entry->next) {
+    for(mount_entry_t* entry = mounts_head; entry; entry = entry->next) {
         int fs_retval = vfs_sync_fs(entry->fs);
 
         if(fs_retval < 0 && fs_retval != -ENOSYS && retval == 0) {
@@ -397,7 +399,7 @@ int vfs_sync_all(void)
     return retval;
 }
 
-int vfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
+int vfs_statvfs(vfs_t* restrict fs, statvfs_t* restrict out)
 {
     kassert(fs);
     kassert(out);
@@ -409,7 +411,7 @@ int vfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
     return fs->ops->statvfs(fs, out);
 }
 
-struct vnode* vfs_get_root(void)
+vnode_t* vfs_get_root(void)
 {
     spinlock_acquire(&mounts_lock);
 
@@ -425,13 +427,13 @@ struct vnode* vfs_get_root(void)
     return vfs_root;
 }
 
-struct vnode* vfs_get_mountpoint(struct vfs* restrict fs)
+vnode_t* vfs_get_mountpoint(vfs_t* restrict fs)
 {
     kassert(fs);
 
     spinlock_acquire(&mounts_lock);
 
-    struct vnode* mountpoint = fs->mountpoint;
+    vnode_t* mountpoint = fs->mountpoint;
 
     if(mountpoint) {
         vnode_incref(mountpoint);
@@ -442,21 +444,21 @@ struct vnode* vfs_get_mountpoint(struct vfs* restrict fs)
     return mountpoint;
 }
 
-struct vfs* vfs_get_fs(struct vnode* restrict node)
+vfs_t* vfs_get_fs(vnode_t* restrict node)
 {
     kassert(node);
 
     spinlock_acquire(&mounts_lock);
 
-    for(struct mount_entry* it = mounts_head; it; it = it->next) {
-        struct vnode* mountpoint = it->fs->mountpoint;
+    for(mount_entry_t* it = mounts_head; it; it = it->next) {
+        vnode_t* mountpoint = it->fs->mountpoint;
 
         if(mountpoint == nullptr) {
             continue;
         }
 
         if(mountpoint == node) {
-            struct vfs* result = it->fs;
+            vfs_t* result = it->fs;
             spinlock_release(&mounts_lock);
             return result;
         }
@@ -467,12 +469,12 @@ struct vfs* vfs_get_fs(struct vnode* restrict node)
     return nullptr;
 }
 
-int vfs_cross_mount(struct vnode* restrict node, struct vnode** restrict out)
+int vfs_cross_mount(vnode_t* restrict node, vnode_t** restrict out)
 {
     kassert(node);
     kassert(out);
 
-    if(node->nodetype != VNODE_DIRECTORY) {
+    if(node->type != VNODE_DIRECTORY) {
         vnode_incref(node);
         *out = node;
         return 0;
@@ -480,7 +482,7 @@ int vfs_cross_mount(struct vnode* restrict node, struct vnode** restrict out)
 
     spinlock_acquire(&mounts_lock);
 
-    struct vfs* fs = node->fs_mounted;
+    vfs_t* fs = node->mounted_fs;
 
     if(fs && fs->unmounting) {
         spinlock_release(&mounts_lock);

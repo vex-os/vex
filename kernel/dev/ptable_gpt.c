@@ -12,7 +12,18 @@
 #define PMBR_SIGNATURE_1 UINT8_C(0xAA)
 #define PMBR_ENTRY_COUNT 4
 
-struct pmbr_entry {
+// Upper bound on the partition entry array;
+// the specification asks for at least 16 KiB
+// and anything far beyond that is corrupted or hostile
+#define GPT_ENTRIES_MAX_SIZE (1024 * 1024)
+
+typedef struct pmbr_entry_s pmbr_entry_t;
+typedef struct pmbr_sector_s pmbr_sector_t;
+typedef struct gpt_header_s gpt_header_t;
+typedef struct gpt_entry_s gpt_entry_t;
+typedef struct gpt_ptdata_s gpt_ptdata_t;
+
+struct pmbr_entry_s {
     uint8_t status;
     uint8_t chs_first[3];
     uint8_t type;
@@ -21,20 +32,20 @@ struct pmbr_entry {
     uint32_t lba_count;
 } __packed;
 
-struct pmbr_sector {
+struct pmbr_sector_s {
     uint8_t bootstrap[440];
     uint8_t disk_signature[4];
     uint8_t reserved[2];
-    struct pmbr_entry entries[PMBR_ENTRY_COUNT];
+    pmbr_entry_t entries[PMBR_ENTRY_COUNT];
     uint8_t signature[2];
 } __packed;
 
 #ifndef __INTELLISENSE__
-static_assert(16 == sizeof(struct pmbr_entry));
-static_assert(512 == sizeof(struct pmbr_sector));
+static_assert(16 == sizeof(pmbr_entry_t));
+static_assert(512 == sizeof(pmbr_sector_t));
 #endif
 
-struct gpt_header {
+struct gpt_header_s {
     uint8_t signature[8];
     uint32_t revision;
     uint32_t header_size;
@@ -51,7 +62,7 @@ struct gpt_header {
     uint32_t entry_crc32;
 } __packed;
 
-struct gpt_entry {
+struct gpt_entry_s {
     uint8_t type_guid[16];
     uint8_t unique_guid[16];
     uint64_t lba_start;
@@ -61,21 +72,16 @@ struct gpt_entry {
 } __packed;
 
 #ifndef __INTELLISENSE__
-static_assert(92 == sizeof(struct gpt_header));
-static_assert(56 == sizeof(struct gpt_entry));
+static_assert(92 == sizeof(gpt_header_t));
+static_assert(56 == sizeof(gpt_entry_t));
 #endif
 
-struct gpt_ptdata {
-    struct gpt_header header;
+struct gpt_ptdata_s {
+    gpt_header_t header;
     uint8_t cached_entries[0];
 };
 
-// Upper bound on the partition entry array;
-// the specification asks for at least 16 KiB
-// and anything far beyond that is corrupted or hostile
-#define GPT_ENTRIES_MAX_SIZE (1024 * 1024)
-
-static int gpt_check_header(const struct blk_device* restrict device, uintptr_t header_lba, struct gpt_ptdata** restrict ptdata)
+static int gpt_check_header(const blk_device_t* restrict device, uintptr_t header_lba, gpt_ptdata_t** restrict ptdata)
 {
     uint8_t* sector = kmalloc(device->sector_size);
 
@@ -90,12 +96,12 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
         return retval;
     }
 
-    struct gpt_header header;
-    memcpy(&header, sector, sizeof(struct gpt_header));
+    gpt_header_t header;
+    memcpy(&header, sector, sizeof(gpt_header_t));
 
     uint32_t header_size = le32toh(header.header_size);
 
-    if(memcmp(header.signature, "EFI PART", 8) || header_size < sizeof(struct gpt_header) || header_size > device->sector_size) {
+    if(memcmp(header.signature, "EFI PART", 8) || header_size < sizeof(gpt_header_t) || header_size > device->sector_size) {
         kfree(sector);
         return -EINVAL;
     }
@@ -103,8 +109,8 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
     // The checksum covers header_size bytes with its own field zeroed,
     // which may extend past the fields this structure knows about
     uint32_t checksum = le32toh(header.header_crc32);
-    memset(sector + offsetof(struct gpt_header, header_crc32), 0, sizeof(uint32_t));
-    uint32_t computed = crc32_iso3309_get(sector, header_size);
+    memset(sector + offsetof(gpt_header_t, header_crc32), 0, sizeof(uint32_t));
+    uint32_t computed = crc32_iso3309_compute(sector, header_size);
 
     kfree(sector);
 
@@ -116,7 +122,7 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
     uint32_t entry_size = le32toh(header.entry_size);
     uint64_t entry_start_lba = le64toh(header.entry_start_lba);
 
-    if(entry_size < sizeof(struct gpt_entry) || entry_size % 8 != 0) {
+    if(entry_size < sizeof(gpt_entry_t) || entry_size % 8 != 0) {
         return -EINVAL;
     }
 
@@ -132,7 +138,7 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
     }
 
     // Whole sectors are read, so the buffer is rounded up to them
-    struct gpt_ptdata* gpt = kmalloc(entries_lbas * device->sector_size + sizeof(struct gpt_ptdata));
+    gpt_ptdata_t* gpt = kmalloc(entries_lbas * device->sector_size + sizeof(gpt_ptdata_t));
 
     if(gpt == nullptr) {
         return -ENOMEM;
@@ -145,21 +151,21 @@ static int gpt_check_header(const struct blk_device* restrict device, uintptr_t 
         return retval;
     }
 
-    if(le32toh(header.entry_crc32) != crc32_iso3309_get(gpt->cached_entries, entries_size)) {
+    if(le32toh(header.entry_crc32) != crc32_iso3309_compute(gpt->cached_entries, entries_size)) {
         kfree(gpt);
         return -EINVAL;
     }
 
-    memcpy(&gpt->header, &header, sizeof(struct gpt_header));
+    memcpy(&gpt->header, &header, sizeof(gpt_header_t));
 
     *ptdata = gpt;
 
     return 0;
 }
 
-static int gpt_detect(const struct blk_device* restrict device, void** restrict ptdata)
+static int gpt_detect(const blk_device_t* restrict device, void** restrict ptdata)
 {
-    struct pmbr_sector sector;
+    pmbr_sector_t sector;
     int retval = blk_read_sector_prefix(device, 0, &sector, sizeof(sector));
 
     if(retval < 0) {
@@ -178,7 +184,7 @@ static int gpt_detect(const struct blk_device* restrict device, void** restrict 
         return -EINVAL;
     }
 
-    struct gpt_ptdata* gpt;
+    gpt_ptdata_t* gpt;
     retval = gpt_check_header(device, le32toh(sector.entries[0].lba_start), &gpt);
 
     if(retval < 0) {
@@ -194,18 +200,18 @@ static int gpt_detect(const struct blk_device* restrict device, void** restrict 
     return 0;
 }
 
-static int gpt_readpt(const struct blk_device* restrict device, void* restrict ptdata, unsigned index, struct blk_ptable_info* restrict out)
+static int gpt_readpt(const blk_device_t* restrict device, void* restrict ptdata, unsigned index, blk_partition_table_info_t* restrict out)
 {
     static const uint8_t null_guid[16] = { 0 }; // FIXME: a GUID library would be nice
 
-    const struct gpt_ptdata* gpt = ptdata;
+    const gpt_ptdata_t* gpt = ptdata;
     uint32_t entry_count = le32toh(gpt->header.entry_count);
     uint32_t entry_size = le32toh(gpt->header.entry_size);
 
     unsigned found = 0;
 
     for(unsigned slot = 0; slot < entry_count; slot += 1) {
-        const struct gpt_entry* entry = (const struct gpt_entry*)(gpt->cached_entries + entry_size * slot);
+        const gpt_entry_t* entry = (const gpt_entry_t*)(gpt->cached_entries + entry_size * slot);
 
         if(0 == memcmp(entry->type_guid, null_guid, 16)) {
             continue;
@@ -219,8 +225,8 @@ static int gpt_readpt(const struct blk_device* restrict device, void* restrict p
         }
 
         if(found == index) {
-            const uint16_t* name = (const uint16_t*)((const uint8_t*)entry + sizeof(struct gpt_entry));
-            size_t name_len = (entry_size - sizeof(struct gpt_entry)) / sizeof(uint16_t);
+            const uint16_t* name = (const uint16_t*)((const uint8_t*)entry + sizeof(gpt_entry_t));
+            size_t name_len = (entry_size - sizeof(gpt_entry_t)) / sizeof(uint16_t);
 
             unsigned i;
 
@@ -248,20 +254,20 @@ static void gpt_release(void* ptdata)
     kfree(ptdata);
 }
 
-static const struct blk_ptable_ops gpt_ptable_ops = {
+static const blk_partition_table_ops_t gpt_ptable_ops = {
     .detect = &gpt_detect,
     .readpt = &gpt_readpt,
     .release = &gpt_release,
 };
 
-static struct blk_ptable gpt_ptable = {
+static blk_partition_table_t gpt_ptable = {
     .ops = &gpt_ptable_ops,
-    .identifier = "gpt",
+    .name = "gpt",
 };
 
 static void init_ptable_gpt(void)
 {
-    add_blk_ptable(&gpt_ptable);
+    blk_partition_table_add(&gpt_ptable);
 }
 
 initcall_bsp_dev(init_ptable_gpt, INIT_FIRST);

@@ -3,22 +3,22 @@
 #include <arch/sched.h>
 #include <vex/types.h>
 
-struct hart_context;
-struct thread;
-struct process;
+typedef struct hart_context_s hart_context_t;
+typedef struct thread_s thread_t;
+typedef struct process_s process_t;
 
-typedef void (*thread_entry_kern)(void* restrict arg);
+typedef void (*kernel_thread_entry_t)(void* restrict arg);
 
-struct thread* create_thread_kern(thread_entry_kern entry, void* restrict arg);
-struct thread* create_thread_kern_enq(thread_entry_kern entry, void* restrict arg);
-struct thread* create_thread_user(struct process* restrict proc, uintptr_t entry, uintptr_t stack_top);
-struct thread* create_thread_user_enq(struct process* restrict proc, uintptr_t entry, uintptr_t stack_top);
-struct thread* create_thread_fork(struct process* restrict proc, const struct hart_context* restrict ctx);
+thread_t* thread_create_kernel(kernel_thread_entry_t entry, void* restrict arg);
+thread_t* thread_spawn_kernel(kernel_thread_entry_t entry, void* restrict arg);
+thread_t* thread_create_user(process_t* restrict process, uintptr_t entry, uintptr_t stack_top);
+thread_t* thread_spawn_user(process_t* restrict process, uintptr_t entry, uintptr_t stack_top);
+thread_t* thread_create_fork(process_t* restrict process, const hart_context_t* restrict ctx);
 
-void sched_enqueue(struct thread* restrict thrd);
-void sched_dequeue(struct thread* restrict thrd, bool interruptible);
-void sched_kick(struct thread* restrict thrd);
-void sched_wake_at(struct thread* restrict thrd, uint64_t deadline);
-void sched_wake_cancel(struct thread* restrict thrd);
+void sched_enqueue(thread_t* restrict thread);
+void sched_dequeue(thread_t* restrict thread, bool interruptible);
+void sched_kick(thread_t* restrict thread);
+void sched_wake_at(thread_t* restrict thread, uint64_t deadline);
+void sched_wake_cancel(thread_t* restrict thread);
 void sched_terminate(void) __noreturn;
 void sched_yield(void);

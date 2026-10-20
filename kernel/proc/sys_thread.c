@@ -7,18 +7,18 @@
 
 static intptr_t sys_tcb_set(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
+    thread_t* thread = this_thread();
 
-    if(thrd->proc == nullptr) {
+    if(thread->process == nullptr) {
         return -ENOSYS;
     }
 
     // A kernel address is useless to userspace and may not even be canonical
-    if(args[0] >= pmap_user_end(thrd->proc->vms->pmap)) {
+    if(args[0] >= pmap_user_end(thread->process->vmspace->pmap)) {
         return -EINVAL;
     }
 
-    arch_thread_set_tcb(thrd, args[0]);
+    arch_thread_set_tcb(thread, args[0]);
 
     return 0;
 }

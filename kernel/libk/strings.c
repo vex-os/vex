@@ -3,15 +3,15 @@
 #include <vex/string.h>
 #include <vex/strings.h>
 
-char* kstrncat(char* restrict dst, const char* restrict src, size_t sz)
+char* kstrncat(char* restrict dst, const char* restrict src, size_t size)
 {
     char* save = dst;
 
-    while(*dst && sz--) {
+    while(*dst && size--) {
         dst += 1;
     }
 
-    size_t nc = strnlen(src, --sz);
+    size_t nc = strnlen(src, --size);
 
     dst[nc] = 0;
 
@@ -20,15 +20,15 @@ char* kstrncat(char* restrict dst, const char* restrict src, size_t sz)
     return save;
 }
 
-char* kstrncpy(char* restrict dst, const char* restrict src, size_t sz)
+char* kstrncpy(char* restrict dst, const char* restrict src, size_t size)
 {
     char* save = dst;
 
-    while(*src && sz--) {
+    while(*src && size--) {
         *dst++ = *src++;
     }
 
-    if(sz) {
+    if(size) {
         *dst = 0;
     }
 
@@ -45,14 +45,14 @@ int strcasecmp(const char* restrict sa, const char* restrict sb)
     return tolower((unsigned char)*sa) - tolower((unsigned char)*sb);
 }
 
-int strncasecmp(const char* restrict sa, const char* restrict sb, size_t sz)
+int strncasecmp(const char* restrict sa, const char* restrict sb, size_t size)
 {
-    while(sz-- && *sa && tolower(*sa) == tolower(*sb)) {
+    while(size-- && *sa && tolower(*sa) == tolower(*sb)) {
         sa += 1;
         sb += 1;
     }
 
-    if(sz == SIZE_MAX) {
+    if(size == SIZE_MAX) {
         return 0;
     }
 

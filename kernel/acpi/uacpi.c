@@ -1,5 +1,5 @@
 #include "uacpi/status.h"
-#include <arch/ireq.h>
+#include <arch/irq.h>
 #include <uacpi/kernel_api.h>
 #include <vex/atomic.h>
 #include <vex/clocksrc.h>
@@ -9,7 +9,7 @@
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/intctl.h>
-#include <vex/ireq.h>
+#include <vex/irq.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/limits.h>
@@ -27,37 +27,48 @@
 
 #define UACPI_TIMEOUT_INFINITE 0xFFFF
 
-struct acpi_work {
-    struct acpi_work* next;
+typedef struct acpi_work_s acpi_work_t;
+typedef struct acpi_semaphore_s acpi_semaphore_t;
+typedef struct acpi_irq_trampoline_s acpi_irq_trampoline_t;
+
+struct acpi_work_s {
+    acpi_work_t* next;
     uacpi_work_handler handler;
     uacpi_handle ctx;
 };
 
-struct acpi_semaphore {
+struct acpi_semaphore_s {
     uint32_t units;
-    struct event given;
+    event_t given;
 };
 
-static_assert(sizeof(struct acpi_work) <= SLAB_MAX_SIZE);
-static_assert(sizeof(struct acpi_semaphore) <= SLAB_MAX_SIZE);
+struct acpi_irq_trampoline_s {
+    unsigned irq_number;
+    uacpi_interrupt_handler handler;
+    uacpi_handle ctxdata;
+    uint32_t gsi;
+};
 
-static struct acpi_work* work_head;
-static struct acpi_work* work_tail;
-static spinlock_type work_lock = SPINLOCK_INIT;
-static struct event work_queued;
+static_assert(sizeof(acpi_work_t) <= SLAB_MAX_SIZE);
+static_assert(sizeof(acpi_semaphore_t) <= SLAB_MAX_SIZE);
+
+static acpi_work_t* work_head;
+static acpi_work_t* work_tail;
+static spinlock_t work_lock = SPINLOCK_INIT;
+static event_t work_queued;
 static unsigned long irqs_running;
 static unsigned long works_pending;
 
 static bool poll_until(bool (*done)(void* arg), void* arg, uacpi_u16 timeout_msec)
 {
-    uint64_t deadline = clocksrc_nsec() + timeout_msec * UINT64_C(1000000);
+    uint64_t deadline = clock_source_now_ns() + timeout_msec * UINT64_C(1000000);
 
     for(;;) {
         if(done(arg)) {
             return true;
         }
 
-        if(timeout_msec != UACPI_TIMEOUT_INFINITE && clocksrc_nsec() >= deadline) {
+        if(timeout_msec != UACPI_TIMEOUT_INFINITE && clock_source_now_ns() >= deadline) {
             return false;
         }
 
@@ -72,7 +83,7 @@ static bool poll_until(bool (*done)(void* arg), void* arg, uacpi_u16 timeout_mse
 
 static bool take_unit(void* arg)
 {
-    struct acpi_semaphore* sem = arg;
+    acpi_semaphore_t* sem = arg;
     uint32_t units = atomic_load_n(&sem->units, ATOMIC_ACQUIRE);
 
     while(units > 0) {
@@ -94,11 +105,11 @@ static bool no_works_pending(void* arg)
     return 0 == atomic_load_n(&works_pending, ATOMIC_ACQUIRE);
 }
 
-static struct acpi_work* pop_work(void)
+static acpi_work_t* pop_work(void)
 {
     bool intr_state = spinlock_acquire_intr(&work_lock);
 
-    struct acpi_work* work = work_head;
+    acpi_work_t* work = work_head;
 
     if(work) {
         work_head = work->next;
@@ -113,7 +124,7 @@ static struct acpi_work* pop_work(void)
     return work;
 }
 
-static void run_work(struct acpi_work* restrict work)
+static void run_work(acpi_work_t* restrict work)
 {
     uacpi_work_handler handler = work->handler;
     uacpi_handle ctx = work->ctx;
@@ -126,16 +137,25 @@ static void run_work(struct acpi_work* restrict work)
 static void __noreturn work_thread(void* restrict arg)
 {
     for(;;) {
-        struct acpi_work* work = pop_work();
+        acpi_work_t* work = pop_work();
 
         if(work) {
             run_work(work);
             continue;
         }
 
-        struct event* queued = &work_queued;
+        event_t* queued = &work_queued;
         event_await_blocking(&queued, 1);
     }
+}
+
+static void acpi_irq_dispatch(unsigned number, const hart_context_t* restrict ctx, void* restrict ctxdata)
+{
+    acpi_irq_trampoline_t* trampoline = ctxdata;
+
+    atomic_fetch_add(&irqs_running, 1, ATOMIC_ACQ_REL);
+    trampoline->handler(trampoline->ctxdata);
+    atomic_fetch_sub(&irqs_running, 1, ATOMIC_ACQ_REL);
 }
 
 uacpi_status uacpi_kernel_get_rsdp(uacpi_phys_addr* out)
@@ -208,7 +228,7 @@ void uacpi_kernel_free(void* mem)
 
 uacpi_handle uacpi_kernel_create_semaphore(uacpi_u32 initial_units)
 {
-    struct acpi_semaphore* sem = slab_alloc(sizeof(struct acpi_semaphore));
+    acpi_semaphore_t* sem = slab_alloc(sizeof(acpi_semaphore_t));
 
     if(sem) {
         sem->units = initial_units;
@@ -220,7 +240,7 @@ uacpi_handle uacpi_kernel_create_semaphore(uacpi_u32 initial_units)
 
 void uacpi_kernel_free_semaphore(uacpi_handle handle)
 {
-    struct acpi_semaphore* sem = handle;
+    acpi_semaphore_t* sem = handle;
 
     event_deinit(&sem->given);
     slab_free(sem);
@@ -228,7 +248,7 @@ void uacpi_kernel_free_semaphore(uacpi_handle handle)
 
 uacpi_status uacpi_kernel_wait_for_semaphore(uacpi_handle handle, uacpi_u16 timeout)
 {
-    struct acpi_semaphore* sem = handle;
+    acpi_semaphore_t* sem = handle;
 
     if(take_unit(sem)) {
         return UACPI_STATUS_OK;
@@ -242,17 +262,17 @@ uacpi_status uacpi_kernel_wait_for_semaphore(uacpi_handle handle, uacpi_u16 time
         return poll_until(&take_unit, sem, timeout) ? UACPI_STATUS_OK : UACPI_STATUS_TIMEOUT;
     }
 
-    uint64_t deadline = clocksrc_nsec() + timeout * UINT64_C(1000000);
+    uint64_t deadline = clock_source_now_ns() + timeout * UINT64_C(1000000);
 
     for(;;) {
-        struct event* given = &sem->given;
+        event_t* given = &sem->given;
         ssize_t result;
 
         if(timeout == UACPI_TIMEOUT_INFINITE) {
             result = event_await_blocking(&given, 1);
         }
         else {
-            uint64_t now = clocksrc_nsec();
+            uint64_t now = clock_source_now_ns();
 
             if(now >= deadline) {
                 if(take_unit(sem))
@@ -275,7 +295,7 @@ uacpi_status uacpi_kernel_wait_for_semaphore(uacpi_handle handle, uacpi_u16 time
 
 void uacpi_kernel_signal_semaphore(uacpi_handle handle)
 {
-    struct acpi_semaphore* sem = handle;
+    acpi_semaphore_t* sem = handle;
 
     atomic_fetch_add(&sem->units, 1, ATOMIC_ACQ_REL);
     event_trigger(&sem->given, true);
@@ -283,30 +303,30 @@ void uacpi_kernel_signal_semaphore(uacpi_handle handle)
 
 uacpi_u64 uacpi_kernel_get_nanoseconds_since_boot(void)
 {
-    return clocksrc_nsec();
+    return clock_source_now_ns();
 }
 
 void uacpi_kernel_stall(uacpi_u8 usec)
 {
-    uacpi_u64 deadline = clocksrc_nsec() + usec * UINT64_C(1000);
+    uacpi_u64 deadline = clock_source_now_ns() + usec * UINT64_C(1000);
 
-    while(clocksrc_nsec() < deadline) {
+    while(clock_source_now_ns() < deadline) {
         hart_spin();
     }
 }
 
 void uacpi_kernel_sleep(uacpi_u64 msec)
 {
-    uacpi_u64 deadline = clocksrc_nsec() + msec * UINT64_C(1000000);
+    uacpi_u64 deadline = clock_source_now_ns() + msec * UINT64_C(1000000);
 
-    while(clocksrc_nsec() < deadline) {
+    while(clock_source_now_ns() < deadline) {
         hart_spin();
     }
 }
 
 uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handle* out_handle)
 {
-    struct pci_device* dev = pci_find(address.segment, address.bus, address.device, address.function);
+    pci_device_t* dev = pci_find(address.segment, address.bus, address.device, address.function);
 
     if(dev == nullptr) {
         return UACPI_STATUS_NOT_FOUND;
@@ -380,32 +400,16 @@ uacpi_status uacpi_kernel_handle_firmware_request(uacpi_firmware_request* reques
     return UACPI_STATUS_UNIMPLEMENTED;
 }
 
-struct acpi_irq_trampoline {
-    unsigned ireq_number;
-    uacpi_interrupt_handler handler;
-    uacpi_handle ctxdata;
-    uint32_t gsi;
-};
-
-static void acpi_irq_dispatch(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
-{
-    struct acpi_irq_trampoline* trampoline = ctxdata;
-
-    atomic_fetch_add(&irqs_running, 1, ATOMIC_ACQ_REL);
-    trampoline->handler(trampoline->ctxdata);
-    atomic_fetch_sub(&irqs_running, 1, ATOMIC_ACQ_REL);
-}
-
 uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interrupt_handler handler, uacpi_handle ctxdata,
     uacpi_handle* out_handle)
 {
-    struct acpi_irq_trampoline* trampoline = kmalloc(sizeof(struct acpi_irq_trampoline));
+    acpi_irq_trampoline_t* trampoline = kmalloc(sizeof(acpi_irq_trampoline_t));
 
     if(trampoline == nullptr) {
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
 
-    struct intctl* controller = find_intctl(gsi);
+    interrupt_controller_t* controller = interrupt_controller_find(gsi);
 
     if(controller == nullptr) {
         kfree(trampoline);
@@ -417,18 +421,18 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
     trampoline->ctxdata = ctxdata;
     trampoline->gsi = gsi;
 
-    unsigned ireq_number = add_ireq_handler(UINT_MAX, &acpi_irq_dispatch, trampoline);
+    unsigned irq_number = irq_handler_add(UINT_MAX, &acpi_irq_dispatch, trampoline);
 
-    if(ireq_number == UINT_MAX) {
+    if(irq_number == UINT_MAX) {
         kfree(trampoline);
 
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
 
-    trampoline->ireq_number = ireq_number;
+    trampoline->irq_number = irq_number;
 
-    intctl_route(controller, gsi, ireq_number + ARCH_IREQ_BASE, 0, TRIGGER_LEVEL, ACTIVE_LOW);
-    intctl_unmask(controller, gsi);
+    interrupt_controller_route(controller, gsi, irq_number + ARCH_IRQ_BASE, 0, TRIGGER_LEVEL, ACTIVE_LOW);
+    interrupt_controller_unmask(controller, gsi);
 
     *out_handle = trampoline;
 
@@ -437,15 +441,15 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
 
 uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler handler, uacpi_handle irq_handle)
 {
-    struct acpi_irq_trampoline* trampoline = irq_handle;
+    acpi_irq_trampoline_t* trampoline = irq_handle;
 
-    struct intctl* controller = find_intctl(trampoline->gsi);
+    interrupt_controller_t* controller = interrupt_controller_find(trampoline->gsi);
 
     if(controller) {
-        intctl_mask(controller, trampoline->gsi);
+        interrupt_controller_mask(controller, trampoline->gsi);
     }
 
-    remove_ireq_handler(trampoline->ireq_number);
+    irq_handler_remove(trampoline->irq_number);
     kfree(trampoline);
 
     return UACPI_STATUS_OK;
@@ -453,7 +457,7 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler ha
 
 uacpi_handle uacpi_kernel_create_work_item(void)
 {
-    return slab_alloc(sizeof(struct acpi_work));
+    return slab_alloc(sizeof(acpi_work_t));
 }
 
 void uacpi_kernel_free_work_item(uacpi_handle handle)
@@ -463,7 +467,7 @@ void uacpi_kernel_free_work_item(uacpi_handle handle)
 
 void uacpi_kernel_schedule_work(uacpi_work_type type, uacpi_handle work_item, uacpi_work_handler handler, uacpi_handle ctx)
 {
-    struct acpi_work* work = work_item;
+    acpi_work_t* work = work_item;
 
     work->next = nullptr;
     work->handler = handler;
@@ -491,7 +495,7 @@ uacpi_status uacpi_kernel_wait_for_work_completion(void)
 {
     poll_until(&no_irqs_running, nullptr, UACPI_TIMEOUT_INFINITE);
 
-    for(struct acpi_work* work = pop_work(); work; work = pop_work()) {
+    for(acpi_work_t* work = pop_work(); work; work = pop_work()) {
         run_work(work);
     }
 
@@ -504,7 +508,7 @@ static void init_acpi_work(void)
 {
     event_init(&work_queued);
 
-    struct thread* worker = create_thread_kern(&work_thread, nullptr);
+    thread_t* worker = thread_create_kernel(&work_thread, nullptr);
 
     if(worker == nullptr) {
         panic("uacpi: out of memory");

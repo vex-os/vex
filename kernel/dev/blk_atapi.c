@@ -8,9 +8,9 @@
 #define ATAPI_CMD_WRITE_10   0x2A
 #define ATAPI_CMD_SYNC_CACHE 0x35
 
-static void setup_rw_cdb(atapi_cdb_type cdb, uint8_t command, uintptr_t lba, size_t count)
+static void setup_rw_cdb(atapi_cdb_t cdb, uint8_t command, uintptr_t lba, size_t count)
 {
-    memset(cdb, 0, sizeof(atapi_cdb_type));
+    memset(cdb, 0, sizeof(atapi_cdb_t));
     cdb[0] = command;
     cdb[2] = lba >> 24;
     cdb[3] = lba >> 16;
@@ -20,11 +20,11 @@ static void setup_rw_cdb(atapi_cdb_type cdb, uint8_t command, uintptr_t lba, siz
     cdb[8] = count & 0xFF;
 }
 
-static void atapi_submit(const struct blk_device* restrict device, struct blk_request* restrict req)
+static void atapi_submit(const blk_device_t* restrict device, blk_request_t* restrict req)
 {
-    const struct atapi_device* atapi = ATAPI_DEVICE_FROM_BLK(device);
+    const atapi_device_t* atapi = ATAPI_DEVICE_FROM_BLK(device);
     size_t count = req->length / device->sector_size;
-    atapi_cdb_type cdb;
+    atapi_cdb_t cdb;
 
     if(count > UINT16_MAX) {
         req->status = -EINVAL;
@@ -48,7 +48,7 @@ static void atapi_submit(const struct blk_device* restrict device, struct blk_re
             break;
 
         default:
-            memset(cdb, 0, sizeof(atapi_cdb_type));
+            memset(cdb, 0, sizeof(atapi_cdb_t));
             cdb[0] = ATAPI_CMD_SYNC_CACHE;
             break;
     }
@@ -56,28 +56,28 @@ static void atapi_submit(const struct blk_device* restrict device, struct blk_re
     atapi->ops->submit_packet(atapi, cdb, req);
 }
 
-static void atapi_release(const struct blk_device* restrict device)
+static void atapi_release(const blk_device_t* restrict device)
 {
-    const struct atapi_device* atapi = ATAPI_DEVICE_FROM_BLK(device);
+    const atapi_device_t* atapi = ATAPI_DEVICE_FROM_BLK(device);
 
     if(atapi->ops->release) {
         atapi->ops->release(atapi);
     }
 }
 
-static const struct blk_device_ops atapi_blk_device_ops = {
+static const blk_device_ops_t atapi_blk_device_ops = {
     .submit = &atapi_submit,
     .release = &atapi_release,
 };
 
-int add_atapi_device(struct atapi_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index)
+int atapi_device_add(atapi_device_t* restrict device, blk_name_t* restrict name, unsigned iterator, unsigned index)
 {
     device->base.ops = &atapi_blk_device_ops;
 
-    return add_blk_device_root(&device->base, name, iterator, index);
+    return blk_device_add_root(&device->base, name, iterator, index);
 }
 
-void remove_atapi_device(struct atapi_device* restrict device)
+void atapi_device_remove(atapi_device_t* restrict device)
 {
-    remove_blk_device(&device->base);
+    blk_device_remove(&device->base);
 }

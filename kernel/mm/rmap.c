@@ -12,20 +12,20 @@
 
 #define NUM_LOCKS 256
 
-static_assert(sizeof(struct rmap_entry) <= SLAB_MAX_SIZE);
+static_assert(sizeof(rmap_entry_t) <= SLAB_MAX_SIZE);
 
 // Taken with interrupts off, as the scheduler's interrupt releases address spaces
-static spinlock_type locks[NUM_LOCKS];
+static spinlock_t locks[NUM_LOCKS];
 
-static spinlock_type* frame_lock(uintptr_t phys)
+static spinlock_t* frame_lock(uintptr_t phys)
 {
     return &locks[(phys / PAGE_SIZE) % NUM_LOCKS];
 }
 
-static struct rmap_entry* unlink_entry(struct pframe* restrict pf, struct pagemap* restrict pmap, uintptr_t virt)
+static rmap_entry_t* unlink_entry(pframe_t* restrict pframe, pmap_t* restrict pmap, uintptr_t virt)
 {
-    for(struct rmap_entry** prev = &pf->mappings; *prev; prev = &(*prev)->next) {
-        struct rmap_entry* entry = *prev;
+    for(rmap_entry_t** prev = &pframe->mappings; *prev; prev = &(*prev)->next) {
+        rmap_entry_t* entry = *prev;
 
         if(entry->pmap == pmap && entry->virt == virt) {
             *prev = entry->next;
@@ -36,9 +36,9 @@ static struct rmap_entry* unlink_entry(struct pframe* restrict pf, struct pagema
     return nullptr;
 }
 
-int rmap_map(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, unsigned vprot)
+int rmap_map(pmap_t* restrict pmap, uintptr_t virt, uintptr_t phys, unsigned vprot)
 {
-    struct rmap_entry* entry = slab_alloc(sizeof(struct rmap_entry));
+    rmap_entry_t* entry = slab_alloc(sizeof(rmap_entry_t));
 
     if(entry == nullptr) {
         return -ENOMEM;
@@ -47,16 +47,16 @@ int rmap_map(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, unsi
     entry->pmap = pmap;
     entry->virt = virt;
 
-    struct pframe* pf = pframe_of(phys);
-    spinlock_type* lock = frame_lock(phys);
+    pframe_t* pframe = pframe_of(phys);
+    spinlock_t* lock = frame_lock(phys);
 
     bool intr_state = spinlock_acquire_intr(lock);
 
     int retval = pmap_map(pmap, virt, phys, vprot);
 
     if(retval == 0) {
-        entry->next = pf->mappings;
-        pf->mappings = entry;
+        entry->next = pframe->mappings;
+        pframe->mappings = entry;
     }
 
     spinlock_release_intr(lock, intr_state);
@@ -68,7 +68,7 @@ int rmap_map(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, unsi
     return retval;
 }
 
-uintptr_t rmap_unmap(struct pagemap* restrict pmap, uintptr_t virt)
+uintptr_t rmap_unmap(pmap_t* restrict pmap, uintptr_t virt)
 {
     uintptr_t phys = page_align(pmap_resolve_address(pmap, virt));
 
@@ -76,12 +76,12 @@ uintptr_t rmap_unmap(struct pagemap* restrict pmap, uintptr_t virt)
         return 0;
     }
 
-    struct pframe* pf = pframe_of(phys);
-    spinlock_type* lock = frame_lock(phys);
+    pframe_t* pframe = pframe_of(phys);
+    spinlock_t* lock = frame_lock(phys);
 
     bool intr_state = spinlock_acquire_intr(lock);
 
-    struct rmap_entry* entry = unlink_entry(pf, pmap, virt);
+    rmap_entry_t* entry = unlink_entry(pframe, pmap, virt);
 
     if(entry) {
         int retval = pmap_unmap_noflush(pmap, virt);
@@ -99,15 +99,15 @@ uintptr_t rmap_unmap(struct pagemap* restrict pmap, uintptr_t virt)
     return phys;
 }
 
-int rmap_replace(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t old_phys, uintptr_t new_phys, unsigned vprot)
+int rmap_replace(pmap_t* restrict pmap, uintptr_t virt, uintptr_t old_phys, uintptr_t new_phys, unsigned vprot)
 {
-    struct pframe* old_pf = pframe_of(old_phys);
-    struct pframe* new_pf = pframe_of(new_phys);
-    spinlock_type* lock = frame_lock(old_phys);
+    pframe_t* old_pf = pframe_of(old_phys);
+    pframe_t* new_pf = pframe_of(new_phys);
+    spinlock_t* lock = frame_lock(old_phys);
 
     bool intr_state = spinlock_acquire_intr(lock);
 
-    struct rmap_entry* entry = unlink_entry(old_pf, pmap, virt);
+    rmap_entry_t* entry = unlink_entry(old_pf, pmap, virt);
 
     if(entry) {
         int retval = pmap_unmap_noflush(pmap, virt);
@@ -129,9 +129,9 @@ int rmap_replace(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t old_ph
     return 0;
 }
 
-int rmap_patch(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, unsigned vprot)
+int rmap_patch(pmap_t* restrict pmap, uintptr_t virt, uintptr_t phys, unsigned vprot)
 {
-    spinlock_type* lock = frame_lock(phys);
+    spinlock_t* lock = frame_lock(phys);
     bool intr_state = spinlock_acquire_intr(lock);
 
     int retval = -EAGAIN;
@@ -145,7 +145,7 @@ int rmap_patch(struct pagemap* restrict pmap, uintptr_t virt, uintptr_t phys, un
     return retval;
 }
 
-uintptr_t rmap_pin(struct pagemap* restrict pmap, uintptr_t virt, bool* restrict sole)
+uintptr_t rmap_pin(pmap_t* restrict pmap, uintptr_t virt, bool* restrict sole)
 {
     uintptr_t phys = page_align(pmap_resolve_address(pmap, virt));
 
@@ -153,8 +153,8 @@ uintptr_t rmap_pin(struct pagemap* restrict pmap, uintptr_t virt, bool* restrict
         return 0;
     }
 
-    struct pframe* pf = pframe_of(phys);
-    spinlock_type* lock = frame_lock(phys);
+    pframe_t* pframe = pframe_of(phys);
+    spinlock_t* lock = frame_lock(phys);
 
     bool intr_state = spinlock_acquire_intr(lock);
 
@@ -162,10 +162,10 @@ uintptr_t rmap_pin(struct pagemap* restrict pmap, uintptr_t virt, bool* restrict
 
     if(mapped) {
         if(sole) {
-            *sole = !pframe_shared(pf);
+            *sole = !pframe_shared(pframe);
         }
 
-        pframe_incref(pf);
+        pframe_incref(pframe);
     }
 
     spinlock_release_intr(lock, intr_state);
@@ -177,18 +177,18 @@ uintptr_t rmap_pin(struct pagemap* restrict pmap, uintptr_t virt, bool* restrict
     return phys;
 }
 
-size_t rmap_unmap_all(struct pframe* restrict pf)
+size_t rmap_unmap_all(pframe_t* restrict pframe)
 {
-    spinlock_type* lock = frame_lock(pframe_phys(pf));
+    spinlock_t* lock = frame_lock(pframe_phys(pframe));
 
     bool intr_state = spinlock_acquire_intr(lock);
 
-    struct rmap_entry* entries = pf->mappings;
-    pf->mappings = nullptr;
+    rmap_entry_t* entries = pframe->mappings;
+    pframe->mappings = nullptr;
 
     size_t count = 0;
 
-    for(struct rmap_entry* it = entries; it; it = it->next) {
+    for(rmap_entry_t* it = entries; it; it = it->next) {
         int retval = pmap_unmap_noflush(it->pmap, it->virt);
         kassert(retval == 0);
         count += 1;
@@ -197,7 +197,7 @@ size_t rmap_unmap_all(struct pframe* restrict pf)
     spinlock_release_intr(lock, intr_state);
 
     while(entries) {
-        struct rmap_entry* next = entries->next;
+        rmap_entry_t* next = entries->next;
         slab_free(entries);
         entries = next;
     }
@@ -205,14 +205,14 @@ size_t rmap_unmap_all(struct pframe* restrict pf)
     return count;
 }
 
-size_t rmap_protect_all(struct pframe* restrict pf)
+size_t rmap_protect_all(pframe_t* restrict pframe)
 {
-    spinlock_type* lock = frame_lock(pframe_phys(pf));
+    spinlock_t* lock = frame_lock(pframe_phys(pframe));
     bool intr_state = spinlock_acquire_intr(lock);
 
     size_t count = 0;
 
-    for(struct rmap_entry* it = pf->mappings; it; it = it->next) {
+    for(rmap_entry_t* it = pframe->mappings; it; it = it->next) {
         unsigned vprot = pmap_resolve_vprot(it->pmap, it->virt);
 
         if(vprot & VPROT_WRITE) {

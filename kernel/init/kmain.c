@@ -28,7 +28,7 @@ static void mount_root(void)
         unreachable();
     }
 
-    const struct blk_device* device = find_blk_device(device_name);
+    const blk_device_t* device = blk_device_find(device_name);
 
     if(device == nullptr) {
         panic("kmain: %s not a block device", device_name);
@@ -47,10 +47,10 @@ static void mount_root(void)
 
 static void __noreturn init_watchdog(void* restrict arg)
 {
-    struct process* proc = arg;
-    struct event* evnt = &proc->evnt;
+    process_t* process = arg;
+    event_t* event = &process->event;
 
-    event_await_blocking(&evnt, 1);
+    event_await_blocking(&event, 1);
 
     // FIXME: lets the disk image be inspected with mtools or
     // echfs-utils after a test init exits and the VM is killed;
@@ -69,15 +69,15 @@ static void spawn_init(void)
         path = CONFIG_DEFAULT_INIT;
     }
 
-    struct process* proc = process_create(nullptr);
+    process_t* process = process_create(nullptr);
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         panic("kmain: out of memory");
         unreachable();
     }
 
-    struct file* fp;
-    int retval = file_open(nullptr, path, O_RDONLY, 0, &sys_cred, &fp);
+    file_t* file;
+    int retval = file_open(nullptr, path, O_RDONLY, 0, &kernel_credentials, &file);
 
     if(retval < 0) {
         panic("kmain: %s: file_open failed: %s", path, strerror(retval));
@@ -87,18 +87,18 @@ static void spawn_init(void)
     const char* argv[] = { path, nullptr };
     const char* envp[] = { nullptr };
 
-    struct entry_point entry;
-    retval = load_binary(proc->vms, fp, argv, envp, &sys_cred, &entry);
+    binfmt_entry_t entry;
+    retval = load_binary(process->vmspace, file, argv, envp, &kernel_credentials, &entry);
 
-    file_close(fp);
+    file_close(file);
 
     if(retval < 0) {
         panic("kmain: %s: load_binary failed: %s", path, strerror(retval));
         unreachable();
     }
 
-    create_thread_user_enq(proc, entry.address, entry.ustack);
-    create_thread_kern_enq(&init_watchdog, proc);
+    thread_spawn_user(process, entry.address, entry.user_stack);
+    thread_spawn_kernel(&init_watchdog, process);
 }
 
 void __noreturn kmain(void)

@@ -1,11 +1,11 @@
-#include <arch/ireq.h>
+#include <arch/irq.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/isa.h>
 #include <vex/kprintf.h>
 #include <vex/string.h>
 
-static void i8042_wait_write(struct pmio_region* restrict region)
+static void i8042_wait_write(pmio_region_t* restrict region)
 {
     unsigned long i;
 
@@ -16,7 +16,7 @@ static void i8042_wait_write(struct pmio_region* restrict region)
     }
 }
 
-static void i8042_wait_read(struct pmio_region* restrict region)
+static void i8042_wait_read(pmio_region_t* restrict region)
 {
     unsigned long i;
 
@@ -27,12 +27,12 @@ static void i8042_wait_read(struct pmio_region* restrict region)
     }
 }
 
-static void ps2kbd_ireq(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
+static void ps2kbd_irq(unsigned number, const hart_context_t* restrict ctx, void* restrict ctxdata)
 {
-    struct isa_device* device = ctxdata;
+    isa_device_t* device = ctxdata;
 
-    struct isa_resource* data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
-    struct isa_resource* cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
+    isa_resource_t* data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
+    isa_resource_t* cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
 
     if(data_res == nullptr || cmd_res == nullptr) {
         return;
@@ -52,14 +52,14 @@ static void ps2kbd_ireq(unsigned number, const struct hart_context* restrict ctx
     }
 }
 
-static int ps2kbd_probe(struct isa_device* restrict device)
+static int ps2kbd_probe(isa_device_t* restrict device)
 {
-    if(strcmp(device->identifier, "PNP0303")) {
+    if(strcmp(device->name, "PNP0303")) {
         return -ENODEV;
     }
 
-    struct isa_resource* data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
-    struct isa_resource* cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
+    isa_resource_t* data_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 0);
+    isa_resource_t* cmd_res = isa_get_resource(device, ISA_RESOURCE_PMIO, 1);
 
     if(data_res == nullptr || cmd_res == nullptr) {
         return -ENODEV;
@@ -88,7 +88,7 @@ static int ps2kbd_probe(struct isa_device* restrict device)
     i8042_wait_read(&cmd_res->pmio);
     pmio_read8(&data_res->pmio, 0);
 
-    int retval = isa_request_irq(device, 0, &ps2kbd_ireq, device);
+    int retval = isa_request_irq(device, 0, &ps2kbd_irq, device);
 
     if(retval < 0) {
         return retval;
@@ -97,24 +97,24 @@ static int ps2kbd_probe(struct isa_device* restrict device)
     return 0;
 }
 
-static void ps2kbd_remove(struct isa_device* restrict device)
+static void ps2kbd_remove(isa_device_t* restrict device)
 {
     isa_release_irq(device, 0);
 }
 
-static const struct isa_driver_ops ps2kbd_ops = {
+static const isa_driver_ops_t ps2kbd_ops = {
     .probe = &ps2kbd_probe,
     .remove = &ps2kbd_remove,
 };
 
-static struct isa_driver ps2kbd_driver = {
+static isa_driver_t ps2kbd_driver = {
     .ops = &ps2kbd_ops,
-    .identifier = "ps2kbd",
+    .name = "ps2kbd",
 };
 
 static void init_ps2kbd(void)
 {
-    add_isa_driver(&ps2kbd_driver);
+    isa_driver_add(&ps2kbd_driver);
 }
 
 initcall_bsp_dev(init_ps2kbd, INIT_EARLY);

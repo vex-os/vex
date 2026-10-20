@@ -9,7 +9,7 @@
 
 #define SA_KNOWN (SA_NOCLDSTOP | SA_NOCLDWAIT | SA_SIGINFO | SA_ONSTACK | SA_RESTART | SA_NODEFER | SA_RESETHAND | SA_RESTORER)
 
-static bool may_signal(const struct credentials* restrict sender, const struct credentials* restrict target)
+static bool may_signal(const credentials_t* restrict sender, const credentials_t* restrict target)
 {
     if(cred_capable(sender, CAP_KILL)) {
         return true;
@@ -23,8 +23,8 @@ static intptr_t sys_kill(const uintptr_t* restrict args)
     pid_t pid = args[0];
     int sig = args[1];
 
-    struct thread* thrd = this_thread();
-    struct process* sender = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* sender = thread->process;
 
     if(sender == nullptr) {
         return -ESRCH;
@@ -38,14 +38,14 @@ static intptr_t sys_kill(const uintptr_t* restrict args)
         return -EINVAL; // Process groups don't exist yet
     }
 
-    struct process* target = process_locate(pid);
+    process_t* target = process_locate(pid);
 
     if(target == nullptr) {
         return -ESRCH;
     }
 
-    struct credentials* target_cred = process_get_cred(target);
-    bool allowed = may_signal(thrd->cred, target_cred);
+    credentials_t* target_cred = process_get_cred(target);
+    bool allowed = may_signal(thread->credentials, target_cred);
     cred_decref(target_cred);
 
     intptr_t retval = -EPERM;
@@ -54,11 +54,11 @@ static intptr_t sys_kill(const uintptr_t* restrict args)
         retval = 0;
 
         if(sig) {
-            struct k_siginfo info = { 0 };
+            siginfo_t info = { 0 };
             info.si_signo = sig;
             info.si_code = SI_USER;
             info.si_pid = sender->pid;
-            info.si_uid = thrd->cred->uid;
+            info.si_uid = thread->credentials->uid;
 
             retval = signal_send(target, nullptr, &info);
         }
@@ -75,10 +75,10 @@ static intptr_t sys_sigaction(const uintptr_t* restrict args)
     uintptr_t user_act = args[1];
     uintptr_t user_oact = args[2];
 
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
@@ -86,8 +86,8 @@ static intptr_t sys_sigaction(const uintptr_t* restrict args)
         return -EINVAL;
     }
 
-    struct k_sigaction act;
-    struct k_sigaction oact;
+    sigaction_t act;
+    sigaction_t old_action;
 
     if(user_act) {
         ssize_t copied = user_copyin(&act, user_act, sizeof(act));
@@ -108,10 +108,10 @@ static intptr_t sys_sigaction(const uintptr_t* restrict args)
         act.sa_mask &= ~(sigbit(SIGKILL) | sigbit(SIGSTOP));
     }
 
-    signal_action(proc, sig, user_act ? &act : nullptr, &oact);
+    signal_action(process, sig, user_act ? &act : nullptr, &old_action);
 
     if(user_oact) {
-        ssize_t copied = user_copyout(user_oact, &oact, sizeof(oact));
+        ssize_t copied = user_copyout(user_oact, &old_action, sizeof(old_action));
 
         if(copied < 0) {
             return copied;
@@ -127,9 +127,9 @@ static intptr_t sys_sigprocmask(const uintptr_t* restrict args)
     uintptr_t user_set = args[1];
     uintptr_t user_oset = args[2];
 
-    struct thread* thrd = this_thread();
+    thread_t* thread = this_thread();
 
-    if(thrd->proc == nullptr) {
+    if(thread->process == nullptr) {
         return -ENOSYS;
     }
 
@@ -150,7 +150,7 @@ static intptr_t sys_sigprocmask(const uintptr_t* restrict args)
         how = SIG_BLOCK; // Blocking nothing more only reads the mask
     }
 
-    sigset_t oset = signal_mask(thrd, how, set);
+    sigset_t oset = signal_mask(thread, how, set);
 
     if(user_oset) {
         ssize_t copied = user_copyout(user_oset, &oset, sizeof(oset));
@@ -165,13 +165,13 @@ static intptr_t sys_sigprocmask(const uintptr_t* restrict args)
 
 static intptr_t sys_sigpending(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
+    thread_t* thread = this_thread();
 
-    if(thrd->proc == nullptr) {
+    if(thread->process == nullptr) {
         return -ENOSYS;
     }
 
-    sigset_t pending = signal_pending(thrd);
+    sigset_t pending = signal_pending(thread);
     ssize_t copied = user_copyout(args[0], &pending, sizeof(pending));
 
     if(copied < 0) {
@@ -183,22 +183,22 @@ static intptr_t sys_sigpending(const uintptr_t* restrict args)
 
 static intptr_t sys_sigreturn(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
-    struct hart_context* ctx = thrd->syscall_ctx;
+    hart_context_t* ctx = thread->syscall_ctx;
     sigset_t mask;
 
-    if(arch_signal_return(thrd, ctx, &mask) < 0) {
-        process_kill(proc, SIGSEGV);
+    if(arch_signal_return(thread, ctx, &mask) < 0) {
+        process_kill(process, SIGSEGV);
         return 0;
     }
 
-    signal_mask(thrd, SIG_SETMASK, mask);
+    signal_mask(thread, SIG_SETMASK, mask);
 
     // The return value lands in the register just restored
     return ctx->syscall_retval;
@@ -209,19 +209,19 @@ static intptr_t sys_sigaltstack(const uintptr_t* restrict args)
     uintptr_t user_ss = args[0];
     uintptr_t user_old = args[1];
 
-    struct thread* thrd = this_thread();
+    thread_t* thread = this_thread();
 
-    if(thrd->proc == nullptr) {
+    if(thread->process == nullptr) {
         return -ENOSYS;
     }
 
-    struct hart_context* ctx = thrd->syscall_ctx;
+    hart_context_t* ctx = thread->syscall_ctx;
 
-    struct k_stack old;
-    signal_altstack_get(thrd, ctx->syscall_sp, &old);
+    stack_t old;
+    signal_altstack_get(thread, ctx->syscall_sp, &old);
 
     if(user_ss) {
-        struct k_stack ss;
+        stack_t ss;
         ssize_t copied = user_copyin(&ss, user_ss, sizeof(ss));
 
         if(copied < 0) {
@@ -237,8 +237,8 @@ static intptr_t sys_sigaltstack(const uintptr_t* restrict args)
         }
 
         if(ss.ss_flags & SS_DISABLE) {
-            thrd->sig_altstack = 0;
-            thrd->sig_altstack_size = 0;
+            thread->sig_altstack = 0;
+            thread->sig_altstack_size = 0;
         }
         else {
             uintptr_t base = (uintptr_t)(ss.ss_sp);
@@ -251,8 +251,8 @@ static intptr_t sys_sigaltstack(const uintptr_t* restrict args)
                 return -EINVAL;
             }
 
-            thrd->sig_altstack = base;
-            thrd->sig_altstack_size = ss.ss_size;
+            thread->sig_altstack = base;
+            thread->sig_altstack_size = ss.ss_size;
         }
     }
 

@@ -10,66 +10,7 @@
 #include <vex/uaccess.h>
 #include <vex/vnode.h>
 
-static intptr_t sys_openat(const uintptr_t* restrict args)
-{
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
-
-    if(proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    char path[PATH_SIZE];
-    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
-
-    if(copied < 0) {
-        return copied;
-    }
-
-    struct vnode* stem;
-    int retval = syscall_dirfd(args[0], path, &stem);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    const struct credentials* cred = thrd->cred;
-    mode_t umask = atomic_load_n(&proc->umask, ATOMIC_RELAXED);
-
-    struct file* fp;
-    retval = file_open(stem, path, args[2], args[3] & ~umask, cred, &fp);
-
-    if(stem) {
-        vnode_decref(stem);
-    }
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    int fd = allocate_fd(proc, fp);
-
-    if(fd < 0) {
-        file_close(fp);
-        return fd;
-    }
-
-    return fd;
-}
-
-static intptr_t sys_close(const uintptr_t* restrict args)
-{
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
-
-    if(proc == nullptr) {
-        return -ENOSYS;
-    }
-
-    return release_fd(proc, args[0]);
-}
-
-static intptr_t read_file(struct file* restrict fp, const uintptr_t* restrict args)
+static intptr_t read_file(file_t* restrict file, const uintptr_t* restrict args)
 {
     uintptr_t user_buf = args[1];
     size_t remaining = args[2];
@@ -87,7 +28,7 @@ static intptr_t read_file(struct file* restrict fp, const uintptr_t* restrict ar
             chunk = remaining;
         }
 
-        ssize_t num_read = file_read(fp, buffer, chunk);
+        ssize_t num_read = file_read(file, buffer, chunk);
 
         if(num_read < 0) {
             if(total > 0)
@@ -113,14 +54,9 @@ static intptr_t read_file(struct file* restrict fp, const uintptr_t* restrict ar
     return total;
 }
 
-static intptr_t sys_read(const uintptr_t* restrict args)
+static intptr_t write_file(file_t* restrict file, const uintptr_t* restrict args)
 {
-    return syscall_with_fd(args, &read_file);
-}
-
-static intptr_t write_file(struct file* restrict fp, const uintptr_t* restrict args)
-{
-    struct thread* thrd = this_thread();
+    thread_t* thread = this_thread();
     uintptr_t user_buf = args[1];
     size_t remaining = args[2];
     size_t total = 0;
@@ -143,7 +79,7 @@ static intptr_t write_file(struct file* restrict fp, const uintptr_t* restrict a
             return copied;
         }
 
-        ssize_t num_written = file_write(fp, thrd->cred, buffer, chunk);
+        ssize_t num_written = file_write(file, thread->credentials, buffer, chunk);
 
         if(num_written < 0) {
             if(total > 0)
@@ -163,37 +99,22 @@ static intptr_t write_file(struct file* restrict fp, const uintptr_t* restrict a
     return total;
 }
 
-static intptr_t sys_write(const uintptr_t* restrict args)
+static intptr_t seek_file(file_t* restrict file, const uintptr_t* restrict args)
 {
-    return syscall_with_fd(args, &write_file);
+    return file_seek(file, args[1], args[2]);
 }
 
-static intptr_t seek_file(struct file* restrict fp, const uintptr_t* restrict args)
+static intptr_t ftruncate_file(file_t* restrict file, const uintptr_t* restrict args)
 {
-    return file_seek(fp, args[1], args[2]);
+    thread_t* thread = this_thread();
+
+    return file_truncate(file, thread->credentials, args[1]);
 }
 
-static intptr_t sys_seek(const uintptr_t* restrict args)
+static intptr_t fstat_file(file_t* restrict file, const uintptr_t* restrict args)
 {
-    return syscall_with_fd(args, &seek_file);
-}
-
-static intptr_t ftruncate_file(struct file* restrict fp, const uintptr_t* restrict args)
-{
-    struct thread* thrd = this_thread();
-
-    return file_truncate(fp, thrd->cred, args[1]);
-}
-
-static intptr_t sys_ftruncate(const uintptr_t* restrict args)
-{
-    return syscall_with_fd(args, &ftruncate_file);
-}
-
-static intptr_t fstat_file(struct file* restrict fp, const uintptr_t* restrict args)
-{
-    struct k_stat st;
-    int retval = vnode_stat(fp->node, &st);
+    stat_t st;
+    int retval = vnode_stat(file->node, &st);
 
     if(retval < 0) {
         return retval;
@@ -208,6 +129,90 @@ static intptr_t fstat_file(struct file* restrict fp, const uintptr_t* restrict a
     return 0;
 }
 
+static intptr_t ioctl_file(file_t* restrict file, const uintptr_t* restrict args)
+{
+    return file_ioctl(file, args[1], args[2]);
+}
+
+static intptr_t sys_openat(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    if(process == nullptr) {
+        return -ENOSYS;
+    }
+
+    char path[PATH_SIZE];
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    vnode_t* base_dir;
+    int retval = syscall_dirfd(args[0], path, &base_dir);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    const credentials_t* credentials = thread->credentials;
+    mode_t umask = atomic_load_n(&process->umask, ATOMIC_RELAXED);
+
+    file_t* file;
+    retval = file_open(base_dir, path, args[2], args[3] & ~umask, credentials, &file);
+
+    if(base_dir) {
+        vnode_decref(base_dir);
+    }
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    int fd = process_fd_alloc(process, file);
+
+    if(fd < 0) {
+        file_close(file);
+        return fd;
+    }
+
+    return fd;
+}
+
+static intptr_t sys_close(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    if(process == nullptr) {
+        return -ENOSYS;
+    }
+
+    return process_fd_release(process, args[0]);
+}
+
+static intptr_t sys_read(const uintptr_t* restrict args)
+{
+    return syscall_with_fd(args, &read_file);
+}
+
+static intptr_t sys_write(const uintptr_t* restrict args)
+{
+    return syscall_with_fd(args, &write_file);
+}
+
+static intptr_t sys_seek(const uintptr_t* restrict args)
+{
+    return syscall_with_fd(args, &seek_file);
+}
+
+static intptr_t sys_ftruncate(const uintptr_t* restrict args)
+{
+    return syscall_with_fd(args, &ftruncate_file);
+}
+
 static intptr_t sys_fstat(const uintptr_t* restrict args)
 {
     return syscall_with_fd(args, &fstat_file);
@@ -215,10 +220,10 @@ static intptr_t sys_fstat(const uintptr_t* restrict args)
 
 static intptr_t sys_fstatat(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
@@ -235,14 +240,14 @@ static intptr_t sys_fstatat(const uintptr_t* restrict args)
         return copied;
     }
 
-    struct vnode* node;
+    vnode_t* node;
     int retval = syscall_resolve_at(args[0], path, flags, &node);
 
     if(retval < 0) {
         return retval;
     }
 
-    struct k_stat st;
+    stat_t st;
     retval = vnode_stat(node, &st);
 
     vnode_decref(node);
@@ -262,10 +267,10 @@ static intptr_t sys_fstatat(const uintptr_t* restrict args)
 
 static intptr_t sys_fchmodat(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
@@ -282,14 +287,14 @@ static intptr_t sys_fchmodat(const uintptr_t* restrict args)
         return copied;
     }
 
-    struct vnode* node;
+    vnode_t* node;
     int retval = syscall_resolve_at(args[0], path, flags, &node);
 
     if(retval < 0) {
         return retval;
     }
 
-    retval = vnode_chmod(node, thrd->cred, args[2]);
+    retval = vnode_chmod(node, thread->credentials, args[2]);
 
     vnode_decref(node);
 
@@ -298,10 +303,10 @@ static intptr_t sys_fchmodat(const uintptr_t* restrict args)
 
 static intptr_t sys_fchownat(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
@@ -318,14 +323,14 @@ static intptr_t sys_fchownat(const uintptr_t* restrict args)
         return copied;
     }
 
-    struct vnode* node;
+    vnode_t* node;
     int retval = syscall_resolve_at(args[0], path, flags, &node);
 
     if(retval < 0) {
         return retval;
     }
 
-    retval = vnode_chown(node, thrd->cred, args[2], args[3]);
+    retval = vnode_chown(node, thread->credentials, args[2], args[3]);
 
     vnode_decref(node);
 
@@ -334,22 +339,22 @@ static intptr_t sys_fchownat(const uintptr_t* restrict args)
 
 static intptr_t sys_dup(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
-    return duplicate_fd(proc, args[0], -1);
+    return process_fd_dup(process, args[0], -1);
 }
 
 static intptr_t sys_dup2(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
@@ -360,12 +365,7 @@ static intptr_t sys_dup2(const uintptr_t* restrict args)
         return -EBADF;
     }
 
-    return duplicate_fd(proc, old_fd, new_fd);
-}
-
-static intptr_t ioctl_file(struct file* restrict fp, const uintptr_t* restrict args)
-{
-    return file_ioctl(fp, args[1], args[2]);
+    return process_fd_dup(process, old_fd, new_fd);
 }
 
 static intptr_t sys_ioctl(const uintptr_t* restrict args)
@@ -375,10 +375,10 @@ static intptr_t sys_ioctl(const uintptr_t* restrict args)
 
 static intptr_t sys_utimensat(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
@@ -395,8 +395,8 @@ static intptr_t sys_utimensat(const uintptr_t* restrict args)
         return copied;
     }
 
-    struct k_timespec times[2];
-    const struct k_timespec* times_ptr = nullptr;
+    timespec_t times[2];
+    const timespec_t* times_ptr = nullptr;
 
     if(args[2]) {
         copied = user_copyin(times, args[2], sizeof(times));
@@ -408,14 +408,14 @@ static intptr_t sys_utimensat(const uintptr_t* restrict args)
         times_ptr = times;
     }
 
-    struct vnode* node;
+    vnode_t* node;
     int retval = syscall_resolve_at(args[0], path, flags, &node);
 
     if(retval < 0) {
         return retval;
     }
 
-    retval = vnode_utimes(node, thrd->cred, times_ptr);
+    retval = vnode_utimes(node, thread->credentials, times_ptr);
 
     vnode_decref(node);
 

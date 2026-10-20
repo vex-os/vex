@@ -13,29 +13,34 @@ enum {
     ACTIVE_HIGH,
 };
 
-struct intctl;
-struct intctl_ops {
-    void (*mask)(struct intctl* restrict controller, uint32_t gsi);
-    void (*unmask)(struct intctl* restrict controller, uint32_t gsi);
-    void (*route)(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger, unsigned polarity);
+typedef struct interrupt_controller_s interrupt_controller_t;
+typedef struct interrupt_controller_ops_s interrupt_controller_ops_t;
+typedef struct interrupt_controller_private_s interrupt_controller_private_t;
+
+struct interrupt_controller_ops_s {
+    void (*mask)(interrupt_controller_t* restrict controller, uint32_t gsi);
+    void (*unmask)(interrupt_controller_t* restrict controller, uint32_t gsi);
+    void (*route)(interrupt_controller_t* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
+        unsigned polarity);
 };
 
-struct intctl_private {
-    struct intctl* next;
+struct interrupt_controller_private_s {
+    interrupt_controller_t* next;
 };
 
-struct intctl {
-    struct intctl_private priv;
-    const struct intctl_ops* ops;
-    const char* identifier;
+struct interrupt_controller_s {
+    interrupt_controller_private_t priv;
+    const interrupt_controller_ops_t* ops;
+    const char* name;
     uint32_t gsi_base;
     uint32_t gsi_count;
     void* ctxdata;
 };
 
-int add_intctl(struct intctl* restrict controller);
-struct intctl* find_intctl(uint32_t gsi) __nodiscard;
+int interrupt_controller_add(interrupt_controller_t* restrict controller);
+interrupt_controller_t* interrupt_controller_find(uint32_t gsi) __nodiscard;
 
-void intctl_mask(struct intctl* restrict controller, uint32_t gsi);
-void intctl_unmask(struct intctl* restrict controller, uint32_t gsi);
-void intctl_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger, unsigned polarity);
+void interrupt_controller_mask(interrupt_controller_t* restrict controller, uint32_t gsi);
+void interrupt_controller_unmask(interrupt_controller_t* restrict controller, uint32_t gsi);
+void interrupt_controller_route(interrupt_controller_t* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
+    unsigned polarity);

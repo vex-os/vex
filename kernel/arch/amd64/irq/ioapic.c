@@ -26,7 +26,13 @@
 #define RTE_DELIVERY_INIT   5
 #define RTE_DELIVERY_EXTINT 7
 
-struct rte_entry {
+#define IOAPIC_VER_MAXREDIR_SHIFT 16
+#define IOAPIC_VER_MAXREDIR_MASK  0xFF
+
+typedef struct rte_entry_s rte_entry_t;
+typedef struct ioapic_data_s ioapic_data_t;
+
+struct rte_entry_s {
     uint64_t vector : 8;
     uint64_t delivery_mode : 3;
     uint64_t dest_logical : 1;
@@ -39,29 +45,26 @@ struct rte_entry {
     uint64_t dest : 8;
 } __packed;
 
-static_assert(8 == sizeof(struct rte_entry));
+static_assert(8 == sizeof(rte_entry_t));
 
-#define IOAPIC_VER_MAXREDIR_SHIFT 16
-#define IOAPIC_VER_MAXREDIR_MASK  0xFF
-
-struct ioapic_data {
+struct ioapic_data_s {
     volatile uint32_t* base;
 };
 
-static uint32_t ioapic_read(struct ioapic_data* data, uint32_t index)
+static uint32_t ioapic_read(ioapic_data_t* data, uint32_t index)
 {
     data->base[IOAPIC_MMIO_SELECT] = index;
 
     return data->base[IOAPIC_MMIO_WINDOW];
 }
 
-static void ioapic_write(struct ioapic_data* data, uint32_t index, uint32_t val)
+static void ioapic_write(ioapic_data_t* data, uint32_t index, uint32_t val)
 {
     data->base[IOAPIC_MMIO_SELECT] = index;
     data->base[IOAPIC_MMIO_WINDOW] = val;
 }
 
-static struct rte_entry ioapic_get_rte(struct ioapic_data* data, uint8_t irq)
+static rte_entry_t ioapic_get_rte(ioapic_data_t* data, uint8_t irq)
 {
     uint32_t index = IOAPIC_REG_TBL_BASE + irq * IOAPIC_REG_TBL_STRIDE;
 
@@ -69,12 +72,12 @@ static struct rte_entry ioapic_get_rte(struct ioapic_data* data, uint8_t irq)
     raw |= (uint64_t)ioapic_read(data, index + 0);
     raw |= (uint64_t)ioapic_read(data, index + 1) << 32;
 
-    struct rte_entry entry;
+    rte_entry_t entry;
     memcpy(&entry, &raw, sizeof(entry));
     return entry;
 }
 
-static void ioapic_set_rte(struct ioapic_data* data, uint8_t irq, struct rte_entry entry)
+static void ioapic_set_rte(ioapic_data_t* data, uint8_t irq, rte_entry_t entry)
 {
     uint64_t raw;
     memcpy(&raw, &entry, sizeof(raw));
@@ -84,36 +87,36 @@ static void ioapic_set_rte(struct ioapic_data* data, uint8_t irq, struct rte_ent
     ioapic_write(data, index + 1, raw >> 32);
 }
 
-static void ioapic_mask(struct intctl* restrict controller, uint32_t gsi)
+static void ioapic_mask(interrupt_controller_t* restrict controller, uint32_t gsi)
 {
-    struct ioapic_data* data = controller->ctxdata;
+    ioapic_data_t* data = controller->ctxdata;
 
     uint8_t irq = gsi - controller->gsi_base;
 
-    struct rte_entry entry = ioapic_get_rte(data, irq);
+    rte_entry_t entry = ioapic_get_rte(data, irq);
     entry.masked = 1;
 
     ioapic_set_rte(data, irq, entry);
 }
 
-static void ioapic_unmask(struct intctl* restrict controller, uint32_t gsi)
+static void ioapic_unmask(interrupt_controller_t* restrict controller, uint32_t gsi)
 {
-    struct ioapic_data* data = controller->ctxdata;
+    ioapic_data_t* data = controller->ctxdata;
 
     uint8_t irq = gsi - controller->gsi_base;
 
-    struct rte_entry entry = ioapic_get_rte(data, irq);
+    rte_entry_t entry = ioapic_get_rte(data, irq);
     entry.masked = 0;
 
     ioapic_set_rte(data, irq, entry);
 }
 
-static void ioapic_route(struct intctl* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
+static void ioapic_route(interrupt_controller_t* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
     unsigned polarity)
 {
-    struct ioapic_data* data = controller->ctxdata;
+    ioapic_data_t* data = controller->ctxdata;
 
-    struct rte_entry entry = { 0 };
+    rte_entry_t entry = { 0 };
     entry.vector = vector;
     entry.dest = hart;
     entry.level = (trigger == TRIGGER_LEVEL);
@@ -123,7 +126,7 @@ static void ioapic_route(struct intctl* restrict controller, uint32_t gsi, uint8
     ioapic_set_rte(data, gsi - controller->gsi_base, entry);
 }
 
-static const struct intctl_ops ioapic_ops = {
+static const interrupt_controller_ops_t ioapic_ops = {
     .mask = &ioapic_mask,
     .unmask = &ioapic_unmask,
     .route = &ioapic_route,
@@ -134,8 +137,8 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
     if(entry->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
         struct acpi_madt_ioapic* ioapic = (struct acpi_madt_ioapic*)(entry);
 
-        struct ioapic_data* data = kmalloc(sizeof(struct ioapic_data));
-        struct intctl* controller = kmalloc(sizeof(struct intctl));
+        ioapic_data_t* data = kmalloc(sizeof(ioapic_data_t));
+        interrupt_controller_t* controller = kmalloc(sizeof(interrupt_controller_t));
 
         if(data == nullptr || controller == nullptr) {
             panic("ioapic: out of memory");
@@ -155,20 +158,20 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         controller->gsi_count = ((ver >> IOAPIC_VER_MAXREDIR_SHIFT) & IOAPIC_VER_MAXREDIR_MASK) + 1;
         controller->ctxdata = data;
 
-        controller->identifier = kasprintf("ioapic%u", (unsigned)id);
+        controller->name = kasprintf("ioapic%u", (unsigned)id);
 
-        if(!controller->identifier) {
+        if(!controller->name) {
             panic("ioapic: out of memory");
         }
 
-        struct rte_entry masked = { 0 };
+        rte_entry_t masked = { 0 };
         masked.masked = 1;
 
         for(uint8_t i = 0; i < controller->gsi_count; ++i) {
             ioapic_set_rte(data, i, masked);
         }
 
-        int retval = add_intctl(controller);
+        int retval = interrupt_controller_add(controller);
 
         if(retval < 0) {
             panic("ioapic: %s", strerror(retval));
@@ -191,4 +194,4 @@ static void arch_init_ioapic(void)
     uacpi_table_unref(&madt);
 }
 
-initcall_bsp_ireq(arch_init_ioapic, INIT_FIRST);
+initcall_bsp_irq(arch_init_ioapic, INIT_FIRST);

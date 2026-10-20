@@ -18,7 +18,9 @@
 
 #define STAGEBUF_SIZE 32
 
-struct stagebuf {
+typedef struct stagebuf_s stagebuf_t;
+
+struct stagebuf_s {
     char data[STAGEBUF_SIZE];
     size_t size;
     int last;
@@ -28,11 +30,11 @@ size_t kp_writepos = 0;
 char kp_buffer[KP_BUFSIZE];
 unsigned loglevel = KP_DEFAULT_LOGLEVEL;
 
-static spinlock_type kprintf_lock = SPINLOCK_INIT;
+static spinlock_t kprintf_lock = SPINLOCK_INIT;
 
 static void kprintf_format_func(int chr, void* restrict arg)
 {
-    struct stagebuf* stage = arg;
+    stagebuf_t* stage = arg;
     stage->last = chr;
     stage->data[stage->size++] = chr;
 
@@ -56,12 +58,12 @@ void kprintf(unsigned sv, const char* restrict fmt, ...)
 
 void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 {
-    struct stagebuf st = { 0 };
+    stagebuf_t st = { 0 };
 
     bool intr_state = spinlock_acquire_intr(&kprintf_lock);
 
     if(sv <= loglevel) {
-        uint64_t timestamp = clocksrc_nsec();
+        uint64_t timestamp = clock_source_now_ns();
         uint64_t timestamp_s = timestamp / UINT64_C(1000000000);
         uint64_t timestamp_msx = (timestamp / UINT64_C(100000)) % UINT64_C(10000);
 

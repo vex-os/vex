@@ -29,20 +29,20 @@ static inline void hpet_write_reg(volatile uint64_t* restrict mmio, uint32_t off
     mmio[offset / sizeof(uint64_t)] = value;
 }
 
-static uint64_t hpet_read(struct clocksrc* restrict src)
+static uint64_t hpet_read(clock_source_t* restrict source)
 {
-    volatile uint64_t* mmio = src->ctxdata;
+    volatile uint64_t* mmio = source->ctxdata;
 
     return hpet_read_reg(mmio, HPET_REG_MAIN);
 }
 
-static const struct clocksrc_ops hpet_ops = {
+static const clock_source_ops_t hpet_ops = {
     .read = &hpet_read,
 };
 
-static struct clocksrc hpet_clocksrc = {
+static clock_source_t hpet_clock_source = {
     .ops = &hpet_ops,
-    .identifier = "hpet",
+    .name = "hpet",
     .rating = 200,
 };
 
@@ -61,7 +61,7 @@ static void arch_init_hpet(void)
                 panic("hpet: failed to map registers");
             }
 
-            hpet_clocksrc.ctxdata = (void*)(mmio); // hpet_read_reg adds volatile back
+            hpet_clock_source.ctxdata = (void*)(mmio); // hpet_read_reg adds volatile back
 
             uacpi_table_unref(&table);
 
@@ -78,9 +78,9 @@ static void arch_init_hpet(void)
 
             hpet_write_reg(mmio, HPET_REG_CONFIG, hpet_config_reg);
 
-            hpet_clocksrc.mask = (hpet_caps & HPET_CAPS_COUNT_64BIT) ? CLOCKSRC_MASK_64 : CLOCKSRC_MASK_32;
+            hpet_clock_source.mask = (hpet_caps & HPET_CAPS_COUNT_64BIT) ? CLOCK_SOURCE_MASK_64 : CLOCK_SOURCE_MASK_32;
 
-            add_clocksrc_raw(&hpet_clocksrc, UINT64_C(1), UINT64_C(1000000000000000) / hpet_period_fsec);
+            clock_source_add_raw(&hpet_clock_source, UINT64_C(1), UINT64_C(1000000000000000) / hpet_period_fsec);
         }
     }
 }

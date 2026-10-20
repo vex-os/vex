@@ -5,26 +5,29 @@
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
 
-struct blk_part_device {
-    struct blk_device base;
-    struct blk_part_device* next;
-    const struct blk_device* root;
+typedef struct blk_part_device_s blk_part_device_t;
+typedef struct blk_disk_state_s blk_disk_state_t;
+
+struct blk_part_device_s {
+    blk_device_t base;
+    blk_part_device_t* next;
+    const blk_device_t* root;
     uintptr_t lba_start;
     size_t lba_count;
 };
 
-struct blk_disk_state {
-    struct blk_disk_state* next;
-    const struct blk_device* disk;
-    struct blk_part_device* parts;
+struct blk_disk_state_s {
+    blk_disk_state_t* next;
+    const blk_device_t* disk;
+    blk_part_device_t* parts;
 };
 
-static struct blk_ptable* ptable_head = nullptr;
-static struct blk_disk_state* disk_state_head = nullptr;
+static blk_partition_table_t* ptable_head = nullptr;
+static blk_disk_state_t* disk_state_head = nullptr;
 
-static void part_submit(const struct blk_device* restrict device, struct blk_request* restrict req)
+static void part_submit(const blk_device_t* restrict device, blk_request_t* restrict req)
 {
-    const struct blk_part_device* part = (const struct blk_part_device*)(device);
+    const blk_part_device_t* part = (const blk_part_device_t*)(device);
 
     if(req->op != BLK_REQ_FLUSH) {
         req->lba += part->lba_start;
@@ -33,22 +36,22 @@ static void part_submit(const struct blk_device* restrict device, struct blk_req
     blk_submit(part->root, req);
 }
 
-static void part_release(const struct blk_device* restrict device)
+static void part_release(const blk_device_t* restrict device)
 {
-    const struct blk_part_device* part = (const struct blk_part_device*)(device);
+    const blk_part_device_t* part = (const blk_part_device_t*)(device);
 
     blk_device_decref(part->root);
     kfree((void*)(device));
 }
 
-static const struct blk_device_ops part_ops = {
+static const blk_device_ops_t part_ops = {
     .submit = &part_submit,
     .release = &part_release,
 };
 
-static struct blk_disk_state* disk_state_find(const struct blk_device* restrict disk)
+static blk_disk_state_t* disk_state_find(const blk_device_t* restrict disk)
 {
-    struct blk_disk_state* it;
+    blk_disk_state_t* it;
 
     for(it = disk_state_head; it; it = it->next) {
         if(it->disk == disk) {
@@ -59,14 +62,14 @@ static struct blk_disk_state* disk_state_find(const struct blk_device* restrict 
     return nullptr;
 }
 
-static void disk_state_remove_parts(struct blk_disk_state* restrict state)
+static void disk_state_remove_parts(blk_disk_state_t* restrict state)
 {
-    for(struct blk_part_device* it = state->parts; it;) {
-        struct blk_part_device* next = it->next;
+    for(blk_part_device_t* it = state->parts; it;) {
+        blk_part_device_t* next = it->next;
 
         blk_event_notify(BLK_EVENT_PARTITION_REMOVED, &it->base);
 
-        remove_blk_device(&it->base);
+        blk_device_remove(&it->base);
 
         it = next;
     }
@@ -74,12 +77,12 @@ static void disk_state_remove_parts(struct blk_disk_state* restrict state)
     state->parts = nullptr;
 }
 
-static void probe_device(const struct blk_device* restrict device)
+static void probe_device(const blk_device_t* restrict device)
 {
-    struct blk_disk_state* state = disk_state_find(device);
+    blk_disk_state_t* state = disk_state_find(device);
 
     if(state == nullptr) {
-        state = kmalloc(sizeof(struct blk_disk_state));
+        state = kmalloc(sizeof(blk_disk_state_t));
 
         if(state == nullptr) {
             return;
@@ -92,7 +95,7 @@ static void probe_device(const struct blk_device* restrict device)
         disk_state_head = state;
     }
 
-    for(struct blk_ptable* it = ptable_head; it; it = it->priv.next) {
+    for(blk_partition_table_t* it = ptable_head; it; it = it->priv.next) {
         void* ptdata = nullptr;
 
         if(it->ops->detect(device, &ptdata)) {
@@ -100,12 +103,12 @@ static void probe_device(const struct blk_device* restrict device)
         }
 
         for(unsigned index = 0;; index += 1) {
-            struct blk_ptable_info info;
+            blk_partition_table_info_t info;
             if(it->ops->readpt(device, ptdata, index, &info)) {
                 break;
             }
 
-            struct blk_part_device* part = kmalloc(sizeof(struct blk_part_device));
+            blk_part_device_t* part = kmalloc(sizeof(blk_part_device_t));
 
             if(part == nullptr) {
                 break;
@@ -126,7 +129,7 @@ static void probe_device(const struct blk_device* restrict device)
             part->base.flags = BLK_FLAG_PARTITION | (device->flags & BLK_FLAG_PRESENT);
             part->base.ctxdata = nullptr;
 
-            if(add_blk_device_part(&part->base, device, info.part_index)) {
+            if(blk_device_add_part(&part->base, device, info.part_index)) {
                 kfree(part);
                 continue;
             }
@@ -145,10 +148,10 @@ static void probe_device(const struct blk_device* restrict device)
     }
 }
 
-static void forget_device(const struct blk_device* restrict device)
+static void forget_device(const blk_device_t* restrict device)
 {
-    struct blk_disk_state* it;
-    struct blk_disk_state* prev = nullptr;
+    blk_disk_state_t* it;
+    blk_disk_state_t* prev = nullptr;
 
     for(it = disk_state_head; it; it = it->next) {
         if(it->disk == device) {
@@ -169,7 +172,7 @@ static void forget_device(const struct blk_device* restrict device)
     }
 }
 
-static void handle_blk_event(unsigned event, const struct blk_device* restrict device, void* restrict ctxdata)
+static void handle_blk_event(unsigned event, const blk_device_t* restrict device, void* restrict ctxdata)
 {
     if(device->flags & BLK_FLAG_PARTITION) {
         return;
@@ -186,11 +189,11 @@ static void handle_blk_event(unsigned event, const struct blk_device* restrict d
     }
 }
 
-int add_blk_ptable(struct blk_ptable* restrict ptable)
+int blk_partition_table_add(blk_partition_table_t* restrict ptable)
 {
     blk_event_lock();
 
-    for(struct blk_ptable* it = ptable_head; it; it = it->priv.next) {
+    for(blk_partition_table_t* it = ptable_head; it; it = it->priv.next) {
         if(it == ptable) {
             blk_event_unlock();
             return -EEXIST;
@@ -205,11 +208,11 @@ int add_blk_ptable(struct blk_ptable* restrict ptable)
     return 0;
 }
 
-int remove_blk_ptable(struct blk_ptable* restrict ptable)
+int blk_partition_table_remove(blk_partition_table_t* restrict ptable)
 {
     blk_event_lock();
 
-    for(struct blk_ptable** prev = &ptable_head; *prev; prev = &(*prev)->priv.next) {
+    for(blk_partition_table_t** prev = &ptable_head; *prev; prev = &(*prev)->priv.next) {
         if(*prev == ptable) {
             *prev = ptable->priv.next;
             blk_event_unlock();
@@ -222,7 +225,7 @@ int remove_blk_ptable(struct blk_ptable* restrict ptable)
     return -ENODEV;
 }
 
-int rescan_partitions(const struct blk_device* restrict device)
+int rescan_partitions(const blk_device_t* restrict device)
 {
     if(device->flags & BLK_FLAG_PARTITION) {
         return -EINVAL;
@@ -230,7 +233,7 @@ int rescan_partitions(const struct blk_device* restrict device)
 
     blk_event_lock();
 
-    struct blk_disk_state* state = disk_state_find(device);
+    blk_disk_state_t* state = disk_state_find(device);
 
     if(state) {
         disk_state_remove_parts(state);

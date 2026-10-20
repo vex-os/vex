@@ -17,27 +17,29 @@
 #define BLOCK_TYPE_FREE 0x0000U
 #define BLOCK_TYPE_USED 0x0001U
 
-struct memblock {
-    struct memblock* prev;
-    struct memblock* next;
+typedef struct memblock_s memblock_t;
+
+struct memblock_s {
+    memblock_t* prev;
+    memblock_t* next;
     unsigned short type;
     uintptr_t address;
     size_t length;
 };
 
-static_assert(sizeof(struct memblock) <= SLAB_MAX_SIZE);
+static_assert(sizeof(memblock_t) <= SLAB_MAX_SIZE);
 
-static struct memblock* head = nullptr;
-static struct memblock* tail = nullptr;
+static memblock_t* head = nullptr;
+static memblock_t* tail = nullptr;
 static uintptr_t heap_end = HEAP_REGION_BASE;
-static spinlock_type heap_lock = SPINLOCK_INIT;
+static spinlock_t heap_lock = SPINLOCK_INIT;
 
-static struct memblock* find_free_block(size_t sz)
+static memblock_t* find_free_block(size_t size)
 {
-    struct memblock* it;
+    memblock_t* it;
 
     for(it = head; it; it = it->next) {
-        if(it->type == BLOCK_TYPE_FREE && it->length >= sz) {
+        if(it->type == BLOCK_TYPE_FREE && it->length >= size) {
             return it;
         }
     }
@@ -45,19 +47,19 @@ static struct memblock* find_free_block(size_t sz)
     return nullptr;
 }
 
-static struct memblock* extend_heap(size_t sz)
+static memblock_t* extend_heap(size_t size)
 {
     size_t i;
     uintptr_t phys;
     uintptr_t virt;
 
-    size_t npages = page_count(sz);
+    size_t npages = page_count(size);
 
     if(npages > (HEAP_REGION_BASE + HEAP_REGION_SIZE - heap_end) / PAGE_SIZE) {
         return nullptr;
     }
 
-    struct memblock* block = slab_alloc(sizeof(struct memblock));
+    memblock_t* block = slab_alloc(sizeof(memblock_t));
 
     if(block == nullptr) {
         return nullptr;
@@ -110,16 +112,16 @@ error_cleanup:
     return nullptr;
 }
 
-static void split_block(struct memblock* restrict block, size_t sz)
+static void split_block(memblock_t* restrict block, size_t size)
 {
-    size_t aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
+    size_t aligned_sz = align_ceil(size, MALLOC_ALIGNMENT);
     size_t remainder = block->length - aligned_sz;
 
     if(remainder < 4 * sizeof(uintptr_t)) {
         return;
     }
 
-    struct memblock* new_block = slab_alloc(sizeof(struct memblock));
+    memblock_t* new_block = slab_alloc(sizeof(memblock_t));
 
     if(new_block == nullptr) {
         return;
@@ -142,9 +144,9 @@ static void split_block(struct memblock* restrict block, size_t sz)
     block->length = aligned_sz;
 }
 
-static struct memblock* find_block_at(uintptr_t address)
+static memblock_t* find_block_at(uintptr_t address)
 {
-    struct memblock* it;
+    memblock_t* it;
 
     for(it = head; it; it = it->next) {
         if(it->address == address) {
@@ -155,10 +157,10 @@ static struct memblock* find_block_at(uintptr_t address)
     return nullptr;
 }
 
-static void coalesce(struct memblock* restrict block)
+static void coalesce(memblock_t* restrict block)
 {
-    struct memblock* next_block;
-    struct memblock* prev_block;
+    memblock_t* next_block;
+    memblock_t* prev_block;
 
     if(block->next && block->next->type == BLOCK_TYPE_FREE) {
         next_block = block->next;
@@ -193,16 +195,16 @@ static void coalesce(struct memblock* restrict block)
     }
 }
 
-void* kmalloc(size_t sz)
+void* kmalloc(size_t size)
 {
-    if(sz == 0) {
+    if(size == 0) {
         return nullptr;
     }
 
     bool intr_state = spinlock_acquire_intr(&heap_lock);
 
-    size_t aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
-    struct memblock* block = find_free_block(aligned_sz);
+    size_t aligned_sz = align_ceil(size, MALLOC_ALIGNMENT);
+    memblock_t* block = find_free_block(aligned_sz);
 
     if(block == nullptr) {
         block = extend_heap(aligned_sz);
@@ -220,27 +222,27 @@ void* kmalloc(size_t sz)
 
     spinlock_release_intr(&heap_lock, intr_state);
 
-    return memset((void*)(block->address), 0, sz);
+    return memset((void*)(block->address), 0, size);
 }
 
-void* krealloc(void* restrict ptr, size_t sz)
+void* krealloc(void* restrict ptr, size_t size)
 {
     if(ptr == nullptr) {
-        return kmalloc(sz);
+        return kmalloc(size);
     }
 
-    if(sz == 0) {
+    if(size == 0) {
         kfree(ptr);
 
         return nullptr;
     }
 
-    size_t aligned_sz = align_ceil(sz, MALLOC_ALIGNMENT);
+    size_t aligned_sz = align_ceil(size, MALLOC_ALIGNMENT);
     size_t old_length;
 
     bool intr_state = spinlock_acquire_intr(&heap_lock);
 
-    struct memblock* block = find_block_at((uintptr_t)ptr);
+    memblock_t* block = find_block_at((uintptr_t)ptr);
 
     if(block == nullptr) {
         spinlock_release_intr(&heap_lock, intr_state);
@@ -276,7 +278,7 @@ void kfree(void* restrict ptr)
 
     bool intr_state = spinlock_acquire_intr(&heap_lock);
 
-    struct memblock* block = find_block_at((uintptr_t)ptr);
+    memblock_t* block = find_block_at((uintptr_t)ptr);
 
     if(block == nullptr || block->type == BLOCK_TYPE_FREE) {
         spinlock_release_intr(&heap_lock, intr_state);

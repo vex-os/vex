@@ -3,6 +3,17 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
+long strtol(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+long long strtoll(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+unsigned long strtoul(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+unsigned long long strtoull(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+
+intmax_t strtoimax(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+uintmax_t strtoumax(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+size_t strtousize(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
+
+void sort(void* base, size_t count, size_t size, int (*cmp)(const void*, const void*)); // Not stable
+
 static __always_inline __nodiscard int abs(int value)
 {
 #if __has_builtin(__builtin_abs)
@@ -48,14 +59,3 @@ static __always_inline __nodiscard long long llabs(long long value)
 #define atoi(nptr)  strtol((nptr), nullptr, 10)
 #define atol(nptr)  strtol((nptr), nullptr, 10)
 #define atoll(nptr) strtoll((nptr), nullptr, 10)
-
-long strtol(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
-long long strtoll(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
-unsigned long strtoul(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
-unsigned long long strtoull(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
-
-intmax_t strtoimax(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
-uintmax_t strtoumax(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
-size_t strtousize(const char* restrict nptr, const char** restrict endptr, int base) __nodiscard;
-
-void sort(void* base, size_t count, size_t size, int (*cmp)(const void*, const void*)); // Not stable

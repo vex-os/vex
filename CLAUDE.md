@@ -35,13 +35,13 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
 ## Kernel architecture
 
 - **Build/link:** all kernel sources (including vendored uACPI) are compiled into a static archive, then linked by calling `ld` directly with `kernel/arch/<arch>/kernel.ld`. Clang has no bare-metal driver for amd64. Each subdirectory's `meson.build` just appends to `kernel_sources`.
-- **Initcalls replace explicit init sequencing.** Subsystems register with `initcall_bsp_<stage>(fn, INIT_FIRST|EARLY|MIDDLE|LATE|LAST)` or `initcall_smp_<stage>(...)` (`kernel/include/vex/initcall.h`). They are placed in `.initcalls.bsp.*` / `.initcalls.smp.*` sections that the linker script `SORT`s. The stage order is roughly: early → arch → bootinfo → pmm → slab → mmu → heap → ireq → timer → syscall → multicore → bus → vfs → dev → fs → cpudev → binfmt → services → late. `kmain()` (`kernel/init/kmain.c`) only runs the BSP initcalls, mounts `root=` from the kernel cmdline, loads `init=` (falling back to `CONFIG_DEFAULT_INIT`) as the first process, and idles.
+- **Initcalls replace explicit init sequencing.** Subsystems register with `initcall_bsp_<stage>(fn, INIT_FIRST|EARLY|MIDDLE|LATE|LAST)` or `initcall_smp_<stage>(...)` (`kernel/include/vex/initcall.h`). They are placed in `.initcalls.bsp.*` / `.initcalls.smp.*` sections that the linker script `SORT`s. The stage order is roughly: early → arch → bootinfo → pmm → slab → mmu → heap → irq → timer → syscall → multicore → bus → vfs → dev → fs → cpudev → binfmt → services → late. `kmain()` (`kernel/init/kmain.c`) only runs the BSP initcalls, mounts `root=` from the kernel cmdline, loads `init=` (falling back to `CONFIG_DEFAULT_INIT`) as the first process, and idles.
 - **Syscalls** register the same way: `define_syscall(sys_foo, SYS_FOO)` puts an entry in a linker section, and `kernel/proc/syscall.c` builds the dispatch table at the syscall stage. Syscall numbers live in `kernel/include/usr/vex/syscall.h`. The implementations are in `kernel/proc/sys_*.c`.
 - **Header layout:**
   - `kernel/include/vex/`: kernel-internal API, included as `<vex/...>`.
-  - `kernel/include/usr/vex/`: the userspace-visible ABI (errno, stat, fcntl, syscall numbers…), with `__k_`-prefixed names. The matching `vex/` header includes it and re-exports the plain names.
+  - `kernel/include/usr/vex/`: the userspace-visible ABI (errno, stat, fcntl, syscall numbers…), with `__k_`-prefixed names. The matching `vex/` header includes it and re-exports the plain names, structs as `_t` typedefs (`typedef struct __k_stat stat_t;`).
   - `kernel/arch/<arch>/include/arch/`: what the architecture provides to generic code (`<arch/pmap.h>`, `<arch/hart.h>`, …). Generic headers such as `vex/pmap.h` include these and declare the arch-neutral interface. Arch-private headers are named `arch/amd64.*.h`.
-- **Generic vs arch code:** `kernel/arch/amd64/` mirrors the generic directories (`mm`, `proc`, `ireq`, `time`, `acpi`, `bus`, `core`) and implements their arch-specific halves.
+- **Generic vs arch code:** `kernel/arch/amd64/` mirrors the generic directories (`mm`, `proc`, `irq`, `time`, `acpi`, `bus`, `core`) and implements their arch-specific halves.
 - **Storage stack:** `dev/` has the block/char device registries, the partition-table parsers (GPT/MBR) and the ATA/ATAPI helpers. `drivers/` holds the hardware drivers (AHCI, PS/2 keyboard). `fs/` has the VFS (vnode, vcache, mount, path, file) plus the devfs, echfs and FAT backends. Device names look like `ada0n1p1` (used in `boot/limine.conf`).
 - **Logging:** use `pr_emerg` … `pr_verbose` (`vex/kprintf.h`). The `loglevel=verbose` cmdline option enables verbose output. Use `panic()` for fatal errors and `kassert()` for assertions (gated by `CONFIG_KASSERT`).
 
@@ -49,11 +49,33 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
 
 - Kernel-private headers use only `#pragma once`. Public headers under `include/usr/` (the userspace ABI) instead use a classic path-derived guard, e.g. `usr/vex/errno.h` → `USR_VEX_ERRNO_H`, closed with `#endif /* USR_VEX_ERRNO_H */`. Never start these names with `_`. Keep the guard in sync if the header is renamed.
 - C23 idioms are used throughout: `nullptr`, `static_assert`, `unreachable()`, `restrict` pointer params.
+- Every kernel type is used through a `_t` typedef. Tags end in `_s`, `_u` or `_e` (`struct thread_s`, `union fat_entry_u`, `enum cpu_feature_e`):
+  - Forward declarations of other files' types (`typedef struct vnode_s vnode_t;`) form one block right after the includes; C11 allows identical typedefs to repeat across headers.
+  - The typedefs of the file's own types form a second block right before its first struct definition (after the `#define`s), in definition order. Structs then refer to each other through pointers in any order.
+  - An enum's typedef goes right after its definition, since enums can't be forward-declared.
+  - Don't make pointer typedefs.
+- Name a variable or field after its type's stem (`thread_t* thread`, `file_t* file`), not an abbreviation such as `thrd` or `fp`. Use a role name such as `parent`, `curr` or `dir` when that says more. Prefer whole words to abbreviations in new names, except established terms (`vnode`, `pmap`, `pslab`, `pdma`, `hart`, `irq`).
+- Public functions are named `<subsystem>_<verb>`: `blk_device_add_root`, `blk_device_find`, `blk_device_for_each`, not `add_blk_device_root`.
 - Test a bitmask against zero explicitly: `if(0 == (flags & FLAG))`, not `if(!(flags & FLAG))`.
 - Compare pointers to `nullptr` only for the null case (`if(ptr == nullptr)`); for non-null, use the pointer itself (`if(ptr)`). A call whose result only signals failure can be negated directly: `if(!pmentry_get(table, i, true))`.
-- Don't dereference a call's result in place (`this_hart()->caps`, `pframe_of(phys)->flags`). Put the result in a named local first (`struct hart_local* hart = this_hart();`), then use its fields. `(*prev)->next` in list walks is a plain pointer dereference and is fine.
+- Don't dereference a call's result in place (`this_hart()->caps`, `pframe_of(phys)->flags`). Put the result in a named local first (`hart_local_t* hart = this_hart();`), then use its fields. `(*prev)->next` in list walks is a plain pointer dereference and is fine.
 - Never use a standalone increment or decrement statement (`++x;`, `x++;`, `--x;`, `x--;`). Outside a `for` header, write `x += 1` or `x -= 1`. Inside a `for` header, a one-letter counter uses `++i` or `--i`, and a longer name uses `page += 1` or `level -= 1`.
-- Within a translation unit, `static` helpers come before the public functions; init functions sit at the end next to their `initcall_*`.
+- Top-level order in a translation unit:
+  1. includes;
+  2. forward declarations (other files' typedefs, `extern` asm/linker symbols);
+  3. constants (object-like `#define`s, anonymous `enum`s);
+  4. the file's own typedef block;
+  5. type definitions;
+  6. static and global variables, in any order among themselves;
+  7. static functions;
+  8. public functions;
+  9. closers: `init_*` functions with their `initcall_*`, and `sys_*` handlers with their `define_syscall`, each macro right after its function.
+
+  Further details:
+  - Static functions go in dependency order, callees first, so a static prototype is only needed for mutual recursion.
+  - An ops or driver table (`static const vnode_ops_t foo_ops = { .read = &foo_read, … }`) sits right after the last function it points to.
+  - Function-like macros and `static_assert`s stay next to what they belong to.
+  - Headers follow the same order, except that all prototypes come before the `static __always_inline` bodies.
 - Code should document itself through names. Comments are for a non-obvious "why" or an invariant that the code doesn't show, not for restating what it does:
   - Use `//` (`#` in assembly and shell), start with a capital letter, and leave off the trailing period.
   - A short note about a single line goes after it, as long as the line still fits the 140-column limit.

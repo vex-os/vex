@@ -7,14 +7,42 @@
 #include <vex/time.h>
 #include <vex/types.h>
 
+typedef struct blk_device_s blk_device_t;
+typedef struct vnode_s vnode_t;
+typedef struct vnode_ops_s vnode_ops_t;
+
 #define FAT_TYPE_12 12
 #define FAT_TYPE_16 16
 #define FAT_TYPE_32 32
 
-struct blk_device;
-struct vnode;
+#define FAT_ATTR_READ_ONLY UINT8_C(0x01)
+#define FAT_ATTR_HIDDEN    UINT8_C(0x02)
+#define FAT_ATTR_SYSTEM    UINT8_C(0x04)
+#define FAT_ATTR_VOLUME_ID UINT8_C(0x08)
+#define FAT_ATTR_DIRECTORY UINT8_C(0x10)
+#define FAT_ATTR_ARCHIVE   UINT8_C(0x20)
+#define FAT_ATTR_LONG_NAME UINT8_C(0x0F)
 
-struct fat_bootparams {
+#define FAT_NAME_END        UINT8_C(0x00) // DIR_Name[0] of the first free entry, all later ones are free too
+#define FAT_NAME_DELETED    UINT8_C(0xE5)
+#define FAT_NAME_ESCAPED_E5 UINT8_C(0x05) // Stands for a real leading 0xE5 (KANJI lead byte)
+
+#define FAT_LFN_MAX_SEGMENTS 20
+
+typedef struct fat_bootparams_s fat_bootparams_t;
+typedef struct fat_extparams_fat1X_s fat_extparams_fat1X_t;
+typedef struct fat_extparams_fat32_s fat_extparams_fat32_t;
+typedef union fat_extparams_u fat_extparams_t;
+typedef struct fat_fsinfo_fat32_s fat_fsinfo_fat32_t;
+typedef struct fat_dir_entry_s fat_dir_entry_t;
+typedef struct fat_timestamp_s fat_timestamp_t;
+typedef struct fat_ldir_entry_s fat_ldir_entry_t;
+typedef union fat_entry_u fat_entry_t;
+typedef struct fat_dirent_s fat_dirent_t;
+typedef struct fat_vfs_context_s fat_vfs_context_t;
+typedef struct fat_vnode_context_s fat_vnode_context_t;
+
+struct fat_bootparams_s {
     uint8_t jmp_boot[3];        // BS_jmpBoot
     uint8_t oem_name[8];        // BS_OEMName
     uint16_t sector_size;       // BPB_BytsPerSec
@@ -32,11 +60,11 @@ struct fat_bootparams {
 } __packed;
 
 #ifndef __INTELLISENSE__
-static_assert(36 == sizeof(struct fat_bootparams));
+static_assert(36 == sizeof(fat_bootparams_t));
 #endif
 
-struct fat_extparams_fat1X {
-    struct fat_bootparams base;
+struct fat_extparams_fat1X_s {
+    fat_bootparams_t base;
     uint8_t drive_number;     // BS_DrvNum
     uint8_t reserved_1;       // BS_Reserved1
     uint8_t boot_signature;   // BS_BootSig
@@ -47,8 +75,8 @@ struct fat_extparams_fat1X {
     uint8_t mbr_signature[2];
 } __packed;
 
-struct fat_extparams_fat32 {
-    struct fat_bootparams base;
+struct fat_extparams_fat32_s {
+    fat_bootparams_t base;
     uint32_t table_size_32;     // BPB_FATSz32
     uint16_t flags;             // BPB_ExtFlags
     uint16_t version;           // BPB_FSVer
@@ -67,16 +95,16 @@ struct fat_extparams_fat32 {
 } __packed;
 
 #ifndef __INTELLISENSE__
-static_assert(512 == sizeof(struct fat_extparams_fat1X));
-static_assert(512 == sizeof(struct fat_extparams_fat32));
+static_assert(512 == sizeof(fat_extparams_fat1X_t));
+static_assert(512 == sizeof(fat_extparams_fat32_t));
 #endif
 
-union fat_extparams {
-    struct fat_extparams_fat1X fat1X;
-    struct fat_extparams_fat32 fat32;
+union fat_extparams_u {
+    fat_extparams_fat1X_t fat1X;
+    fat_extparams_fat32_t fat32;
 };
 
-struct fat_fsinfo_fat32 {
+struct fat_fsinfo_fat32_s {
     uint32_t lead_signature;   // FSI_LeadSig
     uint8_t reserved_1[480];   // FSI_Reserved1
     uint32_t struct_signature; // FSI_StrucSig
@@ -87,22 +115,10 @@ struct fat_fsinfo_fat32 {
 } __packed;
 
 #ifndef __INTELLISENSE__
-static_assert(512 == sizeof(struct fat_fsinfo_fat32));
+static_assert(512 == sizeof(fat_fsinfo_fat32_t));
 #endif
 
-#define FAT_ATTR_READ_ONLY UINT8_C(0x01)
-#define FAT_ATTR_HIDDEN    UINT8_C(0x02)
-#define FAT_ATTR_SYSTEM    UINT8_C(0x04)
-#define FAT_ATTR_VOLUME_ID UINT8_C(0x08)
-#define FAT_ATTR_DIRECTORY UINT8_C(0x10)
-#define FAT_ATTR_ARCHIVE   UINT8_C(0x20)
-#define FAT_ATTR_LONG_NAME UINT8_C(0x0F)
-
-#define FAT_NAME_END        UINT8_C(0x00) // DIR_Name[0] of the first free entry, all later ones are free too
-#define FAT_NAME_DELETED    UINT8_C(0xE5)
-#define FAT_NAME_ESCAPED_E5 UINT8_C(0x05) // Stands for a real leading 0xE5 (KANJI lead byte)
-
-struct fat_dir_entry {
+struct fat_dir_entry_s {
     uint8_t name[11];          // DIR_Name
     uint8_t attribute;         // DIR_Attr
     uint8_t nt_reserved;       // DIR_NTRes
@@ -117,15 +133,13 @@ struct fat_dir_entry {
     uint32_t file_size;        // DIR_FileSize
 } __packed;
 
-struct fat_timestamp {
+struct fat_timestamp_s {
     uint16_t date; // Years since 1980, month and day
     uint16_t time; // Hours, minutes and seconds halved
     uint8_t tenth; // The odd second and its hundredths, 0 to 199
 };
 
-#define FAT_LFN_MAX_SEGMENTS 20
-
-struct fat_ldir_entry {
+struct fat_ldir_entry_s {
     uint8_t order;             // LDIR_Ord
     uint16_t name_1[5];        // LDIR_Name1
     uint8_t attr;              // LDIR_Attr
@@ -137,25 +151,25 @@ struct fat_ldir_entry {
 } __packed;
 
 #ifndef __INTELLISENSE__
-static_assert(32 == sizeof(struct fat_dir_entry));
-static_assert(32 == sizeof(struct fat_ldir_entry));
+static_assert(32 == sizeof(fat_dir_entry_t));
+static_assert(32 == sizeof(fat_ldir_entry_t));
 #endif
 
-union fat_entry {
-    struct fat_dir_entry dir;
-    struct fat_ldir_entry ldir;
+union fat_entry_u {
+    fat_dir_entry_t dir;
+    fat_ldir_entry_t ldir;
 };
 
-struct fat_dirent {
-    struct fat_dir_entry base;
+struct fat_dirent_s {
+    fat_dir_entry_t base;
     char full_name[NAME_SIZE];
     unsigned num_lfn; // Long name entries right before base
 };
 
-struct fat_vfs_context {
-    struct mutex lock; // Serializes changes to the table and directories, and the file cache calls for files
-    const struct blk_device* device;
-    union fat_extparams extparams;
+struct fat_vfs_context_s {
+    mutex_t lock; // Serializes changes to the table and directories, and the file cache calls for files
+    const blk_device_t* device;
+    fat_extparams_t extparams;
     unsigned filesystem_type;
 
     gid_t param_gid;
@@ -180,11 +194,11 @@ struct fat_vfs_context {
 
     uintptr_t next_free_hint;
 
-    struct vnode* devnode;
+    vnode_t* device_node;
 };
 
-struct fat_vnode_context {
-    struct fat_vfs_context* fs_ctx;
+struct fat_vnode_context_s {
+    fat_vfs_context_t* fs_ctx;
     uintptr_t first_cluster;
     size_t size_bytes;
     uintptr_t dir_cluster;
@@ -194,38 +208,35 @@ struct fat_vnode_context {
     bool unlinked; // The entry at dir_offset is gone, clusters are freed on release
 };
 
-extern const struct vnode_ops fat_vnode_ops;
+extern const vnode_ops_t fat_vnode_ops;
 
-void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluster, uintptr_t next);
-void fat_cluster_end(struct fat_vfs_context* restrict context, uintptr_t cluster);
-void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluster);
+void fat_cluster_link(fat_vfs_context_t* restrict context, uintptr_t cluster, uintptr_t next);
+void fat_cluster_end(fat_vfs_context_t* restrict context, uintptr_t cluster);
+void fat_cluster_free(fat_vfs_context_t* restrict context, uintptr_t cluster);
 
-uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintptr_t cluster) __nodiscard;
-uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context) __nodiscard;
-uintptr_t fat_cluster_alloc_zeroed(struct fat_vfs_context* restrict context) __nodiscard;
-uintptr_t fat_cluster_alloc_dir(struct fat_vfs_context* restrict context) __nodiscard;
-size_t fat_cluster_count_free(const struct fat_vfs_context* restrict context) __nodiscard;
+uintptr_t fat_cluster_next(const fat_vfs_context_t* restrict context, uintptr_t cluster) __nodiscard;
+uintptr_t fat_cluster_alloc(fat_vfs_context_t* restrict context) __nodiscard;
+uintptr_t fat_cluster_alloc_zeroed(fat_vfs_context_t* restrict context) __nodiscard;
+uintptr_t fat_cluster_alloc_dir(fat_vfs_context_t* restrict context) __nodiscard;
+size_t fat_cluster_count_free(const fat_vfs_context_t* restrict context) __nodiscard;
 
 // Leaves offset one past the short entry it returns
-int fat_dirent_read(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t* restrict offset,
-    struct fat_dirent* restrict entry);
-int fat_dirent_write(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
-    const struct fat_dirent* restrict entry);
-int fat_dirent_update(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset,
-    const struct fat_dir_entry* restrict entry);
-int fat_dirent_alloc(struct fat_vfs_context* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset);
-int fat_dirent_remove(const struct fat_vfs_context* restrict context, uintptr_t cluster, size_t offset, unsigned num_lfn);
+int fat_dirent_read(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t* restrict offset, fat_dirent_t* restrict entry);
+int fat_dirent_write(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t offset, const fat_dirent_t* restrict entry);
+int fat_dirent_update(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t offset, const fat_dir_entry_t* restrict entry);
+int fat_dirent_alloc(fat_vfs_context_t* restrict context, uintptr_t cluster, unsigned count, size_t* restrict out_offset);
+int fat_dirent_remove(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t offset, unsigned num_lfn);
 
-void fat_time_pack(const struct k_timespec* restrict time, struct fat_timestamp* restrict out);
-void fat_time_unpack(const struct fat_timestamp* restrict stamp, struct k_timespec* restrict out);
+void fat_time_pack(const timespec_t* restrict time, fat_timestamp_t* restrict out);
+void fat_time_unpack(const fat_timestamp_t* restrict stamp, timespec_t* restrict out);
 
 // Clusters 0 and 1 are reserved, data clusters are numbered from 2
-static __always_inline bool fat_cluster_valid(const struct fat_vfs_context* restrict context, uintptr_t cluster)
+static __always_inline bool fat_cluster_valid(const fat_vfs_context_t* restrict context, uintptr_t cluster)
 {
     return cluster >= 2 && cluster < context->cluster_count + 2;
 }
 
-static __always_inline uintptr_t fat_cluster_lba(const struct fat_vfs_context* restrict context, uintptr_t cluster)
+static __always_inline uintptr_t fat_cluster_lba(const fat_vfs_context_t* restrict context, uintptr_t cluster)
 {
     return context->data_start + (cluster - 2) * context->cluster_size_s;
 }

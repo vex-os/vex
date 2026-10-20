@@ -7,16 +7,16 @@
 #include <vex/string.h>
 #include <vex/strings.h>
 
-static spinlock_type chr_name_lock = SPINLOCK_INIT;
-static struct chr_name* chr_name_head = nullptr;
+static spinlock_t chr_name_lock = SPINLOCK_INIT;
+static chr_name_t* chr_name_head = nullptr;
 
-struct chr_name* chr_name_tty;
-struct chr_name* chr_name_pty;
-struct chr_name* chr_name_fbd;
+chr_name_t* chr_name_tty;
+chr_name_t* chr_name_pty;
+chr_name_t* chr_name_fbd;
 
-static struct chr_name* find_name_nolock(const char* restrict prefix)
+static chr_name_t* find_name_nolock(const char* restrict prefix)
 {
-    for(struct chr_name* name = chr_name_head; name; name = name->priv.next) {
+    for(chr_name_t* name = chr_name_head; name; name = name->priv.next) {
         if(0 == strcmp(name->device_prefix, prefix)) {
             return name;
         }
@@ -25,17 +25,17 @@ static struct chr_name* find_name_nolock(const char* restrict prefix)
     return nullptr;
 }
 
-struct chr_name* chr_name_query(const char* restrict prefix)
+chr_name_t* chr_name_query(const char* restrict prefix)
 {
     spinlock_acquire(&chr_name_lock);
-    struct chr_name* name = find_name_nolock(prefix);
+    chr_name_t* name = find_name_nolock(prefix);
     spinlock_release(&chr_name_lock);
 
     if(name) {
         return name;
     }
 
-    struct chr_name* created = kmalloc(sizeof(struct chr_name));
+    chr_name_t* created = kmalloc(sizeof(chr_name_t));
 
     if(created == nullptr) {
         return nullptr;
@@ -62,12 +62,12 @@ struct chr_name* chr_name_query(const char* restrict prefix)
     return name;
 }
 
-unsigned chr_name_increment(struct chr_name* restrict name)
+unsigned chr_name_increment(chr_name_t* restrict name)
 {
     return atomic_fetch_add(&name->priv.next_iterator, 1, ATOMIC_RELAXED);
 }
 
-unsigned chr_name_count(const struct chr_name* restrict name)
+unsigned chr_name_count(const chr_name_t* restrict name)
 {
     return atomic_load(&name->priv.next_iterator, ATOMIC_RELAXED);
 }

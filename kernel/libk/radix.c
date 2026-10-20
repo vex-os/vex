@@ -8,12 +8,14 @@
 #define RADIX_MASK      (RADIX_SLOTS - 1U)
 #define RADIX_MAX_DEPTH ((64 + RADIX_SHIFT - 1) / RADIX_SHIFT)
 
-struct radix_node {
+typedef struct radix_node_s radix_node_t;
+
+struct radix_node_s {
     void* slots[RADIX_SLOTS];
     unsigned count;
 };
 
-static_assert(sizeof(struct radix_node) <= SLAB_MAX_SIZE);
+static_assert(sizeof(radix_node_t) <= SLAB_MAX_SIZE);
 
 static bool fits(unsigned height, uint64_t index)
 {
@@ -26,7 +28,7 @@ static unsigned slot_of(unsigned level, uint64_t index)
     return (index >> ((level - 1) * RADIX_SHIFT)) & RADIX_MASK;
 }
 
-static void free_subtree(struct radix_node* restrict node, unsigned level)
+static void free_subtree(radix_node_t* restrict node, unsigned level)
 {
     if(level > 1) {
         for(unsigned i = 0; i < RADIX_SLOTS; ++i) {
@@ -39,7 +41,7 @@ static void free_subtree(struct radix_node* restrict node, unsigned level)
     slab_free(node);
 }
 
-static size_t gather_subtree(const struct radix_node* restrict node, unsigned level, uint64_t base, uint64_t start, void** restrict items,
+static size_t gather_subtree(const radix_node_t* restrict node, unsigned level, uint64_t base, uint64_t start, void** restrict items,
     uint64_t* restrict indices, size_t max)
 {
     unsigned span_bits = (level - 1) * RADIX_SHIFT;
@@ -87,13 +89,13 @@ static size_t gather_subtree(const struct radix_node* restrict node, unsigned le
     return found;
 }
 
-void radix_init(struct radix* restrict tree)
+void radix_init(radix_tree_t* restrict tree)
 {
     tree->root = nullptr;
     tree->height = 0;
 }
 
-void radix_deinit(struct radix* restrict tree)
+void radix_deinit(radix_tree_t* restrict tree)
 {
     if(tree->root) {
         free_subtree(tree->root, tree->height);
@@ -102,13 +104,13 @@ void radix_deinit(struct radix* restrict tree)
     radix_init(tree);
 }
 
-void* radix_lookup(const struct radix* restrict tree, uint64_t index)
+void* radix_lookup(const radix_tree_t* restrict tree, uint64_t index)
 {
     if(tree->root == nullptr || !fits(tree->height, index)) {
         return nullptr;
     }
 
-    struct radix_node* node = tree->root;
+    radix_node_t* node = tree->root;
 
     for(unsigned level = tree->height; level > 1; level -= 1) {
         node = node->slots[slot_of(level, index)];
@@ -121,7 +123,7 @@ void* radix_lookup(const struct radix* restrict tree, uint64_t index)
     return node->slots[index & RADIX_MASK];
 }
 
-int radix_insert(struct radix* restrict tree, uint64_t index, void* restrict item)
+int radix_insert(radix_tree_t* restrict tree, uint64_t index, void* restrict item)
 {
     kassert(item);
 
@@ -132,7 +134,7 @@ int radix_insert(struct radix* restrict tree, uint64_t index, void* restrict ite
             height += 1;
         }
 
-        tree->root = slab_alloc(sizeof(struct radix_node));
+        tree->root = slab_alloc(sizeof(radix_node_t));
 
         if(tree->root == nullptr) {
             return -ENOMEM;
@@ -142,7 +144,7 @@ int radix_insert(struct radix* restrict tree, uint64_t index, void* restrict ite
     }
 
     while(!fits(tree->height, index)) {
-        struct radix_node* top = slab_alloc(sizeof(struct radix_node));
+        radix_node_t* top = slab_alloc(sizeof(radix_node_t));
 
         if(top == nullptr) {
             return -ENOMEM;
@@ -154,16 +156,16 @@ int radix_insert(struct radix* restrict tree, uint64_t index, void* restrict ite
         tree->height += 1;
     }
 
-    struct radix_node* node = tree->root;
+    radix_node_t* node = tree->root;
 
     for(unsigned level = tree->height; level > 1; level -= 1) {
         unsigned slot = slot_of(level, index);
-        struct radix_node* child = node->slots[slot];
+        radix_node_t* child = node->slots[slot];
 
         // A child left empty by a failed insert
         // is reused here or freed with the tree
         if(child == nullptr) {
-            child = slab_alloc(sizeof(struct radix_node));
+            child = slab_alloc(sizeof(radix_node_t));
 
             if(child == nullptr) {
                 return -ENOMEM;
@@ -188,14 +190,14 @@ int radix_insert(struct radix* restrict tree, uint64_t index, void* restrict ite
     return 0;
 }
 
-void* radix_remove(struct radix* restrict tree, uint64_t index)
+void* radix_remove(radix_tree_t* restrict tree, uint64_t index)
 {
     if(tree->root == nullptr || !fits(tree->height, index)) {
         return nullptr;
     }
 
-    struct radix_node* path[RADIX_MAX_DEPTH];
-    struct radix_node* node = tree->root;
+    radix_node_t* path[RADIX_MAX_DEPTH];
+    radix_node_t* node = tree->root;
     unsigned depth = 0;
 
     for(unsigned level = tree->height; level > 1; level -= 1) {
@@ -239,7 +241,7 @@ void* radix_remove(struct radix* restrict tree, uint64_t index)
     }
 
     while(tree->height > 1 && tree->root->count == 1 && tree->root->slots[0]) {
-        struct radix_node* top = tree->root;
+        radix_node_t* top = tree->root;
         tree->root = top->slots[0];
         tree->height -= 1;
         slab_free(top);
@@ -248,7 +250,7 @@ void* radix_remove(struct radix* restrict tree, uint64_t index)
     return item;
 }
 
-size_t radix_gather(const struct radix* restrict tree, uint64_t start, void** restrict items, uint64_t* restrict indices, size_t max)
+size_t radix_gather(const radix_tree_t* restrict tree, uint64_t start, void** restrict items, uint64_t* restrict indices, size_t max)
 {
     if(tree->root == nullptr || max == 0 || !fits(tree->height, start)) {
         return 0;

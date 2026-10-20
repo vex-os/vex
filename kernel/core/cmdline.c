@@ -9,14 +9,14 @@
 #include <vex/string.h>
 #include <vex/strings.h>
 
-struct cmdline sys_cmdline;
+cmdline_t sys_cmdline;
 
 static volatile __used __section(".limine_requests") struct limine_executable_cmdline_request cmdline_request = {
     .id = LIMINE_EXECUTABLE_CMDLINE_REQUEST_ID,
     .revision = 0,
 };
 
-int parse_cmdline(struct cmdline* restrict cmdl, char* restrict buffer, size_t length)
+int parse_cmdline(cmdline_t* restrict cmdl, char* restrict buffer, size_t length)
 {
     cmdl->buffer = nullptr;
     cmdl->length = 0;
@@ -51,7 +51,7 @@ invalid_args:
     return -EINVAL;
 }
 
-bool cmdline_contains(const struct cmdline* restrict cmdl, const char* restrict option)
+bool cmdline_contains(const cmdline_t* restrict cmdl, const char* restrict option)
 {
     if(cmdl->buffer) {
         size_t option_size = strlen(option);
@@ -80,7 +80,7 @@ bool cmdline_contains(const struct cmdline* restrict cmdl, const char* restrict 
     return false;
 }
 
-const char* cmdline_argument(const struct cmdline* restrict cmdl, const char* restrict option)
+const char* cmdline_argument(const cmdline_t* restrict cmdl, const char* restrict option)
 {
     if(cmdl->buffer) {
         size_t option_size = strlen(option);

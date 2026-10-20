@@ -23,10 +23,13 @@
 #define L_POINTER   0x0007 // special
 
 #define MAX_BASE 16
+
 static const char lc_digits[MAX_BASE + 1] = "0123456789abcdef";
 static const char uc_digits[MAX_BASE + 1] = "0123456789ABCDEF";
 
-static size_t write_int(format_func_type func, void* restrict user, uintmax_t value, unsigned flags, unsigned width, unsigned precision,
+static const char defined_behaviour[] = "(null)";
+
+static size_t write_int(format_func_t func, void* restrict user, uintmax_t value, unsigned flags, unsigned width, unsigned precision,
     unsigned base)
 {
     int sign, pad;
@@ -136,10 +139,7 @@ static size_t write_int(format_func_type func, void* restrict user, uintmax_t va
 
     return counter;
 }
-
-static const char defined_behaviour[] = "(null)";
-static size_t write_str(format_func_type func, void* restrict user, const char* restrict s, unsigned flags, unsigned width,
-    unsigned precision)
+static size_t write_str(format_func_t func, void* restrict user, const char* restrict s, unsigned flags, unsigned width, unsigned precision)
 {
     if(s == nullptr) {
         // C standard does not define what happens when you try
@@ -242,7 +242,7 @@ static uintmax_t remove_sign(uintmax_t x, int length, unsigned* restrict flags)
 #undef sign_hack
 }
 
-int format(format_func_type func, void* restrict user, const char* restrict fmt, ...)
+int format(format_func_t func, void* restrict user, const char* restrict fmt, ...)
 {
     int r;
     va_list ap;
@@ -252,7 +252,7 @@ int format(format_func_type func, void* restrict user, const char* restrict fmt,
     return r;
 }
 
-int vformat(format_func_type func, void* restrict user, const char* restrict fmt, va_list ap)
+int vformat(format_func_t func, void* restrict user, const char* restrict fmt, va_list ap)
 {
     unsigned width;
     unsigned precision;

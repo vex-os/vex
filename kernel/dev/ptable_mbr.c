@@ -11,7 +11,10 @@
 #define MBR_SIGNATURE_1 UINT8_C(0xAA)
 #define MBR_ENTRY_COUNT 4
 
-struct mbr_entry {
+typedef struct mbr_entry_s mbr_entry_t;
+typedef struct mbr_sector_s mbr_sector_t;
+
+struct mbr_entry_s {
     uint8_t status;
     uint8_t chs_first[3];
     uint8_t type;
@@ -20,22 +23,22 @@ struct mbr_entry {
     uint32_t lba_count;
 } __packed;
 
-struct mbr_sector {
+struct mbr_sector_s {
     uint8_t bootstrap[440];
     uint8_t disk_signature[4];
     uint8_t reserved[2];
-    struct mbr_entry entries[MBR_ENTRY_COUNT];
+    mbr_entry_t entries[MBR_ENTRY_COUNT];
     uint8_t signature[2];
 } __packed;
 
 #ifndef __INTELLISENSE__
-static_assert(16 == sizeof(struct mbr_entry));
-static_assert(512 == sizeof(struct mbr_sector));
+static_assert(16 == sizeof(mbr_entry_t));
+static_assert(512 == sizeof(mbr_sector_t));
 #endif
 
-static int mbr_detect(const struct blk_device* restrict device, void** restrict ptdata)
+static int mbr_detect(const blk_device_t* restrict device, void** restrict ptdata)
 {
-    struct mbr_sector sector;
+    mbr_sector_t sector;
     int retval = blk_read_sector_prefix(device, 0, &sector, sizeof(sector));
 
     if(retval < 0) {
@@ -57,13 +60,13 @@ static int mbr_detect(const struct blk_device* restrict device, void** restrict 
             return -EINVAL;
         }
 
-        struct mbr_sector* sector_copy = kmalloc(sizeof(struct mbr_sector));
+        mbr_sector_t* sector_copy = kmalloc(sizeof(mbr_sector_t));
 
         if(sector_copy == nullptr) {
             return -ENOMEM;
         }
 
-        memcpy(sector_copy, &sector, sizeof(struct mbr_sector));
+        memcpy(sector_copy, &sector, sizeof(mbr_sector_t));
 
         *ptdata = sector_copy;
 
@@ -73,14 +76,14 @@ static int mbr_detect(const struct blk_device* restrict device, void** restrict 
     return -EINVAL;
 }
 
-static int mbr_readpt(const struct blk_device* restrict device, void* restrict ptdata, unsigned index, struct blk_ptable_info* restrict out)
+static int mbr_readpt(const blk_device_t* restrict device, void* restrict ptdata, unsigned index, blk_partition_table_info_t* restrict out)
 {
-    const struct mbr_sector* mbr = ptdata;
+    const mbr_sector_t* mbr = ptdata;
 
     unsigned found = 0;
 
     for(unsigned slot = 0; slot < MBR_ENTRY_COUNT; slot += 1) {
-        const struct mbr_entry* entry = &mbr->entries[slot];
+        const mbr_entry_t* entry = &mbr->entries[slot];
 
         if(entry->type == 0x00 || entry->lba_count == 0) {
             continue;
@@ -113,20 +116,20 @@ static void mbr_release(void* restrict ptdata)
     kfree(ptdata);
 }
 
-static const struct blk_ptable_ops mbr_ops = {
+static const blk_partition_table_ops_t mbr_ops = {
     .detect = &mbr_detect,
     .readpt = &mbr_readpt,
     .release = &mbr_release,
 };
 
-static struct blk_ptable mbr_ptable = {
+static blk_partition_table_t mbr_ptable = {
     .ops = &mbr_ops,
-    .identifier = "mbr",
+    .name = "mbr",
 };
 
 static void init_ptable_mbr(void)
 {
-    add_blk_ptable(&mbr_ptable);
+    blk_partition_table_add(&mbr_ptable);
 }
 
 initcall_bsp_dev(init_ptable_mbr, INIT_FIRST);

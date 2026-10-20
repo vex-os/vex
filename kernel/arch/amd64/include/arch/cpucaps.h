@@ -1,6 +1,8 @@
 #pragma once
 
-enum cpu_feature {
+typedef struct cpucaps_s cpucaps_t;
+
+enum cpu_feature_e {
     CPU_FEATURE_FXSR,    // FPU FXSAVE/FXRSTOR
     CPU_FEATURE_PAT,     // Page Attribute Table
     CPU_FEATURE_NX,      // No-Execute bit in pmap entries
@@ -13,6 +15,6 @@ enum cpu_feature {
     NUM_CPU_FEATURES,
 };
 
-struct cpucaps;
+typedef enum cpu_feature_e cpu_feature_t;
 
-void arch_cpucaps_probe(struct cpucaps* restrict caps);
+void arch_cpucaps_probe(cpucaps_t* restrict caps);

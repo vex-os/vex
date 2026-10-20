@@ -39,7 +39,7 @@ unsigned pmap_detect_leaf_levels(void)
     return 2;
 }
 
-int arch_pmap_alloc(struct pagemap* restrict pmap)
+int arch_pmap_alloc(pmap_t* restrict pmap)
 {
     pmap->phys = pslab_alloc_phys();
 
@@ -54,7 +54,7 @@ int arch_pmap_alloc(struct pagemap* restrict pmap)
     return 0;
 }
 
-void arch_pmap_free(struct pagemap* restrict pmap)
+void arch_pmap_free(pmap_t* restrict pmap)
 {
     pslab_free_virt(pmap->virt);
 
@@ -62,14 +62,14 @@ void arch_pmap_free(struct pagemap* restrict pmap)
     pmap->virt = nullptr;
 }
 
-void arch_pmap_zero(struct pagemap* restrict pmap)
+void arch_pmap_zero(pmap_t* restrict pmap)
 {
     memset(pmap->virt, 0, PAGE_SIZE);
 }
 
-void arch_pmap_kcopy(struct pagemap* restrict dest, const struct pagemap* restrict stem)
+void arch_pmap_kcopy(pmap_t* restrict dest, const pmap_t* restrict source)
 {
     for(size_t i = AMD64_PAGEMAP_START_KERN; i < PAGEMAP_SIZE; ++i) {
-        dest->virt[i] = stem->virt[i];
+        dest->virt[i] = source->virt[i];
     }
 }

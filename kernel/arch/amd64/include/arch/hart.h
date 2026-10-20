@@ -5,7 +5,33 @@
 #include <vex/tlb.h>
 #include <vex/types.h>
 
-struct hart_context {
+typedef struct hart_local_s hart_local_t;
+
+#define syscall_pc     amd64_rip
+#define syscall_sp     amd64_rsp
+#define syscall_arg_1  amd64_rdi
+#define syscall_arg_2  amd64_rsi
+#define syscall_arg_3  amd64_rdx
+#define syscall_arg_4  amd64_r10
+#define syscall_arg_5  amd64_r8
+#define syscall_arg_6  amd64_r9
+#define syscall_retval amd64_rax
+#define syscall_number amd64_rax
+
+#define AMD64_RFLAGS_FIXED UINT64_C(0x0000000000000002) // Reserved, always set
+#define AMD64_RFLAGS_TF    UINT64_C(0x0000000000000100)
+#define AMD64_RFLAGS_IF    UINT64_C(0x0000000000000200)
+#define AMD64_RFLAGS_DF    UINT64_C(0x0000000000000400)
+#define AMD64_RFLAGS_AC    UINT64_C(0x0000000000040000)
+
+#define HART_IPI_EVERYONE  ((hart_local_t*)(-1))
+#define HART_IPI_EXCEPT_ME ((hart_local_t*)(-2))
+
+typedef struct hart_context_s hart_context_t;
+typedef struct amd64_hart_tss_s amd64_hart_tss_t;
+typedef struct arch_hart_s arch_hart_t;
+
+struct hart_context_s {
     uint64_t amd64_ds;
     uint64_t amd64_es;
     uint64_t amd64_rax;
@@ -32,21 +58,10 @@ struct hart_context {
 } __packed;
 
 // Entry and exit stubs address the frame by these offsets
-static_assert(184 == sizeof(struct hart_context));
-static_assert(152 == offsetof(struct hart_context, amd64_cs));
+static_assert(184 == sizeof(hart_context_t));
+static_assert(152 == offsetof(hart_context_t, amd64_cs));
 
-#define syscall_pc     amd64_rip
-#define syscall_sp     amd64_rsp
-#define syscall_arg_1  amd64_rdi
-#define syscall_arg_2  amd64_rsi
-#define syscall_arg_3  amd64_rdx
-#define syscall_arg_4  amd64_r10
-#define syscall_arg_5  amd64_r8
-#define syscall_arg_6  amd64_r9
-#define syscall_retval amd64_rax
-#define syscall_number amd64_rax
-
-struct amd64_hart_tss {
+struct amd64_hart_tss_s {
     uint32_t reserved_0;
     uint64_t rsp_0;
     uint64_t rsp_1;
@@ -63,14 +78,18 @@ struct amd64_hart_tss {
     uint32_t iopb;
 } __packed;
 
-struct hart_local;
-
-struct arch_hart {
+struct arch_hart_s {
     uint32_t lapic_id;
     uint64_t lapic_timer_hz;
-    struct amd64_hart_tss tss;
-    struct amd64_gdt gdt;
+    amd64_hart_tss_t tss;
+    amd64_gdt_t gdt;
 };
+
+void arch_enumerate_harts(void);
+void arch_start_hart(hart_local_t* restrict hart);
+
+void hart_setup(hart_local_t* restrict hart);
+void hart_ipi(hart_local_t* restrict target, unsigned irq_number);
 
 static __always_inline void hart_relax(void)
 {
@@ -88,12 +107,6 @@ static __always_inline void hart_stop(void)
 {
     asm volatile("hlt");
 }
-
-#define AMD64_RFLAGS_FIXED UINT64_C(0x0000000000000002) // Reserved, always set
-#define AMD64_RFLAGS_TF    UINT64_C(0x0000000000000100)
-#define AMD64_RFLAGS_IF    UINT64_C(0x0000000000000200)
-#define AMD64_RFLAGS_DF    UINT64_C(0x0000000000000400)
-#define AMD64_RFLAGS_AC    UINT64_C(0x0000000000040000)
 
 static __always_inline __nodiscard uint64_t read_rflags(void)
 {
@@ -130,12 +143,3 @@ static __always_inline void restore_interrupts(bool enabled)
         asm volatile("cli" ::: "memory");
     }
 }
-
-#define HART_IPI_EVERYONE  ((struct hart_local*)(-1))
-#define HART_IPI_EXCEPT_ME ((struct hart_local*)(-2))
-
-void arch_enumerate_harts(void);
-void arch_start_hart(struct hart_local* restrict hart);
-
-void hart_setup(struct hart_local* restrict hart);
-void hart_ipi(struct hart_local* restrict target, unsigned ireq_number);

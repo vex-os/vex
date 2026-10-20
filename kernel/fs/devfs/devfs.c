@@ -14,88 +14,25 @@
 
 #include "devfs.h"
 
-static_assert(sizeof(struct devfs_node) <= SLAB_MAX_SIZE);
-static_assert(sizeof(struct devfs_state) <= SLAB_MAX_SIZE);
+static_assert(sizeof(devfs_node_t) <= SLAB_MAX_SIZE);
+static_assert(sizeof(devfs_state_t) <= SLAB_MAX_SIZE);
 
-int devfs_insert(struct vfs* restrict fs, const char* restrict name, struct vnode* restrict node)
+static int devfs_unmount(vfs_t* restrict fs)
 {
-    struct devfs_state* state = fs->root->ctxdata;
-    struct devfs_node* entry = slab_alloc(sizeof(struct devfs_node));
-
-    if(entry == nullptr) {
-        return -ENOMEM;
-    }
-
-    memset(entry, 0, sizeof(struct devfs_node));
-    kstrncpy(entry->name, name, sizeof(entry->name));
-
-    node->fs = fs;
-    node->nodenumber = (ino_t)(uintptr_t)node;
-
-    int retval = vcache_insert_pinned(node);
-
-    if(retval < 0) {
-        slab_free(entry);
-        return retval;
-    }
-
-    entry->node = node;
-
-    spinlock_acquire(&state->lock);
-
-    entry->next = state->head;
-    state->head = entry;
-    state->num_devices += 1;
-
-    spinlock_release(&state->lock);
-
-    return 0;
-}
-
-void devfs_remove(struct vfs* restrict fs, const char* restrict name)
-{
-    struct devfs_state* state = fs->root->ctxdata;
-
-    struct devfs_node* removed = nullptr;
-
-    spinlock_acquire(&state->lock);
-
-    for(struct devfs_node** prev = &state->head; *prev; prev = &((**prev).next)) {
-        struct devfs_node* it = *prev;
-
-        if(0 == strcmp(it->name, name)) {
-            *prev = it->next;
-            removed = it;
-            state->num_devices -= 1;
-            break;
-        }
-    }
-
-    spinlock_release(&state->lock);
-
-    if(removed) {
-        vcache_remove(removed->node);
-        vnode_decref(removed->node);
-        slab_free(removed);
-    }
-}
-
-static int devfs_unmount(struct vfs* restrict fs)
-{
-    struct devfs_state* state = fs->ctxdata;
+    devfs_state_t* state = fs->ctxdata;
 
     blk_event_unsubscribe(&devfs_blk_event_handler, fs);
     chr_event_unsubscribe(&devfs_chr_event_handler, fs);
 
     spinlock_acquire(&state->lock);
 
-    struct devfs_node* head = state->head;
+    devfs_node_t* head = state->head;
     state->head = nullptr;
 
     spinlock_release(&state->lock);
 
-    for(struct devfs_node* it = head; it;) {
-        struct devfs_node* next = it->next;
+    for(devfs_node_t* it = head; it;) {
+        devfs_node_t* next = it->next;
         vcache_remove(it->node);
         vnode_decref(it->node);
         slab_free(it);
@@ -109,18 +46,18 @@ static int devfs_unmount(struct vfs* restrict fs)
     return 0;
 }
 
-static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
+static int devfs_mount(vfs_t* restrict fs, const blk_device_t* restrict device, const cmdline_t* restrict params)
 {
-    struct devfs_state* state = slab_alloc(sizeof(struct devfs_state));
+    devfs_state_t* state = slab_alloc(sizeof(devfs_state_t));
 
     if(state == nullptr) {
         return -ENOMEM;
     }
 
-    memset(state, 0, sizeof(struct devfs_state));
+    memset(state, 0, sizeof(devfs_state_t));
     state->lock = SPINLOCK_INIT;
 
-    struct vnode* root = vnode_alloc(VNODE_DIRECTORY, &devfs_dir_ops, state);
+    vnode_t* root = vnode_alloc(VNODE_DIRECTORY, &devfs_dir_ops, state);
 
     if(root == nullptr) {
         slab_free(state);
@@ -146,11 +83,11 @@ static int devfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     return 0;
 }
 
-static int devfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
+static int devfs_statvfs(vfs_t* restrict fs, statvfs_t* restrict out)
 {
-    struct devfs_state* state = fs->ctxdata;
+    devfs_state_t* state = fs->ctxdata;
 
-    memset(out, 0, sizeof(struct k_statvfs));
+    memset(out, 0, sizeof(statvfs_t));
 
     out->f_files = state->num_devices;
     out->f_fsid = (uint32_t)(uintptr_t)(fs);
@@ -159,20 +96,83 @@ static int devfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out
     return 0;
 }
 
-static const struct vfs_ops devfs_ops = {
+static const vfs_ops_t devfs_ops = {
     .mount = &devfs_mount,
     .statvfs = &devfs_statvfs,
     .unmount = &devfs_unmount,
 };
 
-static struct vfs_driver devfs_driver = {
-    .identifier = "devfs",
+static vfs_driver_t devfs_driver = {
+    .name = "devfs",
     .ops = &devfs_ops,
 };
 
+int devfs_insert(vfs_t* restrict fs, const char* restrict name, vnode_t* restrict node)
+{
+    devfs_state_t* state = fs->root->ctxdata;
+    devfs_node_t* entry = slab_alloc(sizeof(devfs_node_t));
+
+    if(entry == nullptr) {
+        return -ENOMEM;
+    }
+
+    memset(entry, 0, sizeof(devfs_node_t));
+    kstrncpy(entry->name, name, sizeof(entry->name));
+
+    node->fs = fs;
+    node->ino = (ino_t)(uintptr_t)node;
+
+    int retval = vcache_insert_pinned(node);
+
+    if(retval < 0) {
+        slab_free(entry);
+        return retval;
+    }
+
+    entry->node = node;
+
+    spinlock_acquire(&state->lock);
+
+    entry->next = state->head;
+    state->head = entry;
+    state->num_devices += 1;
+
+    spinlock_release(&state->lock);
+
+    return 0;
+}
+
+void devfs_remove(vfs_t* restrict fs, const char* restrict name)
+{
+    devfs_state_t* state = fs->root->ctxdata;
+
+    devfs_node_t* removed = nullptr;
+
+    spinlock_acquire(&state->lock);
+
+    for(devfs_node_t** prev = &state->head; *prev; prev = &((**prev).next)) {
+        devfs_node_t* it = *prev;
+
+        if(0 == strcmp(it->name, name)) {
+            *prev = it->next;
+            removed = it;
+            state->num_devices -= 1;
+            break;
+        }
+    }
+
+    spinlock_release(&state->lock);
+
+    if(removed) {
+        vcache_remove(removed->node);
+        vnode_decref(removed->node);
+        slab_free(removed);
+    }
+}
+
 static void init_devfs(void)
 {
-    add_vfs_driver(&devfs_driver);
+    vfs_driver_add(&devfs_driver);
 }
 
 initcall_bsp_vfs(init_devfs, INIT_EARLY);

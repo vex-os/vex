@@ -16,9 +16,9 @@
 static_assert(KSTACK_NUM_SLOTS % BITMAP_CHUNK_BITS == 0);
 static_assert(KSTACK_NUM_SLOTS * KSTACK_SLOT_SIZE <= KSTACK_REGION_SIZE);
 
-static bitmap_type slots[KSTACK_NUM_SLOTS / BITMAP_CHUNK_BITS]; // A set bit means the slot is free
+static bitmap_t slots[KSTACK_NUM_SLOTS / BITMAP_CHUNK_BITS]; // A set bit means the slot is free
 static size_t next_slot = 0U;
-static spinlock_type slots_lock = SPINLOCK_INIT;
+static spinlock_t slots_lock = SPINLOCK_INIT;
 
 static __always_inline uintptr_t slot_base(size_t slot)
 {

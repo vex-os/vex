@@ -3,6 +3,8 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
+typedef struct thread_s thread_t;
+
 #define FPU_STATE_ALIGN 64
 
 #define FPU_EXCEPTION_IE UINT32_C(0x00000001) // Invalid operation
@@ -22,5 +24,4 @@ void fpu_reset(void);
 bool fpu_state_valid(const void* restrict state) __nodiscard;
 uint32_t fpu_unmasked_exceptions(bool simd) __nodiscard;
 
-struct thread;
-void* fpu_state_of(const struct thread* restrict thrd) __nodiscard;
+void* fpu_state_of(const thread_t* restrict thread) __nodiscard;

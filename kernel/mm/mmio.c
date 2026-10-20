@@ -10,8 +10,10 @@
 
 #define LARGE_ALIGN (UINT64_C(1) << 21)
 
-struct mmio_mapping {
-    struct mmio_mapping* next; // Sorted by virt
+typedef struct mmio_mapping_s mmio_mapping_t;
+
+struct mmio_mapping_s {
+    mmio_mapping_t* next; // Sorted by virt
     uintptr_t virt;
     uintptr_t phys;
     size_t size;
@@ -19,15 +21,15 @@ struct mmio_mapping {
     unsigned refcount; // Zero while the range waits for a shootdown, so it can't be reused yet
 };
 
-static spinlock_type mmio_lock = SPINLOCK_INIT;
-static struct mmio_mapping* mmio_head = nullptr;
+static spinlock_t mmio_lock = SPINLOCK_INIT;
+static mmio_mapping_t* mmio_head = nullptr;
 
 // A physical range may be mapped more than once
 // only with one memory type; x86 leaves the result
 // undefined when two mappings disagree
 static bool type_conflicts_nolock(uintptr_t phys, size_t size, unsigned vprot)
 {
-    for(struct mmio_mapping* it = mmio_head; it; it = it->next) {
+    for(mmio_mapping_t* it = mmio_head; it; it = it->next) {
         bool overlaps = phys < it->phys + it->size && it->phys < phys + size;
 
         if(overlaps && (it->vprot & VPROT_CACHE_MASK) != (vprot & VPROT_CACHE_MASK)) {
@@ -38,9 +40,9 @@ static bool type_conflicts_nolock(uintptr_t phys, size_t size, unsigned vprot)
     return false;
 }
 
-static struct mmio_mapping* find_reusable_nolock(uintptr_t phys, size_t size, unsigned vprot)
+static mmio_mapping_t* find_reusable_nolock(uintptr_t phys, size_t size, unsigned vprot)
 {
-    for(struct mmio_mapping* it = mmio_head; it; it = it->next) {
+    for(mmio_mapping_t* it = mmio_head; it; it = it->next) {
         if(it->refcount && it->vprot == vprot && phys >= it->phys && phys + size <= it->phys + it->size) {
             return it;
         }
@@ -64,10 +66,10 @@ static uintptr_t place_virt(uintptr_t gap_start, uintptr_t phys, size_t size)
     return virt;
 }
 
-static bool insert_nolock(struct mmio_mapping* restrict mapping)
+static bool insert_nolock(mmio_mapping_t* restrict mapping)
 {
     uintptr_t gap_start = MMIO_REGION_BASE;
-    struct mmio_mapping** prev = &mmio_head;
+    mmio_mapping_t** prev = &mmio_head;
 
     for(;;) {
         uintptr_t gap_end = MMIO_REGION_BASE + MMIO_REGION_SIZE;
@@ -94,9 +96,9 @@ static bool insert_nolock(struct mmio_mapping* restrict mapping)
     }
 }
 
-static void unlink_nolock(struct mmio_mapping* restrict mapping)
+static void unlink_nolock(mmio_mapping_t* restrict mapping)
 {
-    for(struct mmio_mapping** prev = &mmio_head; *prev; prev = &(*prev)->next) {
+    for(mmio_mapping_t** prev = &mmio_head; *prev; prev = &(*prev)->next) {
         if(*prev == mapping) {
             *prev = mapping->next;
             return;
@@ -112,7 +114,7 @@ void* mmio_map(uintptr_t phys, size_t size, unsigned vprot)
     uintptr_t phys_page = page_align(phys);
     size_t length = page_align_up(phys + size) - phys_page;
 
-    struct mmio_mapping* mapping = slab_alloc(sizeof(struct mmio_mapping));
+    mmio_mapping_t* mapping = slab_alloc(sizeof(mmio_mapping_t));
 
     if(mapping == nullptr) {
         return nullptr;
@@ -125,7 +127,7 @@ void* mmio_map(uintptr_t phys, size_t size, unsigned vprot)
 
     spinlock_acquire(&mmio_lock);
 
-    struct mmio_mapping* existing = find_reusable_nolock(phys_page, length, vprot);
+    mmio_mapping_t* existing = find_reusable_nolock(phys_page, length, vprot);
 
     if(existing) {
         existing->refcount += 1;
@@ -170,7 +172,7 @@ void mmio_unmap(volatile void* virt)
 
     spinlock_acquire(&mmio_lock);
 
-    struct mmio_mapping* mapping = mmio_head;
+    mmio_mapping_t* mapping = mmio_head;
 
     while(mapping && !(address >= mapping->virt && address < mapping->virt + mapping->size)) {
         mapping = mapping->next;

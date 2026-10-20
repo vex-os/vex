@@ -2,4 +2,4 @@
 
 #include <usr/vex/utsname.h>
 
-#define k_utsname __k_utsname
+typedef struct __k_utsname utsname_t;

@@ -16,35 +16,35 @@
 
 static const uint8_t zeroes[PAGE_SIZE];
 
-static size_t table_bytes(const struct fat_vfs_context* restrict context)
+static size_t table_bytes(const fat_vfs_context_t* restrict context)
 {
     return context->table_size_s * context->sector_size;
 }
 
-static uint64_t table_offset(const struct fat_vfs_context* restrict context, unsigned table, size_t offset)
+static uint64_t table_offset(const fat_vfs_context_t* restrict context, unsigned table, size_t offset)
 {
     return (context->table_start + table * context->table_size_s) * context->sector_size + offset;
 }
 
-static bool table_load(const struct fat_vfs_context* restrict context, size_t offset, void* restrict buffer, size_t size)
+static bool table_load(const fat_vfs_context_t* restrict context, size_t offset, void* restrict buffer, size_t size)
 {
     if(offset + size > table_bytes(context)) {
         return false;
     }
 
-    return 0 == fcache_dev_read(context->devnode, table_offset(context, 0, offset), buffer, size);
+    return 0 == fcache_dev_read(context->device_node, table_offset(context, 0, offset), buffer, size);
 }
 
-static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
+static void invalidate_fsinfo(fat_vfs_context_t* restrict context)
 {
     if(context->filesystem_type != FAT_TYPE_32 || context->fsinfo_lba == 0) {
         return;
     }
 
-    struct fat_fsinfo_fat32 info;
+    fat_fsinfo_fat32_t info;
     uint64_t offset = context->fsinfo_lba * context->sector_size;
 
-    if(fcache_dev_read(context->devnode, offset, &info, sizeof(info)) < 0) {
+    if(fcache_dev_read(context->device_node, offset, &info, sizeof(info)) < 0) {
         return;
     }
 
@@ -57,11 +57,11 @@ static void invalidate_fsinfo(struct fat_vfs_context* restrict context)
         info.free_count = htole32(UINT32_C(0xFFFFFFFF));
         info.next_free = htole32(UINT32_C(0xFFFFFFFF));
 
-        fcache_dev_write(context->devnode, offset, &info, sizeof(info));
+        fcache_dev_write(context->device_node, offset, &info, sizeof(info));
     }
 }
 
-static void table_store(struct fat_vfs_context* restrict context, size_t offset, const void* restrict buffer, size_t size)
+static void table_store(fat_vfs_context_t* restrict context, size_t offset, const void* restrict buffer, size_t size)
 {
     if(offset + size > table_bytes(context)) {
         return;
@@ -74,7 +74,7 @@ static void table_store(struct fat_vfs_context* restrict context, size_t offset,
     }
 
     for(unsigned i = 0; i < context->num_tables; ++i) {
-        fcache_dev_write(context->devnode, table_offset(context, i, offset), buffer, size);
+        fcache_dev_write(context->device_node, table_offset(context, i, offset), buffer, size);
     }
 }
 
@@ -83,7 +83,7 @@ static size_t fat12_offset(uintptr_t cluster)
     return cluster + (cluster >> 1);
 }
 
-static bool fat12_get(const struct fat_vfs_context* restrict context, uintptr_t cluster, uint16_t* restrict out)
+static bool fat12_get(const fat_vfs_context_t* restrict context, uintptr_t cluster, uint16_t* restrict out)
 {
     uint16_t data;
 
@@ -103,7 +103,7 @@ static bool fat12_get(const struct fat_vfs_context* restrict context, uintptr_t 
     return true;
 }
 
-static void fat12_set(struct fat_vfs_context* restrict context, uintptr_t cluster, uint16_t value)
+static void fat12_set(fat_vfs_context_t* restrict context, uintptr_t cluster, uint16_t value)
 {
     uint16_t data;
 
@@ -125,7 +125,7 @@ static void fat12_set(struct fat_vfs_context* restrict context, uintptr_t cluste
     table_store(context, fat12_offset(cluster), &data, sizeof(data));
 }
 
-static uint32_t entry_get(const struct fat_vfs_context* restrict context, uintptr_t cluster)
+static uint32_t entry_get(const fat_vfs_context_t* restrict context, uintptr_t cluster)
 {
     if(context->filesystem_type == FAT_TYPE_12) {
         uint16_t data12;
@@ -158,7 +158,7 @@ static uint32_t entry_get(const struct fat_vfs_context* restrict context, uintpt
     return le32toh(data32) & FAT32_MASK;
 }
 
-static void entry_set(struct fat_vfs_context* restrict context, uintptr_t cluster, uint32_t value)
+static void entry_set(fat_vfs_context_t* restrict context, uintptr_t cluster, uint32_t value)
 {
     if(context->filesystem_type == FAT_TYPE_12) {
         fat12_set(context, cluster, value);
@@ -180,7 +180,7 @@ static void entry_set(struct fat_vfs_context* restrict context, uintptr_t cluste
     }
 }
 
-static size_t find_free(const struct fat_vfs_context* restrict context, uintptr_t first, size_t count, bool stop, size_t* restrict found)
+static size_t find_free(const fat_vfs_context_t* restrict context, uintptr_t first, size_t count, bool stop, size_t* restrict found)
 {
     if(context->filesystem_type == FAT_TYPE_12) {
         size_t num_free = 0;
@@ -245,7 +245,7 @@ static size_t find_free(const struct fat_vfs_context* restrict context, uintptr_
     return num_free;
 }
 
-uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintptr_t cluster)
+uintptr_t fat_cluster_next(const fat_vfs_context_t* restrict context, uintptr_t cluster)
 {
     if(!fat_cluster_valid(context, cluster)) {
         return UINTPTR_MAX;
@@ -262,7 +262,7 @@ uintptr_t fat_cluster_next(const struct fat_vfs_context* restrict context, uintp
     return next;
 }
 
-uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
+uintptr_t fat_cluster_alloc(fat_vfs_context_t* restrict context)
 {
     // The tables are often larger than the volume needs; entries past
     // the last data cluster don't describe anything that can be allocated
@@ -285,7 +285,7 @@ uintptr_t fat_cluster_alloc(struct fat_vfs_context* restrict context)
     return found;
 }
 
-void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluster, uintptr_t next)
+void fat_cluster_link(fat_vfs_context_t* restrict context, uintptr_t cluster, uintptr_t next)
 {
     if(!fat_cluster_valid(context, cluster)) {
         return;
@@ -294,7 +294,7 @@ void fat_cluster_link(struct fat_vfs_context* restrict context, uintptr_t cluste
     entry_set(context, cluster, next);
 }
 
-void fat_cluster_end(struct fat_vfs_context* restrict context, uintptr_t cluster)
+void fat_cluster_end(fat_vfs_context_t* restrict context, uintptr_t cluster)
 {
     if(context->filesystem_type == FAT_TYPE_12) {
         fat_cluster_link(context, cluster, 0x0FFF);
@@ -307,7 +307,7 @@ void fat_cluster_end(struct fat_vfs_context* restrict context, uintptr_t cluster
     }
 }
 
-void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluster)
+void fat_cluster_free(fat_vfs_context_t* restrict context, uintptr_t cluster)
 {
     if(!fat_cluster_valid(context, cluster)) {
         return;
@@ -315,14 +315,14 @@ void fat_cluster_free(struct fat_vfs_context* restrict context, uintptr_t cluste
 
     entry_set(context, cluster, 0);
 
-    fcache_forget(context->devnode, fat_cluster_lba(context, cluster) * context->sector_size, context->cluster_size_b);
+    fcache_forget(context->device_node, fat_cluster_lba(context, cluster) * context->sector_size, context->cluster_size_b);
 
     if(cluster < context->next_free_hint) {
         context->next_free_hint = cluster;
     }
 }
 
-uintptr_t fat_cluster_alloc_zeroed(struct fat_vfs_context* restrict context)
+uintptr_t fat_cluster_alloc_zeroed(fat_vfs_context_t* restrict context)
 {
     uintptr_t cluster = fat_cluster_alloc(context);
 
@@ -349,7 +349,7 @@ uintptr_t fat_cluster_alloc_zeroed(struct fat_vfs_context* restrict context)
     return cluster;
 }
 
-uintptr_t fat_cluster_alloc_dir(struct fat_vfs_context* restrict context)
+uintptr_t fat_cluster_alloc_dir(fat_vfs_context_t* restrict context)
 {
     uintptr_t cluster = fat_cluster_alloc(context);
 
@@ -366,7 +366,7 @@ uintptr_t fat_cluster_alloc_dir(struct fat_vfs_context* restrict context)
             count = PAGE_SIZE;
         }
 
-        if(fcache_dev_write(context->devnode, offset + done, zeroes, count) < 0) {
+        if(fcache_dev_write(context->device_node, offset + done, zeroes, count) < 0) {
             fat_cluster_free(context, cluster);
             return UINTPTR_MAX;
         }
@@ -375,7 +375,7 @@ uintptr_t fat_cluster_alloc_dir(struct fat_vfs_context* restrict context)
     return cluster;
 }
 
-size_t fat_cluster_count_free(const struct fat_vfs_context* restrict context)
+size_t fat_cluster_count_free(const fat_vfs_context_t* restrict context)
 {
     size_t unused;
 

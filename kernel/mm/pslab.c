@@ -18,7 +18,7 @@
 static void** pslab_list = nullptr;
 static size_t pslab_numpages = 0U;
 static size_t pslab_numused = 0U;
-static spinlock_type pslab_lock = SPINLOCK_INIT;
+static spinlock_t pslab_lock = SPINLOCK_INIT;
 
 static void pslab_add_region(uintptr_t start, size_t length)
 {
@@ -26,9 +26,9 @@ static void pslab_add_region(uintptr_t start, size_t length)
     uintptr_t offset;
 
     for(offset = 0U; offset < length; offset += PAGE_SIZE) {
-        struct pframe* pf = pframe_of(start + offset);
+        pframe_t* pframe = pframe_of(start + offset);
 
-        pf->flags |= PFRAME_PSLAB;
+        pframe->flags |= PFRAME_PSLAB;
 
         head_ptr = phys_to_virt(start + offset);
         head_ptr[0] = pslab_list;
@@ -73,9 +73,9 @@ static void* take_page(void)
         pslab_list = pslab_list[0];
         pslab_numused += 1U;
 
-        struct pframe* pf = pframe_of(virt_to_phys(head_ptr));
-        kassert(pf->refcount == 0);
-        pf->refcount = 1;
+        pframe_t* pframe = pframe_of(virt_to_phys(head_ptr));
+        kassert(pframe->refcount == 0);
+        pframe->refcount = 1;
 
         spinlock_release_intr(&pslab_lock, intr_state);
 
@@ -114,27 +114,27 @@ void* pslab_alloc_virt(void)
     return ptr;
 }
 
-void pslab_free_phys(uintptr_t physaddr)
+void pslab_free_phys(uintptr_t phys)
 {
-    if(physaddr) {
-        pslab_free_virt(phys_to_virt(physaddr));
+    if(phys) {
+        pslab_free_virt(phys_to_virt(phys));
     }
 }
 
-void pslab_free_virt(void* restrict virtaddr)
+void pslab_free_virt(void* restrict virt)
 {
     void** head_ptr;
 
     bool intr_state = spinlock_acquire_intr(&pslab_lock);
 
-    if(virtaddr) {
-        struct pframe* pf = pframe_of(virt_to_phys(virtaddr));
-        kassert(pf->flags & PFRAME_PSLAB);
-        kassert(pf->refcount == 1);
-        kassert(pf->mappings == nullptr);
-        pf->refcount = 0;
+    if(virt) {
+        pframe_t* pframe = pframe_of(virt_to_phys(virt));
+        kassert(pframe->flags & PFRAME_PSLAB);
+        kassert(pframe->refcount == 1);
+        kassert(pframe->mappings == nullptr);
+        pframe->refcount = 0;
 
-        head_ptr = virtaddr;
+        head_ptr = virt;
         head_ptr[0] = pslab_list;
         pslab_list = head_ptr;
         pslab_numused -= 1U;
@@ -178,7 +178,7 @@ static void init_pslab(void)
     }
 
     char hrsize_buffer[128];
-    hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), pslab_numpages * PAGE_SIZE);
+    format_size_iec(hrsize_buffer, sizeof(hrsize_buffer), pslab_numpages * PAGE_SIZE);
     pr_verbose("pslab: tracking %s in %zu pages", hrsize_buffer, pslab_numpages);
 }
 

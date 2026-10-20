@@ -31,7 +31,9 @@
 
 #define RTC_TWO_DIGIT_PIVOT 70 // Without a century register, years below this are 20xx
 
-struct cmos_fields {
+typedef struct cmos_fields_s cmos_fields_t;
+
+struct cmos_fields_s {
     uint8_t second;
     uint8_t minute;
     uint8_t hour;
@@ -41,19 +43,19 @@ struct cmos_fields {
     uint8_t century;
 };
 
-static spinlock_type cmos_lock = SPINLOCK_INIT;
+static spinlock_t cmos_lock = SPINLOCK_INIT;
 
 static uint8_t cmos_read(uint8_t reg)
 {
-    pmwrite8(CMOS_INDEX, reg);
+    port_write8(CMOS_INDEX, reg);
 
-    return pmread8(CMOS_DATA);
+    return port_read8(CMOS_DATA);
 }
 
 static void cmos_write(uint8_t reg, uint8_t value)
 {
-    pmwrite8(CMOS_INDEX, reg);
-    pmwrite8(CMOS_DATA, value);
+    port_write8(CMOS_INDEX, reg);
+    port_write8(CMOS_DATA, value);
 }
 
 static unsigned from_bcd(uint8_t value)
@@ -86,7 +88,7 @@ static int probe_cmos(uint8_t* restrict century_reg)
     return 0;
 }
 
-static void read_fields_locked(uint8_t century_reg, struct cmos_fields* restrict out)
+static void read_fields_locked(uint8_t century_reg, cmos_fields_t* restrict out)
 {
     for(unsigned i = 0; i < RTC_UIP_SPINS && (RTC_A_UIP & cmos_read(RTC_STATUS_A)); ++i) {
         hart_relax();
@@ -132,8 +134,8 @@ int arch_rtc_read(time_t* restrict out)
         return retval;
     }
 
-    struct cmos_fields fields;
-    struct cmos_fields again;
+    cmos_fields_t fields;
+    cmos_fields_t again;
 
     bool intr_state = spinlock_acquire_intr(&cmos_lock);
 
@@ -158,7 +160,7 @@ int arch_rtc_read(time_t* restrict out)
     bool binary = status_b & RTC_B_BINARY;
     bool pm = 0 == (status_b & RTC_B_24HOUR) && (fields.hour & RTC_HOUR_PM);
 
-    struct calendar_time calendar;
+    calendar_time_t calendar;
     calendar.second = decode(fields.second, binary);
     calendar.minute = decode(fields.minute, binary);
     calendar.hour = decode(fields.hour & ~RTC_HOUR_PM, binary);
@@ -206,7 +208,7 @@ int arch_rtc_write(time_t time)
         return retval;
     }
 
-    struct calendar_time calendar;
+    calendar_time_t calendar;
     calendar_from_time(time, &calendar);
 
     int64_t first_year = 1900 + RTC_TWO_DIGIT_PIVOT;

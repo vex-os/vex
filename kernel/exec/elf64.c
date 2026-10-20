@@ -20,7 +20,7 @@
 
 static_assert(0 == (ELF64_STACK_SIZE & (ELF64_STACK_SIZE - 1)), "CONFIG_USER_STACK_SIZE has to be a power of two");
 
-static bool ehdr_valid(const struct elf64_ehdr* restrict ehdr)
+static bool ehdr_valid(const elf64_ehdr_t* restrict ehdr)
 {
     bool result = true;
     result = result && ehdr->e_ident[EI_MAG0] == ELFMAG0;
@@ -39,7 +39,7 @@ static bool ehdr_valid(const struct elf64_ehdr* restrict ehdr)
 
     result = result && ehdr->e_machine == ELF64_ARCH;
     result = result && ehdr->e_type == ET_EXEC;
-    result = result && ehdr->e_phentsize == sizeof(struct elf64_phdr);
+    result = result && ehdr->e_phentsize == sizeof(elf64_phdr_t);
     result = result && ehdr->e_phnum > 0;
 
     return result;
@@ -59,7 +59,7 @@ static unsigned phdr_vprot(uint32_t p_flags)
     return vprot;
 }
 
-static bool segment_loads_range(const struct elf64_phdr* restrict phdr, uint64_t offset, uint64_t size)
+static bool segment_loads_range(const elf64_phdr_t* restrict phdr, uint64_t offset, uint64_t size)
 {
     if(offset < phdr->p_offset) {
         return false;
@@ -74,9 +74,9 @@ static bool segment_loads_range(const struct elf64_phdr* restrict phdr, uint64_t
     return size <= phdr->p_filesz - skip;
 }
 
-static int copy_page(struct vmspace* restrict vms, struct file* restrict fp, const struct elf64_phdr* restrict phdr, uintptr_t page)
+static int copy_page(vmspace_t* restrict vmspace, file_t* restrict file, const elf64_phdr_t* restrict phdr, uintptr_t page)
 {
-    uintptr_t phys = vms_touch(vms, page);
+    uintptr_t phys = vms_touch(vmspace, page);
 
     if(phys == 0) {
         return -ENOMEM;
@@ -100,11 +100,11 @@ static int copy_page(struct vmspace* restrict vms, struct file* restrict fp, con
             hi = page_end;
         }
 
-        if(file_seek(fp, phdr->p_offset + lo - phdr->p_vaddr, SEEK_SET) < 0) {
+        if(file_seek(file, phdr->p_offset + lo - phdr->p_vaddr, SEEK_SET) < 0) {
             return -EIO;
         }
 
-        if(file_read(fp, kva + lo - page, hi - lo) != (ssize_t)(hi - lo)) {
+        if(file_read(file, kva + lo - page, hi - lo) != (ssize_t)(hi - lo)) {
             return -EIO;
         }
 
@@ -124,7 +124,7 @@ static int copy_page(struct vmspace* restrict vms, struct file* restrict fp, con
 
 // Segments come sorted by address, and one may start in the page
 // the previous one ends in; that page gets the rights of both
-static int map_segment(struct vmspace* restrict vms, struct file* restrict fp, const struct elf64_phdr* restrict phdr,
+static int map_segment(vmspace_t* restrict vmspace, file_t* restrict file, const elf64_phdr_t* restrict phdr,
     uintptr_t* restrict mapped_end, unsigned* restrict mapped_vprot)
 {
     unsigned vprot = phdr_vprot(phdr->p_flags);
@@ -146,10 +146,10 @@ static int map_segment(struct vmspace* restrict vms, struct file* restrict fp, c
 
         *mapped_vprot |= vprot;
 
-        int retval = vms_protect(vms, seg_start, *mapped_end, *mapped_vprot);
+        int retval = vms_protect(vmspace, seg_start, *mapped_end, *mapped_vprot);
 
         if(retval == 0) {
-            retval = copy_page(vms, fp, phdr, seg_start);
+            retval = copy_page(vmspace, file, phdr, seg_start);
         }
 
         if(retval < 0) {
@@ -160,13 +160,13 @@ static int map_segment(struct vmspace* restrict vms, struct file* restrict fp, c
     }
 
     if(map_start < file_end) {
-        struct vm_backing backing;
-        backing.node = fp->node;
-        backing.pgoff = (page_align(phdr->p_offset) + map_start - seg_start) / PAGE_SIZE;
+        vm_backing_t backing;
+        backing.node = file->node;
+        backing.file_page = (page_align(phdr->p_offset) + map_start - seg_start) / PAGE_SIZE;
         backing.shared = false;
         backing.may_write = true;
 
-        int retval = vms_map(vms, map_start, file_end, vprot, &backing);
+        int retval = vms_map(vmspace, map_start, file_end, vprot, &backing);
 
         if(retval < 0) {
             return retval;
@@ -180,7 +180,7 @@ static int map_segment(struct vmspace* restrict vms, struct file* restrict fp, c
     }
 
     if(anon_start < seg_end) {
-        int retval = vms_map(vms, anon_start, seg_end, vprot, nullptr);
+        int retval = vms_map(vmspace, anon_start, seg_end, vprot, nullptr);
 
         if(retval < 0) {
             return retval;
@@ -195,17 +195,17 @@ static int map_segment(struct vmspace* restrict vms, struct file* restrict fp, c
     uintptr_t data_end = phdr->p_vaddr + phdr->p_filesz;
 
     if(phdr->p_memsz > phdr->p_filesz && page_offset(data_end) && page_align(data_end) >= map_start) {
-        return copy_page(vms, fp, phdr, page_align(data_end));
+        return copy_page(vmspace, file, phdr, page_align(data_end));
     }
 
     return 0;
 }
 
-static __always_inline bool ustack_reserve(uint8_t** restrict kva, uintptr_t* restrict uva, uintptr_t low_bound, size_t sz)
+static __always_inline bool ustack_reserve(uint8_t** restrict kva, uintptr_t* restrict uva, uintptr_t low_bound, size_t size)
 {
-    if(uva[0] - low_bound >= sz) {
-        kva[0] -= sz;
-        uva[0] -= sz;
+    if(uva[0] - low_bound >= size) {
+        kva[0] -= size;
+        uva[0] -= size;
         return true;
     }
 
@@ -213,7 +213,7 @@ static __always_inline bool ustack_reserve(uint8_t** restrict kva, uintptr_t* re
 }
 
 static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t avail, const char** restrict argv,
-    const char** restrict envp, const struct credentials* restrict cred, const struct elf64_ehdr* restrict ehdr, uintptr_t phdr_uva)
+    const char** restrict envp, const credentials_t* restrict credentials, const elf64_ehdr_t* restrict ehdr, uintptr_t phdr_uva)
 {
     int argc = 0;
 
@@ -264,17 +264,17 @@ static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t 
         return 0;
     }
 
-    struct elf64_auxv auxv[] = {
+    elf64_auxv_t auxv[] = {
         { AT_PHDR, phdr_uva },
         { AT_PHENT, ehdr->e_phentsize },
         { AT_PHNUM, ehdr->e_phnum },
         { AT_ENTRY, ehdr->e_entry },
         { AT_PAGESZ, PAGE_SIZE },
-        { AT_UID, cred->uid },
-        { AT_EUID, cred->euid },
-        { AT_GID, cred->gid },
-        { AT_EGID, cred->egid },
-        { AT_SECURE, cred_exec_secure(cred) }, // Tells libc not to trust the environment
+        { AT_UID, credentials->uid },
+        { AT_EUID, credentials->euid },
+        { AT_GID, credentials->gid },
+        { AT_EGID, credentials->egid },
+        { AT_SECURE, cred_exec_secure(credentials) }, // Tells libc not to trust the environment
         { AT_NULL, 0 },
     };
 
@@ -336,25 +336,25 @@ static uintptr_t build_ustack(void* restrict top_kva, uintptr_t top_uva, size_t 
     return uva;
 }
 
-static int elf64_probe(struct file* restrict fp, const uint8_t* restrict header, size_t header_size)
+static int elf64_probe(file_t* restrict file, const uint8_t* restrict header, size_t header_size)
 {
-    if(header_size < sizeof(struct elf64_ehdr))
+    if(header_size < sizeof(elf64_ehdr_t))
         return -ENOEXEC;
-    if(!ehdr_valid((const struct elf64_ehdr*)(header)))
+    if(!ehdr_valid((const elf64_ehdr_t*)(header)))
         return -ENOEXEC;
     return 0;
 }
 
-static int elf64_setup(struct vmspace* restrict vms, struct file* restrict fp, const char** restrict argv, const char** restrict envp,
-    const struct credentials* restrict cred, struct entry_point* restrict out)
+static int elf64_setup(vmspace_t* restrict vmspace, file_t* restrict file, const char** restrict argv, const char** restrict envp,
+    const credentials_t* restrict credentials, binfmt_entry_t* restrict out)
 {
-    struct elf64_ehdr ehdr;
+    elf64_ehdr_t ehdr;
 
-    if(file_seek(fp, 0, SEEK_SET) < 0) {
+    if(file_seek(file, 0, SEEK_SET) < 0) {
         return -EIO;
     }
 
-    if(file_read(fp, &ehdr, sizeof(ehdr)) != (ssize_t)(sizeof(ehdr))) {
+    if(file_read(file, &ehdr, sizeof(ehdr)) != (ssize_t)(sizeof(ehdr))) {
         return -EIO;
     }
 
@@ -362,7 +362,7 @@ static int elf64_setup(struct vmspace* restrict vms, struct file* restrict fp, c
         return -ENOEXEC;
     }
 
-    uintptr_t user_end = pmap_user_end(vms->pmap);
+    uintptr_t user_end = pmap_user_end(vmspace->pmap);
 
     // A kernel or non-canonical entry point
     // faults in kernel mode on the way to user mode
@@ -378,14 +378,14 @@ static int elf64_setup(struct vmspace* restrict vms, struct file* restrict fp, c
     uint64_t phdrs_size = (uint64_t)(ehdr.e_phnum) * ehdr.e_phentsize;
 
     for(uint16_t i = 0; i < ehdr.e_phnum; ++i) {
-        struct elf64_phdr phdr;
+        elf64_phdr_t phdr;
 
-        if(file_seek(fp, ehdr.e_phoff + i * ehdr.e_phentsize, SEEK_SET) < 0) {
+        if(file_seek(file, ehdr.e_phoff + i * ehdr.e_phentsize, SEEK_SET) < 0) {
             retval = -EIO;
             goto error;
         }
 
-        if(file_read(fp, &phdr, sizeof(phdr)) != (ssize_t)(sizeof(phdr))) {
+        if(file_read(file, &phdr, sizeof(phdr)) != (ssize_t)(sizeof(phdr))) {
             retval = -EIO;
             goto error;
         }
@@ -419,21 +419,21 @@ static int elf64_setup(struct vmspace* restrict vms, struct file* restrict fp, c
             goto error;
         }
 
-        retval = map_segment(vms, fp, &phdr, &mapped_end, &mapped_vprot);
+        retval = map_segment(vmspace, file, &phdr, &mapped_end, &mapped_vprot);
 
         if(retval < 0) {
             goto error;
         }
     }
 
-    retval = vms_map(vms, ELF64_STACK_TOP - ELF64_STACK_SIZE, ELF64_STACK_TOP, VPROT_RW, nullptr);
+    retval = vms_map(vmspace, ELF64_STACK_TOP - ELF64_STACK_SIZE, ELF64_STACK_TOP, VPROT_RW, nullptr);
 
     if(retval < 0) {
         goto error;
     }
 
     // Arguments only get the topmost page, the rest is zeroed on first touch
-    uintptr_t args_phys = vms_touch(vms, ELF64_STACK_TOP - PAGE_SIZE);
+    uintptr_t args_phys = vms_touch(vmspace, ELF64_STACK_TOP - PAGE_SIZE);
 
     if(args_phys == 0) {
         retval = -ENOMEM;
@@ -442,7 +442,7 @@ static int elf64_setup(struct vmspace* restrict vms, struct file* restrict fp, c
 
     uint8_t* args_top_kva = (uint8_t*)(phys_to_virt(args_phys)) + PAGE_SIZE;
 
-    uintptr_t entry_rsp = build_ustack(args_top_kva, ELF64_STACK_TOP, PAGE_SIZE, argv, envp, cred, &ehdr, phdr_uva);
+    uintptr_t entry_rsp = build_ustack(args_top_kva, ELF64_STACK_TOP, PAGE_SIZE, argv, envp, credentials, &ehdr, phdr_uva);
 
     if(entry_rsp == 0) {
         retval = -E2BIG;
@@ -450,28 +450,28 @@ static int elf64_setup(struct vmspace* restrict vms, struct file* restrict fp, c
     }
 
     out->address = ehdr.e_entry;
-    out->ustack = entry_rsp;
+    out->user_stack = entry_rsp;
 
     return 0;
 
 error:
-    vms_unmap_all(vms);
+    vms_unmap_all(vmspace);
     return retval;
 }
 
-static const struct binfmt_ops elf64_ops = {
+static const binfmt_ops_t elf64_ops = {
     .probe = &elf64_probe,
     .setup = &elf64_setup,
 };
 
-static struct binfmt elf64_binfmt = {
+static binfmt_t elf64_binfmt = {
     .ops = &elf64_ops,
-    .identifier = "elf64",
+    .name = "elf64",
 };
 
 static void init_elf64(void)
 {
-    add_binfmt(&elf64_binfmt);
+    binfmt_add(&elf64_binfmt);
 }
 
 initcall_bsp_binfmt(init_elf64, INIT_MIDDLE);

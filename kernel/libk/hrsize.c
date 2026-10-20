@@ -2,7 +2,7 @@
 #include <vex/sprintf.h>
 #include <vex/string.h>
 
-int hrsize_bin(char* restrict buffer, size_t sz, size_t value)
+int format_size_iec(char* restrict buffer, size_t size, size_t value)
 {
     static const char* suffixes[] = { "B", "KiB", "MiB", "GiB", "TiB", "PiB", "EiB" };
     static const size_t num_suffixes = sizeof(suffixes) / sizeof(suffixes[0]);
@@ -16,12 +16,12 @@ int hrsize_bin(char* restrict buffer, size_t sz, size_t value)
         }
     }
 
-    memset(buffer, 0, sz);
+    memset(buffer, 0, size);
 
-    return snprintf(buffer, sz, "%zu %s", value, suffixes[index]);
+    return snprintf(buffer, size, "%zu %s", value, suffixes[index]);
 }
 
-int hrsize_dec(char* restrict buffer, size_t sz, size_t value)
+int format_size_si(char* restrict buffer, size_t size, size_t value)
 {
     static const char* suffixes[] = { "B", "kB", "MB", "GB", "TB", "PB", "EB", "ZB" };
     static const size_t num_suffixes = sizeof(suffixes) / sizeof(suffixes[0]);
@@ -35,7 +35,7 @@ int hrsize_dec(char* restrict buffer, size_t sz, size_t value)
         }
     }
 
-    memset(buffer, 0, sz);
+    memset(buffer, 0, size);
 
-    return snprintf(buffer, sz, "%zu %s", value, suffixes[index]);
+    return snprintf(buffer, size, "%zu %s", value, suffixes[index]);
 }

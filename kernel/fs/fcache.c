@@ -23,59 +23,59 @@
 
 #define GATHER_BATCH 16
 
-static spinlock_type lru_lock = SPINLOCK_INIT;
-static struct pframe* lru_head = nullptr;
-static struct pframe* lru_tail = nullptr;
+static spinlock_t lru_lock = SPINLOCK_INIT;
+static pframe_t* lru_head = nullptr;
+static pframe_t* lru_tail = nullptr;
 static size_t lru_length = 0;
 
-static spinlock_type dirty_lock = SPINLOCK_INIT;
-static struct vnode* dirty_head = nullptr;
+static spinlock_t dirty_lock = SPINLOCK_INIT;
+static vnode_t* dirty_head = nullptr;
 
 static size_t dirty_pages = 0;
 
-static struct event writeback_wakeup;
+static event_t writeback_wakeup;
 static bool writeback_kicked = false;
 
-static void lru_append(struct pframe* restrict pf)
+static void lru_append(pframe_t* restrict pframe)
 {
-    pf->lru_prev = lru_tail;
-    pf->lru_next = nullptr;
+    pframe->lru_prev = lru_tail;
+    pframe->lru_next = nullptr;
 
     if(lru_tail) {
-        lru_tail->lru_next = pf;
+        lru_tail->lru_next = pframe;
     }
     else {
-        lru_head = pf;
+        lru_head = pframe;
     }
 
-    lru_tail = pf;
+    lru_tail = pframe;
     lru_length += 1;
 }
 
-static void lru_unlink(struct pframe* restrict pf)
+static void lru_unlink(pframe_t* restrict pframe)
 {
-    if(pf->lru_prev) {
-        pf->lru_prev->lru_next = pf->lru_next;
+    if(pframe->lru_prev) {
+        pframe->lru_prev->lru_next = pframe->lru_next;
     }
     else {
-        lru_head = pf->lru_next;
+        lru_head = pframe->lru_next;
     }
 
-    if(pf->lru_next) {
-        pf->lru_next->lru_prev = pf->lru_prev;
+    if(pframe->lru_next) {
+        pframe->lru_next->lru_prev = pframe->lru_prev;
     }
     else {
-        lru_tail = pf->lru_prev;
+        lru_tail = pframe->lru_prev;
     }
 
-    pf->lru_prev = nullptr;
-    pf->lru_next = nullptr;
+    pframe->lru_prev = nullptr;
+    pframe->lru_next = nullptr;
     lru_length -= 1;
 }
 
-static void* page_data(const struct pframe* restrict pf)
+static void* page_data(const pframe_t* restrict pframe)
 {
-    return phys_to_virt(pframe_phys(pf));
+    return phys_to_virt(pframe_phys(pframe));
 }
 
 static size_t valid_bytes(uint64_t index, off_t size)
@@ -94,9 +94,9 @@ static size_t valid_bytes(uint64_t index, off_t size)
     return end - start;
 }
 
-static void queue_dirty(struct vnode* restrict node)
+static void queue_dirty(vnode_t* restrict node)
 {
-    struct fcache* cache = &node->pages;
+    fcache_t* cache = &node->pages;
 
     spinlock_acquire(&dirty_lock);
 
@@ -110,46 +110,46 @@ static void queue_dirty(struct vnode* restrict node)
     spinlock_release(&dirty_lock);
 }
 
-static void mark_dirty(struct vnode* restrict node, struct pframe* restrict pf, unsigned sectors)
+static void mark_dirty(vnode_t* restrict node, pframe_t* restrict pframe, unsigned sectors)
 {
-    struct fcache* cache = &node->pages;
+    fcache_t* cache = &node->pages;
 
-    pf->flags |= sectors << PFRAME_DIRTY_SHIFT;
+    pframe->flags |= sectors << PFRAME_DIRTY_SHIFT;
 
-    if(pf->flags & PFRAME_DIRTY) {
+    if(pframe->flags & PFRAME_DIRTY) {
         return;
     }
 
-    pf->flags |= PFRAME_DIRTY;
+    pframe->flags |= PFRAME_DIRTY;
     cache->num_dirty += 1;
     atomic_fetch_add(&dirty_pages, 1, ATOMIC_RELAXED);
 
     queue_dirty(node);
 }
 
-static void mark_clean(struct fcache* restrict cache, struct pframe* restrict pf)
+static void mark_clean(fcache_t* restrict cache, pframe_t* restrict pframe)
 {
-    if(0 == (pf->flags & PFRAME_DIRTY)) {
+    if(0 == (pframe->flags & PFRAME_DIRTY)) {
         return;
     }
 
-    pf->flags &= ~(PFRAME_DIRTY | (UINT32_MAX << PFRAME_DIRTY_SHIFT));
+    pframe->flags &= ~(PFRAME_DIRTY | (UINT32_MAX << PFRAME_DIRTY_SHIFT));
     cache->num_dirty -= 1;
     atomic_fetch_sub(&dirty_pages, 1, ATOMIC_RELAXED);
 }
 
-static struct pframe* add_page(struct fcache* restrict cache, uint64_t index, uintptr_t phys)
+static pframe_t* add_page(fcache_t* restrict cache, uint64_t index, uintptr_t phys)
 {
     memset(phys_to_virt(phys), 0, PAGE_SIZE);
 
-    struct pframe* pf = pframe_of(phys);
-    pf->owner = cache;
-    pf->index = index;
-    pf->flags |= PFRAME_CACHE;
+    pframe_t* pframe = pframe_of(phys);
+    pframe->owner = cache;
+    pframe->index = index;
+    pframe->flags |= PFRAME_CACHE;
 
-    if(radix_insert(&cache->tree, index, pf) < 0) {
-        pf->flags &= ~PFRAME_CACHE;
-        pf->owner = nullptr;
+    if(radix_insert(&cache->tree, index, pframe) < 0) {
+        pframe->flags &= ~PFRAME_CACHE;
+        pframe->owner = nullptr;
         pslab_free_phys(phys);
         return nullptr;
     }
@@ -157,18 +157,18 @@ static struct pframe* add_page(struct fcache* restrict cache, uint64_t index, ui
     cache->num_pages += 1;
 
     spinlock_acquire(&lru_lock);
-    lru_append(pf);
+    lru_append(pframe);
     spinlock_release(&lru_lock);
 
-    return pf;
+    return pframe;
 }
 
-static struct pframe* get_page(struct fcache* restrict cache, uint64_t index)
+static pframe_t* get_page(fcache_t* restrict cache, uint64_t index)
 {
-    struct pframe* pf = radix_lookup(&cache->tree, index);
+    pframe_t* pframe = radix_lookup(&cache->tree, index);
 
-    if(pf) {
-        return pf;
+    if(pframe) {
+        return pframe;
     }
 
     mutex_release(&cache->lock);
@@ -179,55 +179,55 @@ static struct pframe* get_page(struct fcache* restrict cache, uint64_t index)
         return nullptr;
     }
 
-    pf = radix_lookup(&cache->tree, index);
+    pframe = radix_lookup(&cache->tree, index);
 
-    if(pf) {
+    if(pframe) {
         pslab_free_phys(phys);
-        return pf;
+        return pframe;
     }
 
     return add_page(cache, index, phys);
 }
 
-static void remove_page(struct fcache* restrict cache, struct pframe* restrict pf)
+static void remove_page(fcache_t* restrict cache, pframe_t* restrict pframe)
 {
     spinlock_acquire(&lru_lock);
-    lru_unlink(pf);
+    lru_unlink(pframe);
     spinlock_release(&lru_lock);
 
-    mark_clean(cache, pf);
+    mark_clean(cache, pframe);
 
-    struct pframe* removed = radix_remove(&cache->tree, pf->index);
-    kassert(removed == pf);
+    pframe_t* removed = radix_remove(&cache->tree, pframe->index);
+    kassert(removed == pframe);
 
     cache->num_pages -= 1;
 
-    pf->flags &= ~(PFRAME_CACHE | PFRAME_UPTODATE | PFRAME_ACCESSED);
-    pf->owner = nullptr;
-    pf->index = 0;
+    pframe->flags &= ~(PFRAME_CACHE | PFRAME_UPTODATE | PFRAME_ACCESSED);
+    pframe->owner = nullptr;
+    pframe->index = 0;
 
-    size_t mappings = rmap_unmap_all(pf);
+    size_t mappings = rmap_unmap_all(pframe);
 
     if(mappings) {
         tlb_shootdown();
 
         for(size_t i = 0; i < mappings; ++i) {
-            bool last = pframe_decref(pf);
+            bool last = pframe_decref(pframe);
             kassert(!last); // The cache still holds its own
         }
     }
 
-    if(pframe_decref(pf)) {
-        pslab_free_phys(pframe_phys(pf));
+    if(pframe_decref(pframe)) {
+        pslab_free_phys(pframe_phys(pframe));
     }
 }
 
-static bool sector_size_valid(const struct blk_device* restrict device)
+static bool sector_size_valid(const blk_device_t* restrict device)
 {
     return device->sector_size && device->sector_size <= PAGE_SIZE && 0 == (PAGE_SIZE % device->sector_size);
 }
 
-static unsigned sector_span(struct vnode* restrict node, size_t in_page, size_t length)
+static unsigned sector_span(vnode_t* restrict node, size_t in_page, size_t length)
 {
     size_t sector_size = node->fs->device->sector_size;
     size_t first = in_page / sector_size;
@@ -236,20 +236,20 @@ static unsigned sector_span(struct vnode* restrict node, size_t in_page, size_t 
     return ((2U << last) - 1) & ~((1U << first) - 1);
 }
 
-static int fill_page(struct vnode* restrict node, fcache_bmap_type bmap, struct pframe* restrict pf, off_t size)
+static int fill_page(vnode_t* restrict node, fcache_bmap_t bmap, pframe_t* restrict pframe, off_t size)
 {
-    const struct blk_device* device = node->fs->device;
+    const blk_device_t* device = node->fs->device;
     size_t sector_size = device->sector_size;
-    uint8_t* data = page_data(pf);
+    uint8_t* data = page_data(pframe);
 
-    size_t valid = valid_bytes(pf->index, size);
+    size_t valid = valid_bytes(pframe->index, size);
     size_t num_sectors = (valid + sector_size - 1) / sector_size;
-    uint64_t first = pf->index * (PAGE_SIZE / sector_size);
+    uint64_t first = pframe->index * (PAGE_SIZE / sector_size);
 
     memset(data, 0, PAGE_SIZE);
 
     for(size_t i = 0; i < num_sectors;) {
-        struct fcache_extent extent;
+        fcache_extent_t extent;
         int retval = bmap(node, first + i, false, &extent);
 
         if(retval < 0) {
@@ -280,19 +280,19 @@ static int fill_page(struct vnode* restrict node, fcache_bmap_type bmap, struct 
     // The last sector may run past the end of file
     memset(data + valid, 0, PAGE_SIZE - valid);
 
-    pf->flags |= PFRAME_UPTODATE;
+    pframe->flags |= PFRAME_UPTODATE;
 
     return 0;
 }
 
-static int allocate_span(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t pos, size_t length)
+static int allocate_span(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t pos, size_t length)
 {
     size_t sector_size = node->fs->device->sector_size;
     uint64_t sector = pos / sector_size;
     uint64_t end = (pos + length + sector_size - 1) / sector_size;
 
     while(sector < end) {
-        struct fcache_extent extent;
+        fcache_extent_t extent;
         int retval = bmap(node, sector, true, &extent);
 
         if(retval < 0) {
@@ -309,12 +309,12 @@ static int allocate_span(struct vnode* restrict node, fcache_bmap_type bmap, uin
     return 0;
 }
 
-static int write_run(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t sector, size_t count, const uint8_t* restrict data)
+static int write_run(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t sector, size_t count, const uint8_t* restrict data)
 {
-    const struct blk_device* device = node->fs->device;
+    const blk_device_t* device = node->fs->device;
 
     while(count > 0) {
-        struct fcache_extent extent;
+        fcache_extent_t extent;
         int retval = bmap(node, sector, false, &extent);
 
         if(retval < 0) {
@@ -349,15 +349,15 @@ static int write_run(struct vnode* restrict node, fcache_bmap_type bmap, uint64_
     return 0;
 }
 
-static int write_page(struct vnode* restrict node, fcache_bmap_type bmap, struct pframe* restrict pf, off_t size)
+static int write_page(vnode_t* restrict node, fcache_bmap_t bmap, pframe_t* restrict pframe, off_t size)
 {
     size_t sector_size = node->fs->device->sector_size;
-    const uint8_t* data = page_data(pf);
-    unsigned dirty = pf->flags >> PFRAME_DIRTY_SHIFT;
+    const uint8_t* data = page_data(pframe);
+    unsigned dirty = pframe->flags >> PFRAME_DIRTY_SHIFT;
 
-    size_t valid = valid_bytes(pf->index, size);
+    size_t valid = valid_bytes(pframe->index, size);
     size_t num_sectors = (valid + sector_size - 1) / sector_size;
-    uint64_t first = pf->index * (PAGE_SIZE / sector_size);
+    uint64_t first = pframe->index * (PAGE_SIZE / sector_size);
 
     for(size_t i = 0; i < num_sectors;) {
         if(0 == (dirty & (1U << i))) {
@@ -383,9 +383,9 @@ static int write_page(struct vnode* restrict node, fcache_bmap_type bmap, struct
     return 0;
 }
 
-static int writeback_locked(struct vnode* restrict node, fcache_bmap_type bmap, off_t size)
+static int writeback_locked(vnode_t* restrict node, fcache_bmap_t bmap, off_t size)
 {
-    struct fcache* cache = &node->pages;
+    fcache_t* cache = &node->pages;
     int retval = 0;
 
     void* batch[GATHER_BATCH];
@@ -395,17 +395,17 @@ static int writeback_locked(struct vnode* restrict node, fcache_bmap_type bmap, 
 
     while(cache->num_dirty > 0 && (count = radix_gather(&cache->tree, start, batch, indices, GATHER_BATCH)) > 0) {
         for(size_t i = 0; i < count; ++i) {
-            struct pframe* pf = batch[i];
+            pframe_t* pframe = batch[i];
 
-            if(0 == (pf->flags & PFRAME_DIRTY)) {
+            if(0 == (pframe->flags & PFRAME_DIRTY)) {
                 continue;
             }
 
-            if(rmap_protect_all(pf)) {
+            if(rmap_protect_all(pframe)) {
                 tlb_shootdown();
             }
 
-            int page_retval = write_page(node, bmap, pf, size);
+            int page_retval = write_page(node, bmap, pframe, size);
 
             if(page_retval < 0) {
                 if(retval == 0) {
@@ -415,7 +415,7 @@ static int writeback_locked(struct vnode* restrict node, fcache_bmap_type bmap, 
                 continue;
             }
 
-            mark_clean(cache, pf);
+            mark_clean(cache, pframe);
         }
 
         if(indices[count - 1] == UINT64_MAX) {
@@ -445,7 +445,7 @@ static void kick_writeback(void)
 static void __noreturn writeback_thread(void* restrict arg)
 {
     for(;;) {
-        struct event* wakeup = &writeback_wakeup;
+        event_t* wakeup = &writeback_wakeup;
         event_await_timeout(&wakeup, 1, UINT64_C(1000000) * CONFIG_FCACHE_WRITEBACK_MSEC);
 
         atomic_store(&writeback_kicked, false, ATOMIC_RELEASE);
@@ -454,9 +454,9 @@ static void __noreturn writeback_thread(void* restrict arg)
     }
 }
 
-static int dev_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct fcache_extent* restrict out)
+static int dev_bmap(vnode_t* restrict node, uint64_t sector, bool create, fcache_extent_t* restrict out)
 {
-    const struct blk_device* device = node->fs->device;
+    const blk_device_t* device = node->fs->device;
 
     if(sector >= device->sector_count) {
         return -EIO;
@@ -469,22 +469,22 @@ static int dev_bmap(struct vnode* restrict node, uint64_t sector, bool create, s
     return 0;
 }
 
-static off_t dev_size(const struct vnode* restrict node)
+static off_t dev_size(const vnode_t* restrict node)
 {
-    const struct blk_device* device = node->fs->device;
+    const blk_device_t* device = node->fs->device;
     return device->sector_count * device->sector_size;
 }
 
-static int dev_fsync(struct vnode* restrict node)
+static int dev_fsync(vnode_t* restrict node)
 {
     return fcache_writeback(node, &dev_bmap, dev_size(node));
 }
 
-static const struct vnode_ops dev_ops = {
+static const vnode_ops_t dev_ops = {
     .fsync = &dev_fsync,
 };
 
-void fcache_init(struct fcache* restrict cache)
+void fcache_init(fcache_t* restrict cache)
 {
     mutex_init(&cache->lock);
     radix_init(&cache->tree);
@@ -494,7 +494,7 @@ void fcache_init(struct fcache* restrict cache)
     cache->dirty_next = nullptr;
 }
 
-void fcache_deinit(struct fcache* restrict cache)
+void fcache_deinit(fcache_t* restrict cache)
 {
     kassert(!cache->queued);
 
@@ -515,7 +515,7 @@ void fcache_deinit(struct fcache* restrict cache)
     mutex_deinit(&cache->lock);
 }
 
-ssize_t fcache_read(struct vnode* restrict node, fcache_bmap_type bmap, void* restrict buffer, size_t sz, off_t offset, off_t size)
+ssize_t fcache_read(vnode_t* restrict node, fcache_bmap_t bmap, void* restrict buffer, size_t count, off_t offset, off_t file_size)
 {
     if(offset < 0) {
         return -EINVAL;
@@ -525,49 +525,49 @@ ssize_t fcache_read(struct vnode* restrict node, fcache_bmap_type bmap, void* re
         return -EINVAL;
     }
 
-    if(offset >= size) {
+    if(offset >= file_size) {
         return 0;
     }
 
-    if(sz > (uint64_t)(size - offset)) {
-        sz = size - offset;
+    if(count > (uint64_t)(file_size - offset)) {
+        count = file_size - offset;
     }
 
-    struct fcache* cache = &node->pages;
+    fcache_t* cache = &node->pages;
     size_t done = 0;
     int retval = 0;
 
     mutex_acquire(&cache->lock);
 
-    while(done < sz) {
+    while(done < count) {
         uint64_t pos = offset + done;
         uint64_t index = pos / PAGE_SIZE;
         size_t in_page = pos % PAGE_SIZE;
         size_t chunk = PAGE_SIZE - in_page;
 
-        if(chunk > sz - done) {
-            chunk = sz - done;
+        if(chunk > count - done) {
+            chunk = count - done;
         }
 
-        struct pframe* pf = get_page(cache, index);
+        pframe_t* pframe = get_page(cache, index);
 
-        if(pf == nullptr) {
+        if(pframe == nullptr) {
             retval = -ENOMEM;
             break;
         }
 
-        if(0 == (pf->flags & PFRAME_UPTODATE)) {
-            retval = fill_page(node, bmap, pf, size);
+        if(0 == (pframe->flags & PFRAME_UPTODATE)) {
+            retval = fill_page(node, bmap, pframe, file_size);
 
             if(retval < 0) {
-                remove_page(cache, pf);
+                remove_page(cache, pframe);
                 break;
             }
         }
 
-        pf->flags |= PFRAME_ACCESSED;
+        pframe->flags |= PFRAME_ACCESSED;
 
-        memcpy((uint8_t*)(buffer) + done, (const uint8_t*)(page_data(pf)) + in_page, chunk);
+        memcpy((uint8_t*)(buffer) + done, (const uint8_t*)(page_data(pframe)) + in_page, chunk);
 
         done += chunk;
     }
@@ -581,7 +581,7 @@ ssize_t fcache_read(struct vnode* restrict node, fcache_bmap_type bmap, void* re
     return done;
 }
 
-ssize_t fcache_write(struct vnode* restrict node, fcache_bmap_type bmap, const void* restrict buffer, size_t sz, off_t offset, off_t size)
+ssize_t fcache_write(vnode_t* restrict node, fcache_bmap_t bmap, const void* restrict buffer, size_t count, off_t offset, off_t file_size)
 {
     if(offset < 0) {
         return -EINVAL;
@@ -591,42 +591,42 @@ ssize_t fcache_write(struct vnode* restrict node, fcache_bmap_type bmap, const v
         return -EINVAL;
     }
 
-    struct fcache* cache = &node->pages;
+    fcache_t* cache = &node->pages;
     size_t done = 0;
     int retval = 0;
 
     mutex_acquire(&cache->lock);
 
-    while(done < sz) {
+    while(done < count) {
         uint64_t pos = offset + done;
         uint64_t index = pos / PAGE_SIZE;
         size_t in_page = pos % PAGE_SIZE;
         size_t chunk = PAGE_SIZE - in_page;
 
-        if(chunk > sz - done) {
-            chunk = sz - done;
+        if(chunk > count - done) {
+            chunk = count - done;
         }
 
-        struct pframe* pf = get_page(cache, index);
+        pframe_t* pframe = get_page(cache, index);
 
         // Written back, this file's own dirty pages can be reclaimed
-        if(pf == nullptr && cache->num_dirty > 0) {
+        if(pframe == nullptr && cache->num_dirty > 0) {
             kick_writeback();
-            writeback_locked(node, bmap, size);
-            pf = get_page(cache, index);
+            writeback_locked(node, bmap, file_size);
+            pframe = get_page(cache, index);
         }
 
-        if(pf == nullptr) {
+        if(pframe == nullptr) {
             retval = -ENOMEM;
             break;
         }
 
         // A page written whole needs nothing from the disk
-        if(0 == (pf->flags & PFRAME_UPTODATE) && chunk < PAGE_SIZE) {
-            retval = fill_page(node, bmap, pf, size);
+        if(0 == (pframe->flags & PFRAME_UPTODATE) && chunk < PAGE_SIZE) {
+            retval = fill_page(node, bmap, pframe, file_size);
 
             if(retval < 0) {
-                remove_page(cache, pf);
+                remove_page(cache, pframe);
                 break;
             }
         }
@@ -634,22 +634,22 @@ ssize_t fcache_write(struct vnode* restrict node, fcache_bmap_type bmap, const v
         retval = allocate_span(node, bmap, pos, chunk);
 
         if(retval < 0) {
-            if(0 == (pf->flags & PFRAME_UPTODATE)) {
-                remove_page(cache, pf);
+            if(0 == (pframe->flags & PFRAME_UPTODATE)) {
+                remove_page(cache, pframe);
             }
 
             break;
         }
 
-        memcpy((uint8_t*)(page_data(pf)) + in_page, (const uint8_t*)(buffer) + done, chunk);
+        memcpy((uint8_t*)(page_data(pframe)) + in_page, (const uint8_t*)(buffer) + done, chunk);
 
-        pf->flags |= PFRAME_UPTODATE | PFRAME_ACCESSED;
-        mark_dirty(node, pf, sector_span(node, in_page, chunk));
+        pframe->flags |= PFRAME_UPTODATE | PFRAME_ACCESSED;
+        mark_dirty(node, pframe, sector_span(node, in_page, chunk));
 
         done += chunk;
 
-        if((off_t)(pos + chunk) > size) {
-            size = pos + chunk;
+        if((off_t)(pos + chunk) > file_size) {
+            file_size = pos + chunk;
         }
     }
 
@@ -657,7 +657,7 @@ ssize_t fcache_write(struct vnode* restrict node, fcache_bmap_type bmap, const v
     // it already holds what the filesystem needs for writeback
     if(over_dirty_limit()) {
         kick_writeback();
-        writeback_locked(node, bmap, size);
+        writeback_locked(node, bmap, file_size);
     }
 
     mutex_release(&cache->lock);
@@ -669,8 +669,8 @@ ssize_t fcache_write(struct vnode* restrict node, fcache_bmap_type bmap, const v
     return done;
 }
 
-int fcache_map_page(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t index, off_t size, struct pagemap* restrict pmap,
-    uintptr_t virt, unsigned vprot)
+int fcache_map_page(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t index, off_t size, pmap_t* restrict pmap, uintptr_t virt,
+    unsigned vprot)
 {
     if(!sector_size_valid(node->fs->device)) {
         return -EINVAL;
@@ -686,7 +686,7 @@ int fcache_map_page(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t
         return -EROFS;
     }
 
-    struct fcache* cache = &node->pages;
+    fcache_t* cache = &node->pages;
 
     mutex_acquire(&cache->lock);
 
@@ -695,18 +695,18 @@ int fcache_map_page(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t
         writeback_locked(node, bmap, size);
     }
 
-    struct pframe* pf = get_page(cache, index);
+    pframe_t* pframe = get_page(cache, index);
 
-    if(pf == nullptr) {
+    if(pframe == nullptr) {
         mutex_release(&cache->lock);
         return -ENOMEM;
     }
 
-    if(0 == (pf->flags & PFRAME_UPTODATE)) {
-        int retval = fill_page(node, bmap, pf, size);
+    if(0 == (pframe->flags & PFRAME_UPTODATE)) {
+        int retval = fill_page(node, bmap, pframe, size);
 
         if(retval < 0) {
-            remove_page(cache, pf);
+            remove_page(cache, pframe);
             mutex_release(&cache->lock);
             return retval;
         }
@@ -721,22 +721,22 @@ int fcache_map_page(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t
             return retval;
         }
 
-        mark_dirty(node, pf, sector_span(node, 0, valid));
+        mark_dirty(node, pframe, sector_span(node, 0, valid));
     }
 
-    pf->flags |= PFRAME_ACCESSED;
+    pframe->flags |= PFRAME_ACCESSED;
 
     // Mapped under the cache lock, so a truncation either finds the mapping or comes before it,
     // and writeback either sees the page dirty or takes write access away before writing it
-    uintptr_t phys = pframe_phys(pf);
+    uintptr_t phys = pframe_phys(pframe);
     int retval = rmap_patch(pmap, virt, phys, vprot);
 
     if(retval == -EAGAIN) {
-        pframe_incref(pf);
+        pframe_incref(pframe);
         retval = rmap_map(pmap, virt, phys, vprot);
 
         if(retval < 0) {
-            bool last = pframe_decref(pf);
+            bool last = pframe_decref(pframe);
             kassert(!last); // The cache still holds its own
         }
     }
@@ -746,9 +746,9 @@ int fcache_map_page(struct vnode* restrict node, fcache_bmap_type bmap, uint64_t
     return retval;
 }
 
-int fcache_writeback(struct vnode* restrict node, fcache_bmap_type bmap, off_t size)
+int fcache_writeback(vnode_t* restrict node, fcache_bmap_t bmap, off_t size)
 {
-    struct fcache* cache = &node->pages;
+    fcache_t* cache = &node->pages;
 
     mutex_acquire(&cache->lock);
     int retval = writeback_locked(node, bmap, size);
@@ -757,9 +757,9 @@ int fcache_writeback(struct vnode* restrict node, fcache_bmap_type bmap, off_t s
     return retval;
 }
 
-void fcache_truncate(struct vnode* restrict node, off_t size)
+void fcache_truncate(vnode_t* restrict node, off_t size)
 {
-    struct fcache* cache = &node->pages;
+    fcache_t* cache = &node->pages;
     uint64_t keep = ((uint64_t)(size) + PAGE_SIZE - 1) / PAGE_SIZE;
 
     mutex_acquire(&cache->lock);
@@ -778,19 +778,19 @@ void fcache_truncate(struct vnode* restrict node, off_t size)
     size_t tail = size % PAGE_SIZE;
 
     if(tail) {
-        struct pframe* pf = radix_lookup(&cache->tree, size / PAGE_SIZE);
+        pframe_t* pframe = radix_lookup(&cache->tree, size / PAGE_SIZE);
 
-        if(pf) {
-            memset((uint8_t*)(page_data(pf)) + tail, 0, PAGE_SIZE - tail);
+        if(pframe) {
+            memset((uint8_t*)(page_data(pframe)) + tail, 0, PAGE_SIZE - tail);
         }
     }
 
     mutex_release(&cache->lock);
 }
 
-void fcache_forget(struct vnode* restrict node, uint64_t offset, uint64_t length)
+void fcache_forget(vnode_t* restrict node, uint64_t offset, uint64_t length)
 {
-    struct fcache* cache = &node->pages;
+    fcache_t* cache = &node->pages;
     uint64_t end = offset + length;
 
     mutex_acquire(&cache->lock);
@@ -803,13 +803,13 @@ void fcache_forget(struct vnode* restrict node, uint64_t offset, uint64_t length
             chunk = end - pos;
         }
 
-        struct pframe* pf = radix_lookup(&cache->tree, pos / PAGE_SIZE);
+        pframe_t* pframe = radix_lookup(&cache->tree, pos / PAGE_SIZE);
 
-        if(pf) {
-            pf->flags &= ~(sector_span(node, in_page, chunk) << PFRAME_DIRTY_SHIFT);
+        if(pframe) {
+            pframe->flags &= ~(sector_span(node, in_page, chunk) << PFRAME_DIRTY_SHIFT);
 
-            if(0 == (pf->flags >> PFRAME_DIRTY_SHIFT)) {
-                mark_clean(cache, pf);
+            if(0 == (pframe->flags >> PFRAME_DIRTY_SHIFT)) {
+                mark_clean(cache, pframe);
             }
         }
 
@@ -819,13 +819,13 @@ void fcache_forget(struct vnode* restrict node, uint64_t offset, uint64_t length
     mutex_release(&cache->lock);
 }
 
-int fcache_sync(struct vfs* restrict fs)
+int fcache_sync(vfs_t* restrict fs)
 {
     size_t pending = 0;
 
     spinlock_acquire(&dirty_lock);
 
-    for(struct vnode* node = dirty_head; node; node = node->pages.dirty_next) {
+    for(vnode_t* node = dirty_head; node; node = node->pages.dirty_next) {
         if(fs == nullptr || node->fs == fs) {
             pending += 1;
         }
@@ -838,12 +838,12 @@ int fcache_sync(struct vfs* restrict fs)
     // Vnodes queued again while this runs wait for the next
     // sync, so a steady writer can't keep the loop going
     while(pending > 0) {
-        struct vnode* picked = nullptr;
+        vnode_t* picked = nullptr;
 
         spinlock_acquire(&dirty_lock);
 
-        for(struct vnode** prev = &dirty_head; *prev; prev = &(*prev)->pages.dirty_next) {
-            struct vnode* node = *prev;
+        for(vnode_t** prev = &dirty_head; *prev; prev = &(*prev)->pages.dirty_next) {
+            vnode_t* node = *prev;
 
             if(fs == nullptr || node->fs == fs) {
                 *prev = node->pages.dirty_next;
@@ -873,30 +873,30 @@ int fcache_sync(struct vfs* restrict fs)
     return retval;
 }
 
-struct vnode* fcache_dev_create(struct vfs* restrict fs)
+vnode_t* fcache_dev_create(vfs_t* restrict fs)
 {
-    struct vnode* devnode = vnode_alloc(VNODE_BLOCK_DEV, &dev_ops, nullptr);
+    vnode_t* device_node = vnode_alloc(VNODE_BLOCK_DEV, &dev_ops, nullptr);
 
-    if(devnode) {
-        devnode->fs = fs;
+    if(device_node) {
+        device_node->fs = fs;
     }
 
-    return devnode;
+    return device_node;
 }
 
-void fcache_dev_destroy(struct vnode* restrict devnode)
+void fcache_dev_destroy(vnode_t* restrict device_node)
 {
-    vnode_fsync(devnode);
+    vnode_fsync(device_node);
 
     bool queued = false;
 
     spinlock_acquire(&dirty_lock);
 
-    for(struct vnode** prev = &dirty_head; *prev; prev = &(*prev)->pages.dirty_next) {
-        if(*prev == devnode) {
-            *prev = devnode->pages.dirty_next;
-            devnode->pages.dirty_next = nullptr;
-            devnode->pages.queued = false;
+    for(vnode_t** prev = &dirty_head; *prev; prev = &(*prev)->pages.dirty_next) {
+        if(*prev == device_node) {
+            *prev = device_node->pages.dirty_next;
+            device_node->pages.dirty_next = nullptr;
+            device_node->pages.queued = false;
             queued = true;
             break;
         }
@@ -905,39 +905,39 @@ void fcache_dev_destroy(struct vnode* restrict devnode)
     spinlock_release(&dirty_lock);
 
     if(queued) {
-        vnode_decref(devnode);
+        vnode_decref(device_node);
     }
 
-    vnode_decref(devnode);
+    vnode_decref(device_node);
 }
 
-int fcache_dev_read(struct vnode* restrict devnode, uint64_t offset, void* restrict buffer, size_t sz)
+int fcache_dev_read(vnode_t* restrict device_node, uint64_t offset, void* restrict buffer, size_t size)
 {
-    ssize_t done = fcache_read(devnode, &dev_bmap, buffer, sz, offset, dev_size(devnode));
+    ssize_t done = fcache_read(device_node, &dev_bmap, buffer, size, offset, dev_size(device_node));
 
     if(done < 0) {
         return done;
     }
 
-    return (size_t)(done) == sz ? 0 : -EIO;
+    return (size_t)(done) == size ? 0 : -EIO;
 }
 
-int fcache_dev_write(struct vnode* restrict devnode, uint64_t offset, const void* restrict buffer, size_t sz)
+int fcache_dev_write(vnode_t* restrict device_node, uint64_t offset, const void* restrict buffer, size_t size)
 {
-    ssize_t done = fcache_write(devnode, &dev_bmap, buffer, sz, offset, dev_size(devnode));
+    ssize_t done = fcache_write(device_node, &dev_bmap, buffer, size, offset, dev_size(device_node));
 
     if(done < 0) {
         return done;
     }
 
-    return (size_t)(done) == sz ? 0 : -EIO;
+    return (size_t)(done) == size ? 0 : -EIO;
 }
 
 size_t fcache_reclaim(size_t count)
 {
-    struct thread* thrd = this_thread();
+    thread_t* thread = this_thread();
 
-    if(!interrupt_state() || thrd->preempt_count > 0) {
+    if(!interrupt_state() || thread->preempt_count > 0) {
         return 0;
     }
 
@@ -949,45 +949,45 @@ size_t fcache_reclaim(size_t count)
     size_t budget = 2 * lru_length;
 
     while(freed < count && budget > 0 && lru_head) {
-        struct pframe* pf = lru_head;
-        struct fcache* cache = pf->owner;
+        pframe_t* pframe = lru_head;
+        fcache_t* cache = pframe->owner;
 
         budget -= 1;
 
-        lru_unlink(pf);
-        lru_append(pf);
+        lru_unlink(pframe);
+        lru_append(pframe);
 
         if(mutex_held(&cache->lock) || !mutex_try_acquire(&cache->lock)) {
             continue;
         }
 
-        if(pf->flags & PFRAME_ACCESSED) {
-            pf->flags &= ~PFRAME_ACCESSED;
+        if(pframe->flags & PFRAME_ACCESSED) {
+            pframe->flags &= ~PFRAME_ACCESSED;
             mutex_release(&cache->lock);
             continue;
         }
 
-        if((pf->flags & PFRAME_DIRTY) || pframe_shared(pf)) {
+        if((pframe->flags & PFRAME_DIRTY) || pframe_shared(pframe)) {
             mutex_release(&cache->lock);
             continue;
         }
 
-        lru_unlink(pf);
+        lru_unlink(pframe);
 
         spinlock_release(&lru_lock);
 
-        struct pframe* removed = radix_remove(&cache->tree, pf->index);
-        kassert(removed == pf);
+        pframe_t* removed = radix_remove(&cache->tree, pframe->index);
+        kassert(removed == pframe);
 
         cache->num_pages -= 1;
 
-        pf->flags &= ~(PFRAME_CACHE | PFRAME_UPTODATE);
-        pf->owner = nullptr;
-        pf->index = 0;
+        pframe->flags &= ~(PFRAME_CACHE | PFRAME_UPTODATE);
+        pframe->owner = nullptr;
+        pframe->index = 0;
 
         mutex_release(&cache->lock);
 
-        pslab_free_phys(pframe_phys(pf));
+        pslab_free_phys(pframe_phys(pframe));
         freed += 1;
 
         spinlock_acquire(&lru_lock);
@@ -1002,7 +1002,7 @@ static void init_fcache(void)
 {
     event_init(&writeback_wakeup);
 
-    struct thread* writeback = create_thread_kern(&writeback_thread, nullptr);
+    thread_t* writeback = thread_create_kernel(&writeback_thread, nullptr);
 
     if(writeback == nullptr) {
         panic("fcache: out of memory");

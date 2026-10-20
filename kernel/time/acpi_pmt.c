@@ -9,32 +9,34 @@
 #include <vex/panic.h>
 #include <vex/vprot.h>
 
-#define ACPI_CLOCKSRC_FREQ_HZ UINT64_C(3579545)
+#define ACPI_PMT_FREQ_HZ UINT64_C(3579545)
 
-struct acpi_clocksrc_privdata {
+typedef struct acpi_pmt_privdata_s acpi_pmt_privdata_t;
+
+struct acpi_pmt_privdata_s {
     volatile uint32_t* mmio;
     uintptr_t pmio;
 };
 
-static uint64_t acpi_clocksrc_read(struct clocksrc* restrict src)
+static uint64_t acpi_pmt_read(clock_source_t* restrict source)
 {
-    struct acpi_clocksrc_privdata* priv = src->ctxdata;
+    acpi_pmt_privdata_t* priv = source->ctxdata;
 
     if(priv->mmio) {
         return priv->mmio[0];
     }
     else {
-        return pmread32(priv->pmio);
+        return port_read32(priv->pmio);
     }
 }
 
-static const struct clocksrc_ops acpi_clocksrc_ops = {
-    .read = &acpi_clocksrc_read,
+static const clock_source_ops_t acpi_pmt_ops = {
+    .read = &acpi_pmt_read,
 };
 
-static struct clocksrc acpi_pmt_clocksrc = {
-    .ops = &acpi_clocksrc_ops,
-    .identifier = "acpi_pm_timer",
+static clock_source_t acpi_pmt_clock_source = {
+    .ops = &acpi_pmt_ops,
+    .name = "acpi_pm_timer",
     .rating = 100,
 };
 
@@ -48,7 +50,7 @@ static void init_acpi_pmt(void)
     }
 
     struct acpi_fadt* fadt = (struct acpi_fadt*)(table.hdr);
-    struct acpi_clocksrc_privdata* priv = kmalloc(sizeof(struct acpi_clocksrc_privdata));
+    acpi_pmt_privdata_t* priv = kmalloc(sizeof(acpi_pmt_privdata_t));
 
     if(priv == nullptr) {
         pr_warning("acpi_pmt: out of memory");
@@ -86,15 +88,15 @@ static void init_acpi_pmt(void)
     }
 
     if(fadt->flags & ACPI_TMR_VAL_EXT) {
-        acpi_pmt_clocksrc.mask = CLOCKSRC_MASK_32;
+        acpi_pmt_clock_source.mask = CLOCK_SOURCE_MASK_32;
     }
     else {
-        acpi_pmt_clocksrc.mask = CLOCKSRC_MASK_24;
+        acpi_pmt_clock_source.mask = CLOCK_SOURCE_MASK_24;
     }
 
-    acpi_pmt_clocksrc.ctxdata = priv;
+    acpi_pmt_clock_source.ctxdata = priv;
 
-    add_clocksrc_hz(&acpi_pmt_clocksrc, ACPI_CLOCKSRC_FREQ_HZ);
+    clock_source_add_hz(&acpi_pmt_clock_source, ACPI_PMT_FREQ_HZ);
 
     uacpi_table_unref(&table);
 }

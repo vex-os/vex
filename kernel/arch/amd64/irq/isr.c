@@ -49,7 +49,7 @@ extern void amd64_isr_1D(void);
 extern void amd64_isr_1E(void);
 extern void amd64_isr_1F(void);
 
-static void page_fault_handler(struct hart_local* restrict hart, struct hart_context* restrict ctx)
+static void page_fault_handler(hart_local_t* restrict hart, hart_context_t* restrict ctx)
 {
     uintptr_t fault;
     asm volatile("movq %%cr2, %0" : "=r"(fault));
@@ -71,10 +71,10 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
             access, (int)(ctx->amd64_err & 0x1));
     }
 
-    struct thread* thrd = hart->curr_thread;
-    struct process* proc = thrd->proc;
+    thread_t* thread = hart->curr_thread;
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         sched_terminate();
         unreachable();
     }
@@ -84,10 +84,10 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
     // or signalling may sleep
     enable_interrupts();
 
-    int retval = vms_fault(proc->vms, fault, access);
+    int retval = vms_fault(process->vmspace, fault, access);
 
     if(retval < 0) {
-        struct k_siginfo info = { 0 };
+        siginfo_t info = { 0 };
         info.si_signo = SIGSEGV;
         info.si_code = SEGV_MAPERR;
         info.si_addr = (void*)(fault);
@@ -100,7 +100,7 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
             info.si_code = BUS_ADRERR;
         }
 
-        signal_force(thrd, &info);
+        signal_force(thread, &info);
     }
 
     // The way back to ring 3 swaps GS
@@ -136,7 +136,7 @@ static int fpu_exception_code(bool simd)
     return SI_KERNEL;
 }
 
-static void user_exception_info(uint64_t intvec, const struct hart_context* restrict ctx, struct k_siginfo* restrict info)
+static void user_exception_info(uint64_t intvec, const hart_context_t* restrict ctx, siginfo_t* restrict info)
 {
     info->si_signo = SIGSEGV;
     info->si_code = SI_KERNEL;
@@ -177,7 +177,7 @@ static void user_exception_info(uint64_t intvec, const struct hart_context* rest
     }
 }
 
-static bool iretq_to_user_faulted(const struct hart_context* restrict ctx, uint64_t intvec)
+static bool iretq_to_user_faulted(const hart_context_t* restrict ctx, uint64_t intvec)
 {
     if(intvec != 0x0B && intvec != 0x0C && intvec != 0x0D) {
         return false;
@@ -202,11 +202,11 @@ static bool iretq_to_user_faulted(const struct hart_context* restrict ctx, uint6
     return 3 == (frame[1] & 3);
 }
 
-void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec)
+void __used amd64_isr_handler(hart_context_t* restrict ctx, uint64_t intvec)
 {
     disable_interrupts();
 
-    struct hart_local* hart = this_hart();
+    hart_local_t* hart = this_hart();
 
     // Harts only get set up at the multicore stage
     // so anything happening before that quite literally
@@ -235,10 +235,10 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
     }
 
     if(3 == (ctx->amd64_cs & 3) || iretq_to_user_faulted(ctx, intvec)) {
-        struct thread* thrd = hart->curr_thread;
-        struct process* proc = thrd->proc;
+        thread_t* thread = hart->curr_thread;
+        process_t* process = thread->process;
 
-        if(proc == nullptr) {
+        if(process == nullptr) {
             sched_terminate();
             unreachable();
         }
@@ -248,14 +248,14 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
         // The frame IRETQ choked on is the
         // one it would retry, so there is no going back
         if(3 != (ctx->amd64_cs & 3)) {
-            process_kill(proc, SIGSEGV);
+            process_kill(process, SIGSEGV);
             sched_terminate();
             unreachable();
         }
 
-        struct k_siginfo info = { 0 };
+        siginfo_t info = { 0 };
         user_exception_info(intvec, ctx, &info);
-        signal_force(thrd, &info);
+        signal_force(thread, &info);
 
         disable_interrupts();
         return;
@@ -266,38 +266,38 @@ void __used amd64_isr_handler(struct hart_context* restrict ctx, uint64_t intvec
 
 static void arch_init_isr(void)
 {
-    set_idt_entry_kern(0x00, false, &amd64_isr_00);
-    set_idt_entry_kern(0x01, false, &amd64_isr_01);
-    set_idt_entry_ist(0x02, IDT_IST_NMI, &amd64_isr_02);
-    set_idt_entry_user(0x03, false, &amd64_isr_03);
-    set_idt_entry_user(0x04, false, &amd64_isr_04);
-    set_idt_entry_kern(0x05, false, &amd64_isr_05);
-    set_idt_entry_kern(0x06, false, &amd64_isr_06);
-    set_idt_entry_kern(0x07, false, &amd64_isr_07);
-    set_idt_entry_ist(0x08, IDT_IST_DOUBLE_FAULT, &amd64_isr_08);
-    set_idt_entry_kern(0x09, false, &amd64_isr_09);
-    set_idt_entry_kern(0x0A, false, &amd64_isr_0A);
-    set_idt_entry_kern(0x0B, false, &amd64_isr_0B);
-    set_idt_entry_kern(0x0C, false, &amd64_isr_0C);
-    set_idt_entry_kern(0x0D, false, &amd64_isr_0D);
-    set_idt_entry_kern(0x0E, false, &amd64_isr_0E);
-    set_idt_entry_kern(0x0F, false, &amd64_isr_0F);
-    set_idt_entry_kern(0x10, false, &amd64_isr_10);
-    set_idt_entry_kern(0x11, false, &amd64_isr_11);
-    set_idt_entry_ist(0x12, IDT_IST_MACHINE_CHECK, &amd64_isr_12);
-    set_idt_entry_kern(0x13, false, &amd64_isr_13);
-    set_idt_entry_kern(0x14, false, &amd64_isr_14);
-    set_idt_entry_kern(0x15, false, &amd64_isr_15);
-    set_idt_entry_kern(0x16, false, &amd64_isr_16);
-    set_idt_entry_kern(0x17, false, &amd64_isr_17);
-    set_idt_entry_kern(0x18, false, &amd64_isr_18);
-    set_idt_entry_kern(0x19, false, &amd64_isr_19);
-    set_idt_entry_kern(0x1A, false, &amd64_isr_1A);
-    set_idt_entry_kern(0x1B, false, &amd64_isr_1B);
-    set_idt_entry_kern(0x1C, false, &amd64_isr_1C);
-    set_idt_entry_kern(0x1D, false, &amd64_isr_1D);
-    set_idt_entry_kern(0x1E, false, &amd64_isr_1E);
-    set_idt_entry_kern(0x1F, false, &amd64_isr_1F);
+    idt_set_kernel_gate(0x00, false, &amd64_isr_00);
+    idt_set_kernel_gate(0x01, false, &amd64_isr_01);
+    idt_set_ist_gate(0x02, IDT_IST_NMI, &amd64_isr_02);
+    idt_set_user_gate(0x03, false, &amd64_isr_03);
+    idt_set_user_gate(0x04, false, &amd64_isr_04);
+    idt_set_kernel_gate(0x05, false, &amd64_isr_05);
+    idt_set_kernel_gate(0x06, false, &amd64_isr_06);
+    idt_set_kernel_gate(0x07, false, &amd64_isr_07);
+    idt_set_ist_gate(0x08, IDT_IST_DOUBLE_FAULT, &amd64_isr_08);
+    idt_set_kernel_gate(0x09, false, &amd64_isr_09);
+    idt_set_kernel_gate(0x0A, false, &amd64_isr_0A);
+    idt_set_kernel_gate(0x0B, false, &amd64_isr_0B);
+    idt_set_kernel_gate(0x0C, false, &amd64_isr_0C);
+    idt_set_kernel_gate(0x0D, false, &amd64_isr_0D);
+    idt_set_kernel_gate(0x0E, false, &amd64_isr_0E);
+    idt_set_kernel_gate(0x0F, false, &amd64_isr_0F);
+    idt_set_kernel_gate(0x10, false, &amd64_isr_10);
+    idt_set_kernel_gate(0x11, false, &amd64_isr_11);
+    idt_set_ist_gate(0x12, IDT_IST_MACHINE_CHECK, &amd64_isr_12);
+    idt_set_kernel_gate(0x13, false, &amd64_isr_13);
+    idt_set_kernel_gate(0x14, false, &amd64_isr_14);
+    idt_set_kernel_gate(0x15, false, &amd64_isr_15);
+    idt_set_kernel_gate(0x16, false, &amd64_isr_16);
+    idt_set_kernel_gate(0x17, false, &amd64_isr_17);
+    idt_set_kernel_gate(0x18, false, &amd64_isr_18);
+    idt_set_kernel_gate(0x19, false, &amd64_isr_19);
+    idt_set_kernel_gate(0x1A, false, &amd64_isr_1A);
+    idt_set_kernel_gate(0x1B, false, &amd64_isr_1B);
+    idt_set_kernel_gate(0x1C, false, &amd64_isr_1C);
+    idt_set_kernel_gate(0x1D, false, &amd64_isr_1D);
+    idt_set_kernel_gate(0x1E, false, &amd64_isr_1E);
+    idt_set_kernel_gate(0x1F, false, &amd64_isr_1F);
 }
 
 initcall_bsp_arch(arch_init_isr, INIT_MIDDLE);

@@ -66,4 +66,4 @@ static void arch_init_lapic(void)
     lapic_write(LAPIC_REG_SVR, svr);
 }
 
-initcall_smp_ireq(arch_init_lapic, INIT_FIRST);
+initcall_smp_irq(arch_init_lapic, INIT_FIRST);

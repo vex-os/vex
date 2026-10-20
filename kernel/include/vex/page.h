@@ -24,9 +24,9 @@ static __always_inline __nodiscard const void* page_align_const_ptr(const void* 
     return (const void*)(align_floor((uintptr_t)ptr, PAGE_SIZE));
 }
 
-static __always_inline __nodiscard size_t page_count(size_t sz)
+static __always_inline __nodiscard size_t page_count(size_t size)
 {
-    return align_ceil(sz, PAGE_SIZE) / PAGE_SIZE;
+    return align_ceil(size, PAGE_SIZE) / PAGE_SIZE;
 }
 
 static __always_inline __nodiscard size_t page_offset(uintptr_t address)

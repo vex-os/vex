@@ -4,22 +4,24 @@
 #include <vex/event.h>
 #include <vex/spinlock.h>
 
-struct thread;
+typedef struct thread_s thread_t;
 
 #define MUTEX_INIT { .lock = SPINLOCK_INIT }
 
-struct mutex {
-    spinlock_type lock;
+typedef struct mutex_s mutex_t;
+
+struct mutex_s {
+    spinlock_t lock;
     uint32_t num_waiters;
-    struct thread* owner;
-    struct event released;
+    thread_t* owner;
+    event_t released;
 };
 
-void mutex_init(struct mutex* restrict mtx);
-void mutex_deinit(struct mutex* restrict mtx);
+void mutex_init(mutex_t* restrict mtx);
+void mutex_deinit(mutex_t* restrict mtx);
 
-bool mutex_try_acquire(struct mutex* restrict mtx) __nodiscard;
-void mutex_acquire(struct mutex* restrict mtx);
-void mutex_release(struct mutex* restrict mtx);
+bool mutex_try_acquire(mutex_t* restrict mtx) __nodiscard;
+void mutex_acquire(mutex_t* restrict mtx);
+void mutex_release(mutex_t* restrict mtx);
 
-bool mutex_held(const struct mutex* restrict mtx) __nodiscard;
+bool mutex_held(const mutex_t* restrict mtx) __nodiscard;

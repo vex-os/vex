@@ -4,52 +4,54 @@
 #include <vex/errno.h>
 #include <vex/types.h>
 
-struct chr_name;
+typedef struct chr_name_s chr_name_t;
 
-struct chr_device;
-struct chr_device_ops {
-    ssize_t (*read)(const struct chr_device* restrict device, off_t offset, void* restrict buffer, size_t sz);
-    ssize_t (*write)(const struct chr_device* restrict device, off_t offset, const void* restrict buffer, size_t sz);
-    int (*ioctl)(const struct chr_device* restrict device, uint32_t request, uintptr_t argument);
-    void (*release)(const struct chr_device* restrict device);
+typedef struct chr_device_s chr_device_t;
+typedef struct chr_device_ops_s chr_device_ops_t;
+typedef struct chr_device_private_s chr_device_private_t;
+
+struct chr_device_ops_s {
+    ssize_t (*read)(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size);
+    ssize_t (*write)(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size);
+    int (*ioctl)(const chr_device_t* restrict device, uint32_t request, uintptr_t argument);
+    void (*release)(const chr_device_t* restrict device);
 };
 
-struct chr_device_private {
-    struct chr_device* next;
-    struct chr_name* name;
+struct chr_device_private_s {
+    chr_device_t* next;
+    chr_name_t* name;
     unsigned name_iterator;
 };
 
-struct chr_device {
-    struct chr_device_private priv;
-    const struct chr_device_ops* ops;
-    char identifier[64];
+struct chr_device_s {
+    chr_device_private_t priv;
+    const chr_device_ops_t* ops;
+    char name[64];
     void* ctxdata;
 };
 
-int add_chr_device(struct chr_device* restrict device, struct chr_name* restrict name);
-int add_chr_device_named(struct chr_device* restrict device, const char* restrict name);
-int remove_chr_device(struct chr_device* restrict device);
+int chr_device_add(chr_device_t* restrict device, chr_name_t* restrict name);
+int chr_device_add_named(chr_device_t* restrict device, const char* restrict name);
+int chr_device_remove(chr_device_t* restrict device);
 
-const struct chr_device* find_chr_device(const char* restrict name) __nodiscard;
-void iterate_chr_devices(void (*callback)(const struct chr_device* restrict device, void* restrict arg), void* restrict arg);
+const chr_device_t* chr_device_find(const char* restrict name) __nodiscard;
+void chr_device_for_each(void (*callback)(const chr_device_t* restrict device, void* restrict arg), void* restrict arg);
 
-static __always_inline ssize_t chr_device_read(const struct chr_device* restrict device, off_t offset, void* restrict buffer, size_t sz)
+static __always_inline ssize_t chr_device_read(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size)
 {
     if(device->ops->read == nullptr)
         return -ENOSYS;
-    return device->ops->read(device, offset, buffer, sz);
+    return device->ops->read(device, offset, buffer, size);
 }
 
-static __always_inline ssize_t chr_device_write(const struct chr_device* restrict device, off_t offset, const void* restrict buffer,
-    size_t sz)
+static __always_inline ssize_t chr_device_write(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size)
 {
     if(device->ops->write == nullptr)
         return -ENOSYS;
-    return device->ops->write(device, offset, buffer, sz);
+    return device->ops->write(device, offset, buffer, size);
 }
 
-static __always_inline int chr_device_ioctl(const struct chr_device* restrict device, uint32_t request, uintptr_t argument)
+static __always_inline int chr_device_ioctl(const chr_device_t* restrict device, uint32_t request, uintptr_t argument)
 {
     if(device->ops->ioctl == nullptr)
         return -ENOTTY;

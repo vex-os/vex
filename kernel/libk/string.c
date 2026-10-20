@@ -4,11 +4,11 @@
 #include <vex/string.h>
 #include <vex/strings.h>
 
-const void* memchr(const void* restrict buf, int chr, size_t sz)
+const void* memchr(const void* restrict buf, int chr, size_t size)
 {
     const unsigned char* sp = buf;
 
-    while(sz--) {
+    while(size--) {
         if(*sp == chr) {
             return sp;
         }
@@ -19,12 +19,12 @@ const void* memchr(const void* restrict buf, int chr, size_t sz)
     return nullptr;
 }
 
-int memcmp(const void* restrict ba, const void* restrict bb, size_t sz)
+int memcmp(const void* restrict ba, const void* restrict bb, size_t size)
 {
     const unsigned char* ap = ba;
     const unsigned char* bp = bb;
 
-    while(sz--) {
+    while(size--) {
         if(*ap != *bp) {
             return *ap - *bp;
         }
@@ -36,33 +36,33 @@ int memcmp(const void* restrict ba, const void* restrict bb, size_t sz)
     return 0;
 }
 
-void* memcpy(void* restrict dst, const void* restrict src, size_t sz)
+void* memcpy(void* restrict dst, const void* restrict src, size_t size)
 {
     unsigned char* dp = dst;
     const unsigned char* sp = src;
 
-    while(sz--) {
+    while(size--) {
         *dp++ = *sp++;
     }
 
     return dst;
 }
 
-void* memmove(void* dst, const void* src, size_t sz)
+void* memmove(void* dst, const void* src, size_t size)
 {
     unsigned char* dp = dst;
     const unsigned char* sp = src;
 
     if(dp < sp) {
-        while(sz--) {
+        while(size--) {
             *dp++ = *sp++;
         }
     }
     else if(dp > sp) {
-        dp += sz;
-        sp += sz;
+        dp += size;
+        sp += size;
 
-        while(sz--) {
+        while(size--) {
             *--dp = *--sp;
         }
     }
@@ -70,11 +70,11 @@ void* memmove(void* dst, const void* src, size_t sz)
     return dst;
 }
 
-void* memset(void* restrict dst, int chr, size_t sz)
+void* memset(void* restrict dst, int chr, size_t size)
 {
     unsigned char* sp = dst;
 
-    while(sz--) {
+    while(size--) {
         *sp++ = chr;
     }
 
@@ -154,331 +154,331 @@ char* strerror(int errnum)
     return buffer;
 }
 
-int strerror_r(int errnum, char* restrict str, size_t sz)
+int strerror_r(int errnum, char* restrict str, size_t size)
 {
     switch(abs(errnum)) {
         case EDOM:
-            kstrncpy(str, "argument out of domain of function", sz);
+            kstrncpy(str, "argument out of domain of function", size);
             return 0;
 
         case EILSEQ:
-            kstrncpy(str, "illegal byte sequence", sz);
+            kstrncpy(str, "illegal byte sequence", size);
             return 0;
 
         case ERANGE:
-            kstrncpy(str, "result too large", sz);
+            kstrncpy(str, "result too large", size);
             return 0;
 
         case E2BIG:
-            kstrncpy(str, "argument list too long", sz);
+            kstrncpy(str, "argument list too long", size);
             return 0;
 
         case EACCES:
-            kstrncpy(str, "permission denied", sz);
+            kstrncpy(str, "permission denied", size);
             return 0;
 
         case EADDRINUSE:
-            kstrncpy(str, "address in use", sz);
+            kstrncpy(str, "address in use", size);
             return 0;
 
         case EADDRNOTAVAIL:
-            kstrncpy(str, "address not available", sz);
+            kstrncpy(str, "address not available", size);
             return 0;
 
         case EAFNOSUPPORT:
-            kstrncpy(str, "address family not supported", sz);
+            kstrncpy(str, "address family not supported", size);
             return 0;
 
         case EAGAIN:
-            kstrncpy(str, "resource temporarily unavailable", sz);
+            kstrncpy(str, "resource temporarily unavailable", size);
             return 0;
 
         case EALREADY:
-            kstrncpy(str, "connection already in progress", sz);
+            kstrncpy(str, "connection already in progress", size);
             return 0;
 
         case EBADF:
-            kstrncpy(str, "bad file descriptor", sz);
+            kstrncpy(str, "bad file descriptor", size);
             return 0;
 
         case EBADMSG:
-            kstrncpy(str, "bad message", sz);
+            kstrncpy(str, "bad message", size);
             return 0;
 
         case EBUSY:
-            kstrncpy(str, "device or resource busy", sz);
+            kstrncpy(str, "device or resource busy", size);
             return 0;
 
         case ECANCELED:
-            kstrncpy(str, "operation canceled", sz);
+            kstrncpy(str, "operation canceled", size);
             return 0;
 
         case ECHILD:
-            kstrncpy(str, "no child processes", sz);
+            kstrncpy(str, "no child processes", size);
             return 0;
 
         case ECONNABORTED:
-            kstrncpy(str, "connection aborted", sz);
+            kstrncpy(str, "connection aborted", size);
             return 0;
 
         case ECONNREFUSED:
-            kstrncpy(str, "connection refused", sz);
+            kstrncpy(str, "connection refused", size);
             return 0;
 
         case ECONNRESET:
-            kstrncpy(str, "connection reset", sz);
+            kstrncpy(str, "connection reset", size);
             return 0;
 
         case EDEADLK:
-            kstrncpy(str, "resource deadlock would occur", sz);
+            kstrncpy(str, "resource deadlock would occur", size);
             return 0;
 
         case EDESTADDRREQ:
-            kstrncpy(str, "destination address required", sz);
+            kstrncpy(str, "destination address required", size);
             return 0;
 
         case EDQUOT:
-            kstrncpy(str, "disk quota exceeded", sz);
+            kstrncpy(str, "disk quota exceeded", size);
             return 0;
 
         case EEXIST:
-            kstrncpy(str, "file exists", sz);
+            kstrncpy(str, "file exists", size);
             return 0;
 
         case EFAULT:
-            kstrncpy(str, "bad address", sz);
+            kstrncpy(str, "bad address", size);
             return 0;
 
         case EFBIG:
-            kstrncpy(str, "file too large", sz);
+            kstrncpy(str, "file too large", size);
             return 0;
 
         case EHOSTUNREACH:
-            kstrncpy(str, "host is unreachable", sz);
+            kstrncpy(str, "host is unreachable", size);
             return 0;
 
         case EIDRM:
-            kstrncpy(str, "identifier removed", sz);
+            kstrncpy(str, "identifier removed", size);
             return 0;
 
         case EINPROGRESS:
-            kstrncpy(str, "operation in progress", sz);
+            kstrncpy(str, "operation in progress", size);
             return 0;
 
         case EINTR:
-            kstrncpy(str, "interrupted function call", sz);
+            kstrncpy(str, "interrupted function call", size);
             return 0;
 
         case EINVAL:
-            kstrncpy(str, "invalid argument", sz);
+            kstrncpy(str, "invalid argument", size);
             return 0;
 
         case EIO:
-            kstrncpy(str, "input/output error", sz);
+            kstrncpy(str, "input/output error", size);
             return 0;
 
         case EISCONN:
-            kstrncpy(str, "socket is connected", sz);
+            kstrncpy(str, "socket is connected", size);
             return 0;
 
         case EISDIR:
-            kstrncpy(str, "is a directory", sz);
+            kstrncpy(str, "is a directory", size);
             return 0;
 
         case ELOOP:
-            kstrncpy(str, "too many levels of symbolic links", sz);
+            kstrncpy(str, "too many levels of symbolic links", size);
             return 0;
 
         case EMFILE:
-            kstrncpy(str, "too many open files", sz);
+            kstrncpy(str, "too many open files", size);
             return 0;
 
         case EMLINK:
-            kstrncpy(str, "too many links", sz);
+            kstrncpy(str, "too many links", size);
             return 0;
 
         case EMSGSIZE:
-            kstrncpy(str, "message too long", sz);
+            kstrncpy(str, "message too long", size);
             return 0;
 
         case EMULTIHOP:
-            kstrncpy(str, "multihop attempted", sz);
+            kstrncpy(str, "multihop attempted", size);
             return 0;
 
         case ENAMETOOLONG:
-            kstrncpy(str, "filename too long", sz);
+            kstrncpy(str, "filename too long", size);
             return 0;
 
         case ENETDOWN:
-            kstrncpy(str, "network is down", sz);
+            kstrncpy(str, "network is down", size);
             return 0;
 
         case ENETRESET:
-            kstrncpy(str, "connection aborted by network", sz);
+            kstrncpy(str, "connection aborted by network", size);
             return 0;
 
         case ENETUNREACH:
-            kstrncpy(str, "network unreachable", sz);
+            kstrncpy(str, "network unreachable", size);
             return 0;
 
         case ENFILE:
-            kstrncpy(str, "too many files open in system", sz);
+            kstrncpy(str, "too many files open in system", size);
             return 0;
 
         case ENOBUFS:
-            kstrncpy(str, "no buffer space available", sz);
+            kstrncpy(str, "no buffer space available", size);
             return 0;
 
         case ENODATA:
-            kstrncpy(str, "no message is available on the stream head read queue", sz);
+            kstrncpy(str, "no message is available on the stream head read queue", size);
             return 0;
 
         case ENODEV:
-            kstrncpy(str, "no such device", sz);
+            kstrncpy(str, "no such device", size);
             return 0;
 
         case ENOENT:
-            kstrncpy(str, "no such file or directory", sz);
+            kstrncpy(str, "no such file or directory", size);
             return 0;
 
         case ENOEXEC:
-            kstrncpy(str, "exec format error", sz);
+            kstrncpy(str, "exec format error", size);
             return 0;
 
         case ENOLCK:
-            kstrncpy(str, "no locks available", sz);
+            kstrncpy(str, "no locks available", size);
             return 0;
 
         case ENOLINK:
-            kstrncpy(str, "link has been severed", sz);
+            kstrncpy(str, "link has been severed", size);
             return 0;
 
         case ENOMEM:
-            kstrncpy(str, "not enough space", sz);
+            kstrncpy(str, "not enough space", size);
             return 0;
 
         case ENOMSG:
-            kstrncpy(str, "no message of the desired type", sz);
+            kstrncpy(str, "no message of the desired type", size);
             return 0;
 
         case ENOPROTOOPT:
-            kstrncpy(str, "protocol not available", sz);
+            kstrncpy(str, "protocol not available", size);
             return 0;
 
         case ENOSPC:
-            kstrncpy(str, "no space left on device", sz);
+            kstrncpy(str, "no space left on device", size);
             return 0;
 
         case ENOSR:
-            kstrncpy(str, "no stream resources", sz);
+            kstrncpy(str, "no stream resources", size);
             return 0;
 
         case ENOSTR:
-            kstrncpy(str, "not a stream", sz);
+            kstrncpy(str, "not a stream", size);
             return 0;
 
         case ENOSYS:
-            kstrncpy(str, "function not implemented", sz);
+            kstrncpy(str, "function not implemented", size);
             return 0;
 
         case ENOTCONN:
-            kstrncpy(str, "the socket is not connected", sz);
+            kstrncpy(str, "the socket is not connected", size);
             return 0;
 
         case ENOTDIR:
-            kstrncpy(str, "not a directory", sz);
+            kstrncpy(str, "not a directory", size);
             return 0;
 
         case ENOTEMPTY:
-            kstrncpy(str, "directory not empty", sz);
+            kstrncpy(str, "directory not empty", size);
             return 0;
 
         case ENOTSOCK:
-            kstrncpy(str, "not a socket", sz);
+            kstrncpy(str, "not a socket", size);
             return 0;
 
         case ENOTSUP:
-            kstrncpy(str, "operation not supported", sz);
+            kstrncpy(str, "operation not supported", size);
             return 0;
 
         case ENOTTY:
-            kstrncpy(str, "inappropriate i/o control operation", sz);
+            kstrncpy(str, "inappropriate i/o control operation", size);
             return 0;
 
         case ENXIO:
-            kstrncpy(str, "no such device or address", sz);
+            kstrncpy(str, "no such device or address", size);
             return 0;
 
         case EOPNOTSUPP:
-            kstrncpy(str, "operation not supported on socket", sz);
+            kstrncpy(str, "operation not supported on socket", size);
             return 0;
 
         case EOVERFLOW:
-            kstrncpy(str, "value too large to be stored in data type", sz);
+            kstrncpy(str, "value too large to be stored in data type", size);
             return 0;
 
         case EPERM:
-            kstrncpy(str, "operation not permitted", sz);
+            kstrncpy(str, "operation not permitted", size);
             return 0;
 
         case EPIPE:
-            kstrncpy(str, "broken pipe", sz);
+            kstrncpy(str, "broken pipe", size);
             return 0;
 
         case EPROTO:
-            kstrncpy(str, "protocol error", sz);
+            kstrncpy(str, "protocol error", size);
             return 0;
 
         case EPROTONOSUPPORT:
-            kstrncpy(str, "protocol not supported", sz);
+            kstrncpy(str, "protocol not supported", size);
             return 0;
 
         case EPROTOTYPE:
-            kstrncpy(str, "protocol wrong type for socket", sz);
+            kstrncpy(str, "protocol wrong type for socket", size);
             return 0;
 
         case EROFS:
-            kstrncpy(str, "read-only file system", sz);
+            kstrncpy(str, "read-only file system", size);
             return 0;
 
         case ESPIPE:
-            kstrncpy(str, "invalid seek", sz);
+            kstrncpy(str, "invalid seek", size);
             return 0;
 
         case ESRCH:
-            kstrncpy(str, "no such process", sz);
+            kstrncpy(str, "no such process", size);
             return 0;
 
         case ESTALE:
-            kstrncpy(str, "stale file handle", sz);
+            kstrncpy(str, "stale file handle", size);
             return 0;
 
         case ETIME:
-            kstrncpy(str, "stream ioctl() timeout", sz);
+            kstrncpy(str, "stream ioctl() timeout", size);
             return 0;
 
         case ETIMEDOUT:
-            kstrncpy(str, "connection timed out", sz);
+            kstrncpy(str, "connection timed out", size);
             return 0;
 
         case ETXTBSY:
-            kstrncpy(str, "text file busy", sz);
+            kstrncpy(str, "text file busy", size);
             return 0;
 
         case EWOULDBLOCK:
-            kstrncpy(str, "operation would block", sz);
+            kstrncpy(str, "operation would block", size);
             return 0;
 
         case EXDEV:
-            kstrncpy(str, "cross-device link", sz);
+            kstrncpy(str, "cross-device link", size);
             return 0;
 
         case 0:
-            kstrncpy(str, "no error", sz);
+            kstrncpy(str, "no error", size);
             return 0;
 
         default:
-            snprintf(str, sz, "unknown errnum (%d)", errnum);
+            snprintf(str, size, "unknown errnum (%d)", errnum);
             return -EINVAL;
     }
 }
@@ -494,7 +494,7 @@ size_t strlen(const char* restrict str)
     return i;
 }
 
-char* strncat(char* restrict dst, const char* restrict src, size_t sz)
+char* strncat(char* restrict dst, const char* restrict src, size_t size)
 {
     char* save = dst;
 
@@ -502,51 +502,51 @@ char* strncat(char* restrict dst, const char* restrict src, size_t sz)
         dst += 1;
     }
 
-    while(sz && (*dst++ = *src++)) {
-        sz -= 1;
+    while(size && (*dst++ = *src++)) {
+        size -= 1;
     }
 
-    if(sz == 0) {
+    if(size == 0) {
         *dst = 0;
     }
 
     return save;
 }
 
-int strncmp(const char* restrict sa, const char* restrict sb, size_t sz)
+int strncmp(const char* restrict sa, const char* restrict sb, size_t size)
 {
-    while(sz-- && *sa && *sa == *sb) {
+    while(size-- && *sa && *sa == *sb) {
         sa += 1;
         sb += 1;
     }
 
-    if(sz == SIZE_MAX) {
+    if(size == SIZE_MAX) {
         return 0;
     }
 
     return *sa - *sb;
 }
 
-char* strncpy(char* restrict dst, const char* restrict src, size_t sz)
+char* strncpy(char* restrict dst, const char* restrict src, size_t size)
 {
     char* save = dst;
 
-    while(sz && (*dst++ = *src++)) {
-        sz -= 1;
+    while(size && (*dst++ = *src++)) {
+        size -= 1;
     }
 
-    while(sz-- > 1) {
+    while(size-- > 1) {
         *dst++ = 0;
     }
 
     return save;
 }
 
-size_t strnlen(const char* restrict str, size_t sz)
+size_t strnlen(const char* restrict str, size_t size)
 {
     size_t i;
 
-    for(i = 0; *str++ && i < sz; ++i) {
+    for(i = 0; *str++ && i < size; ++i) {
         // empty
     }
 

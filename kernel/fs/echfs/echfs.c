@@ -13,9 +13,9 @@
 
 #define ECHFS_RESERVED_BLOCKS UINT64_C(16)
 
-static int echfs_probe(struct vfs* restrict fs, const struct blk_device* restrict device)
+static int echfs_probe(vfs_t* restrict fs, const blk_device_t* restrict device)
 {
-    struct echfs_identity identity;
+    echfs_identity_t identity;
 
     int retval = blk_read_sector_prefix(device, 0, &identity, sizeof(identity));
 
@@ -30,7 +30,7 @@ static int echfs_probe(struct vfs* restrict fs, const struct blk_device* restric
     return 0;
 }
 
-static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restrict device, const struct cmdline* restrict params)
+static int echfs_mount(vfs_t* restrict fs, const blk_device_t* restrict device, const cmdline_t* restrict params)
 {
     if(device == nullptr) {
         return -EINVAL;
@@ -38,7 +38,7 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
 
     size_t sector_size = device->sector_size;
 
-    struct echfs_identity* identity = kmalloc(sizeof(struct echfs_identity));
+    echfs_identity_t* identity = kmalloc(sizeof(echfs_identity_t));
 
     if(identity == nullptr) {
         return -ENOMEM;
@@ -74,13 +74,13 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     uint64_t dir_size = maindir_size;
     uint64_t data_start = dir_start + dir_size;
 
-    struct echfs_vfs_context* context = kmalloc(sizeof(struct echfs_vfs_context));
+    echfs_vfs_context_t* context = kmalloc(sizeof(echfs_vfs_context_t));
 
     if(context == nullptr) {
         return -ENOMEM;
     }
 
-    memset(context, 0, sizeof(struct echfs_vfs_context));
+    memset(context, 0, sizeof(echfs_vfs_context_t));
 
     mutex_init(&context->lock);
 
@@ -97,20 +97,20 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     context->dir_start = dir_start;
     context->dir_size = dir_size;
     context->data_start = data_start;
-    context->dir_entries = dir_size * block_size / sizeof(struct echfs_dirent);
+    context->dir_entries = dir_size * block_size / sizeof(echfs_dirent_t);
 
     context->next_free_hint = data_start;
-    context->devnode = fcache_dev_create(fs);
+    context->device_node = fcache_dev_create(fs);
 
-    if(context->devnode == nullptr) {
+    if(context->device_node == nullptr) {
         kfree(context);
         return -ENOMEM;
     }
 
-    struct echfs_vnode_context* root_ctx = slab_alloc(sizeof(struct echfs_vnode_context));
+    echfs_vnode_context_t* root_ctx = slab_alloc(sizeof(echfs_vnode_context_t));
 
     if(root_ctx == nullptr) {
-        fcache_dev_destroy(context->devnode);
+        fcache_dev_destroy(context->device_node);
         kfree(context);
         return -ENOMEM;
     }
@@ -122,17 +122,17 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     root_ctx->cached_block = ECHFS_DIR_ID_ROOT;
     root_ctx->cached_block_idx = 0;
 
-    struct vnode* root = vnode_alloc(VNODE_DIRECTORY, &echfs_vnode_ops, root_ctx);
+    vnode_t* root = vnode_alloc(VNODE_DIRECTORY, &echfs_vnode_ops, root_ctx);
 
     if(root == nullptr) {
         slab_free(root_ctx);
-        fcache_dev_destroy(context->devnode);
+        fcache_dev_destroy(context->device_node);
         kfree(context);
         return -ENOMEM;
     }
 
     root->fs = fs;
-    root->nodenumber = (ino_t)(-1);
+    root->ino = (ino_t)(-1);
 
     fs->root = root;
     fs->ctxdata = context;
@@ -141,11 +141,11 @@ static int echfs_mount(struct vfs* restrict fs, const struct blk_device* restric
     return 0;
 }
 
-static int statvfs_locked(struct vfs* restrict fs, struct k_statvfs* restrict out)
+static int statvfs_locked(vfs_t* restrict fs, statvfs_t* restrict out)
 {
-    struct echfs_vfs_context* context = fs->ctxdata;
+    echfs_vfs_context_t* context = fs->ctxdata;
 
-    memset(out, 0, sizeof(struct k_statvfs));
+    memset(out, 0, sizeof(statvfs_t));
 
     size_t free_blocks = 0;
     size_t data_blocks = context->total_blocks - context->data_start;
@@ -169,17 +169,17 @@ static int statvfs_locked(struct vfs* restrict fs, struct k_statvfs* restrict ou
     return 0;
 }
 
-static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
+static int fillnode_locked(vfs_t* restrict fs, vnode_t* restrict node)
 {
-    struct echfs_vfs_context* context = fs->ctxdata;
+    echfs_vfs_context_t* context = fs->ctxdata;
 
-    uint64_t index = (uint64_t)(node->nodenumber);
+    uint64_t index = (uint64_t)(node->ino);
 
     if(index >= context->dir_entries) {
         return -ENOENT;
     }
 
-    struct echfs_dirent entry;
+    echfs_dirent_t entry;
     int retval = echfs_dirent_read(context, index, &entry);
 
     if(retval < 0) {
@@ -190,7 +190,7 @@ static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
         return -ENOENT;
     }
 
-    struct echfs_vnode_context* ctx = slab_alloc(sizeof(struct echfs_vnode_context));
+    echfs_vnode_context_t* ctx = slab_alloc(sizeof(echfs_vnode_context_t));
 
     if(ctx == nullptr) {
         return -ENOMEM;
@@ -206,53 +206,53 @@ static int fillnode_locked(struct vfs* restrict fs, struct vnode* restrict node)
     node->ctxdata = ctx;
 
     if(entry.object_type == 1) {
-        node->nodetype = VNODE_DIRECTORY;
+        node->type = VNODE_DIRECTORY;
     }
     else {
-        node->nodetype = VNODE_FILE;
+        node->type = VNODE_FILE;
     }
 
     return 0;
 }
 
-static int echfs_unmount(struct vfs* restrict fs)
+static int echfs_unmount(vfs_t* restrict fs)
 {
-    struct echfs_vfs_context* context = fs->ctxdata;
+    echfs_vfs_context_t* context = fs->ctxdata;
 
     vnode_decref(fs->root);
 
-    fcache_dev_destroy(context->devnode);
+    fcache_dev_destroy(context->device_node);
     mutex_deinit(&context->lock);
     kfree(context);
 
     return 0;
 }
 
-static int echfs_statvfs(struct vfs* restrict fs, struct k_statvfs* restrict out)
+static int echfs_statvfs(vfs_t* restrict fs, statvfs_t* restrict out)
 {
-    struct echfs_vfs_context* context = fs->ctxdata;
+    echfs_vfs_context_t* context = fs->ctxdata;
     mutex_acquire(&context->lock);
     int retval = statvfs_locked(fs, out);
     mutex_release(&context->lock);
     return retval;
 }
 
-static int echfs_fillnode(struct vfs* restrict fs, struct vnode* restrict node)
+static int echfs_fillnode(vfs_t* restrict fs, vnode_t* restrict node)
 {
-    struct echfs_vfs_context* context = fs->ctxdata;
+    echfs_vfs_context_t* context = fs->ctxdata;
     mutex_acquire(&context->lock);
     int retval = fillnode_locked(fs, node);
     mutex_release(&context->lock);
     return retval;
 }
 
-static int echfs_sync(struct vfs* restrict fs)
+static int echfs_sync(vfs_t* restrict fs)
 {
-    struct echfs_vfs_context* context = fs->ctxdata;
-    return vnode_fsync(context->devnode);
+    echfs_vfs_context_t* context = fs->ctxdata;
+    return vnode_fsync(context->device_node);
 }
 
-static const struct vfs_ops echfs_vfs_ops = {
+static const vfs_ops_t echfs_vfs_ops = {
     .probe = &echfs_probe,
     .mount = &echfs_mount,
     .statvfs = &echfs_statvfs,
@@ -261,14 +261,14 @@ static const struct vfs_ops echfs_vfs_ops = {
     .sync = &echfs_sync,
 };
 
-static struct vfs_driver echfs_vfs_driver = {
-    .identifier = "echfs",
+static vfs_driver_t echfs_vfs_driver = {
+    .name = "echfs",
     .ops = &echfs_vfs_ops,
 };
 
 static void init_echfs(void)
 {
-    add_vfs_driver(&echfs_vfs_driver);
+    vfs_driver_add(&echfs_vfs_driver);
 }
 
 initcall_bsp_fs(init_echfs, INIT_EARLY);

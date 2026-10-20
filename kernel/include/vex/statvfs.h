@@ -5,4 +5,4 @@
 #define ST_RDONLY __k_ST_RDONLY
 #define ST_NOSUID __k_ST_NOSUID
 
-#define k_statvfs __k_statvfs
+typedef struct __k_statvfs statvfs_t;

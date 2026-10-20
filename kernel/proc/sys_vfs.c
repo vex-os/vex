@@ -10,18 +10,97 @@
 #include <vex/uaccess.h>
 #include <vex/vnode.h>
 
+static intptr_t syncfs_file(file_t* restrict file, const uintptr_t* restrict args)
+{
+    vnode_t* node;
+    int retval = vfs_cross_mount(file->node, &node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    vfs_t* fs = node->fs;
+
+    if(fs == nullptr) {
+        retval = -EINVAL;
+    }
+    else {
+        retval = vfs_sync_fs(fs);
+    }
+
+    vnode_decref(node);
+
+    return retval;
+}
+
+static intptr_t fsync_file(file_t* restrict file, const uintptr_t* restrict args)
+{
+    vnode_t* node;
+    int retval = vfs_cross_mount(file->node, &node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    vfs_t* fs = node->fs;
+
+    retval = vnode_fsync(node);
+
+    if(retval == 0 && fs && fs->ops->sync) {
+        retval = fs->ops->sync(fs);
+    }
+
+    vnode_decref(node);
+
+    return retval;
+}
+
+static intptr_t statvfs_file(file_t* restrict file, const uintptr_t* restrict args)
+{
+    vnode_t* node;
+    int retval = vfs_cross_mount(file->node, &node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    vfs_t* fs = node->fs;
+    statvfs_t st;
+
+    if(fs == nullptr) {
+        retval = -EINVAL;
+    }
+    else {
+        retval = vfs_statvfs(fs, &st);
+    }
+
+    vnode_decref(node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    ssize_t copied = user_copyout(args[1], &st, sizeof(st));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    return 0;
+}
+
 static intptr_t sys_mount(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
-    const struct credentials* cred = thrd->cred;
+    const credentials_t* credentials = thread->credentials;
 
-    if(!cred_capable(cred, CAP_MOUNT)) {
+    if(!cred_capable(credentials, CAP_MOUNT)) {
         return -EPERM;
     }
 
@@ -52,7 +131,7 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
         params_ptr = params;
     }
 
-    const struct blk_device* device = nullptr;
+    const blk_device_t* device = nullptr;
 
     if(args[0]) {
         char source[PATH_SIZE];
@@ -63,30 +142,30 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
         }
 
         if(source[0] != 0) {
-            struct vnode* stem;
-            int retval = syscall_dirfd(AT_FDCWD, source, &stem);
+            vnode_t* base_dir;
+            int retval = syscall_dirfd(AT_FDCWD, source, &base_dir);
 
             if(retval < 0) {
                 return retval;
             }
 
-            struct vnode* source_node;
-            retval = path_resolve_at(stem, source, 0, cred, &source_node);
+            vnode_t* source_node;
+            retval = path_resolve_at(base_dir, source, 0, credentials, &source_node);
 
-            if(stem) {
-                vnode_decref(stem);
+            if(base_dir) {
+                vnode_decref(base_dir);
             }
 
             if(retval < 0) {
                 return retval;
             }
 
-            if(source_node->nodetype != VNODE_BLOCK_DEV || source_node->blkdev == nullptr) {
+            if(source_node->type != VNODE_BLOCK_DEV || source_node->device == nullptr) {
                 vnode_decref(source_node);
                 return -EINVAL;
             }
 
-            device = source_node->blkdev;
+            device = source_node->device;
             blk_device_incref(device);
             vnode_decref(source_node);
         }
@@ -103,16 +182,16 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
 
 static intptr_t sys_umount(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
-    const struct credentials* cred = thrd->cred;
+    const credentials_t* credentials = thread->credentials;
 
-    if(!cred_capable(cred, CAP_MOUNT)) {
+    if(!cred_capable(credentials, CAP_MOUNT)) {
         return -EPERM;
     }
 
@@ -131,93 +210,14 @@ static intptr_t sys_sync(const uintptr_t* restrict args)
     return vfs_sync_all();
 }
 
-static intptr_t syncfs_file(struct file* restrict fp, const uintptr_t* restrict args)
-{
-    struct vnode* node;
-    int retval = vfs_cross_mount(fp->node, &node);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    struct vfs* fs = node->fs;
-
-    if(fs == nullptr) {
-        retval = -EINVAL;
-    }
-    else {
-        retval = vfs_sync_fs(fs);
-    }
-
-    vnode_decref(node);
-
-    return retval;
-}
-
 static intptr_t sys_syncfs(const uintptr_t* restrict args)
 {
     return syscall_with_fd(args, &syncfs_file);
 }
 
-static intptr_t fsync_file(struct file* restrict fp, const uintptr_t* restrict args)
-{
-    struct vnode* node;
-    int retval = vfs_cross_mount(fp->node, &node);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    struct vfs* fs = node->fs;
-
-    retval = vnode_fsync(node);
-
-    if(retval == 0 && fs && fs->ops->sync) {
-        retval = fs->ops->sync(fs);
-    }
-
-    vnode_decref(node);
-
-    return retval;
-}
-
 static intptr_t sys_fsync(const uintptr_t* restrict args)
 {
     return syscall_with_fd(args, &fsync_file);
-}
-
-static intptr_t statvfs_file(struct file* restrict fp, const uintptr_t* restrict args)
-{
-    struct vnode* node;
-    int retval = vfs_cross_mount(fp->node, &node);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    struct vfs* fs = node->fs;
-    struct k_statvfs st;
-
-    if(fs == nullptr) {
-        retval = -EINVAL;
-    }
-    else {
-        retval = vfs_statvfs(fs, &st);
-    }
-
-    vnode_decref(node);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    ssize_t copied = user_copyout(args[1], &st, sizeof(st));
-
-    if(copied < 0) {
-        return copied;
-    }
-
-    return 0;
 }
 
 static intptr_t sys_statvfs(const uintptr_t* restrict args)

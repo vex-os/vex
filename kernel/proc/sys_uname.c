@@ -6,7 +6,7 @@
 
 static intptr_t sys_uname(const uintptr_t* restrict args)
 {
-    struct k_utsname uname;
+    utsname_t uname;
     kstrncpy(uname.sysname, k_sysname, sizeof(uname.sysname));
     kstrncpy(uname.release, k_release, sizeof(uname.release));
     kstrncpy(uname.version, k_version, sizeof(uname.version));

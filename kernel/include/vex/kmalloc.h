@@ -4,8 +4,8 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-void* kmalloc(size_t sz) __nodiscard;
-void* krealloc(void* restrict ptr, size_t sz) __nodiscard;
+void* kmalloc(size_t size) __nodiscard;
+void* krealloc(void* restrict ptr, size_t size) __nodiscard;
 void kfree(void* restrict ptr);
 
 char* kstrdup(const char* restrict string) __nodiscard;

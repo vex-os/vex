@@ -5,62 +5,62 @@
 #include <vex/spinlock.h>
 #include <vex/time.h>
 
-static struct clocksrc* clocksrc_head = nullptr;
-static struct clocksrc* clocksrc_active = nullptr;
-static spinlock_type clocksrc_lock = SPINLOCK_INIT;
+static clock_source_t* clock_source_head = nullptr;
+static clock_source_t* active_clock_source = nullptr;
+static spinlock_t clock_source_lock = SPINLOCK_INIT;
 
-static void compute_mult_shift(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
+static void compute_mult_shift(clock_source_t* restrict source, uint64_t scale, uint64_t frequency)
 {
     uint64_t freq = scale * frequency;
     uint64_t nsec_per_sec = NSEC_PER_SEC;
 
-    src->priv.shift = __builtin_clzll(nsec_per_sec);
-    src->priv.mult = (nsec_per_sec << src->priv.shift) / freq;
+    source->priv.shift = __builtin_clzll(nsec_per_sec);
+    source->priv.mult = (nsec_per_sec << source->priv.shift) / freq;
 }
 
 static uint64_t update_nolock(void)
 {
-    if(clocksrc_active == nullptr) {
+    if(active_clock_source == nullptr) {
         return UINT64_C(0);
     }
 
-    uint64_t now = clocksrc_active->ops->read(clocksrc_active) & clocksrc_active->mask;
+    uint64_t now = active_clock_source->ops->read(active_clock_source) & active_clock_source->mask;
     uint128_t delta;
 
-    if(now >= clocksrc_active->priv.last) {
-        delta = now - clocksrc_active->priv.last;
+    if(now >= active_clock_source->priv.last) {
+        delta = now - active_clock_source->priv.last;
     }
     else {
-        delta = clocksrc_active->mask - clocksrc_active->priv.last + now + UINT64_C(1);
+        delta = active_clock_source->mask - active_clock_source->priv.last + now + UINT64_C(1);
     }
 
-    delta *= clocksrc_active->priv.mult;
-    delta >>= clocksrc_active->priv.shift;
+    delta *= active_clock_source->priv.mult;
+    delta >>= active_clock_source->priv.shift;
 
-    clocksrc_active->priv.base += delta;
-    clocksrc_active->priv.last = now;
+    active_clock_source->priv.base += delta;
+    active_clock_source->priv.last = now;
 
-    return clocksrc_active->priv.base;
+    return active_clock_source->priv.base;
 }
 
 // The new source picks up where the
 // old one left off, so time never goes backwards
-static void activate_nolock(struct clocksrc* restrict src)
+static void activate_nolock(clock_source_t* restrict source)
 {
     uint64_t now_nsec = update_nolock();
 
-    clocksrc_active = src;
+    active_clock_source = source;
 
-    if(src) {
-        src->priv.last = src->ops->read(src) & src->mask;
-        src->priv.base = now_nsec;
+    if(source) {
+        source->priv.last = source->ops->read(source) & source->mask;
+        source->priv.base = now_nsec;
     }
 }
 
-static bool is_registered_nolock(const struct clocksrc* restrict src)
+static bool is_registered_nolock(const clock_source_t* restrict source)
 {
-    for(struct clocksrc* it = clocksrc_head; it; it = it->priv.next) {
-        if(it == src) {
+    for(clock_source_t* it = clock_source_head; it; it = it->priv.next) {
+        if(it == source) {
             return true;
         }
     }
@@ -68,81 +68,81 @@ static bool is_registered_nolock(const struct clocksrc* restrict src)
     return false;
 }
 
-int add_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
+int clock_source_add_raw(clock_source_t* restrict source, uint64_t scale, uint64_t frequency)
 {
-    bool intr_state = spinlock_acquire_intr(&clocksrc_lock);
+    bool intr_state = spinlock_acquire_intr(&clock_source_lock);
 
-    if(is_registered_nolock(src)) {
-        spinlock_release_intr(&clocksrc_lock, intr_state);
+    if(is_registered_nolock(source)) {
+        spinlock_release_intr(&clock_source_lock, intr_state);
         return -EEXIST;
     }
 
-    compute_mult_shift(src, scale, frequency);
+    compute_mult_shift(source, scale, frequency);
 
-    src->priv.next = clocksrc_head;
-    clocksrc_head = src;
+    source->priv.next = clock_source_head;
+    clock_source_head = source;
 
-    bool activated = clocksrc_active == nullptr || src->rating > clocksrc_active->rating;
+    bool activated = active_clock_source == nullptr || source->rating > active_clock_source->rating;
 
     if(activated) {
-        activate_nolock(src);
+        activate_nolock(source);
     }
 
-    spinlock_release_intr(&clocksrc_lock, intr_state);
+    spinlock_release_intr(&clock_source_lock, intr_state);
 
-    pr_verbose("clocksrc: added %s: rating=%u", src->identifier, src->rating);
+    pr_verbose("clocksrc: added %s: rating=%u", source->name, source->rating);
 
     if(activated) {
-        pr_verbose("clocksrc: %s is now active", src->identifier);
+        pr_verbose("clocksrc: %s is now active", source->name);
     }
 
     return 0;
 }
 
-int calibrate_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency)
+int clock_source_calibrate_raw(clock_source_t* restrict source, uint64_t scale, uint64_t frequency)
 {
-    bool intr_state = spinlock_acquire_intr(&clocksrc_lock);
+    bool intr_state = spinlock_acquire_intr(&clock_source_lock);
 
-    if(!is_registered_nolock(src)) {
-        spinlock_release_intr(&clocksrc_lock, intr_state);
+    if(!is_registered_nolock(source)) {
+        spinlock_release_intr(&clock_source_lock, intr_state);
         return -ENOENT;
     }
 
     // Ticks counted so far
     // still convert at the old rate
-    if(src == clocksrc_active) {
+    if(source == active_clock_source) {
         update_nolock();
     }
 
-    compute_mult_shift(src, scale, frequency);
+    compute_mult_shift(source, scale, frequency);
 
-    spinlock_release_intr(&clocksrc_lock, intr_state);
+    spinlock_release_intr(&clock_source_lock, intr_state);
 
     return 0;
 }
 
-int remove_clocksrc(struct clocksrc* restrict src)
+int clock_source_remove(clock_source_t* restrict source)
 {
-    bool intr_state = spinlock_acquire_intr(&clocksrc_lock);
+    bool intr_state = spinlock_acquire_intr(&clock_source_lock);
 
-    struct clocksrc** prev = &clocksrc_head;
+    clock_source_t** prev = &clock_source_head;
 
-    while(*prev && *prev != src) {
+    while(*prev && *prev != source) {
         prev = &(*prev)->priv.next;
     }
 
     if(*prev == nullptr) {
-        spinlock_release_intr(&clocksrc_lock, intr_state);
+        spinlock_release_intr(&clock_source_lock, intr_state);
         return -ENOENT;
     }
 
-    *prev = src->priv.next;
+    *prev = source->priv.next;
 
-    struct clocksrc* best = nullptr;
-    bool was_active = clocksrc_active == src;
+    clock_source_t* best = nullptr;
+    bool was_active = active_clock_source == source;
 
     if(was_active) {
-        for(struct clocksrc* it = clocksrc_head; it; it = it->priv.next) {
+        for(clock_source_t* it = clock_source_head; it; it = it->priv.next) {
             if(best == nullptr || it->rating > best->rating) {
                 best = it;
             }
@@ -151,31 +151,31 @@ int remove_clocksrc(struct clocksrc* restrict src)
         activate_nolock(best);
     }
 
-    spinlock_release_intr(&clocksrc_lock, intr_state);
+    spinlock_release_intr(&clock_source_lock, intr_state);
 
     if(was_active && best) {
-        pr_verbose("clocksrc: %s is now active", best->identifier);
+        pr_verbose("clocksrc: %s is now active", best->name);
     }
 
     return 0;
 }
 
-struct clocksrc* active_clocksrc(void)
+clock_source_t* clock_source_active(void)
 {
-    return clocksrc_active;
+    return active_clock_source;
 }
 
-uint64_t clocksrc_nsec(void)
+uint64_t clock_source_now_ns(void)
 {
-    bool intr_state = spinlock_acquire_intr(&clocksrc_lock);
+    bool intr_state = spinlock_acquire_intr(&clock_source_lock);
     uint64_t now_nsec = update_nolock();
-    spinlock_release_intr(&clocksrc_lock, intr_state);
+    spinlock_release_intr(&clock_source_lock, intr_state);
     return now_nsec;
 }
 
-void clocksrc_update(void)
+void clock_source_update(void)
 {
-    bool intr_state = spinlock_acquire_intr(&clocksrc_lock);
+    bool intr_state = spinlock_acquire_intr(&clock_source_lock);
     update_nolock();
-    spinlock_release_intr(&clocksrc_lock, intr_state);
+    spinlock_release_intr(&clock_source_lock, intr_state);
 }

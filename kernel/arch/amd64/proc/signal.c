@@ -11,17 +11,21 @@
 
 #define RED_ZONE 128
 
-// The flags a handler may hand back through sigreturn: arithmetic, TF, DF, AC and RF
+// The flags a handler may hand back
+// through sigreturn: arithmetic, TF, DF, AC and RF
 #define AMD64_RFLAGS_USER UINT64_C(0x0000000000050DD5)
 
-// The handler's ret pops restorer, which leaves the stack pointer at uc for sigreturn
-struct sigframe {
+typedef struct sigframe_s sigframe_t;
+
+// The handler's ret pops restorer which
+// leaves the stack pointer at uc for sigreturn
+struct sigframe_s {
     uint64_t restorer;
-    struct k_ucontext uc;
-    struct k_siginfo info;
+    ucontext_t uc;
+    siginfo_t info;
 };
 
-static void save_mcontext(struct k_mcontext* restrict mc, const struct hart_context* restrict ctx)
+static void save_mcontext(mcontext_t* restrict mc, const hart_context_t* restrict ctx)
 {
     mc->mc_rax = ctx->amd64_rax;
     mc->mc_rbx = ctx->amd64_rbx;
@@ -43,7 +47,7 @@ static void save_mcontext(struct k_mcontext* restrict mc, const struct hart_cont
     mc->mc_rflags = ctx->amd64_rflags;
 }
 
-static void load_mcontext(struct hart_context* restrict ctx, const struct k_mcontext* restrict mc)
+static void load_mcontext(hart_context_t* restrict ctx, const mcontext_t* restrict mc)
 {
     ctx->amd64_rax = mc->mc_rax;
     ctx->amd64_rbx = mc->mc_rbx;
@@ -65,11 +69,11 @@ static void load_mcontext(struct hart_context* restrict ctx, const struct k_mcon
     ctx->amd64_rflags = (ctx->amd64_rflags & ~AMD64_RFLAGS_USER) | (mc->mc_rflags & AMD64_RFLAGS_USER);
 }
 
-int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restrict ctx, const struct k_sigaction* restrict action,
-    const struct k_siginfo* restrict info, sigset_t old_mask)
+int arch_signal_setup(thread_t* restrict thread, hart_context_t* restrict ctx, const sigaction_t* restrict action,
+    const siginfo_t* restrict info, sigset_t old_mask)
 {
-    struct process* proc = thrd->proc;
-    uintptr_t user_end = pmap_user_end(proc->vms->pmap);
+    process_t* process = thread->process;
+    uintptr_t user_end = pmap_user_end(process->vmspace->pmap);
 
     uintptr_t handler = (uintptr_t)(action->sa_handler);
     uintptr_t restorer = (uintptr_t)(action->sa_restorer);
@@ -78,40 +82,42 @@ int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restric
         return -EFAULT;
     }
 
-    bool on_altstack = signal_on_altstack(thrd, ctx->amd64_rsp);
+    bool on_altstack = signal_on_altstack(thread, ctx->amd64_rsp);
 
-    // The red zone belongs to the interrupted code, and an alternate stack has none to keep
+    // The red zone belongs to the interrupted
+    // code and an alternate stack has none to keep
     uintptr_t top = ctx->amd64_rsp - RED_ZONE;
     uintptr_t bottom = 0;
 
-    if((action->sa_flags & SA_ONSTACK) && thrd->sig_altstack_size && !on_altstack) {
-        top = thrd->sig_altstack + thrd->sig_altstack_size;
-        bottom = thrd->sig_altstack;
+    if((action->sa_flags & SA_ONSTACK) && thread->sig_altstack_size && !on_altstack) {
+        top = thread->sig_altstack + thread->sig_altstack_size;
+        bottom = thread->sig_altstack;
     }
 
     uintptr_t fpu_user = align_floor(top - fpu_state_size, FPU_STATE_ALIGN);
-    uintptr_t sp = align_floor(fpu_user - sizeof(struct sigframe), 16) - sizeof(uint64_t); // As if call pushed restorer
+    uintptr_t sp = align_floor(fpu_user - sizeof(sigframe_t), 16) - sizeof(uint64_t); // As if call pushed restorer
 
     if(top > user_end || ctx->amd64_rsp > user_end || sp >= top || sp < bottom) {
         return -EFAULT;
     }
 
-    // The registers still hold the thread's own state, nothing in the kernel uses them
-    void* fpu_state = fpu_state_of(thrd);
+    void* fpu_state = fpu_state_of(thread);
     fpu_save(fpu_state);
 
     if(user_copyout(fpu_user, fpu_state, fpu_state_size) < 0) {
         return -EFAULT;
     }
 
-    struct sigframe frame = { 0 };
+    sigframe_t frame = { 0 };
     frame.restorer = restorer;
     frame.uc.uc_flags = UC_FPU;
-    signal_altstack_get(thrd, ctx->amd64_rsp, &frame.uc.uc_stack);
+    signal_altstack_get(thread, ctx->amd64_rsp, &frame.uc.uc_stack);
+
     frame.uc.uc_sigmask = old_mask;
     frame.uc.uc_mcontext.mc_fpu_state = (void*)(fpu_user);
     frame.uc.uc_mcontext.mc_fpu_size = fpu_state_size;
     frame.info = *info;
+
     save_mcontext(&frame.uc.uc_mcontext, ctx);
 
     if(user_copyout(sp, &frame, sizeof(frame)) < 0) {
@@ -121,8 +127,8 @@ int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restric
     ctx->amd64_rip = handler;
     ctx->amd64_rsp = sp;
     ctx->amd64_rdi = info->si_signo;
-    ctx->amd64_rsi = sp + offsetof(struct sigframe, info);
-    ctx->amd64_rdx = sp + offsetof(struct sigframe, uc);
+    ctx->amd64_rsi = sp + offsetof(sigframe_t, info);
+    ctx->amd64_rdx = sp + offsetof(sigframe_t, uc);
     ctx->amd64_rax = 0;
     ctx->amd64_rflags &= ~(AMD64_RFLAGS_TF | AMD64_RFLAGS_DF);
 
@@ -135,18 +141,18 @@ int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restric
     return 0;
 }
 
-int arch_signal_return(struct thread* restrict thrd, struct hart_context* restrict ctx, sigset_t* restrict mask)
+int arch_signal_return(thread_t* restrict thread, hart_context_t* restrict ctx, sigset_t* restrict mask)
 {
-    struct process* proc = thrd->proc;
-    uintptr_t user_end = pmap_user_end(proc->vms->pmap);
+    process_t* process = thread->process;
+    uintptr_t user_end = pmap_user_end(process->vmspace->pmap);
 
-    struct k_ucontext uc;
+    ucontext_t uc;
 
     if(user_copyin(&uc, ctx->amd64_rsp, sizeof(uc)) < 0) {
         return -EFAULT;
     }
 
-    struct k_mcontext* mc = &uc.uc_mcontext;
+    mcontext_t* mc = &uc.uc_mcontext;
 
     if(mc->mc_rip >= user_end) {
         return -EFAULT;

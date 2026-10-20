@@ -13,13 +13,15 @@
 
 #define CTYPE_SIZE 256
 
-struct ctype_ent {
+typedef struct ctype_ent_s ctype_ent_t;
+
+struct ctype_ent_s {
     int lower;
     int upper;
     int flags;
 };
 
-static struct ctype_ent ctype[CTYPE_SIZE] = {
+static ctype_ent_t ctype[CTYPE_SIZE] = {
     /* NUL  */ { .lower = 0x00, .upper = 0x00, .flags = CT_CT },
     /* SOH  */ { .lower = 0x01, .upper = 0x01, .flags = CT_CT },
     /* STX  */ { .lower = 0x02, .upper = 0x02, .flags = CT_CT },

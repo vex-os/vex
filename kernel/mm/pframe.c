@@ -13,35 +13,35 @@
 
 // Indexed by frame number up
 // to the highest usable frame
-static struct pframe* pframes = nullptr;
+static pframe_t* pframes = nullptr;
 static size_t num_pframes = 0U;
 
 static uintptr_t storage_start = 0U;
 static size_t storage_length = 0U;
 
-struct pframe* pframe_of(uintptr_t phys)
+pframe_t* pframe_of(uintptr_t phys)
 {
     size_t index = phys / PAGE_SIZE;
     kassert(index < num_pframes);
     return &pframes[index];
 }
 
-uintptr_t pframe_phys(const struct pframe* restrict pf)
+uintptr_t pframe_phys(const pframe_t* restrict pframe)
 {
-    return (uintptr_t)(pf - pframes) * PAGE_SIZE;
+    return (uintptr_t)(pframe - pframes) * PAGE_SIZE;
 }
 
-void pframe_incref(struct pframe* restrict pf)
+void pframe_incref(pframe_t* restrict pframe)
 {
-    atomic_fetch_add(&pf->refcount, 1, ATOMIC_RELAXED);
+    atomic_fetch_add(&pframe->refcount, 1, ATOMIC_RELAXED);
 }
 
-bool pframe_decref(struct pframe* restrict pf)
+bool pframe_decref(pframe_t* restrict pframe)
 {
-    uint32_t refcount = atomic_load(&pf->refcount, ATOMIC_ACQUIRE);
+    uint32_t refcount = atomic_load(&pframe->refcount, ATOMIC_ACQUIRE);
 
     while(refcount > 1) {
-        if(atomic_cmpxchg_weak(&pf->refcount, &refcount, refcount - 1, ATOMIC_ACQ_REL, ATOMIC_ACQUIRE)) {
+        if(atomic_cmpxchg_weak(&pframe->refcount, &refcount, refcount - 1, ATOMIC_ACQ_REL, ATOMIC_ACQUIRE)) {
             return false;
         }
     }
@@ -49,9 +49,9 @@ bool pframe_decref(struct pframe* restrict pf)
     return true;
 }
 
-bool pframe_shared(const struct pframe* restrict pf)
+bool pframe_shared(const pframe_t* restrict pframe)
 {
-    return atomic_load(&pf->refcount, ATOMIC_ACQUIRE) > 1;
+    return atomic_load(&pframe->refcount, ATOMIC_ACQUIRE) > 1;
 }
 
 void pframe_storage(uintptr_t* restrict start, size_t* restrict length)
@@ -74,7 +74,7 @@ static void init_pframe(void)
     }
 
     num_pframes = usable_end / PAGE_SIZE;
-    storage_length = page_align_up(num_pframes * sizeof(struct pframe));
+    storage_length = page_align_up(num_pframes * sizeof(pframe_t));
 
     // Taken from above the DMA zone, so pdma keeps all of it
     for(size_t i = 0U; i < memmap->entry_count; ++i) {
@@ -106,7 +106,7 @@ static void init_pframe(void)
     memset(pframes, 0, storage_length);
 
     char hrsize_buffer[128];
-    hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), storage_length);
+    format_size_iec(hrsize_buffer, sizeof(hrsize_buffer), storage_length);
     pr_verbose("pframe: %zu frames described in %s at %p", num_pframes, hrsize_buffer, (void*)(storage_start));
 }
 

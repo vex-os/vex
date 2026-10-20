@@ -1,7 +1,7 @@
 #include <vex/atomic.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
-#include <vex/ireq.h>
+#include <vex/irq.h>
 #include <vex/limits.h>
 #include <vex/panic.h>
 #include <vex/pmap.h>
@@ -9,9 +9,9 @@
 
 static uint64_t tlb_generation;
 static bool tlb_ready;
-static unsigned tlb_ireq_number;
+static unsigned tlb_irq_number;
 
-static void tlb_ireq_handler(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
+static void tlb_irq_handler(unsigned number, const hart_context_t* restrict ctx, void* restrict ctxdata)
 {
     tlb_poll();
 }
@@ -22,7 +22,7 @@ void tlb_poll(void)
         return;
     }
 
-    struct hart_local* hart = this_hart();
+    hart_local_t* hart = this_hart();
 
     if(!atomic_load_n(&hart->tlb_online, ATOMIC_ACQUIRE)) {
         return;
@@ -46,16 +46,16 @@ void tlb_shootdown(void)
         return;
     }
 
-    struct hart_local* self = this_hart();
+    hart_local_t* self = this_hart();
     uint64_t generation = 1 + atomic_fetch_add(&tlb_generation, 1, ATOMIC_SEQ_CST);
 
     pmap_flush_all();
     atomic_store_n(&self->tlb_flushed, generation, ATOMIC_RELEASE);
 
-    hart_ipi(HART_IPI_EXCEPT_ME, tlb_ireq_number);
+    hart_ipi(HART_IPI_EXCEPT_ME, tlb_irq_number);
 
     for(unsigned long i = 0; i < num_harts; ++i) {
-        struct hart_local* hart = &harts[i];
+        hart_local_t* hart = &harts[i];
 
         if(hart == self || !atomic_load_n(&hart->tlb_online, ATOMIC_ACQUIRE)) {
             continue;
@@ -70,7 +70,7 @@ void tlb_shootdown(void)
 
 void tlb_hart_online(void)
 {
-    struct hart_local* hart = this_hart();
+    hart_local_t* hart = this_hart();
 
     pmap_flush_all();
     atomic_store_n(&hart->tlb_flushed, atomic_load_n(&tlb_generation, ATOMIC_SEQ_CST), ATOMIC_RELEASE);
@@ -80,10 +80,10 @@ void tlb_hart_online(void)
 
 static void init_tlb(void)
 {
-    tlb_ireq_number = add_ireq_handler(UINT_MAX, &tlb_ireq_handler, nullptr);
+    tlb_irq_number = irq_handler_add(UINT_MAX, &tlb_irq_handler, nullptr);
 
-    if(tlb_ireq_number == UINT_MAX) {
-        panic("tlb: out of ireq numbers");
+    if(tlb_irq_number == UINT_MAX) {
+        panic("tlb: out of irq numbers");
     }
 }
 

@@ -25,15 +25,15 @@ static unsigned access_for(unsigned flags)
     return mask;
 }
 
-int file_open_node(struct vnode* restrict node, unsigned flags, const struct credentials* restrict cred, struct file** restrict out)
+int file_open_node(vnode_t* restrict node, unsigned flags, const credentials_t* restrict credentials, file_t** restrict out)
 {
-    if(node->nodetype == VNODE_DIRECTORY && (flags & (O_WRONLY | O_TRUNC))) {
+    if(node->type == VNODE_DIRECTORY && (flags & (O_WRONLY | O_TRUNC))) {
         vnode_decref(node);
         return -EISDIR;
     }
 
     // Device nodes stay writable, the device isn't the filesystem they live on
-    if(node->nodetype == VNODE_FILE && (flags & (O_WRONLY | O_TRUNC)) && node->fs->readonly) {
+    if(node->type == VNODE_FILE && (flags & (O_WRONLY | O_TRUNC)) && node->fs->readonly) {
         vnode_decref(node);
         return -EROFS;
     }
@@ -45,11 +45,11 @@ int file_open_node(struct vnode* restrict node, unsigned flags, const struct cre
         return retval;
     }
 
-    if((flags & O_TRUNC) && node->nodetype == VNODE_FILE) {
-        struct vattr attr = { 0 };
+    if((flags & O_TRUNC) && node->type == VNODE_FILE) {
+        vnode_attr_t attr = { 0 };
         attr.mask = VATTR_SIZE;
         attr.size = 0;
-        retval = vnode_remove_privs(node, cred);
+        retval = vnode_remove_privs(node, credentials);
 
         if(retval == 0) {
             retval = vnode_setattr(node, &attr);
@@ -62,57 +62,57 @@ int file_open_node(struct vnode* restrict node, unsigned flags, const struct cre
         }
     }
 
-    struct file* fp = slab_alloc(sizeof(struct file));
+    file_t* file = slab_alloc(sizeof(file_t));
 
-    if(fp == nullptr) {
+    if(file == nullptr) {
         vnode_close(node);
         vnode_decref(node);
         return -ENOMEM;
     }
 
-    fp->node = node;
-    fp->flags = flags;
-    fp->offset = 0;
+    file->node = node;
+    file->flags = flags;
+    file->offset = 0;
 
-    atomic_store(&fp->refcount, 1, ATOMIC_RELAXED);
+    atomic_store(&file->refcount, 1, ATOMIC_RELAXED);
 
-    *out = fp;
+    *out = file;
 
     return 0;
 }
 
-int file_open(struct vnode* restrict stem, const char* restrict path, unsigned flags, mode_t mode, const struct credentials* restrict cred,
-    struct file** restrict out)
+int file_open(vnode_t* restrict base_dir, const char* restrict path, unsigned flags, mode_t mode, const credentials_t* restrict credentials,
+    file_t** restrict out)
 {
     if(path == nullptr) {
         return -EINVAL;
     }
 
-    struct vnode* node;
-    int retval = path_resolve_at(stem, path, 0, cred, &node);
+    vnode_t* node;
+    int retval = path_resolve_at(base_dir, path, 0, credentials, &node);
     bool created = false;
 
     if(retval == -ENOENT && (flags & O_CREAT)) {
         const char* filename;
-        struct vnode* parent;
+        vnode_t* parent;
 
-        retval = path_resolve_parent_at(stem, path, cred, &parent, &filename);
+        retval = path_resolve_parent_at(base_dir, path, credentials, &parent, &filename);
 
         if(retval < 0) {
             return retval;
         }
 
-        retval = vnode_access(parent, cred, W_OK | X_OK);
+        retval = vnode_access(parent, credentials, W_OK | X_OK);
 
         if(retval == 0) {
-            retval = vnode_create(parent, filename, VNODE_FILE, mode, cred, &node);
+            retval = vnode_create(parent, filename, VNODE_FILE, mode, credentials, &node);
             created = retval == 0;
         }
 
         vnode_decref(parent);
 
         if(retval == -EEXIST) {
-            retval = path_resolve_at(stem, path, 0, cred, &node); // Lost a race with another creator
+            retval = path_resolve_at(base_dir, path, 0, credentials, &node); // Lost a race with another creator
         }
 
         if(retval < 0) {
@@ -126,7 +126,7 @@ int file_open(struct vnode* restrict stem, const char* restrict path, unsigned f
     // The creator gets the access it asked for
     // even when the new mode itself denies it
     if(!created) {
-        retval = vnode_access(node, cred, access_for(flags));
+        retval = vnode_access(node, credentials, access_for(flags));
 
         if(retval < 0) {
             vnode_decref(node);
@@ -134,67 +134,67 @@ int file_open(struct vnode* restrict stem, const char* restrict path, unsigned f
         }
     }
 
-    return file_open_node(node, flags, cred, out);
+    return file_open_node(node, flags, credentials, out);
 }
 
-struct file* file_dupe(struct file* restrict fp)
+file_t* file_dupe(file_t* restrict file)
 {
-    if(fp == nullptr) {
+    if(file == nullptr) {
         return nullptr;
     }
 
-    atomic_fetch_add(&fp->refcount, 1, ATOMIC_RELAXED);
+    atomic_fetch_add(&file->refcount, 1, ATOMIC_RELAXED);
 
-    return fp;
+    return file;
 }
 
-void file_close(struct file* restrict fp)
+void file_close(file_t* restrict file)
 {
-    if(fp == nullptr) {
+    if(file == nullptr) {
         return;
     }
 
-    if(1 == atomic_fetch_sub(&fp->refcount, 1, ATOMIC_ACQ_REL)) {
-        vnode_close(fp->node);
-        vnode_decref(fp->node);
-        slab_free(fp);
+    if(1 == atomic_fetch_sub(&file->refcount, 1, ATOMIC_ACQ_REL)) {
+        vnode_close(file->node);
+        vnode_decref(file->node);
+        slab_free(file);
     }
 }
 
-ssize_t file_read(struct file* restrict fp, void* restrict buffer, size_t sz)
+ssize_t file_read(file_t* restrict file, void* restrict buffer, size_t size)
 {
     ssize_t result;
 
-    if(fp == nullptr || buffer == nullptr) {
+    if(file == nullptr || buffer == nullptr) {
         return -EINVAL;
     }
 
-    if(0 == (fp->flags & O_RDONLY)) {
+    if(0 == (file->flags & O_RDONLY)) {
         return -EBADF;
     }
 
-    result = vnode_read(fp->node, buffer, sz, fp->offset);
+    result = vnode_read(file->node, buffer, size, file->offset);
 
     if(result > 0) {
-        fp->offset += result;
+        file->offset += result;
     }
 
     return result;
 }
 
-ssize_t file_write(struct file* restrict fp, const struct credentials* restrict cred, const void* restrict buffer, size_t sz)
+ssize_t file_write(file_t* restrict file, const credentials_t* restrict credentials, const void* restrict buffer, size_t size)
 {
-    if(fp == nullptr || buffer == nullptr) {
+    if(file == nullptr || buffer == nullptr) {
         return -EINVAL;
     }
 
-    if(0 == (fp->flags & O_WRONLY)) {
+    if(0 == (file->flags & O_WRONLY)) {
         return -EBADF;
     }
 
-    if(fp->flags & O_APPEND) {
-        struct k_stat stat;
-        int retval = vnode_stat(fp->node, &stat);
+    if(file->flags & O_APPEND) {
+        stat_t stat;
+        int retval = vnode_stat(file->node, &stat);
 
         if(retval < 0) {
             return retval;
@@ -204,51 +204,51 @@ ssize_t file_write(struct file* restrict fp, const struct credentials* restrict 
             return -EINVAL;
         }
 
-        fp->offset = stat.st_size;
+        file->offset = stat.st_size;
     }
 
-    if(sz > 0) {
-        int retval = vnode_remove_privs(fp->node, cred);
+    if(size > 0) {
+        int retval = vnode_remove_privs(file->node, credentials);
 
         if(retval < 0) {
             return retval;
         }
     }
 
-    ssize_t result = vnode_write(fp->node, buffer, sz, fp->offset);
+    ssize_t result = vnode_write(file->node, buffer, size, file->offset);
 
     if(result > 0) {
-        fp->offset += result;
+        file->offset += result;
     }
 
     return result;
 }
 
-int file_truncate(struct file* restrict fp, const struct credentials* restrict cred, off_t size)
+int file_truncate(file_t* restrict file, const credentials_t* restrict credentials, off_t size)
 {
-    if(fp == nullptr) {
+    if(file == nullptr) {
         return -EINVAL;
     }
 
-    if(0 == (fp->flags & O_WRONLY)) {
+    if(0 == (file->flags & O_WRONLY)) {
         return -EBADF;
     }
 
-    int retval = vnode_remove_privs(fp->node, cred);
+    int retval = vnode_remove_privs(file->node, credentials);
 
     if(retval < 0) {
         return retval;
     }
 
-    struct vattr attr = { 0 };
+    vnode_attr_t attr = { 0 };
     attr.mask = VATTR_SIZE;
     attr.size = size;
-    return vnode_setattr(fp->node, &attr);
+    return vnode_setattr(file->node, &attr);
 }
 
-int file_seek(struct file* restrict fp, off_t offset, int origin)
+int file_seek(file_t* restrict file, off_t offset, int origin)
 {
-    if(fp == nullptr) {
+    if(file == nullptr) {
         return -EINVAL;
     }
 
@@ -260,13 +260,13 @@ int file_seek(struct file* restrict fp, off_t offset, int origin)
     }
 
     if(origin == SEEK_CUR) {
-        new_offset = offset + fp->offset;
+        new_offset = offset + file->offset;
         goto apply_offset;
     }
 
     if(origin == SEEK_END) {
-        struct k_stat stat;
-        int retval = vnode_stat(fp->node, &stat);
+        stat_t stat;
+        int retval = vnode_stat(file->node, &stat);
 
         if(retval < 0) {
             return retval;
@@ -281,13 +281,13 @@ int file_seek(struct file* restrict fp, off_t offset, int origin)
 apply_offset:
     if(new_offset < 0)
         return -EINVAL;
-    fp->offset = new_offset;
+    file->offset = new_offset;
     return 0;
 }
 
-int file_ioctl(struct file* restrict fp, uint32_t request, uintptr_t argument)
+int file_ioctl(file_t* restrict file, uint32_t request, uintptr_t argument)
 {
-    if(fp == nullptr)
+    if(file == nullptr)
         return -EINVAL;
-    return vnode_ioctl(fp->node, request, argument);
+    return vnode_ioctl(file->node, request, argument);
 }

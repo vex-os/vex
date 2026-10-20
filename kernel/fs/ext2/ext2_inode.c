@@ -8,33 +8,35 @@
 
 #include "ext2.h"
 
-struct ext2_time_layout {
+typedef struct ext2_time_layout_s ext2_time_layout_t;
+
+struct ext2_time_layout_s {
     size_t base;
     size_t extra;
 };
 
-static const struct ext2_time_layout time_layouts[] = {
-    [EXT2_ATIME] = { offsetof(struct ext2_inode, i_atime), offsetof(struct ext2_inode, i_atime_extra) },
-    [EXT2_CTIME] = { offsetof(struct ext2_inode, i_ctime), offsetof(struct ext2_inode, i_ctime_extra) },
-    [EXT2_MTIME] = { offsetof(struct ext2_inode, i_mtime), offsetof(struct ext2_inode, i_mtime_extra) },
-    [EXT2_CRTIME] = { offsetof(struct ext2_inode, i_crtime), offsetof(struct ext2_inode, i_crtime_extra) },
+static const ext2_time_layout_t time_layouts[] = {
+    [EXT2_ATIME] = { offsetof(ext2_inode_t, i_atime), offsetof(ext2_inode_t, i_atime_extra) },
+    [EXT2_CTIME] = { offsetof(ext2_inode_t, i_ctime), offsetof(ext2_inode_t, i_ctime_extra) },
+    [EXT2_MTIME] = { offsetof(ext2_inode_t, i_mtime), offsetof(ext2_inode_t, i_mtime_extra) },
+    [EXT2_CRTIME] = { offsetof(ext2_inode_t, i_crtime), offsetof(ext2_inode_t, i_crtime_extra) },
 };
 
-static bool field_present(const struct ext2_inode* restrict inode, size_t offset)
+static bool field_present(const ext2_inode_t* restrict inode, size_t offset)
 {
     return offset + sizeof(uint32_t) <= EXT2_GOOD_OLD_INODE_SIZE + (size_t)(le16toh(inode->i_extra_isize));
 }
 
-static bool data_block_valid(const struct ext2_vfs_context* restrict context, uint32_t block)
+static bool data_block_valid(const ext2_vfs_context_t* restrict context, uint32_t block)
 {
     return block >= context->first_data_block && block < le32toh(context->super.s_blocks_count);
 }
 
-static int indirect_entry(struct ext2_vfs_context* restrict context, uint32_t block, uint64_t index, uint32_t* restrict out)
+static int indirect_entry(ext2_vfs_context_t* restrict context, uint32_t block, uint64_t index, uint32_t* restrict out)
 {
     uint32_t value;
     uint64_t offset = ext2_block_offset(context, block) + index * sizeof(uint32_t);
-    int retval = fcache_dev_read(context->devnode, offset, &value, sizeof(value));
+    int retval = fcache_dev_read(context->device_node, offset, &value, sizeof(value));
 
     if(retval < 0) {
         return retval;
@@ -45,7 +47,7 @@ static int indirect_entry(struct ext2_vfs_context* restrict context, uint32_t bl
     return 0;
 }
 
-static int table_get(struct ext2_vfs_context* restrict context, const struct ext2_inode* restrict inode, uint32_t table, uint64_t index,
+static int table_get(ext2_vfs_context_t* restrict context, const ext2_inode_t* restrict inode, uint32_t table, uint64_t index,
     uint32_t* restrict out)
 {
     if(table == 0) {
@@ -56,8 +58,7 @@ static int table_get(struct ext2_vfs_context* restrict context, const struct ext
     return indirect_entry(context, table, index, out);
 }
 
-static int table_set(struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uint32_t table, uint64_t index,
-    uint32_t value)
+static int table_set(ext2_vfs_context_t* restrict context, ext2_inode_t* restrict inode, uint32_t table, uint64_t index, uint32_t value)
 {
     if(table == 0) {
         inode->i_block[index] = htole32(value);
@@ -67,10 +68,10 @@ static int table_set(struct ext2_vfs_context* restrict context, struct ext2_inod
     uint32_t raw = htole32(value);
     uint64_t offset = ext2_block_offset(context, table) + index * sizeof(uint32_t);
 
-    return fcache_dev_write(context->devnode, offset, &raw, sizeof(raw));
+    return fcache_dev_write(context->device_node, offset, &raw, sizeof(raw));
 }
 
-static void add_blocks(const struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, int count)
+static void add_blocks(const ext2_vfs_context_t* restrict context, ext2_inode_t* restrict inode, int count)
 {
     int64_t sectors = (int64_t)le32toh(inode->i_blocks) + count * (int64_t)(context->block_size / 512);
 
@@ -82,7 +83,7 @@ static void add_blocks(const struct ext2_vfs_context* restrict context, struct e
 }
 
 // Indices into i_block and then into each indirect block on the way to the data block
-static int block_path(const struct ext2_vfs_context* restrict context, uint64_t lbn, uint64_t* restrict indices, unsigned* restrict levels)
+static int block_path(const ext2_vfs_context_t* restrict context, uint64_t lbn, uint64_t* restrict indices, unsigned* restrict levels)
 {
     if(lbn < EXT2_NDIR_BLOCKS) {
         indices[0] = lbn;
@@ -119,7 +120,7 @@ static int block_path(const struct ext2_vfs_context* restrict context, uint64_t 
     return 0;
 }
 
-static uint32_t block_goal(struct ext2_vfs_context* restrict context, const struct ext2_inode* restrict inode, uint32_t ino, uint32_t table,
+static uint32_t block_goal(ext2_vfs_context_t* restrict context, const ext2_inode_t* restrict inode, uint32_t ino, uint32_t table,
     uint64_t index)
 {
     uint32_t previous = 0;
@@ -135,7 +136,7 @@ static uint32_t block_goal(struct ext2_vfs_context* restrict context, const stru
     return context->first_data_block + (ino - 1) / context->inodes_per_group * context->blocks_per_group;
 }
 
-static int zero_block(struct ext2_vfs_context* restrict context, uint32_t block)
+static int zero_block(ext2_vfs_context_t* restrict context, uint32_t block)
 {
     static const uint8_t zeros[1U << EXT2_MIN_BLOCK_LOG_SIZE] = { 0 };
 
@@ -143,14 +144,14 @@ static int zero_block(struct ext2_vfs_context* restrict context, uint32_t block)
     int retval = 0;
 
     for(size_t done = 0; retval == 0 && done < context->block_size; done += sizeof(zeros)) {
-        retval = fcache_dev_write(context->devnode, offset + done, zeros, sizeof(zeros));
+        retval = fcache_dev_write(context->device_node, offset + done, zeros, sizeof(zeros));
     }
 
     return retval;
 }
 
-static int take_block(struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uint32_t ino, uint32_t table,
-    uint64_t index, bool indirect, uint32_t* restrict out)
+static int take_block(ext2_vfs_context_t* restrict context, ext2_inode_t* restrict inode, uint32_t ino, uint32_t table, uint64_t index,
+    bool indirect, uint32_t* restrict out)
 {
     uint32_t block = ext2_block_alloc(context, block_goal(context, inode, ino, table, index));
 
@@ -180,7 +181,7 @@ static int take_block(struct ext2_vfs_context* restrict context, struct ext2_ino
     return 0;
 }
 
-static int block_map(struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uint32_t ino, uint64_t lbn, bool create,
+static int block_map(ext2_vfs_context_t* restrict context, ext2_inode_t* restrict inode, uint32_t ino, uint64_t lbn, bool create,
     uint32_t* restrict out)
 {
     uint64_t indices[4];
@@ -224,20 +225,19 @@ static int block_map(struct ext2_vfs_context* restrict context, struct ext2_inod
     return 0;
 }
 
-static void release_block(struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uint32_t block, bool indirect)
+static void release_block(ext2_vfs_context_t* restrict context, ext2_inode_t* restrict inode, uint32_t block, bool indirect)
 {
     // A freed indirect block may come back as file data, which
     // its dirty pages in the device cache would then overwrite
     if(indirect) {
-        fcache_forget(context->devnode, ext2_block_offset(context, block), context->block_size);
+        fcache_forget(context->device_node, ext2_block_offset(context, block), context->block_size);
     }
 
     ext2_block_free(context, block);
     add_blocks(context, inode, -1);
 }
 
-static int trim_table(struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uint32_t table, unsigned depth,
-    uint64_t keep)
+static int trim_table(ext2_vfs_context_t* restrict context, ext2_inode_t* restrict inode, uint32_t table, unsigned depth, uint64_t keep)
 {
     uint32_t entries[64];
     uint64_t span = 1;
@@ -257,7 +257,7 @@ static int trim_table(struct ext2_vfs_context* restrict context, struct ext2_ino
             count = 64;
         }
 
-        retval = fcache_dev_read(context->devnode, offset + base * sizeof(uint32_t), entries, count * sizeof(uint32_t));
+        retval = fcache_dev_read(context->device_node, offset + base * sizeof(uint32_t), entries, count * sizeof(uint32_t));
         bool changed = false;
 
         for(size_t i = 0; retval == 0 && i < count; ++i) {
@@ -293,14 +293,14 @@ static int trim_table(struct ext2_vfs_context* restrict context, struct ext2_ino
         // A table left without entries
         // is freed by the caller; unwritten
         if(retval == 0 && changed && keep > 0) {
-            retval = fcache_dev_write(context->devnode, offset + base * sizeof(uint32_t), entries, count * sizeof(uint32_t));
+            retval = fcache_dev_write(context->device_node, offset + base * sizeof(uint32_t), entries, count * sizeof(uint32_t));
         }
     }
 
     return retval;
 }
 
-int ext2_inode_offset(const struct ext2_vfs_context* restrict context, uint32_t ino, uint64_t* restrict out)
+int ext2_inode_offset(const ext2_vfs_context_t* restrict context, uint32_t ino, uint64_t* restrict out)
 {
     if(ino == 0 || ino > le32toh(context->super.s_inodes_count)) {
         return -EINVAL;
@@ -308,14 +308,14 @@ int ext2_inode_offset(const struct ext2_vfs_context* restrict context, uint32_t 
 
     uint32_t group = (ino - 1) / context->inodes_per_group;
     uint32_t index = (ino - 1) % context->inodes_per_group;
-    const struct ext2_group_desc* desc = &context->groups[group];
+    const ext2_group_desc_t* desc = &context->groups[group];
 
     *out = ext2_block_offset(context, le32toh(desc->bg_inode_table)) + (uint64_t)index * context->inode_size;
 
     return 0;
 }
 
-int ext2_inode_read(struct ext2_vfs_context* restrict context, uint32_t ino, struct ext2_inode* restrict out)
+int ext2_inode_read(ext2_vfs_context_t* restrict context, uint32_t ino, ext2_inode_t* restrict out)
 {
     uint64_t offset;
     int retval = ext2_inode_offset(context, ino, &offset);
@@ -324,13 +324,13 @@ int ext2_inode_read(struct ext2_vfs_context* restrict context, uint32_t ino, str
         return retval;
     }
 
-    size_t size = sizeof(struct ext2_inode);
+    size_t size = sizeof(ext2_inode_t);
 
     if(size > context->inode_size) {
         size = context->inode_size;
     }
 
-    retval = fcache_dev_read(context->devnode, offset, out, size);
+    retval = fcache_dev_read(context->device_node, offset, out, size);
 
     if(retval < 0) {
         return retval;
@@ -347,7 +347,7 @@ int ext2_inode_read(struct ext2_vfs_context* restrict context, uint32_t ino, str
     return 0;
 }
 
-int ext2_inode_clear(struct ext2_vfs_context* restrict context, uint32_t ino)
+int ext2_inode_clear(ext2_vfs_context_t* restrict context, uint32_t ino)
 {
     static const uint8_t zeros[EXT2_GOOD_OLD_INODE_SIZE] = { 0 };
 
@@ -355,7 +355,7 @@ int ext2_inode_clear(struct ext2_vfs_context* restrict context, uint32_t ino)
     int retval = ext2_inode_offset(context, ino, &offset);
 
     for(size_t done = 0; retval == 0 && done < context->inode_size; done += sizeof(zeros)) {
-        retval = fcache_dev_write(context->devnode, offset + done, zeros, sizeof(zeros));
+        retval = fcache_dev_write(context->device_node, offset + done, zeros, sizeof(zeros));
     }
 
     return retval;
@@ -381,7 +381,7 @@ int ext2_inode_nodetype(uint16_t mode, unsigned* restrict out)
     }
 }
 
-int ext2_inode_write(struct ext2_vfs_context* restrict context, uint32_t ino, const struct ext2_inode* restrict inode)
+int ext2_inode_write(ext2_vfs_context_t* restrict context, uint32_t ino, const ext2_inode_t* restrict inode)
 {
     uint64_t offset;
     int retval = ext2_inode_offset(context, ino, &offset);
@@ -398,12 +398,12 @@ int ext2_inode_write(struct ext2_vfs_context* restrict context, uint32_t ino, co
         extra_isize = EXT2_EXTRA_ISIZE;
     }
 
-    return fcache_dev_write(context->devnode, offset, inode, EXT2_GOOD_OLD_INODE_SIZE + extra_isize);
+    return fcache_dev_write(context->device_node, offset, inode, EXT2_GOOD_OLD_INODE_SIZE + extra_isize);
 }
 
-int ext2_inode_set_size(struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uint64_t size)
+int ext2_inode_set_size(ext2_vfs_context_t* restrict context, ext2_inode_t* restrict inode, uint64_t size)
 {
-    struct ext2_superblock* super = &context->super;
+    ext2_superblock_t* super = &context->super;
     bool regular = EXT2_S_IFREG == (le16toh(inode->i_mode) & S_IFMT);
 
     if(size > UINT32_MAX && !regular) {
@@ -438,7 +438,7 @@ int ext2_inode_set_size(struct ext2_vfs_context* restrict context, struct ext2_i
     return 0;
 }
 
-bool ext2_inode_set_owner(const struct ext2_vfs_context* restrict context, struct ext2_inode* restrict inode, uid_t uid, gid_t gid)
+bool ext2_inode_set_owner(const ext2_vfs_context_t* restrict context, ext2_inode_t* restrict inode, uid_t uid, gid_t gid)
 {
     uint32_t limit = UINT16_MAX;
 
@@ -461,9 +461,9 @@ bool ext2_inode_set_owner(const struct ext2_vfs_context* restrict context, struc
     return true;
 }
 
-void ext2_inode_get_time(const struct ext2_inode* restrict inode, unsigned which, struct k_timespec* restrict out)
+void ext2_inode_get_time(const ext2_inode_t* restrict inode, unsigned which, timespec_t* restrict out)
 {
-    const struct ext2_time_layout* layout = &time_layouts[which];
+    const ext2_time_layout_t* layout = &time_layouts[which];
     const uint8_t* bytes = (const uint8_t*)(inode);
 
     out->tv_sec = 0;
@@ -491,9 +491,9 @@ void ext2_inode_get_time(const struct ext2_inode* restrict inode, unsigned which
     }
 }
 
-void ext2_inode_set_time(struct ext2_inode* restrict inode, unsigned which, const struct k_timespec* restrict time)
+void ext2_inode_set_time(ext2_inode_t* restrict inode, unsigned which, const timespec_t* restrict time)
 {
-    const struct ext2_time_layout* layout = &time_layouts[which];
+    const ext2_time_layout_t* layout = &time_layouts[which];
     uint8_t* bytes = (uint8_t*)(inode);
 
     if(!field_present(inode, layout->base)) {
@@ -526,11 +526,11 @@ void ext2_inode_set_time(struct ext2_inode* restrict inode, unsigned which, cons
     }
 }
 
-int ext2_truncate_blocks(struct vnode* restrict node, uint64_t size)
+int ext2_truncate_blocks(vnode_t* restrict node, uint64_t size)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
-    struct ext2_inode* inode = &ctx->inode;
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
+    ext2_inode_t* inode = &ctx->inode;
     uint64_t keep = (size + fs_ctx->block_size - 1) / fs_ctx->block_size;
 
     for(uint64_t i = keep; i < EXT2_NDIR_BLOCKS; ++i) {
@@ -579,11 +579,11 @@ int ext2_truncate_blocks(struct vnode* restrict node, uint64_t size)
     return 0;
 }
 
-int ext2_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct fcache_extent* restrict out)
+int ext2_bmap(vnode_t* restrict node, uint64_t sector, bool create, fcache_extent_t* restrict out)
 {
-    struct ext2_vnode_context* ctx = node->ctxdata;
-    struct ext2_vfs_context* fs_ctx = ctx->fs_ctx;
-    uint32_t ino = (uint32_t)(node->nodenumber);
+    ext2_vnode_context_t* ctx = node->ctxdata;
+    ext2_vfs_context_t* fs_ctx = ctx->fs_ctx;
+    uint32_t ino = (uint32_t)(node->ino);
 
     if(create && node->fs->readonly) {
         return -EROFS;
@@ -616,7 +616,7 @@ int ext2_bmap(struct vnode* restrict node, uint64_t sector, bool create, struct 
     }
 
     if(!data_block_valid(fs_ctx, block)) {
-        pr_warning("ext2: %s: inode %u maps a block outside the filesystem", fs_ctx->device->identifier, (uint32_t)(node->nodenumber));
+        pr_warning("ext2: %s: inode %u maps a block outside the filesystem", fs_ctx->device->name, (uint32_t)(node->ino));
         return -EIO;
     }
 

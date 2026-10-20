@@ -11,27 +11,29 @@
 
 #define SLAB_BLOCKSIZE(index) ((size_t)((1U << (index)) * sizeof(void*)))
 
-struct slab {
+typedef struct slab_s slab_t;
+
+struct slab_s {
     size_t blocksize;
     void** head;
 };
 
 static size_t slabs_count = 0U;
-static struct slab* slabs = nullptr;
-static spinlock_type slab_lock = SPINLOCK_INIT;
+static slab_t* slabs = nullptr;
+static spinlock_t slab_lock = SPINLOCK_INIT;
 
-static struct slab* find_slab(size_t sz)
+static slab_t* find_slab(size_t size)
 {
     size_t i;
 
     for(i = 0U; i < slabs_count; ++i) {
-        if(slabs[i].blocksize == sz)
+        if(slabs[i].blocksize == size)
             return &slabs[i];
         continue;
     }
 
     for(i = 0U; i < slabs_count; ++i) {
-        if(slabs[i].blocksize >= sz)
+        if(slabs[i].blocksize >= size)
             return &slabs[i];
         continue;
     }
@@ -39,7 +41,7 @@ static struct slab* find_slab(size_t sz)
     return nullptr;
 }
 
-static bool expand_slab(struct slab* restrict sl)
+static bool expand_slab(slab_t* restrict sl)
 {
     size_t i;
     size_t header;
@@ -51,7 +53,7 @@ static bool expand_slab(struct slab* restrict sl)
     sl->head = pslab_alloc_virt();
 
     if(sl->head) {
-        header = align_ceil(sizeof(struct slab*), sl->blocksize);
+        header = align_ceil(sizeof(slab_t*), sl->blocksize);
 
         sl->head[0] = sl;
         sl->head = (void**)((uintptr_t)sl->head + header);
@@ -72,14 +74,14 @@ static bool expand_slab(struct slab* restrict sl)
     return false;
 }
 
-void* slab_alloc(size_t sz)
+void* slab_alloc(size_t size)
 {
     void** head_ptr;
-    struct slab* sl;
+    slab_t* sl;
 
     bool intr_state = spinlock_acquire_intr(&slab_lock);
 
-    sl = find_slab(sz);
+    sl = find_slab(size);
 
     if(sl) {
         if(!sl->head && !expand_slab(sl)) {
@@ -92,7 +94,7 @@ void* slab_alloc(size_t sz)
 
         spinlock_release_intr(&slab_lock, intr_state);
 
-        return memset(head_ptr, 0, sz);
+        return memset(head_ptr, 0, size);
     }
 
     spinlock_release_intr(&slab_lock, intr_state);
@@ -100,21 +102,21 @@ void* slab_alloc(size_t sz)
     return nullptr;
 }
 
-void* slab_realloc(void* restrict ptr, size_t sz)
+void* slab_realloc(void* restrict ptr, size_t size)
 {
     if(ptr == nullptr) {
-        return slab_alloc(sz);
+        return slab_alloc(size);
     }
 
-    void* new_ptr = slab_alloc(sz);
+    void* new_ptr = slab_alloc(size);
 
     if(new_ptr == nullptr) {
         return nullptr;
     }
 
-    const struct slab* sl = ((struct slab**)(page_align_ptr(ptr)))[0];
+    const slab_t* sl = ((slab_t**)(page_align_ptr(ptr)))[0];
 
-    memcpy(new_ptr, ptr, sl->blocksize < sz ? sl->blocksize : sz);
+    memcpy(new_ptr, ptr, sl->blocksize < size ? sl->blocksize : size);
 
     slab_free(ptr);
 
@@ -123,13 +125,13 @@ void* slab_realloc(void* restrict ptr, size_t sz)
 
 void slab_free(void* restrict ptr)
 {
-    struct slab* sl;
+    slab_t* sl;
     void** head_ptr;
 
     bool intr_state = spinlock_acquire_intr(&slab_lock);
 
     if(ptr) {
-        sl = ((struct slab**)(page_align_ptr(ptr)))[0];
+        sl = ((slab_t**)(page_align_ptr(ptr)))[0];
 
         head_ptr = ptr;
         head_ptr[0] = sl->head;
@@ -147,7 +149,7 @@ static void init_slab(void)
         slabs_count += 1U;
     }
 
-    size_t npages = page_count(slabs_count * sizeof(struct slab));
+    size_t npages = page_count(slabs_count * sizeof(slab_t));
 
     slabs = pdma_alloc_virt(npages);
     if(slabs == nullptr) {

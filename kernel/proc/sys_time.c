@@ -11,7 +11,7 @@
 
 static intptr_t sys_gettime(const uintptr_t* restrict args)
 {
-    struct k_timespec time;
+    timespec_t time;
 
     switch(args[0]) {
         case CLOCK_REALTIME:
@@ -19,7 +19,7 @@ static intptr_t sys_gettime(const uintptr_t* restrict args)
             break;
 
         case CLOCK_MONOTONIC:
-            timespec_from_nsec(&time, clocksrc_nsec());
+            timespec_from_nsec(&time, clock_source_now_ns());
             break;
 
         default:
@@ -37,9 +37,9 @@ static intptr_t sys_gettime(const uintptr_t* restrict args)
 
 static intptr_t sys_settime(const uintptr_t* restrict args)
 {
-    struct thread* thrd = this_thread();
+    thread_t* thread = this_thread();
 
-    if(thrd->proc == nullptr) {
+    if(thread->process == nullptr) {
         return -ENOSYS;
     }
 
@@ -47,14 +47,14 @@ static intptr_t sys_settime(const uintptr_t* restrict args)
         return -EINVAL;
     }
 
-    struct k_timespec time;
+    timespec_t time;
     ssize_t copied = user_copyin(&time, args[1], sizeof(time));
 
     if(copied < 0) {
         return copied;
     }
 
-    if(!cred_capable(thrd->cred, CAP_SYS_TIME)) {
+    if(!cred_capable(thread->credentials, CAP_SYS_TIME)) {
         return -EPERM;
     }
 

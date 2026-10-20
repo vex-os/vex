@@ -3,73 +3,76 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-struct clocksrc;
-struct clocksrc_ops {
-    uint64_t (*read)(struct clocksrc* restrict src);
+#define CLOCK_SOURCE_MASK_1  UINT64_C(0x0000000000000001)
+#define CLOCK_SOURCE_MASK_2  UINT64_C(0x0000000000000003)
+#define CLOCK_SOURCE_MASK_4  UINT64_C(0x000000000000000F)
+#define CLOCK_SOURCE_MASK_8  UINT64_C(0x00000000000000FF)
+#define CLOCK_SOURCE_MASK_16 UINT64_C(0x000000000000FFFF)
+#define CLOCK_SOURCE_MASK_24 UINT64_C(0x0000000000FFFFFF)
+#define CLOCK_SOURCE_MASK_32 UINT64_C(0x00000000FFFFFFFF)
+#define CLOCK_SOURCE_MASK_48 UINT64_C(0x0000FFFFFFFFFFFF)
+#define CLOCK_SOURCE_MASK_64 UINT64_C(0xFFFFFFFFFFFFFFFF)
+
+typedef struct clock_source_s clock_source_t;
+typedef struct clock_source_ops_s clock_source_ops_t;
+typedef struct clock_source_private_s clock_source_private_t;
+
+struct clock_source_ops_s {
+    uint64_t (*read)(clock_source_t* restrict source);
 };
 
-struct clocksrc_private {
-    struct clocksrc* next;
+struct clock_source_private_s {
+    clock_source_t* next;
     uint64_t last;
     uint64_t base;
     uint64_t mult;
     uint64_t shift;
 };
 
-struct clocksrc {
-    struct clocksrc_private priv;
-    const struct clocksrc_ops* ops;
-    const char* identifier;
+struct clock_source_s {
+    clock_source_private_t priv;
+    const clock_source_ops_t* ops;
+    const char* name;
     unsigned rating;
     uint64_t mask;
     void* ctxdata;
 };
 
-#define CLOCKSRC_MASK_1  UINT64_C(0x0000000000000001)
-#define CLOCKSRC_MASK_2  UINT64_C(0x0000000000000003)
-#define CLOCKSRC_MASK_4  UINT64_C(0x000000000000000F)
-#define CLOCKSRC_MASK_8  UINT64_C(0x00000000000000FF)
-#define CLOCKSRC_MASK_16 UINT64_C(0x000000000000FFFF)
-#define CLOCKSRC_MASK_24 UINT64_C(0x0000000000FFFFFF)
-#define CLOCKSRC_MASK_32 UINT64_C(0x00000000FFFFFFFF)
-#define CLOCKSRC_MASK_48 UINT64_C(0x0000FFFFFFFFFFFF)
-#define CLOCKSRC_MASK_64 UINT64_C(0xFFFFFFFFFFFFFFFF)
+int clock_source_add_raw(clock_source_t* restrict source, uint64_t scale, uint64_t frequency);
+int clock_source_calibrate_raw(clock_source_t* restrict source, uint64_t scale, uint64_t frequency);
+int clock_source_remove(clock_source_t* restrict source);
 
-int add_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency);
-int calibrate_clocksrc_raw(struct clocksrc* restrict src, uint64_t scale, uint64_t frequency);
-int remove_clocksrc(struct clocksrc* restrict src);
+clock_source_t* clock_source_active(void) __nodiscard;
 
-struct clocksrc* active_clocksrc(void) __nodiscard;
+uint64_t clock_source_now_ns(void) __nodiscard;
+void clock_source_update(void);
 
-uint64_t clocksrc_nsec(void) __nodiscard;
-void clocksrc_update(void);
-
-static __always_inline int add_clocksrc_hz(struct clocksrc* restrict src, uint64_t hz)
+static __always_inline int clock_source_add_hz(clock_source_t* restrict source, uint64_t hz)
 {
-    return add_clocksrc_raw(src, UINT64_C(1), hz);
+    return clock_source_add_raw(source, UINT64_C(1), hz);
 }
 
-static __always_inline int add_clocksrc_khz(struct clocksrc* restrict src, uint64_t khz)
+static __always_inline int clock_source_add_khz(clock_source_t* restrict source, uint64_t khz)
 {
-    return add_clocksrc_raw(src, UINT64_C(1000), khz);
+    return clock_source_add_raw(source, UINT64_C(1000), khz);
 }
 
-static __always_inline int add_clocksrc_mhz(struct clocksrc* restrict src, uint64_t mhz)
+static __always_inline int clock_source_add_mhz(clock_source_t* restrict source, uint64_t mhz)
 {
-    return add_clocksrc_raw(src, UINT64_C(1000000), mhz);
+    return clock_source_add_raw(source, UINT64_C(1000000), mhz);
 }
 
-static __always_inline int calibrate_clocksrc_hz(struct clocksrc* restrict src, uint64_t hz)
+static __always_inline int clock_source_calibrate_hz(clock_source_t* restrict source, uint64_t hz)
 {
-    return calibrate_clocksrc_raw(src, UINT64_C(1), hz);
+    return clock_source_calibrate_raw(source, UINT64_C(1), hz);
 }
 
-static __always_inline int calibrate_clocksrc_khz(struct clocksrc* restrict src, uint64_t khz)
+static __always_inline int clock_source_calibrate_khz(clock_source_t* restrict source, uint64_t khz)
 {
-    return calibrate_clocksrc_raw(src, UINT64_C(1000), khz);
+    return clock_source_calibrate_raw(source, UINT64_C(1000), khz);
 }
 
-static __always_inline int calibrate_clocksrc_mhz(struct clocksrc* restrict src, uint64_t mhz)
+static __always_inline int clock_source_calibrate_mhz(clock_source_t* restrict source, uint64_t mhz)
 {
-    return calibrate_clocksrc_raw(src, UINT64_C(1000000), mhz);
+    return clock_source_calibrate_raw(source, UINT64_C(1000000), mhz);
 }

@@ -111,7 +111,13 @@
 #define AHCI_BIOS_BOS_TIMEOUT_NS UINT64_C(25000000)
 #define AHCI_BIOS_BB_TIMEOUT_NS  UINT64_C(2000000000)
 
-struct ahci_cmd_header {
+typedef struct ahci_cmd_header_s ahci_cmd_header_t;
+typedef struct ata_fis_h2d_s ata_fis_h2d_t;
+typedef struct ahci_prdt_entry_s ahci_prdt_entry_t;
+typedef struct ahci_pci_context_s ahci_pci_context_t;
+typedef struct ahci_port_s ahci_port_t;
+
+struct ahci_cmd_header_s {
     uint16_t flags; // CFL:5, A:1, W:1, P:1, R:1, B:1, C:1, rsvd:1, PMP:4
     uint16_t prdtl; // PRDT length in entries
     uint32_t prdbc; // PRD byte count (filled by HBA after transfer)
@@ -120,7 +126,7 @@ struct ahci_cmd_header {
     uint32_t reserved[4];
 } __packed;
 
-struct ata_fis_h2d {
+struct ata_fis_h2d_s {
     uint8_t type;    // ATA_FIS_TYPE_H2D
     uint8_t pm_port; // bit7 = C (new command), bits3:0 = port multiplier port
     uint8_t command;
@@ -140,28 +146,26 @@ struct ata_fis_h2d {
     uint8_t reserved[4];
 } __packed;
 
-struct ahci_prdt_entry {
+struct ahci_prdt_entry_s {
     uint32_t dba;  // data base address low
     uint32_t dbau; // data base address upper
     uint32_t reserved;
     uint32_t dbc; // bits30:0 = byte count - 1; bit31 = interrupt on completion
 } __packed;
 
-static_assert(32 == sizeof(struct ahci_cmd_header));
-static_assert(20 == sizeof(struct ata_fis_h2d));
-static_assert(16 == sizeof(struct ahci_prdt_entry));
+static_assert(32 == sizeof(ahci_cmd_header_t));
+static_assert(20 == sizeof(ata_fis_h2d_t));
+static_assert(16 == sizeof(ahci_prdt_entry_t));
 
-static_assert(DMA_OFFSET_PRDT + AHCI_MAX_PRDT * sizeof(struct ahci_prdt_entry) <= DMA_OFFSET_DATABUF);
+static_assert(DMA_OFFSET_PRDT + AHCI_MAX_PRDT * sizeof(ahci_prdt_entry_t) <= DMA_OFFSET_DATABUF);
 static_assert(DMA_OFFSET_DATABUF + DMA_DATABUF_SIZE <= DMA_NUM_PAGES * PAGE_SIZE);
 
-struct ahci_pci_context;
-
-struct ahci_port {
-    struct mutex lock;   // Held for a whole command, every one of which uses slot 0 and the DMA buffer
-    struct event done;   // Triggered by the interrupt handler, reset before each command
+struct ahci_port_s {
+    mutex_t lock;        // Held for a whole command, every one of which uses slot 0 and the DMA buffer
+    event_t done;        // Triggered by the interrupt handler, reset before each command
     uint32_t irq_status; // PxIS bits the interrupt handler cleared since the command was issued
-    struct ahci_pci_context* context;
-    struct pci_bar* bar;
+    ahci_pci_context_t* context;
+    pci_bar_t* bar;
     uintptr_t port_base;
     uintptr_t dma_phys;
     uint8_t* dma_virt;
@@ -169,13 +173,13 @@ struct ahci_port {
     unsigned number;
 };
 
-struct ahci_pci_context {
-    struct pci_bar* abar;
+struct ahci_pci_context_s {
+    pci_bar_t* abar;
     uintptr_t dma_limit;
     bool irq;
-    struct blk_device devices[32];
-    struct atapi_device atapi_devices[32];
-    struct ahci_port ports[32];
+    blk_device_t devices[32];
+    atapi_device_t atapi_devices[32];
+    ahci_port_t ports[32];
     unsigned atapi_iterator;
     unsigned ata_iterator;
     uint32_t atapi_mask;
@@ -183,19 +187,19 @@ struct ahci_pci_context {
     unsigned refcount;
 };
 
-static __always_inline uint32_t port_read(struct ahci_port* restrict port, uint32_t offset)
+static __always_inline uint32_t port_read(ahci_port_t* restrict port, uint32_t offset)
 {
     return pci_bar_read32(port->bar, port->port_base + offset);
 }
 
-static __always_inline void port_write(struct ahci_port* restrict port, uint32_t offset, uint32_t value)
+static __always_inline void port_write(ahci_port_t* restrict port, uint32_t offset, uint32_t value)
 {
     pci_bar_write32(port->bar, port->port_base + offset, value);
 }
 
 // A port torn down by ahci_remove may still be reached
 // through a block device someone holds a reference to
-static __nodiscard bool port_acquire(struct ahci_port* restrict port)
+static __nodiscard bool port_acquire(ahci_port_t* restrict port)
 {
     mutex_acquire(&port->lock);
 
@@ -207,7 +211,7 @@ static __nodiscard bool port_acquire(struct ahci_port* restrict port)
     return true;
 }
 
-static void context_decref(struct ahci_pci_context* restrict context)
+static void context_decref(ahci_pci_context_t* restrict context)
 {
     if(1 == atomic_fetch_sub(&context->refcount, 1, ATOMIC_ACQ_REL)) {
         for(unsigned port_num = 0; port_num < 32; port_num += 1) {
@@ -219,24 +223,24 @@ static void context_decref(struct ahci_pci_context* restrict context)
     }
 }
 
-static void ahci_blk_release(const struct blk_device* restrict device)
+static void ahci_blk_release(const blk_device_t* restrict device)
 {
-    const struct ahci_port* port = device->ctxdata;
+    const ahci_port_t* port = device->ctxdata;
     context_decref(port->context);
 }
 
-static void ahci_atapi_release(const struct atapi_device* restrict device)
+static void ahci_atapi_release(const atapi_device_t* restrict device)
 {
-    const struct ahci_port* port = device->base.ctxdata;
+    const ahci_port_t* port = device->base.ctxdata;
     context_decref(port->context);
 }
 
-static bool bar_wait(struct pci_bar* restrict bar, uintptr_t offset, uint32_t mask, uint32_t value, uint64_t timeout)
+static bool bar_wait(pci_bar_t* restrict bar, uintptr_t offset, uint32_t mask, uint32_t value, uint64_t timeout)
 {
-    uint64_t deadline = clocksrc_nsec() + timeout;
+    uint64_t deadline = clock_source_now_ns() + timeout;
 
     while((pci_bar_read32(bar, offset) & mask) != value) {
-        if(clocksrc_nsec() >= deadline) {
+        if(clock_source_now_ns() >= deadline) {
             return false;
         }
 
@@ -246,12 +250,12 @@ static bool bar_wait(struct pci_bar* restrict bar, uintptr_t offset, uint32_t ma
     return true;
 }
 
-static __always_inline bool port_wait(struct ahci_port* restrict port, uint32_t offset, uint32_t mask, uint32_t value, uint64_t timeout)
+static __always_inline bool port_wait(ahci_port_t* restrict port, uint32_t offset, uint32_t mask, uint32_t value, uint64_t timeout)
 {
     return bar_wait(port->bar, port->port_base + offset, mask, value, timeout);
 }
 
-static bool ahci_stop(struct ahci_port* restrict port)
+static bool ahci_stop(ahci_port_t* restrict port)
 {
     port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) & ~PORT_CMD_ST);
 
@@ -264,13 +268,13 @@ static bool ahci_stop(struct ahci_port* restrict port)
     return port_wait(port, PORT_REG_CMD, PORT_CMD_FR, 0, AHCI_ENGINE_TIMEOUT_NS);
 }
 
-static void ahci_start(struct ahci_port* restrict port)
+static void ahci_start(ahci_port_t* restrict port)
 {
     port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) | PORT_CMD_FRE);
     port_write(port, PORT_REG_CMD, port_read(port, PORT_REG_CMD) | PORT_CMD_ST);
 }
 
-static void ahci_comreset(struct ahci_port* restrict port)
+static void ahci_comreset(ahci_port_t* restrict port)
 {
     uint32_t sctl = port_read(port, PORT_REG_SCTL) & ~PORT_SCTL_DET_MASK;
 
@@ -283,7 +287,7 @@ static void ahci_comreset(struct ahci_port* restrict port)
     }
 }
 
-static void ahci_recover(struct ahci_port* restrict port)
+static void ahci_recover(ahci_port_t* restrict port)
 {
     if(!ahci_stop(port)) {
         pr_verbose("ahci: %u.%u: command engine did not stop", port->iterator, port->number);
@@ -299,9 +303,9 @@ static void ahci_recover(struct ahci_port* restrict port)
     ahci_start(port);
 }
 
-static int ahci_wait(struct ahci_port* restrict port, uintptr_t lba)
+static int ahci_wait(ahci_port_t* restrict port, uintptr_t lba)
 {
-    uint64_t deadline = clocksrc_nsec() + AHCI_COMMAND_TIMEOUT_NS;
+    uint64_t deadline = clock_source_now_ns() + AHCI_COMMAND_TIMEOUT_NS;
 
     // Nothing can switch away from a caller with interrupts
     // disabled, such as kmain mounting the root during boot
@@ -321,7 +325,7 @@ static int ahci_wait(struct ahci_port* restrict port, uintptr_t lba)
             return 0;
         }
 
-        uint64_t now = clocksrc_nsec();
+        uint64_t now = clock_source_now_ns();
 
         if(now >= deadline) {
             pr_verbose("ahci: %u.%u: command timeout: lba=%zu", port->iterator, port->number, (size_t)(lba));
@@ -329,7 +333,7 @@ static int ahci_wait(struct ahci_port* restrict port, uintptr_t lba)
         }
 
         if(sleep) {
-            struct event* done = &port->done;
+            event_t* done = &port->done;
             ssize_t result = event_await_timeout(&done, 1, deadline - now);
             (void)(result); // Completion is read from the registers either way
         }
@@ -339,17 +343,16 @@ static int ahci_wait(struct ahci_port* restrict port, uintptr_t lba)
     }
 }
 
-static void ahci_setup_header(struct ahci_port* restrict port, uint16_t flags, const struct blk_segment* restrict segments,
-    size_t num_segments)
+static void ahci_setup_header(ahci_port_t* restrict port, uint16_t flags, const blk_segment_t* restrict segments, size_t num_segments)
 {
-    volatile struct ahci_cmd_header* header = (volatile struct ahci_cmd_header*)(port->dma_virt + DMA_OFFSET_CMDLIST);
-    volatile struct ahci_prdt_entry* prdt = (volatile struct ahci_prdt_entry*)(port->dma_virt + DMA_OFFSET_PRDT);
+    volatile ahci_cmd_header_t* header = (volatile ahci_cmd_header_t*)(port->dma_virt + DMA_OFFSET_CMDLIST);
+    volatile ahci_prdt_entry_t* prdt = (volatile ahci_prdt_entry_t*)(port->dma_virt + DMA_OFFSET_PRDT);
 
     uintptr_t cmdtable_phys = port->dma_phys + DMA_OFFSET_CMDTABLE;
 
     kassert(num_segments <= AHCI_MAX_PRDT);
 
-    header->flags = htole16(flags | (sizeof(struct ata_fis_h2d) / sizeof(uint32_t))); // CFL, in dwords
+    header->flags = htole16(flags | (sizeof(ata_fis_h2d_t) / sizeof(uint32_t))); // CFL, in dwords
     header->prdtl = htole16((uint16_t)(num_segments));
     header->prdbc = 0;
     header->ctba = htole32(cmdtable_phys);
@@ -367,12 +370,12 @@ static void ahci_setup_header(struct ahci_port* restrict port, uint16_t flags, c
     }
 }
 
-static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cmd, uint16_t count,
-    const struct blk_segment* restrict segments, size_t num_segments, bool write)
+static void ahci_setup(ahci_port_t* restrict port, uint64_t lba, uint8_t cmd, uint16_t count, const blk_segment_t* restrict segments,
+    size_t num_segments, bool write)
 {
-    volatile struct ata_fis_h2d* fis = (volatile struct ata_fis_h2d*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
+    volatile ata_fis_h2d_t* fis = (volatile ata_fis_h2d_t*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
 
-    memset((void*)fis, 0, sizeof(struct ata_fis_h2d));
+    memset((void*)fis, 0, sizeof(ata_fis_h2d_t));
 
     ahci_setup_header(port, write ? CMD_HEADER_W : 0, segments, num_segments);
 
@@ -390,7 +393,7 @@ static void ahci_setup(struct ahci_port* restrict port, uint64_t lba, uint8_t cm
     fis->count_hi = count >> 8;
 }
 
-static int ahci_issue(struct ahci_port* restrict port, uintptr_t lba)
+static int ahci_issue(ahci_port_t* restrict port, uintptr_t lba)
 {
     port_write(port, PORT_REG_SERR, 0xFFFFFFFF);
     port_write(port, PORT_REG_IS, 0xFFFFFFFF);
@@ -415,15 +418,15 @@ static int ahci_issue(struct ahci_port* restrict port, uintptr_t lba)
     return retval;
 }
 
-static int ahci_identify(struct ahci_port* restrict port, ata_identify_type identify)
+static int ahci_identify(ahci_port_t* restrict port, ata_identify_t identify)
 {
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
 
-    struct blk_segment segment;
+    blk_segment_t segment;
     segment.phys = port->dma_phys + DMA_OFFSET_DATABUF;
-    segment.length = sizeof(ata_identify_type);
+    segment.length = sizeof(ata_identify_t);
 
-    memset((void*)databuf, 0, sizeof(ata_identify_type));
+    memset((void*)databuf, 0, sizeof(ata_identify_t));
 
     ahci_setup(port, 0, ATA_CMD_IDENTIFY, 0, &segment, 1, false);
 
@@ -433,20 +436,20 @@ static int ahci_identify(struct ahci_port* restrict port, ata_identify_type iden
         return retval;
     }
 
-    memcpy(identify, (const void*)(databuf), sizeof(ata_identify_type));
+    memcpy(identify, (const void*)(databuf), sizeof(ata_identify_t));
 
     return 0;
 }
 
-static int ahci_atapi_identify(struct ahci_port* restrict port, ata_identify_type identify)
+static int ahci_atapi_identify(ahci_port_t* restrict port, ata_identify_t identify)
 {
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
 
-    struct blk_segment segment;
+    blk_segment_t segment;
     segment.phys = port->dma_phys + DMA_OFFSET_DATABUF;
-    segment.length = sizeof(ata_identify_type);
+    segment.length = sizeof(ata_identify_t);
 
-    memset((void*)(databuf), 0, sizeof(ata_identify_type));
+    memset((void*)(databuf), 0, sizeof(ata_identify_t));
 
     ahci_setup(port, 0, ATA_CMD_IDENTIFY_ATAPI, 0, &segment, 1, false);
 
@@ -456,18 +459,18 @@ static int ahci_atapi_identify(struct ahci_port* restrict port, ata_identify_typ
         return retval;
     }
 
-    memcpy(identify, (const void*)(databuf), sizeof(ata_identify_type));
+    memcpy(identify, (const void*)(databuf), sizeof(ata_identify_t));
 
     return 0;
 }
 
-static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_type cdb, const struct blk_segment* restrict segments,
-    size_t num_segments, size_t byte_count, bool write)
+static void ahci_atapi_setup(ahci_port_t* restrict port, const atapi_cdb_t cdb, const blk_segment_t* restrict segments, size_t num_segments,
+    size_t byte_count, bool write)
 {
-    volatile struct ata_fis_h2d* fis = (volatile struct ata_fis_h2d*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
+    volatile ata_fis_h2d_t* fis = (volatile ata_fis_h2d_t*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
     volatile uint8_t* atapi_area = port->dma_virt + DMA_OFFSET_CMDTABLE + CMDTABLE_ACMD;
 
-    memset((void*)fis, 0, sizeof(struct ata_fis_h2d));
+    memset((void*)fis, 0, sizeof(ata_fis_h2d_t));
 
     ahci_setup_header(port, (write ? CMD_HEADER_W : 0) | CMD_HEADER_A, segments, num_segments);
 
@@ -478,20 +481,20 @@ static void ahci_atapi_setup(struct ahci_port* restrict port, const atapi_cdb_ty
     fis->lba1 = byte_count & 0xFF;
     fis->lba2 = (byte_count >> 8) & 0xFF;
 
-    memcpy((void*)atapi_area, cdb, sizeof(atapi_cdb_type));
+    memcpy((void*)atapi_area, cdb, sizeof(atapi_cdb_t));
 }
 
-static int ahci_atapi_capacity(struct ahci_port* restrict port, size_t* restrict sector_count, size_t* restrict sector_size)
+static int ahci_atapi_capacity(ahci_port_t* restrict port, size_t* restrict sector_count, size_t* restrict sector_size)
 {
     volatile uint8_t* databuf = (volatile uint8_t*)(port->dma_virt + DMA_OFFSET_DATABUF);
 
-    atapi_cdb_type cdb;
-    memset(cdb, 0, sizeof(atapi_cdb_type));
+    atapi_cdb_t cdb;
+    memset(cdb, 0, sizeof(atapi_cdb_t));
     cdb[0] = ATAPI_CMD_READ_CAPACITY_10;
 
     uint8_t result[8];
 
-    struct blk_segment segment;
+    blk_segment_t segment;
     segment.phys = port->dma_phys + DMA_OFFSET_DATABUF;
     segment.length = sizeof(result);
 
@@ -521,15 +524,15 @@ static int ahci_atapi_capacity(struct ahci_port* restrict port, size_t* restrict
     return 0;
 }
 
-static void finish(struct blk_request* restrict req, int status)
+static void finish(blk_request_t* restrict req, int status)
 {
     req->status = status;
     req->done(req);
 }
 
-static void ahci_atapi_submit(const struct atapi_device* restrict device, const atapi_cdb_type cdb, struct blk_request* restrict req)
+static void ahci_atapi_submit(const atapi_device_t* restrict device, const atapi_cdb_t cdb, blk_request_t* restrict req)
 {
-    struct ahci_port* port = device->base.ctxdata;
+    ahci_port_t* port = device->base.ctxdata;
 
     if(!port_acquire(port)) {
         finish(req, -ENODEV);
@@ -545,14 +548,14 @@ static void ahci_atapi_submit(const struct atapi_device* restrict device, const 
     finish(req, retval);
 }
 
-static const struct atapi_device_ops ahci_atapi_ops = {
+static const atapi_device_ops_t ahci_atapi_ops = {
     .submit_packet = &ahci_atapi_submit,
     .release = &ahci_atapi_release,
 };
 
-static void ahci_submit(const struct blk_device* restrict device, struct blk_request* restrict req)
+static void ahci_submit(const blk_device_t* restrict device, blk_request_t* restrict req)
 {
-    struct ahci_port* port = device->ctxdata;
+    ahci_port_t* port = device->ctxdata;
     uint16_t count = (uint16_t)(req->length / device->sector_size);
 
     if(!port_acquire(port)) {
@@ -581,9 +584,9 @@ static void ahci_submit(const struct blk_device* restrict device, struct blk_req
     finish(req, retval);
 }
 
-static int ahci_port_init(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
+static int ahci_port_init(ahci_pci_context_t* restrict context, pci_bar_t* restrict abar, unsigned port_num)
 {
-    struct ahci_port* port = &context->ports[port_num];
+    ahci_port_t* port = &context->ports[port_num];
 
     uintptr_t port_base = HBA_PORT_BASE + port_num * HBA_PORT_SIZE;
     uintptr_t dma_phys = pdma_alloc_phys(DMA_NUM_PAGES);
@@ -627,7 +630,7 @@ static int ahci_port_init(struct ahci_pci_context* restrict context, struct pci_
     return 0;
 }
 
-static void ahci_port_teardown(struct ahci_port* restrict port)
+static void ahci_port_teardown(ahci_port_t* restrict port)
 {
     mutex_acquire(&port->lock);
 
@@ -644,12 +647,12 @@ static void ahci_port_teardown(struct ahci_port* restrict port)
     mutex_release(&port->lock);
 }
 
-static const struct blk_device_ops ahci_blk_device_ops = {
+static const blk_device_ops_t ahci_blk_device_ops = {
     .submit = &ahci_submit,
     .release = &ahci_blk_release,
 };
 
-static void set_limits(const struct ahci_pci_context* restrict context, struct blk_device* restrict device)
+static void set_limits(const ahci_pci_context_t* restrict context, blk_device_t* restrict device)
 {
     device->max_transfer = AHCI_MAX_TRANSFER;
     device->max_segments = AHCI_MAX_PRDT;
@@ -657,14 +660,14 @@ static void set_limits(const struct ahci_pci_context* restrict context, struct b
     device->dma_align = 1; // PRDT DBA and DBC both have to be even
 }
 
-static int ahci_port_register_ata(struct ahci_pci_context* restrict context, unsigned port_num)
+static int ahci_port_register_ata(ahci_pci_context_t* restrict context, unsigned port_num)
 {
     if(context->ata_iterator == UINT_MAX) {
         context->ata_iterator = blk_name_increment(blk_name_ata);
     }
 
-    struct blk_device* device = &context->devices[port_num];
-    struct ahci_port* port = &context->ports[port_num];
+    blk_device_t* device = &context->devices[port_num];
+    ahci_port_t* port = &context->ports[port_num];
 
     port->context = context;
 
@@ -676,7 +679,7 @@ static int ahci_port_register_ata(struct ahci_pci_context* restrict context, uns
 
     set_limits(context, device);
 
-    int retval = add_blk_device_root(device, blk_name_ata, context->ata_iterator, port_num);
+    int retval = blk_device_add_root(device, blk_name_ata, context->ata_iterator, port_num);
 
     if(retval == 0) {
         context->refcount += 1;
@@ -685,14 +688,14 @@ static int ahci_port_register_ata(struct ahci_pci_context* restrict context, uns
     return retval;
 }
 
-static int ahci_port_register_atapi(struct ahci_pci_context* restrict context, unsigned port_num)
+static int ahci_port_register_atapi(ahci_pci_context_t* restrict context, unsigned port_num)
 {
     if(context->atapi_iterator == UINT_MAX) {
         context->atapi_iterator = blk_name_increment(blk_name_atapi);
     }
 
-    struct atapi_device* atapi_dev = &context->atapi_devices[port_num];
-    struct ahci_port* port = &context->ports[port_num];
+    atapi_device_t* atapi_dev = &context->atapi_devices[port_num];
+    ahci_port_t* port = &context->ports[port_num];
 
     port->context = context;
 
@@ -705,7 +708,7 @@ static int ahci_port_register_atapi(struct ahci_pci_context* restrict context, u
 
     set_limits(context, &atapi_dev->base);
 
-    int retval = add_atapi_device(atapi_dev, blk_name_atapi, context->atapi_iterator, port_num);
+    int retval = atapi_device_add(atapi_dev, blk_name_atapi, context->atapi_iterator, port_num);
 
     if(retval == 0) {
         context->refcount += 1;
@@ -714,14 +717,14 @@ static int ahci_port_register_atapi(struct ahci_pci_context* restrict context, u
     return retval;
 }
 
-static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
+static void ahci_port_probe_ata(ahci_pci_context_t* restrict context, pci_bar_t* restrict abar, unsigned port_num)
 {
     if(ahci_port_init(context, abar, port_num)) {
         return;
     }
 
-    ata_identify_type identify;
-    struct ahci_port* port = &context->ports[port_num];
+    ata_identify_t identify;
+    ahci_port_t* port = &context->ports[port_num];
 
     port->iterator = context->ata_iterator;
 
@@ -736,7 +739,7 @@ static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struc
         return;
     }
 
-    struct blk_device* device = &context->devices[port_num];
+    blk_device_t* device = &context->devices[port_num];
     device->sector_count = ata_identify_sector_count(identify);
     device->sector_size = ata_identify_logical_sector_size(identify);
 
@@ -757,15 +760,15 @@ static void ahci_port_probe_ata(struct ahci_pci_context* restrict context, struc
     blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, device);
 }
 
-static void ahci_port_probe_atapi(struct ahci_pci_context* restrict context, struct pci_bar* restrict abar, unsigned port_num)
+static void ahci_port_probe_atapi(ahci_pci_context_t* restrict context, pci_bar_t* restrict abar, unsigned port_num)
 {
     if(ahci_port_init(context, abar, port_num)) {
         return;
     }
 
-    ata_identify_type identify;
-    struct ahci_port* port = &context->ports[port_num];
-    struct atapi_device* atapi_dev = &context->atapi_devices[port_num];
+    ata_identify_t identify;
+    ahci_port_t* port = &context->ports[port_num];
+    atapi_device_t* atapi_dev = &context->atapi_devices[port_num];
 
     port->iterator = context->atapi_iterator;
 
@@ -804,9 +807,9 @@ static void ahci_port_probe_atapi(struct ahci_pci_context* restrict context, str
     blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, &atapi_dev->base);
 }
 
-static void ahci_ireq(unsigned number, const struct hart_context* restrict ctx, void* restrict ctxdata)
+static void ahci_irq(unsigned number, const hart_context_t* restrict ctx, void* restrict ctxdata)
 {
-    struct ahci_pci_context* context = ctxdata;
+    ahci_pci_context_t* context = ctxdata;
     uint32_t pending = pci_bar_read32(context->abar, HBA_IS);
 
     for(unsigned port_num = 0; port_num < 32; port_num += 1) {
@@ -814,7 +817,7 @@ static void ahci_ireq(unsigned number, const struct hart_context* restrict ctx, 
             continue;
         }
 
-        struct ahci_port* port = &context->ports[port_num];
+        ahci_port_t* port = &context->ports[port_num];
         uintptr_t port_base = HBA_PORT_BASE + port_num * HBA_PORT_SIZE;
 
         // PxIS goes before IS, or the port raises IS again right away
@@ -830,7 +833,7 @@ static void ahci_ireq(unsigned number, const struct hart_context* restrict ctx, 
 
 // Firmware that drives the HBA itself (SMI-based legacy
 // emulation and the like) has to let go of it first
-static void ahci_handoff(struct pci_bar* restrict abar)
+static void ahci_handoff(pci_bar_t* restrict abar)
 {
     if(0 == (pci_bar_read32(abar, HBA_CAP2) & HBA_CAP2_BOH)) {
         return;
@@ -838,10 +841,10 @@ static void ahci_handoff(struct pci_bar* restrict abar)
 
     pci_bar_write32(abar, HBA_BOHC, pci_bar_read32(abar, HBA_BOHC) | HBA_BOHC_OOS);
 
-    uint64_t deadline = clocksrc_nsec() + AHCI_BIOS_BOS_TIMEOUT_NS;
+    uint64_t deadline = clock_source_now_ns() + AHCI_BIOS_BOS_TIMEOUT_NS;
     bool busy = false;
 
-    while((pci_bar_read32(abar, HBA_BOHC) & HBA_BOHC_BOS) && clocksrc_nsec() < deadline) {
+    while((pci_bar_read32(abar, HBA_BOHC) & HBA_BOHC_BOS) && clock_source_now_ns() < deadline) {
         if(pci_bar_read32(abar, HBA_BOHC) & HBA_BOHC_BB) {
             busy = true;
             break;
@@ -860,9 +863,9 @@ static void ahci_handoff(struct pci_bar* restrict abar)
     }
 }
 
-static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driver_id* restrict id)
+static int ahci_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* restrict id)
 {
-    struct ahci_pci_context* context = kmalloc(sizeof(struct ahci_pci_context));
+    ahci_pci_context_t* context = kmalloc(sizeof(ahci_pci_context_t));
 
     if(context == nullptr) {
         pr_verbose("ahci: out of memory");
@@ -878,7 +881,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
 
     pci_enable_busmaster(pci_dev);
 
-    struct pci_bar* abar = pci_bar_map(pci_dev, 5);
+    pci_bar_t* abar = pci_bar_map(pci_dev, 5);
 
     if(abar == nullptr) {
         pr_verbose("ahci: pci_bar_map failed");
@@ -934,7 +937,7 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
         return -ENODEV;
     }
 
-    if(0 == pci_request_irq(pci_dev, &ahci_ireq, context)) {
+    if(0 == pci_request_irq(pci_dev, &ahci_irq, context)) {
         context->irq = true;
         pci_bar_write32(abar, HBA_GHC, pci_bar_read32(abar, HBA_GHC) | HBA_GHC_IE);
     }
@@ -971,9 +974,9 @@ static int ahci_probe(struct pci_device* restrict pci_dev, const struct pci_driv
     return 0;
 }
 
-static void ahci_remove(struct pci_device* restrict pci_dev)
+static void ahci_remove(pci_device_t* restrict pci_dev)
 {
-    struct ahci_pci_context* context = pci_dev->ctxdata;
+    ahci_pci_context_t* context = pci_dev->ctxdata;
 
     if(context == nullptr) {
         return;
@@ -989,10 +992,10 @@ static void ahci_remove(struct pci_device* restrict pci_dev)
         uint32_t port_bit = UINT32_C(1) << port_num;
 
         if(context->ata_mask & port_bit) {
-            remove_blk_device(&context->devices[port_num]);
+            blk_device_remove(&context->devices[port_num]);
         }
         else if(context->atapi_mask & port_bit) {
-            remove_atapi_device(&context->atapi_devices[port_num]);
+            atapi_device_remove(&context->atapi_devices[port_num]);
         }
         else {
             continue;
@@ -1010,24 +1013,24 @@ static void ahci_remove(struct pci_device* restrict pci_dev)
     context_decref(context);
 }
 
-static const struct pci_driver_ops ahci_driver_ops = {
+static const pci_driver_ops_t ahci_driver_ops = {
     .probe = &ahci_probe,
     .remove = &ahci_remove,
 };
 
-static const struct pci_driver_id ahci_ids[] = {
+static const pci_driver_id_t ahci_ids[] = {
     PCI_DEVICE_CLASS(0x01, 0x06),
     PCI_DEVICE_END(),
 };
 
-static struct pci_driver ahci_driver = {
+static pci_driver_t ahci_driver = {
     .ops = &ahci_driver_ops,
     .ids = ahci_ids,
 };
 
 static void init_ahci(void)
 {
-    add_pci_driver(&ahci_driver);
+    pci_driver_add(&ahci_driver);
 }
 
 initcall_bsp_dev(init_ahci, INIT_MIDDLE);

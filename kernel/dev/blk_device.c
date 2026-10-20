@@ -9,16 +9,16 @@
 #include <vex/string.h>
 
 // Writers also hold blk_event_lock, which keeps the list still for
-// iterate_blk_devices; the spinlock is for lookups from anywhere else
-static spinlock_type blk_devices_lock = SPINLOCK_INIT;
-static struct blk_device* blk_devices_head = nullptr;
+// blk_device_for_each; the spinlock is for lookups from anywhere else
+static spinlock_t blk_devices_lock = SPINLOCK_INIT;
+static blk_device_t* blk_devices_head = nullptr;
 
-static int blk_device_register_internal(struct blk_device* restrict device)
+static int blk_device_register_internal(blk_device_t* restrict device)
 {
     blk_event_lock();
     spinlock_acquire(&blk_devices_lock);
 
-    for(struct blk_device* it = blk_devices_head; it; it = it->priv.next) {
+    for(blk_device_t* it = blk_devices_head; it; it = it->priv.next) {
         if(it == device) {
             spinlock_release(&blk_devices_lock);
             blk_event_unlock();
@@ -40,29 +40,29 @@ static int blk_device_register_internal(struct blk_device* restrict device)
     return 0;
 }
 
-int add_blk_device_root(struct blk_device* restrict device, struct blk_name* restrict name, unsigned iterator, unsigned index)
+int blk_device_add_root(blk_device_t* restrict device, blk_name_t* restrict name, unsigned iterator, unsigned index)
 {
     device->priv.name = name;
     device->priv.name_iterator = iterator;
     device->partition = UINT_MAX;
 
-    snprintf(device->identifier, sizeof(device->identifier), "%s%un%u", name->device_prefix, device->priv.name_iterator, index + 1);
+    snprintf(device->name, sizeof(device->name), "%s%un%u", name->device_prefix, device->priv.name_iterator, index + 1);
 
     return blk_device_register_internal(device);
 }
 
-int add_blk_device_part(struct blk_device* restrict device, const struct blk_device* restrict root, unsigned partition)
+int blk_device_add_part(blk_device_t* restrict device, const blk_device_t* restrict root, unsigned partition)
 {
     device->priv.name = root->priv.name;
     device->priv.name_iterator = root->priv.name_iterator;
     device->partition = partition;
 
-    snprintf(device->identifier, sizeof(device->identifier), "%sp%u", root->identifier, partition + 1);
+    snprintf(device->name, sizeof(device->name), "%sp%u", root->name, partition + 1);
 
     return blk_device_register_internal(device);
 }
 
-int add_blk_device_named(struct blk_device* restrict device)
+int blk_device_add_named(blk_device_t* restrict device)
 {
     device->priv.name = nullptr;
     device->priv.name_iterator = 0;
@@ -70,12 +70,12 @@ int add_blk_device_named(struct blk_device* restrict device)
     return blk_device_register_internal(device);
 }
 
-int remove_blk_device(struct blk_device* restrict device)
+int blk_device_remove(blk_device_t* restrict device)
 {
     blk_event_lock();
     spinlock_acquire(&blk_devices_lock);
 
-    struct blk_device** prev = &blk_devices_head;
+    blk_device_t** prev = &blk_devices_head;
 
     while(*prev && *prev != device) {
         prev = &(*prev)->priv.next;
@@ -110,15 +110,15 @@ int remove_blk_device(struct blk_device* restrict device)
     return 0;
 }
 
-void blk_device_incref(const struct blk_device* restrict device)
+void blk_device_incref(const blk_device_t* restrict device)
 {
-    struct blk_device* mutable_device = (struct blk_device*)(device);
+    blk_device_t* mutable_device = (blk_device_t*)(device);
     atomic_fetch_add(&mutable_device->priv.refcount, 1, ATOMIC_RELAXED);
 }
 
-void blk_device_decref(const struct blk_device* restrict device)
+void blk_device_decref(const blk_device_t* restrict device)
 {
-    struct blk_device* mutable_device = (struct blk_device*)(device);
+    blk_device_t* mutable_device = (blk_device_t*)(device);
 
     if(1 == atomic_fetch_sub(&mutable_device->priv.refcount, 1, ATOMIC_ACQ_REL)) {
         if(device->ops->release) {
@@ -127,12 +127,12 @@ void blk_device_decref(const struct blk_device* restrict device)
     }
 }
 
-const struct blk_device* find_blk_device(const char* restrict name)
+const blk_device_t* blk_device_find(const char* restrict name)
 {
     spinlock_acquire(&blk_devices_lock);
 
-    for(struct blk_device* it = blk_devices_head; it; it = it->priv.next) {
-        if(0 == strcmp(it->identifier, name)) {
+    for(blk_device_t* it = blk_devices_head; it; it = it->priv.next) {
+        if(0 == strcmp(it->name, name)) {
             blk_device_incref(it);
             spinlock_release(&blk_devices_lock);
             return it;
@@ -144,16 +144,16 @@ const struct blk_device* find_blk_device(const char* restrict name)
     return nullptr;
 }
 
-void iterate_blk_devices(void (*callback)(const struct blk_device* restrict device, void* restrict arg), void* restrict arg)
+void blk_device_for_each(void (*callback)(const blk_device_t* restrict device, void* restrict arg), void* restrict arg)
 {
-    for(struct blk_device* it = blk_devices_head; it;) {
-        struct blk_device* next = it->priv.next;
+    for(blk_device_t* it = blk_devices_head; it;) {
+        blk_device_t* next = it->priv.next;
         callback(it, arg);
         it = next;
     }
 }
 
-int blk_read_sector_prefix(const struct blk_device* restrict device, uintptr_t lba, void* restrict buffer, size_t size)
+int blk_read_sector_prefix(const blk_device_t* restrict device, uintptr_t lba, void* restrict buffer, size_t size)
 {
     if(device->sector_size < size) {
         return -EINVAL;

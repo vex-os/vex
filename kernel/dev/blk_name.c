@@ -7,17 +7,17 @@
 #include <vex/string.h>
 #include <vex/strings.h>
 
-static spinlock_type blk_name_lock = SPINLOCK_INIT;
-static struct blk_name* blk_name_head = nullptr;
+static spinlock_t blk_name_lock = SPINLOCK_INIT;
+static blk_name_t* blk_name_head = nullptr;
 
-struct blk_name* blk_name_ata;
-struct blk_name* blk_name_atapi;
-struct blk_name* blk_name_nvme;
-struct blk_name* blk_name_virtio;
+blk_name_t* blk_name_ata;
+blk_name_t* blk_name_atapi;
+blk_name_t* blk_name_nvme;
+blk_name_t* blk_name_virtio;
 
-static struct blk_name* find_name_nolock(const char* restrict prefix)
+static blk_name_t* find_name_nolock(const char* restrict prefix)
 {
-    for(struct blk_name* name = blk_name_head; name; name = name->priv.next) {
+    for(blk_name_t* name = blk_name_head; name; name = name->priv.next) {
         if(0 == strcmp(name->device_prefix, prefix)) {
             return name;
         }
@@ -26,17 +26,17 @@ static struct blk_name* find_name_nolock(const char* restrict prefix)
     return nullptr;
 }
 
-struct blk_name* blk_name_query(const char* restrict prefix)
+blk_name_t* blk_name_query(const char* restrict prefix)
 {
     spinlock_acquire(&blk_name_lock);
-    struct blk_name* name = find_name_nolock(prefix);
+    blk_name_t* name = find_name_nolock(prefix);
     spinlock_release(&blk_name_lock);
 
     if(name) {
         return name;
     }
 
-    struct blk_name* created = kmalloc(sizeof(struct blk_name));
+    blk_name_t* created = kmalloc(sizeof(blk_name_t));
 
     if(created == nullptr) {
         return nullptr;
@@ -63,12 +63,12 @@ struct blk_name* blk_name_query(const char* restrict prefix)
     return name;
 }
 
-unsigned blk_name_increment(struct blk_name* restrict name)
+unsigned blk_name_increment(blk_name_t* restrict name)
 {
     return atomic_fetch_add(&name->priv.next_iterator, 1, ATOMIC_RELAXED);
 }
 
-unsigned blk_name_count(const struct blk_name* restrict name)
+unsigned blk_name_count(const blk_name_t* restrict name)
 {
     return atomic_load(&name->priv.next_iterator, ATOMIC_RELAXED);
 }

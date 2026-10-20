@@ -3,7 +3,14 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-struct blk_ptable_info {
+typedef struct blk_device_s blk_device_t;
+
+typedef struct blk_partition_table_info_s blk_partition_table_info_t;
+typedef struct blk_partition_table_ops_s blk_partition_table_ops_t;
+typedef struct blk_partition_table_s blk_partition_table_t;
+typedef struct blk_partition_table_private_s blk_partition_table_private_t;
+
+struct blk_partition_table_info_s {
     char part_label[64];
     unsigned part_index;
     uintptr_t lba_start;
@@ -11,24 +18,22 @@ struct blk_ptable_info {
     uint64_t type;
 };
 
-struct blk_device;
-struct blk_ptable_ops {
-    int (*detect)(const struct blk_device* restrict device, void** restrict ptdata);
-    int (*readpt)(const struct blk_device* restrict device, void* restrict ptdata, unsigned index, struct blk_ptable_info* restrict out);
+struct blk_partition_table_ops_s {
+    int (*detect)(const blk_device_t* restrict device, void** restrict ptdata);
+    int (*readpt)(const blk_device_t* restrict device, void* restrict ptdata, unsigned index, blk_partition_table_info_t* restrict out);
     void (*release)(void* restrict ptdata);
 };
 
-struct blk_ptable;
-struct blk_ptable_private {
-    struct blk_ptable* next;
+struct blk_partition_table_private_s {
+    blk_partition_table_t* next;
 };
 
-struct blk_ptable {
-    struct blk_ptable_private priv;
-    const struct blk_ptable_ops* ops;
-    const char* identifier;
+struct blk_partition_table_s {
+    blk_partition_table_private_t priv;
+    const blk_partition_table_ops_t* ops;
+    const char* name;
 };
 
-int add_blk_ptable(struct blk_ptable* restrict ptable);
-int remove_blk_ptable(struct blk_ptable* restrict ptable);
-int rescan_partitions(const struct blk_device* restrict device);
+int blk_partition_table_add(blk_partition_table_t* restrict ptable);
+int blk_partition_table_remove(blk_partition_table_t* restrict ptable);
+int rescan_partitions(const blk_device_t* restrict device);

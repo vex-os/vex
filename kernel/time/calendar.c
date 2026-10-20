@@ -19,7 +19,7 @@ static int64_t floor_div(int64_t value, int64_t divisor)
     return quotient;
 }
 
-void calendar_from_time(time_t time, struct calendar_time* restrict out)
+void calendar_from_time(time_t time, calendar_time_t* restrict out)
 {
     int64_t days = floor_div(time, SECONDS_PER_DAY);
     int64_t seconds = time - days * SECONDS_PER_DAY;
@@ -47,7 +47,7 @@ void calendar_from_time(time_t time, struct calendar_time* restrict out)
     }
 }
 
-time_t calendar_to_time(const struct calendar_time* restrict calendar)
+time_t calendar_to_time(const calendar_time_t* restrict calendar)
 {
     int64_t year = (int64_t)(calendar->year);
     int64_t month_from_march = (int64_t)(calendar->month) + 9;

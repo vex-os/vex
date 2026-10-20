@@ -3,6 +3,9 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
+typedef struct fcache_s fcache_t;
+typedef struct rmap_entry_s rmap_entry_t;
+
 #define PFRAME_PSLAB    0x0001 // Managed by pslab
 #define PFRAME_CACHE    0x0002 // Owned by a file cache, owner and index are valid
 #define PFRAME_UPTODATE 0x0004 // Holds the file contents, zeroes past the end of file
@@ -11,24 +14,23 @@
 
 #define PFRAME_DIRTY_SHIFT 24 // Bits 24-31: dirty sectors of a file cache page, the first one lowest
 
-struct fcache;
-struct rmap_entry;
+typedef struct pframe_s pframe_t;
 
-struct pframe {
+struct pframe_s {
     uint32_t refcount;
-    uint32_t flags;          // PFRAME; the file cache bits are under owner->lock
-    struct fcache* owner;    // Under owner->lock
-    uint64_t index;          // Page index within the owner
-    struct pframe* lru_prev; // Under the file cache LRU lock
-    struct pframe* lru_next;
-    struct rmap_entry* mappings; // Under the rmap lock of the frame
+    uint32_t flags;     // PFRAME; the file cache bits are under owner->lock
+    fcache_t* owner;    // Under owner->lock
+    uint64_t index;     // Page index within the owner
+    pframe_t* lru_prev; // Under the file cache LRU lock
+    pframe_t* lru_next;
+    rmap_entry_t* mappings; // Under the rmap lock of the frame
 };
 
-struct pframe* pframe_of(uintptr_t phys) __nodiscard;
-uintptr_t pframe_phys(const struct pframe* restrict pf) __nodiscard;
+pframe_t* pframe_of(uintptr_t phys) __nodiscard;
+uintptr_t pframe_phys(const pframe_t* restrict pframe) __nodiscard;
 
-void pframe_incref(struct pframe* restrict pf);
-bool pframe_decref(struct pframe* restrict pf) __nodiscard;
-bool pframe_shared(const struct pframe* restrict pf) __nodiscard;
+void pframe_incref(pframe_t* restrict pframe);
+bool pframe_decref(pframe_t* restrict pframe) __nodiscard;
+bool pframe_shared(const pframe_t* restrict pframe) __nodiscard;
 
 void pframe_storage(uintptr_t* restrict start, size_t* restrict length);

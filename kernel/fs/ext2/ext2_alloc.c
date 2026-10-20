@@ -6,7 +6,7 @@
 
 #include "ext2.h"
 
-static uint32_t group_blocks(const struct ext2_vfs_context* restrict context, uint32_t group)
+static uint32_t group_blocks(const ext2_vfs_context_t* restrict context, uint32_t group)
 {
     uint32_t first = context->first_data_block + group * context->blocks_per_group;
     uint32_t count = le32toh(context->super.s_blocks_count) - first;
@@ -42,7 +42,7 @@ static bool find_clear_bit(const uint8_t* restrict bitmap, uint32_t start, uint3
 }
 
 // Reads the bitmap a piece at a time, a whole block of it doesn't fit the slab
-static int scan_bitmap(struct ext2_vfs_context* restrict context, uint64_t offset, uint32_t start, uint32_t limit, uint32_t* restrict out)
+static int scan_bitmap(ext2_vfs_context_t* restrict context, uint64_t offset, uint32_t start, uint32_t limit, uint32_t* restrict out)
 {
     uint8_t chunk[256];
     uint32_t bit = start;
@@ -56,7 +56,7 @@ static int scan_bitmap(struct ext2_vfs_context* restrict context, uint64_t offse
         }
 
         size_t bytes = (chunk_end + 7) / 8 - first_byte;
-        int retval = fcache_dev_read(context->devnode, offset + first_byte, chunk, bytes);
+        int retval = fcache_dev_read(context->device_node, offset + first_byte, chunk, bytes);
 
         if(retval < 0) {
             return retval;
@@ -76,7 +76,7 @@ static int scan_bitmap(struct ext2_vfs_context* restrict context, uint64_t offse
 }
 
 // Looks in [start, limit) first, then wraps around to [first, start)
-static int bitmap_take(struct ext2_vfs_context* restrict context, uint32_t bitmap_block, uint32_t first, uint32_t start, uint32_t limit,
+static int bitmap_take(ext2_vfs_context_t* restrict context, uint32_t bitmap_block, uint32_t first, uint32_t start, uint32_t limit,
     uint32_t* restrict out)
 {
     uint64_t offset = ext2_block_offset(context, bitmap_block);
@@ -92,14 +92,14 @@ static int bitmap_take(struct ext2_vfs_context* restrict context, uint32_t bitma
     }
 
     uint8_t byte;
-    retval = fcache_dev_read(context->devnode, offset + bit / 8, &byte, sizeof(byte));
+    retval = fcache_dev_read(context->device_node, offset + bit / 8, &byte, sizeof(byte));
 
     if(retval < 0) {
         return retval;
     }
 
     byte |= 1U << (bit % 8);
-    retval = fcache_dev_write(context->devnode, offset + bit / 8, &byte, sizeof(byte));
+    retval = fcache_dev_write(context->device_node, offset + bit / 8, &byte, sizeof(byte));
 
     if(retval < 0) {
         return retval;
@@ -110,11 +110,11 @@ static int bitmap_take(struct ext2_vfs_context* restrict context, uint32_t bitma
     return 0;
 }
 
-static int bitmap_put(struct ext2_vfs_context* restrict context, uint32_t bitmap_block, uint32_t bit)
+static int bitmap_put(ext2_vfs_context_t* restrict context, uint32_t bitmap_block, uint32_t bit)
 {
     uint64_t offset = ext2_block_offset(context, bitmap_block) + bit / 8;
     uint8_t byte;
-    int retval = fcache_dev_read(context->devnode, offset, &byte, sizeof(byte));
+    int retval = fcache_dev_read(context->device_node, offset, &byte, sizeof(byte));
 
     if(retval < 0) {
         return retval;
@@ -126,10 +126,10 @@ static int bitmap_put(struct ext2_vfs_context* restrict context, uint32_t bitmap
 
     byte &= ~(1U << (bit % 8));
 
-    return fcache_dev_write(context->devnode, offset, &byte, sizeof(byte));
+    return fcache_dev_write(context->device_node, offset, &byte, sizeof(byte));
 }
 
-static void commit_counts(struct ext2_vfs_context* restrict context, uint32_t group)
+static void commit_counts(ext2_vfs_context_t* restrict context, uint32_t group)
 {
     int retval = ext2_group_commit(context, group);
 
@@ -138,17 +138,17 @@ static void commit_counts(struct ext2_vfs_context* restrict context, uint32_t gr
     }
 
     if(retval < 0) {
-        pr_warning("ext2: %s: failed to update the free counts of group %u", context->device->identifier, group);
+        pr_warning("ext2: %s: failed to update the free counts of group %u", context->device->name, group);
     }
 }
 
-static uint32_t directory_group(const struct ext2_vfs_context* restrict context)
+static uint32_t directory_group(const ext2_vfs_context_t* restrict context)
 {
     uint32_t best = 0;
     uint32_t best_free = 0;
 
     for(uint32_t i = 0; i < context->groups_count; ++i) {
-        const struct ext2_group_desc* desc = &context->groups[i];
+        const ext2_group_desc_t* desc = &context->groups[i];
         uint32_t free_blocks = le16toh(desc->bg_free_blocks_count);
 
         if(le16toh(desc->bg_free_inodes_count) && free_blocks > best_free) {
@@ -160,9 +160,9 @@ static uint32_t directory_group(const struct ext2_vfs_context* restrict context)
     return best;
 }
 
-uint32_t ext2_block_alloc(struct ext2_vfs_context* restrict context, uint32_t goal)
+uint32_t ext2_block_alloc(ext2_vfs_context_t* restrict context, uint32_t goal)
 {
-    struct ext2_superblock* super = &context->super;
+    ext2_superblock_t* super = &context->super;
     uint32_t free_blocks = le32toh(super->s_free_blocks_count);
 
     if(free_blocks == 0) {
@@ -178,7 +178,7 @@ uint32_t ext2_block_alloc(struct ext2_vfs_context* restrict context, uint32_t go
 
     for(uint32_t i = 0; i < context->groups_count; ++i) {
         uint32_t group = (start_group + i) % context->groups_count;
-        struct ext2_group_desc* desc = &context->groups[group];
+        ext2_group_desc_t* desc = &context->groups[group];
         uint32_t group_free = le16toh(desc->bg_free_blocks_count);
 
         if(group_free == 0) {
@@ -195,7 +195,7 @@ uint32_t ext2_block_alloc(struct ext2_vfs_context* restrict context, uint32_t go
         int retval = bitmap_take(context, le32toh(desc->bg_block_bitmap), 0, start, group_blocks(context, group), &bit);
 
         if(retval < 0) {
-            pr_warning("ext2: %s: no block taken from group %u: %s", context->device->identifier, group, strerror(retval));
+            pr_warning("ext2: %s: no block taken from group %u: %s", context->device->name, group, strerror(retval));
             continue;
         }
 
@@ -209,23 +209,23 @@ uint32_t ext2_block_alloc(struct ext2_vfs_context* restrict context, uint32_t go
     return 0;
 }
 
-void ext2_block_free(struct ext2_vfs_context* restrict context, uint32_t block)
+void ext2_block_free(ext2_vfs_context_t* restrict context, uint32_t block)
 {
-    struct ext2_superblock* super = &context->super;
+    ext2_superblock_t* super = &context->super;
 
     if(block < context->first_data_block || block >= le32toh(super->s_blocks_count)) {
-        pr_warning("ext2: %s: freeing block %u outside the filesystem", context->device->identifier, block);
+        pr_warning("ext2: %s: freeing block %u outside the filesystem", context->device->name, block);
         return;
     }
 
     uint32_t group = (block - context->first_data_block) / context->blocks_per_group;
     uint32_t bit = (block - context->first_data_block) % context->blocks_per_group;
-    struct ext2_group_desc* desc = &context->groups[group];
+    ext2_group_desc_t* desc = &context->groups[group];
 
     int retval = bitmap_put(context, le32toh(desc->bg_block_bitmap), bit);
 
     if(retval < 0) {
-        pr_warning("ext2: %s: failed to free block %u: %s", context->device->identifier, block, strerror(retval));
+        pr_warning("ext2: %s: failed to free block %u: %s", context->device->name, block, strerror(retval));
         return;
     }
 
@@ -234,9 +234,9 @@ void ext2_block_free(struct ext2_vfs_context* restrict context, uint32_t block)
     commit_counts(context, group);
 }
 
-uint32_t ext2_inode_alloc(struct ext2_vfs_context* restrict context, uint32_t parent_ino, bool directory)
+uint32_t ext2_inode_alloc(ext2_vfs_context_t* restrict context, uint32_t parent_ino, bool directory)
 {
-    struct ext2_superblock* super = &context->super;
+    ext2_superblock_t* super = &context->super;
     uint32_t free_inodes = le32toh(super->s_free_inodes_count);
 
     if(free_inodes == 0) {
@@ -254,7 +254,7 @@ uint32_t ext2_inode_alloc(struct ext2_vfs_context* restrict context, uint32_t pa
 
     for(uint32_t i = 0; i < context->groups_count; ++i) {
         uint32_t group = (start_group + i) % context->groups_count;
-        struct ext2_group_desc* desc = &context->groups[group];
+        ext2_group_desc_t* desc = &context->groups[group];
         uint32_t group_free = le16toh(desc->bg_free_inodes_count);
 
         if(group_free == 0) {
@@ -273,7 +273,7 @@ uint32_t ext2_inode_alloc(struct ext2_vfs_context* restrict context, uint32_t pa
         int retval = bitmap_take(context, le32toh(desc->bg_inode_bitmap), first, first, context->inodes_per_group, &bit);
 
         if(retval < 0) {
-            pr_warning("ext2: %s: no inode taken from group %u: %s", context->device->identifier, group, strerror(retval));
+            pr_warning("ext2: %s: no inode taken from group %u: %s", context->device->name, group, strerror(retval));
             continue;
         }
 
@@ -289,7 +289,7 @@ uint32_t ext2_inode_alloc(struct ext2_vfs_context* restrict context, uint32_t pa
         commit_counts(context, group);
 
         if(ext2_inode_clear(context, ino) < 0) {
-            pr_warning("ext2: %s: failed to clear inode %u", context->device->identifier, ino);
+            pr_warning("ext2: %s: failed to clear inode %u", context->device->name, ino);
         }
 
         return ino;
@@ -298,23 +298,23 @@ uint32_t ext2_inode_alloc(struct ext2_vfs_context* restrict context, uint32_t pa
     return 0;
 }
 
-void ext2_inode_free(struct ext2_vfs_context* restrict context, uint32_t ino, bool directory)
+void ext2_inode_free(ext2_vfs_context_t* restrict context, uint32_t ino, bool directory)
 {
-    struct ext2_superblock* super = &context->super;
+    ext2_superblock_t* super = &context->super;
 
     if(ino < context->first_ino || ino > le32toh(super->s_inodes_count)) {
-        pr_warning("ext2: %s: freeing reserved or invalid inode %u", context->device->identifier, ino);
+        pr_warning("ext2: %s: freeing reserved or invalid inode %u", context->device->name, ino);
         return;
     }
 
     uint32_t group = (ino - 1) / context->inodes_per_group;
     uint32_t bit = (ino - 1) % context->inodes_per_group;
-    struct ext2_group_desc* desc = &context->groups[group];
+    ext2_group_desc_t* desc = &context->groups[group];
 
     int retval = bitmap_put(context, le32toh(desc->bg_inode_bitmap), bit);
 
     if(retval < 0) {
-        pr_warning("ext2: %s: failed to free inode %u: %s", context->device->identifier, ino, strerror(retval));
+        pr_warning("ext2: %s: failed to free inode %u: %s", context->device->name, ino, strerror(retval));
         return;
     }
 

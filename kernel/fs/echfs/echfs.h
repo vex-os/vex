@@ -5,10 +5,24 @@
 #include <vex/path.h>
 #include <vex/types.h>
 
-struct blk_device;
-struct vnode;
+typedef struct blk_device_s blk_device_t;
+typedef struct vnode_s vnode_t;
+typedef struct vnode_ops_s vnode_ops_t;
 
-struct echfs_identity {
+#define ECHFS_TABLE_FREE     UINT64_C(0x0000000000000000)
+#define ECHFS_TABLE_RESERVED UINT64_C(0xFFFFFFFFFFFFFFF0)
+#define ECHFS_TABLE_EOC      UINT64_C(0xFFFFFFFFFFFFFFFF)
+
+#define ECHFS_DIR_ID_END     UINT64_C(0x00000000000000000)
+#define ECHFS_DIR_ID_DELETED UINT64_C(0xFFFFFFFFFFFFFFFE)
+#define ECHFS_DIR_ID_ROOT    UINT64_C(0xFFFFFFFFFFFFFFFF)
+
+typedef struct echfs_identity_s echfs_identity_t;
+typedef struct echfs_dirent_s echfs_dirent_t;
+typedef struct echfs_vfs_context_s echfs_vfs_context_t;
+typedef struct echfs_vnode_context_s echfs_vnode_context_t;
+
+struct echfs_identity_s {
     uint8_t reserved_1[4];
     uint8_t signature[8];
     uint64_t total_blocks;
@@ -21,18 +35,10 @@ struct echfs_identity {
 } __packed;
 
 #ifndef __INTELLISENSE__
-static_assert(512 == sizeof(struct echfs_identity));
+static_assert(512 == sizeof(echfs_identity_t));
 #endif
 
-#define ECHFS_TABLE_FREE     UINT64_C(0x0000000000000000)
-#define ECHFS_TABLE_RESERVED UINT64_C(0xFFFFFFFFFFFFFFF0)
-#define ECHFS_TABLE_EOC      UINT64_C(0xFFFFFFFFFFFFFFFF)
-
-#define ECHFS_DIR_ID_END     UINT64_C(0x00000000000000000)
-#define ECHFS_DIR_ID_DELETED UINT64_C(0xFFFFFFFFFFFFFFFE)
-#define ECHFS_DIR_ID_ROOT    UINT64_C(0xFFFFFFFFFFFFFFFF)
-
-struct echfs_dirent {
+struct echfs_dirent_s {
     uint64_t directory_id;
     uint8_t object_type;
     uint8_t name[201];
@@ -47,11 +53,11 @@ struct echfs_dirent {
 } __packed;
 
 #ifndef __INTELLISENSE__
-static_assert(256 == sizeof(struct echfs_dirent));
+static_assert(256 == sizeof(echfs_dirent_t));
 #endif
 
-struct echfs_vfs_context {
-    const struct blk_device* device;
+struct echfs_vfs_context_s {
+    const blk_device_t* device;
 
     bool param_readonly;
 
@@ -67,12 +73,12 @@ struct echfs_vfs_context {
     uint64_t dir_entries;
     uint64_t next_free_hint;
 
-    struct vnode* devnode;
-    struct mutex lock; // Serializes changes to the table and the directory, and the file cache calls for files
+    vnode_t* device_node;
+    mutex_t lock; // Serializes changes to the table and the directory, and the file cache calls for files
 };
 
-struct echfs_vnode_context {
-    struct echfs_vfs_context* fs_ctx;
+struct echfs_vnode_context_s {
+    echfs_vfs_context_t* fs_ctx;
     uint64_t dir_entry;   // Index into dir_table; UINT64_MAX for the root
     uint64_t start_block; // First data block (files) or directory ID (dirs)
     uint64_t size;
@@ -81,21 +87,21 @@ struct echfs_vnode_context {
     bool unlinked; // The entry at dir_entry is gone, blocks are freed on release
 };
 
-extern const struct vnode_ops echfs_vnode_ops;
+extern const vnode_ops_t echfs_vnode_ops;
 
-uint64_t echfs_block_entry(const struct echfs_vfs_context* restrict context, uintptr_t block) __nodiscard;
-uintptr_t echfs_block_alloc(struct echfs_vfs_context* restrict context) __nodiscard;
-void echfs_block_free(struct echfs_vfs_context* restrict context, uintptr_t block);
-void echfs_block_link(struct echfs_vfs_context* restrict context, uintptr_t block, uintptr_t next);
-uintptr_t echfs_block_next(const struct echfs_vfs_context* restrict context, uintptr_t block) __nodiscard;
+uint64_t echfs_block_entry(const echfs_vfs_context_t* restrict context, uintptr_t block) __nodiscard;
+uintptr_t echfs_block_alloc(echfs_vfs_context_t* restrict context) __nodiscard;
+void echfs_block_free(echfs_vfs_context_t* restrict context, uintptr_t block);
+void echfs_block_link(echfs_vfs_context_t* restrict context, uintptr_t block, uintptr_t next);
+uintptr_t echfs_block_next(const echfs_vfs_context_t* restrict context, uintptr_t block) __nodiscard;
 
-int echfs_dirent_find(const struct echfs_vfs_context* restrict context, uint64_t parent_id, const char* restrict name,
+int echfs_dirent_find(const echfs_vfs_context_t* restrict context, uint64_t parent_id, const char* restrict name,
     uint64_t* restrict out_index);
-int echfs_dirent_read(const struct echfs_vfs_context* restrict context, uint64_t index, struct echfs_dirent* restrict out);
-int echfs_dirent_write(struct echfs_vfs_context* restrict context, uint64_t index, const struct echfs_dirent* restrict entry);
-int echfs_dirent_alloc(struct echfs_vfs_context* restrict context, uint64_t* restrict out_index) __nodiscard;
+int echfs_dirent_read(const echfs_vfs_context_t* restrict context, uint64_t index, echfs_dirent_t* restrict out);
+int echfs_dirent_write(echfs_vfs_context_t* restrict context, uint64_t index, const echfs_dirent_t* restrict entry);
+int echfs_dirent_alloc(echfs_vfs_context_t* restrict context, uint64_t* restrict out_index) __nodiscard;
 
-static __always_inline uintptr_t echfs_block_lba(const struct echfs_vfs_context* restrict context, uintptr_t block)
+static __always_inline uintptr_t echfs_block_lba(const echfs_vfs_context_t* restrict context, uintptr_t block)
 {
     return block * context->sectors_per_block;
 }

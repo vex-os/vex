@@ -4,24 +4,24 @@
 // BITMAP_BIT(BITMAP_CHUNK_BITS - N - 1), see bitmap_isset
 
 // Mask selecting chunk positions [bitmod, BITMAP_CHUNK_BITS)
-static __always_inline __nodiscard bitmap_type mask_from(size_t bitmod)
+static __always_inline __nodiscard bitmap_t mask_from(size_t bitmod)
 {
     return BITMAP_MASK_SET >> bitmod;
 }
 
 // Mask selecting chunk positions [0, bitmod]
-static __always_inline __nodiscard bitmap_type mask_upto(size_t bitmod)
+static __always_inline __nodiscard bitmap_t mask_upto(size_t bitmod)
 {
     return BITMAP_MASK_SET << (BITMAP_CHUNK_BITS - 1 - bitmod);
 }
 
-int bitmap_range_isset(const bitmap_type* restrict bitmap, size_t bit_a, size_t bit_b)
+int bitmap_range_isset(const bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b)
 {
     size_t idx_a = bit_a / BITMAP_CHUNK_BITS;
     size_t idx_b = bit_b / BITMAP_CHUNK_BITS;
 
-    bitmap_type mask_a = mask_from(bit_a % BITMAP_CHUNK_BITS);
-    bitmap_type mask_b = mask_upto(bit_b % BITMAP_CHUNK_BITS);
+    bitmap_t mask_a = mask_from(bit_a % BITMAP_CHUNK_BITS);
+    bitmap_t mask_b = mask_upto(bit_b % BITMAP_CHUNK_BITS);
 
     if(idx_a == idx_b) {
         mask_a &= mask_b;
@@ -42,13 +42,13 @@ int bitmap_range_isset(const bitmap_type* restrict bitmap, size_t bit_a, size_t 
     return 1;
 }
 
-int bitmap_range_isclear(const bitmap_type* restrict bitmap, size_t bit_a, size_t bit_b)
+int bitmap_range_isclear(const bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b)
 {
     size_t idx_a = bit_a / BITMAP_CHUNK_BITS;
     size_t idx_b = bit_b / BITMAP_CHUNK_BITS;
 
-    bitmap_type mask_a = mask_from(bit_a % BITMAP_CHUNK_BITS);
-    bitmap_type mask_b = mask_upto(bit_b % BITMAP_CHUNK_BITS);
+    bitmap_t mask_a = mask_from(bit_a % BITMAP_CHUNK_BITS);
+    bitmap_t mask_b = mask_upto(bit_b % BITMAP_CHUNK_BITS);
 
     if(idx_a == idx_b) {
         mask_a &= mask_b;
@@ -69,13 +69,13 @@ int bitmap_range_isclear(const bitmap_type* restrict bitmap, size_t bit_a, size_
     return 1;
 }
 
-void bitmap_range_clear(bitmap_type* restrict bitmap, size_t bit_a, size_t bit_b)
+void bitmap_range_clear(bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b)
 {
     size_t idx_a = bit_a / BITMAP_CHUNK_BITS;
     size_t idx_b = bit_b / BITMAP_CHUNK_BITS;
 
-    bitmap_type mask_a = mask_from(bit_a % BITMAP_CHUNK_BITS);
-    bitmap_type mask_b = mask_upto(bit_b % BITMAP_CHUNK_BITS);
+    bitmap_t mask_a = mask_from(bit_a % BITMAP_CHUNK_BITS);
+    bitmap_t mask_b = mask_upto(bit_b % BITMAP_CHUNK_BITS);
 
     if(idx_a == idx_b) {
         bitmap[idx_a] &= ~(mask_a & mask_b);
@@ -91,13 +91,13 @@ void bitmap_range_clear(bitmap_type* restrict bitmap, size_t bit_a, size_t bit_b
     bitmap[idx_b] &= ~mask_b;
 }
 
-void bitmap_range_set(bitmap_type* restrict bitmap, size_t bit_a, size_t bit_b)
+void bitmap_range_set(bitmap_t* restrict bitmap, size_t bit_a, size_t bit_b)
 {
     size_t idx_a = bit_a / BITMAP_CHUNK_BITS;
     size_t idx_b = bit_b / BITMAP_CHUNK_BITS;
 
-    bitmap_type mask_a = mask_from(bit_a % BITMAP_CHUNK_BITS);
-    bitmap_type mask_b = mask_upto(bit_b % BITMAP_CHUNK_BITS);
+    bitmap_t mask_a = mask_from(bit_a % BITMAP_CHUNK_BITS);
+    bitmap_t mask_b = mask_upto(bit_b % BITMAP_CHUNK_BITS);
 
     if(idx_a == idx_b) {
         bitmap[idx_a] |= mask_a & mask_b;

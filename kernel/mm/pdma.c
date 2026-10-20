@@ -10,20 +10,22 @@
 #include <vex/pdma.h>
 #include <vex/spinlock.h>
 
-static bitmap_type* pdma_bitmap = nullptr;
-static size_t pdma_numpages = 0U;
-static size_t pdma_numused = 0U;
-static size_t pdma_lastpage = 0U;
-static spinlock_type pdma_lock = SPINLOCK_INIT;
+typedef struct memmap_info_s memmap_info_t;
 
-struct memmap_info {
+struct memmap_info_s {
     uintptr_t start;
     uintptr_t end;
     size_t length;
     size_t npages;
 };
 
-static void get_memmap_info(const struct limine_memmap_entry* restrict entry, struct memmap_info* restrict info)
+static bitmap_t* pdma_bitmap = nullptr;
+static size_t pdma_numpages = 0U;
+static size_t pdma_numused = 0U;
+static size_t pdma_lastpage = 0U;
+static spinlock_t pdma_lock = SPINLOCK_INIT;
+
+static void get_memmap_info(const struct limine_memmap_entry* restrict entry, memmap_info_t* restrict info)
 {
     info->start = align_ceil(entry->base, PAGE_SIZE);
     info->length = align_floor(entry->length, PAGE_SIZE);
@@ -47,10 +49,10 @@ static void add_region(uintptr_t start, size_t length)
     pr_verbose("pdma: adding region: start=%p end=%p", (void*)(start), (void*)(start + length - 1U));
 }
 
-static size_t find_free_range(size_t first, size_t last, size_t numpages)
+static size_t find_free_range(size_t first, size_t last, size_t num_pages)
 {
     for(size_t page = first; page <= last; page += 1U) {
-        if(bitmap_range_isset(pdma_bitmap, page, page + numpages - 1U)) {
+        if(bitmap_range_isset(pdma_bitmap, page, page + num_pages - 1U)) {
             return page;
         }
     }
@@ -58,20 +60,20 @@ static size_t find_free_range(size_t first, size_t last, size_t numpages)
     return SIZE_MAX;
 }
 
-uintptr_t pdma_alloc_phys(size_t numpages)
+uintptr_t pdma_alloc_phys(size_t num_pages)
 {
-    if(numpages == 0U || numpages > pdma_numpages) {
+    if(num_pages == 0U || num_pages > pdma_numpages) {
         return 0U;
     }
 
     bool intr_state = spinlock_acquire_intr(&pdma_lock);
 
-    size_t last_start = pdma_numpages - numpages;
+    size_t last_start = pdma_numpages - num_pages;
     size_t hint = pdma_lastpage <= last_start ? pdma_lastpage : 0U;
-    size_t page = find_free_range(hint, last_start, numpages);
+    size_t page = find_free_range(hint, last_start, num_pages);
 
     if(page == SIZE_MAX && hint > 0U) {
-        page = find_free_range(0U, hint - 1U, numpages);
+        page = find_free_range(0U, hint - 1U, num_pages);
     }
 
     if(page == SIZE_MAX) {
@@ -79,42 +81,42 @@ uintptr_t pdma_alloc_phys(size_t numpages)
         return 0U;
     }
 
-    bitmap_range_clear(pdma_bitmap, page, page + numpages - 1U);
-    pdma_lastpage = page + numpages;
-    pdma_numused += numpages;
+    bitmap_range_clear(pdma_bitmap, page, page + num_pages - 1U);
+    pdma_lastpage = page + num_pages;
+    pdma_numused += num_pages;
 
     spinlock_release_intr(&pdma_lock, intr_state);
 
     return page * PAGE_SIZE;
 }
 
-void* pdma_alloc_virt(size_t numpages)
+void* pdma_alloc_virt(size_t num_pages)
 {
-    uintptr_t address = pdma_alloc_phys(numpages);
+    uintptr_t address = pdma_alloc_phys(num_pages);
     if(address == 0U)
         return nullptr;
     return phys_to_virt(address);
 }
 
-void pdma_free_phys(uintptr_t physaddr, size_t numpages)
+void pdma_free_phys(uintptr_t phys, size_t num_pages)
 {
-    size_t page = physaddr / PAGE_SIZE;
+    size_t page = phys / PAGE_SIZE;
 
     bool intr_state = spinlock_acquire_intr(&pdma_lock);
 
-    if(physaddr && numpages) {
-        bitmap_range_set(pdma_bitmap, page, page + numpages - 1U);
-        pdma_numused -= numpages;
+    if(phys && num_pages) {
+        bitmap_range_set(pdma_bitmap, page, page + num_pages - 1U);
+        pdma_numused -= num_pages;
         pdma_lastpage = page;
     }
 
     spinlock_release_intr(&pdma_lock, intr_state);
 }
 
-void pdma_free_virt(void* restrict virtaddr, size_t numpages)
+void pdma_free_virt(void* restrict virt, size_t num_pages)
 {
-    if(virtaddr) {
-        pdma_free_phys(virt_to_phys(virtaddr), numpages);
+    if(virt) {
+        pdma_free_phys(virt_to_phys(virt), num_pages);
     }
 }
 
@@ -126,7 +128,7 @@ static void init_pdma(void)
         const struct limine_memmap_entry* entry = memmap->entries[i];
 
         if(entry->type == LIMINE_MEMMAP_USABLE) {
-            struct memmap_info info;
+            memmap_info_t info;
             get_memmap_info(entry, &info);
 
             if(info.start < PDMA_APPROX_END) {
@@ -155,7 +157,7 @@ static void init_pdma(void)
         const struct limine_memmap_entry* entry = memmap->entries[i];
 
         if(entry->type == LIMINE_MEMMAP_USABLE) {
-            struct memmap_info info;
+            memmap_info_t info;
             get_memmap_info(entry, &info);
 
             if(info.npages >= bitmap_npages && info.start + bitmap_size <= PDMA_APPROX_END) {
@@ -177,7 +179,7 @@ static void init_pdma(void)
         const struct limine_memmap_entry* entry = memmap->entries[i];
 
         if(entry->type == LIMINE_MEMMAP_USABLE) {
-            struct memmap_info info;
+            memmap_info_t info;
             get_memmap_info(entry, &info);
 
             if(info.start >= PDMA_APPROX_END)
@@ -200,7 +202,7 @@ static void init_pdma(void)
     }
 
     char hrsize_buffer[128];
-    hrsize_bin(hrsize_buffer, sizeof(hrsize_buffer), pdma_numpages * PAGE_SIZE);
+    format_size_iec(hrsize_buffer, sizeof(hrsize_buffer), pdma_numpages * PAGE_SIZE);
     pr_verbose("pdma: tracking %s in %zu pages", hrsize_buffer, pdma_numpages);
 }
 

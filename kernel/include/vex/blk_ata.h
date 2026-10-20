@@ -49,19 +49,21 @@
 #define ATA_IDENTIFY_MODEL_FIELD     27 // Word offset of model string in IDENTIFY data
 #define ATA_IDENTIFY_MODEL_NWORDS    20 // Model string field width in words (40 chars)
 
-typedef uint16_t ata_identify_type[256];
+typedef uint16_t ata_identify_t[256];
 
-static __always_inline __nodiscard bool ata_identify_is_atapi(const ata_identify_type packet)
+void ata_identify_string(const uint16_t* restrict field, size_t field_nw, char* restrict string, size_t size);
+
+static __always_inline __nodiscard bool ata_identify_is_atapi(const ata_identify_t packet)
 {
     return le16toh(packet[0]) & UINT16_C(0x8000);
 }
 
-static __always_inline __nodiscard bool ata_identify_has_lba48(const ata_identify_type packet)
+static __always_inline __nodiscard bool ata_identify_has_lba48(const ata_identify_t packet)
 {
     return le16toh(packet[83]) & UINT16_C(0x0400);
 }
 
-static __always_inline __nodiscard size_t ata_identify_lba48_capacity(const ata_identify_type packet)
+static __always_inline __nodiscard size_t ata_identify_lba48_capacity(const ata_identify_t packet)
 {
     size_t result = 0;
     result |= (size_t)le16toh(packet[100]);
@@ -71,7 +73,7 @@ static __always_inline __nodiscard size_t ata_identify_lba48_capacity(const ata_
     return result;
 }
 
-static __always_inline __nodiscard size_t ata_identify_lba28_capacity(const ata_identify_type packet)
+static __always_inline __nodiscard size_t ata_identify_lba28_capacity(const ata_identify_t packet)
 {
     size_t result = 0;
     result |= (size_t)le16toh(packet[60]);
@@ -79,14 +81,14 @@ static __always_inline __nodiscard size_t ata_identify_lba28_capacity(const ata_
     return result;
 }
 
-static __always_inline __nodiscard size_t ata_identify_sector_count(const ata_identify_type packet)
+static __always_inline __nodiscard size_t ata_identify_sector_count(const ata_identify_t packet)
 {
     if(ata_identify_has_lba48(packet))
         return ata_identify_lba48_capacity(packet);
     return ata_identify_lba28_capacity(packet);
 }
 
-static __always_inline __nodiscard size_t ata_identify_logical_sector_size(const ata_identify_type packet)
+static __always_inline __nodiscard size_t ata_identify_logical_sector_size(const ata_identify_t packet)
 {
     size_t result = 0;
 
@@ -98,5 +100,3 @@ static __always_inline __nodiscard size_t ata_identify_logical_sector_size(const
 
     return 512;
 }
-
-void ata_identify_string(const uint16_t* restrict field, size_t field_nw, char* restrict string, size_t sz);

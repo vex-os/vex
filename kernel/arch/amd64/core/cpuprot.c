@@ -8,7 +8,7 @@
 
 static void arch_init_cpuprot(void)
 {
-    const struct hart_local* hart = this_hart();
+    const hart_local_t* hart = this_hart();
 
     uint64_t cr4;
     asm volatile("movq %%cr4, %0" : "=r"(cr4));

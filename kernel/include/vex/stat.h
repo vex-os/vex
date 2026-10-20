@@ -34,4 +34,4 @@
 #define UTIME_NOW  __k_UTIME_NOW
 #define UTIME_OMIT __k_UTIME_OMIT
 
-#define k_stat __k_stat
+typedef struct __k_stat stat_t;

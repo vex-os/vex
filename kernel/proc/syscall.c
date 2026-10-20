@@ -14,25 +14,25 @@
 #include <vex/syscall.h>
 #include <vex/thread.h>
 
-static struct syscall* syscall_table;
+static syscall_t* syscall_table;
 static size_t syscall_table_size;
 
 // Another thread of the process may have swapped
-// its cred since this one last entered the kernel
-static void catch_up_cred(struct thread* restrict thrd)
+// its credentials since this one last entered the kernel
+static void catch_up_cred(thread_t* restrict thread)
 {
-    struct process* proc = thrd->proc;
+    process_t* process = thread->process;
 
-    if(proc == nullptr || atomic_load_n(&proc->cred, ATOMIC_ACQUIRE) == thrd->cred) {
+    if(process == nullptr || atomic_load_n(&process->credentials, ATOMIC_ACQUIRE) == thread->credentials) {
         return;
     }
 
-    struct credentials* old_cred = thrd->cred;
-    thrd->cred = process_get_cred(proc);
+    credentials_t* old_cred = thread->credentials;
+    thread->credentials = process_get_cred(process);
     cred_decref(old_cred);
 }
 
-void dispatch_syscall(struct hart_context* restrict regs)
+void syscall_dispatch(hart_context_t* restrict regs)
 {
     if(regs->syscall_number >= syscall_table_size) {
         regs->syscall_retval = -ENOSYS;
@@ -44,10 +44,10 @@ void dispatch_syscall(struct hart_context* restrict regs)
         return;
     }
 
-    struct thread* thrd = this_thread();
-    thrd->syscall_ctx = regs;
+    thread_t* thread = this_thread();
+    thread->syscall_ctx = regs;
 
-    catch_up_cred(thrd);
+    catch_up_cred(thread);
 
     uintptr_t args[6];
     args[0] = regs->syscall_arg_1;
@@ -60,12 +60,12 @@ void dispatch_syscall(struct hart_context* restrict regs)
     regs->syscall_retval = syscall_table[regs->syscall_number].function(args);
 }
 
-int syscall_dirfd(int dirfd, const char* restrict path, struct vnode** restrict out)
+int syscall_dirfd(int dirfd, const char* restrict path, vnode_t** restrict out)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
@@ -75,7 +75,7 @@ int syscall_dirfd(int dirfd, const char* restrict path, struct vnode** restrict 
     }
 
     if(dirfd == AT_FDCWD) {
-        *out = process_get_cwd(proc);
+        *out = process_get_cwd(process);
 
         if(*out == nullptr) {
             return -ENOENT;
@@ -84,33 +84,33 @@ int syscall_dirfd(int dirfd, const char* restrict path, struct vnode** restrict 
         return 0;
     }
 
-    struct file* fp = dereference_fd(proc, dirfd);
+    file_t* file = process_fd_get(process, dirfd);
 
-    if(fp == nullptr) {
+    if(file == nullptr) {
         return -EBADF;
     }
 
-    struct vnode* node = fp->node;
+    vnode_t* node = file->node;
 
-    if(node->nodetype != VNODE_DIRECTORY) {
-        file_close(fp);
+    if(node->type != VNODE_DIRECTORY) {
+        file_close(file);
         return -ENOTDIR;
     }
 
     vnode_incref(node);
-    file_close(fp);
+    file_close(file);
 
     *out = node;
 
     return 0;
 }
 
-int syscall_resolve_at(int dirfd, const char* restrict path, unsigned flags, struct vnode** restrict out)
+int syscall_resolve_at(int dirfd, const char* restrict path, unsigned flags, vnode_t** restrict out)
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
@@ -120,25 +120,25 @@ int syscall_resolve_at(int dirfd, const char* restrict path, unsigned flags, str
 
     if(path[0] == 0) {
         if(dirfd == AT_FDCWD) {
-            *out = process_get_cwd(proc);
+            *out = process_get_cwd(process);
             return *out ? 0 : -ENOENT;
         }
 
-        struct file* fp = dereference_fd(proc, dirfd);
+        file_t* file = process_fd_get(process, dirfd);
 
-        if(fp == nullptr) {
+        if(file == nullptr) {
             return -EBADF;
         }
 
-        *out = fp->node;
+        *out = file->node;
         vnode_incref(*out);
-        file_close(fp);
+        file_close(file);
 
         return 0;
     }
 
-    struct vnode* stem;
-    int retval = syscall_dirfd(dirfd, path, &stem);
+    vnode_t* base_dir;
+    int retval = syscall_dirfd(dirfd, path, &base_dir);
 
     if(retval < 0) {
         return retval;
@@ -150,33 +150,33 @@ int syscall_resolve_at(int dirfd, const char* restrict path, unsigned flags, str
         path_flags |= PATH_NOFOLLOW;
     }
 
-    retval = path_resolve_at(stem, path, path_flags, thrd->cred, out);
+    retval = path_resolve_at(base_dir, path, path_flags, thread->credentials, out);
 
-    if(stem) {
-        vnode_decref(stem);
+    if(base_dir) {
+        vnode_decref(base_dir);
     }
 
     return retval;
 }
 
-intptr_t syscall_with_fd(const uintptr_t* restrict args, intptr_t (*op)(struct file* restrict fp, const uintptr_t* restrict args))
+intptr_t syscall_with_fd(const uintptr_t* restrict args, intptr_t (*op)(file_t* restrict file, const uintptr_t* restrict args))
 {
-    struct thread* thrd = this_thread();
-    struct process* proc = thrd->proc;
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
 
-    if(proc == nullptr) {
+    if(process == nullptr) {
         return -ENOSYS;
     }
 
-    struct file* fp = dereference_fd(proc, args[0]);
+    file_t* file = process_fd_get(process, args[0]);
 
-    if(fp == nullptr) {
+    if(file == nullptr) {
         return -EBADF;
     }
 
-    intptr_t retval = op(fp, args);
+    intptr_t retval = op(file, args);
 
-    file_close(fp);
+    file_close(file);
 
     return retval;
 }
@@ -190,24 +190,24 @@ static void init_syscall(void)
 
     unsigned long max_number = 0;
 
-    for(const struct syscall* it = unsorted_syscalls_start; it < unsorted_syscalls_end; it += 1) {
+    for(const syscall_t* it = unsorted_syscalls_start; it < unsorted_syscalls_end; it += 1) {
         if(it->number > max_number) {
             max_number = it->number;
         }
     }
 
     syscall_table_size = max_number + 1;
-    syscall_table = kmalloc(syscall_table_size * sizeof(struct syscall));
+    syscall_table = kmalloc(syscall_table_size * sizeof(syscall_t));
 
     if(syscall_table == nullptr) {
         panic("syscall: out of memory");
     }
 
-    for(const struct syscall* it = unsorted_syscalls_start; it < unsorted_syscalls_end; it += 1) {
+    for(const syscall_t* it = unsorted_syscalls_start; it < unsorted_syscalls_end; it += 1) {
         kassert(syscall_table[it->number].function == nullptr);
-        kassert(syscall_table[it->number].identifier == nullptr);
+        kassert(syscall_table[it->number].name == nullptr);
 
-        memcpy(&syscall_table[it->number], it, sizeof(struct syscall));
+        memcpy(&syscall_table[it->number], it, sizeof(syscall_t));
     }
 }
 
