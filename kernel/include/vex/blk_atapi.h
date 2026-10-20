@@ -2,7 +2,7 @@
 
 #include <vex/blk_device.h>
 
-#define ATAPI_FLAG_WRITABLE 0x0001 // Device supports write commands
+#define ATAPI_FLAG_WRITABLE 0x0001
 
 typedef struct atapi_device_s atapi_device_t;
 typedef struct atapi_device_ops_s atapi_device_ops_t;

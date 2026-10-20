@@ -39,8 +39,8 @@
 #define HBA_BOHC_OOS UINT32_C(0x00000002) // OS Owned Semaphore
 #define HBA_BOHC_BB  UINT32_C(0x00000010) // BIOS Busy
 
-#define HBA_PORT_BASE 0x100 // Offset of port 0 registers
-#define HBA_PORT_SIZE 0x80  // Per-port register stride
+#define HBA_PORT0_OFFSET 0x100
+#define HBA_PORT_STRIDE  0x80
 
 #define PORT_REG_CLB  0x00 // Command List Base Address
 #define PORT_REG_CLBU 0x04 // Command List Base Address Upper 32 bits
@@ -588,7 +588,7 @@ static int ahci_port_init(ahci_pci_context_t* restrict context, pci_bar_t* restr
 {
     ahci_port_t* port = &context->ports[port_num];
 
-    uintptr_t port_base = HBA_PORT_BASE + port_num * HBA_PORT_SIZE;
+    uintptr_t port_base = HBA_PORT0_OFFSET + port_num * HBA_PORT_STRIDE;
     uintptr_t dma_phys = pdma_alloc_phys(DMA_NUM_PAGES);
 
     if(dma_phys == 0) {
@@ -753,7 +753,7 @@ static void ahci_port_probe_ata(ahci_pci_context_t* restrict context, pci_bar_t*
     device->ctxdata = port;
 
     char model[41];
-    ata_identify_string(&identify[ATA_IDENTIFY_MODEL_FIELD], ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
+    ata_identify_string(&identify[ATA_IDENTIFY_MODEL_WORD], ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
     pr_verbose("ahci: %u.%u: model=%s sector_count=%zu sector_size=%zu", context->ata_iterator, port_num, model, device->sector_count,
         device->sector_size);
 
@@ -775,7 +775,7 @@ static void ahci_port_probe_atapi(ahci_pci_context_t* restrict context, pci_bar_
     char model[41];
 
     if(0 == ahci_atapi_identify(port, identify)) {
-        ata_identify_string(&identify[ATA_IDENTIFY_MODEL_FIELD], ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
+        ata_identify_string(&identify[ATA_IDENTIFY_MODEL_WORD], ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
     }
     else {
         model[0] = 0x00;
@@ -818,7 +818,7 @@ static void ahci_irq(unsigned number, const hart_context_t* restrict ctx, void* 
         }
 
         ahci_port_t* port = &context->ports[port_num];
-        uintptr_t port_base = HBA_PORT_BASE + port_num * HBA_PORT_SIZE;
+        uintptr_t port_base = HBA_PORT0_OFFSET + port_num * HBA_PORT_STRIDE;
 
         // PxIS goes before IS, or the port raises IS again right away
         uint32_t status = pci_bar_read32(context->abar, port_base + PORT_REG_IS);
@@ -915,7 +915,7 @@ static int ahci_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* res
             continue;
         }
 
-        uintptr_t port_base = HBA_PORT_BASE + port_num * HBA_PORT_SIZE;
+        uintptr_t port_base = HBA_PORT0_OFFSET + port_num * HBA_PORT_STRIDE;
         uint32_t ahci_signature = pci_bar_read32(abar, port_base + PORT_REG_SIG);
 
         if(ahci_signature == ATA_SIGNATURE_ATAPI) {
@@ -952,7 +952,7 @@ static int ahci_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* res
             continue;
         }
 
-        uintptr_t port_base = HBA_PORT_BASE + port_num * HBA_PORT_SIZE;
+        uintptr_t port_base = HBA_PORT0_OFFSET + port_num * HBA_PORT_STRIDE;
         uint32_t ahci_ssts = pci_bar_read32(abar, port_base + PORT_REG_SSTS);
 
         if((ahci_ssts & 0x0F) != PORT_SSTS_DET_PRESENT) {

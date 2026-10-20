@@ -16,7 +16,7 @@
 static_assert(KSTACK_NUM_SLOTS % BITMAP_CHUNK_BITS == 0);
 static_assert(KSTACK_NUM_SLOTS * KSTACK_SLOT_SIZE <= KSTACK_REGION_SIZE);
 
-static bitmap_t slots[KSTACK_NUM_SLOTS / BITMAP_CHUNK_BITS]; // A set bit means the slot is free
+static bitmap_t free_slots[KSTACK_NUM_SLOTS / BITMAP_CHUNK_BITS];
 static size_t next_slot = 0U;
 static spinlock_t slots_lock = SPINLOCK_INIT;
 
@@ -32,8 +32,8 @@ static size_t claim_slot(void)
     for(size_t i = 0U; i < KSTACK_NUM_SLOTS; ++i) {
         size_t slot = (next_slot + i) % KSTACK_NUM_SLOTS;
 
-        if(bitmap_isset(slots, slot)) {
-            bitmap_clear(slots, slot);
+        if(bitmap_isset(free_slots, slot)) {
+            bitmap_clear(free_slots, slot);
             next_slot = slot + 1U;
             spinlock_release_intr(&slots_lock, intr_state);
             return slot;
@@ -48,7 +48,7 @@ static size_t claim_slot(void)
 static void release_slot(size_t slot)
 {
     bool intr_state = spinlock_acquire_intr(&slots_lock);
-    bitmap_set(slots, slot);
+    bitmap_set(free_slots, slot);
     spinlock_release_intr(&slots_lock, intr_state);
 }
 
@@ -128,7 +128,7 @@ bool kstack_is_guard(uintptr_t address)
 
 static void init_kstack(void)
 {
-    bitmap_range_set(slots, 0U, KSTACK_NUM_SLOTS - 1U);
+    bitmap_range_set(free_slots, 0U, KSTACK_NUM_SLOTS - 1U);
 }
 
 initcall_bsp_heap(init_kstack, INIT_MIDDLE);

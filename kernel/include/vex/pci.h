@@ -60,11 +60,11 @@
 #define PCI_BAR_ADDR_MASK_MEM (~((uintptr_t)(0x0F)))
 
 #define PCI_CAP_PM   0x01 // Power Management
-#define PCI_CAP_AGP  0x02 // AGP
+#define PCI_CAP_AGP  0x02
 #define PCI_CAP_MSI  0x05 // Message Signalled Interrupts
-#define PCI_CAP_PCIX 0x07 // PCI-X
-#define PCI_CAP_MSIX 0x11 // MSI-X
-#define PCI_CAP_PCIE 0x10 // PCI Express
+#define PCI_CAP_PCIX 0x07
+#define PCI_CAP_MSIX 0x11
+#define PCI_CAP_PCIE 0x10
 
 #define PCI_STS_CAP_LIST 0x0010
 

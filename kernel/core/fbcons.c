@@ -18,11 +18,11 @@
 #define CHR_WS  0x20
 #define CHR_DEL 0x7F
 
-#define FONT_WIDTH    0x08
-#define FONT_HEIGHT   0x10
-#define FONT_STRIDE   0x10 // bytes per glyph
-#define FONT_SCANLINE 0x01 // bytes per line
-#define FONT_MAX_CP   0xFF
+#define FONT_WIDTH       0x08
+#define FONT_HEIGHT      0x10
+#define FONT_GLYPH_BYTES 0x10
+#define FONT_ROW_BYTES   0x01
+#define FONT_MAX_CP      0xFF
 
 typedef struct vt_cell_s vt_cell_t;
 
@@ -284,12 +284,12 @@ static void render_cell(size_t sx, size_t sy, int value)
 
     if(value < 0 || value > FONT_MAX_CP)
         value = 0;
-    const unsigned char* gptr = &fbcons_font[value * FONT_STRIDE];
+    const unsigned char* gptr = &fbcons_font[value * FONT_GLYPH_BYTES];
 
     for(size_t gy = 0U; gy < FONT_HEIGHT; gy += 1U) {
         for(size_t gx = 0U; gx < FONT_WIDTH; gx += 1U)
             put_pixel(pixel + gx, (gptr[gx >> 3] & (0x80 >> (gx & 0x07))));
-        gptr += FONT_SCANLINE;
+        gptr += FONT_ROW_BYTES;
         pixel += fb_stride;
     }
 }

@@ -360,8 +360,7 @@ static int unmap_locked(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t 
     return 0;
 }
 
-// Picks the highest gap below VMS_MMAP_TOP that fits
-static bool find_gap(vmspace_t* restrict vmspace, size_t size, uintptr_t* restrict out)
+static bool find_highest_gap(vmspace_t* restrict vmspace, size_t size, uintptr_t* restrict out)
 {
     uintptr_t gap_start = VMS_MMAP_MIN;
     bool found = false;
@@ -535,7 +534,7 @@ int vms_map_any(vmspace_t* restrict vmspace, size_t size, unsigned vprot, const 
 
     mutex_acquire(&vmspace->lock);
 
-    if(!find_gap(vmspace, size, &region->start)) {
+    if(!find_highest_gap(vmspace, size, &region->start)) {
         mutex_release(&vmspace->lock);
         free_region(region, false);
         return -ENOMEM;

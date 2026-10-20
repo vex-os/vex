@@ -37,17 +37,17 @@
 #define ATA_DEVICE_LBA   UINT8_C(0x40) // LBA mode (vs CHS)
 #define ATA_DEVICE_SLAVE UINT8_C(0x10) // Select slave device (0 -> master)
 
-#define ATA_SIGNATURE_ATA   UINT32_C(0x00000101) // ATA disk signature
-#define ATA_SIGNATURE_ATAPI UINT32_C(0xEB140101) // ATAPI device signature
+#define ATA_SIGNATURE_ATA   UINT32_C(0x00000101)
+#define ATA_SIGNATURE_ATAPI UINT32_C(0xEB140101)
 
 #define ATA_FIS_TYPE_H2D UINT8_C(0x27) // Register FIS - host to device
 
-#define ATA_IDENTIFY_SERIAL_FIELD    10 // Word offset of serial number in IDENTIFY data
-#define ATA_IDENTIFY_SERIAL_NWORDS   10 // Serial number field width in words (20 chars)
-#define ATA_IDENTIFY_FIRMWARE_FIELD  23 // Word offset of firmware revision in IDENTIFY data
-#define ATA_IDENTIFY_FIRMWARE_NWORDS 4  // Firmware revision field width in words (8 chars)
-#define ATA_IDENTIFY_MODEL_FIELD     27 // Word offset of model string in IDENTIFY data
-#define ATA_IDENTIFY_MODEL_NWORDS    20 // Model string field width in words (40 chars)
+#define ATA_IDENTIFY_SERIAL_WORD     10
+#define ATA_IDENTIFY_SERIAL_NWORDS   10
+#define ATA_IDENTIFY_FIRMWARE_WORD   23
+#define ATA_IDENTIFY_FIRMWARE_NWORDS 4
+#define ATA_IDENTIFY_MODEL_WORD      27
+#define ATA_IDENTIFY_MODEL_NWORDS    20
 
 typedef uint16_t ata_identify_t[256];
 

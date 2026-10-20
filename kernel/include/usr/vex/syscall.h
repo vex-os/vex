@@ -7,7 +7,7 @@
 #define __k_SYS_WAITPID       4
 #define __k_SYS_GETPID        5
 #define __k_SYS_GETPPID       6
-#define __k_SYS_YIELD         7 /* forwards to sched_yield */
+#define __k_SYS_YIELD         7
 #define __k_SYS_OPENAT        8
 #define __k_SYS_CLOSE         9
 #define __k_SYS_READ          10
@@ -32,7 +32,7 @@
 #define __k_SYS_MPROTECT      29
 #define __k_SYS_UNAME         30
 #define __k_SYS_GETTIME       31
-#define __k_SYS_TEST          32 /* for testing purposes */
+#define __k_SYS_TEST          32
 #define __k_SYS_FSTATAT       33
 #define __k_SYS_FCHDIR        34
 #define __k_SYS_TCB_SET       35

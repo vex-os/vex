@@ -196,7 +196,7 @@ int cred_setcaps(credentials_t* restrict credentials, const caps_t* restrict cap
 
 // Called with the ids the program will run with already in place; a privileged program
 // is one whose setuid or setgid bit took effect, file holds its capabilities if it has any;
-// There is no inheritable set, so the file's inheritable set never grants anything
+// there is no inheritable set, so the file's inheritable set never grants anything
 int cred_exec_caps(credentials_t* restrict credentials, bool privileged, const file_caps_t* restrict file)
 {
     kassert(credentials);

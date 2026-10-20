@@ -32,9 +32,7 @@ static unsigned prot_to_vprot(uintptr_t prot)
     return vprot;
 }
 
-// Rounds the length up to whole pages, failing
-// on zero or on a range past the user half
-static bool user_range(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t length, uintptr_t* restrict end)
+static bool user_range_end(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t length, uintptr_t* restrict end)
 {
     uintptr_t user_end = pmap_user_end(vmspace->pmap);
 
@@ -53,7 +51,7 @@ static intptr_t place_mapping(vmspace_t* restrict vmspace, uintptr_t addr, uintp
     uintptr_t end;
 
     if(flags & MAP_FIXED) {
-        if(!user_range(vmspace, addr, length, &end)) {
+        if(!user_range_end(vmspace, addr, length, &end)) {
             return -EINVAL;
         }
 
@@ -67,7 +65,7 @@ static intptr_t place_mapping(vmspace_t* restrict vmspace, uintptr_t addr, uintp
     }
 
     // The address is a hint taken when it is free
-    if(addr && user_range(vmspace, addr, length, &end) && 0 == vms_map(vmspace, addr, end, vprot, backing)) {
+    if(addr && user_range_end(vmspace, addr, length, &end) && 0 == vms_map(vmspace, addr, end, vprot, backing)) {
         return addr;
     }
 
@@ -165,7 +163,7 @@ static intptr_t sys_munmap(const uintptr_t* restrict args)
 
     uintptr_t end;
 
-    if(!user_range(process->vmspace, args[0], args[1], &end)) {
+    if(!user_range_end(process->vmspace, args[0], args[1], &end)) {
         return -EINVAL;
     }
 
@@ -183,7 +181,7 @@ static intptr_t sys_mprotect(const uintptr_t* restrict args)
 
     uintptr_t end;
 
-    if(!user_range(process->vmspace, args[0], args[1], &end) || (args[2] & ~KNOWN_PROT)) {
+    if(!user_range_end(process->vmspace, args[0], args[1], &end) || (args[2] & ~KNOWN_PROT)) {
         return -EINVAL;
     }
 
@@ -202,7 +200,7 @@ static intptr_t sys_msync(const uintptr_t* restrict args)
     uintptr_t flags = args[2];
     uintptr_t end;
 
-    if(!user_range(process->vmspace, args[0], args[1], &end) || (flags & ~KNOWN_SYNC) || ((flags & MS_ASYNC) && (flags & MS_SYNC))) {
+    if(!user_range_end(process->vmspace, args[0], args[1], &end) || (flags & ~KNOWN_SYNC) || ((flags & MS_ASYNC) && (flags & MS_SYNC))) {
         return -EINVAL;
     }
 

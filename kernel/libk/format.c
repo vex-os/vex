@@ -8,19 +8,19 @@
 #define F_PLUS      0x0004 // +
 #define F_SPACE     0x0008 // space
 #define F_HASH      0x0010 // #
-#define F_SIGNED    0x0020 // special
-#define F_UPPERCASE 0x0040 // special
-#define F_NEGATIVE  0x0080 // special
+#define F_SIGNED    0x0020
+#define F_UPPERCASE 0x0040
+#define F_NEGATIVE  0x0080
 
 #define L_CHAR      0x0000 // hh
 #define L_SHORT     0x0001 // h
-#define L_INT       0x0002 // nothing
+#define L_INT       0x0002
 #define L_LONG      0x0003 // l
 #define L_LLONG     0x0004 // ll
 #define L_INTMAX_T  0x0005 // j
 #define L_SIZE_T    0x0006 // z
 #define L_PTRDIFF_T 0x0007 // t
-#define L_POINTER   0x0007 // special
+#define L_POINTER   0x0007
 
 #define MAX_BASE 16
 

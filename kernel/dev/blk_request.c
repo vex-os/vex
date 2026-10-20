@@ -224,7 +224,7 @@ int blk_submit_wait(const blk_device_t* restrict device, blk_request_t* restrict
         kassert(interrupt_state());
 
         while(event_await_blocking(&event, 1) < 0) {
-            // empty: keep waiting
+            // empty
         }
     }
 

@@ -1,6 +1,5 @@
 #pragma once
 
-// #include <arch/limits.h>
 #include <usr/vex/limits.h>
 
 #define PATH_MAX  __k_PATH_MAX

@@ -17,8 +17,7 @@
 #include <vex/vms.h>
 #include <vex/wait.h>
 
-// Copies a null-terminated array of user strings, packing the strings at cursor
-static int copy_strings(uintptr_t user_array, const char** restrict out, char** restrict cursor, const char* restrict limit)
+static int copyin_string_array(uintptr_t user_array, const char** restrict out, char** restrict cursor, const char* restrict limit)
 {
     size_t count = 0;
 
@@ -139,10 +138,10 @@ static intptr_t exec_image(thread_t* restrict thread, char* restrict path, char*
     const char* envp[BINFMT_ARGS_MAX + 1];
     char* cursor = strings;
 
-    int retval = copy_strings(args[1], argv, &cursor, strings + PAGE_SIZE);
+    int retval = copyin_string_array(args[1], argv, &cursor, strings + PAGE_SIZE);
 
     if(retval == 0) {
-        retval = copy_strings(args[2], envp, &cursor, strings + PAGE_SIZE);
+        retval = copyin_string_array(args[2], envp, &cursor, strings + PAGE_SIZE);
     }
 
     if(retval < 0) {
