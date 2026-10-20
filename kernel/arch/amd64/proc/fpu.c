@@ -35,6 +35,8 @@
 
 #define FPU_DEFAULT_MXCSR_MASK UINT32_C(0x0000FFBF) // What FXSAVE reports when the processor leaves the mask out
 
+#define MXCSR_MASK_SHIFT 7
+
 size_t fpu_state_size = 0;
 
 static uint64_t xfeatures = 0;
@@ -148,6 +150,22 @@ bool fpu_state_valid(const void* restrict state)
     }
 
     return true;
+}
+
+uint32_t fpu_unmasked_exceptions(bool simd)
+{
+    if(simd) {
+        uint32_t mxcsr;
+        asm volatile("stmxcsr %0" : "=m"(mxcsr));
+        return mxcsr & ~(mxcsr >> MXCSR_MASK_SHIFT) & FPU_EXCEPTIONS;
+    }
+    else {
+        uint16_t fsw;
+        uint16_t fcw;
+        asm volatile("fnstsw %0" : "=m"(fsw));
+        asm volatile("fnstcw %0" : "=m"(fcw));
+        return fsw & ~fcw & FPU_EXCEPTIONS;
+    }
 }
 
 static void arch_init_fpu_bsp(void)

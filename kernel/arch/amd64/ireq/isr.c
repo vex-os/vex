@@ -1,3 +1,4 @@
+#include <arch/amd64.fpu.h>
 #include <arch/amd64.idt.h>
 #include <vex/compiler.h>
 #include <vex/errno.h>
@@ -105,6 +106,33 @@ static void page_fault_handler(struct hart_local* restrict hart, struct hart_con
     disable_interrupts();
 }
 
+static int fpu_exception_code(bool simd)
+{
+    uint32_t raised = fpu_unmasked_exceptions(simd);
+
+    if(raised & FPU_EXCEPTION_IE) {
+        return FPE_FLTINV;
+    }
+
+    if(raised & FPU_EXCEPTION_ZE) {
+        return FPE_FLTDIV;
+    }
+
+    if(raised & FPU_EXCEPTION_OE) {
+        return FPE_FLTOVF;
+    }
+
+    if(raised & (FPU_EXCEPTION_DE | FPU_EXCEPTION_UE)) {
+        return FPE_FLTUND;
+    }
+
+    if(raised & FPU_EXCEPTION_PE) {
+        return FPE_FLTRES;
+    }
+
+    return SI_KERNEL;
+}
+
 static void user_exception_info(uint64_t intvec, const struct hart_context* restrict ctx, struct k_siginfo* restrict info)
 {
     info->si_signo = SIGSEGV;
@@ -126,12 +154,15 @@ static void user_exception_info(uint64_t intvec, const struct hart_context* rest
             break;
         case 0x06:
             info->si_signo = SIGILL;
-            info->si_code = ILL_ILLOPN;
+            info->si_code = ILL_ILLOPC;
             break;
         case 0x10:
+            info->si_signo = SIGFPE;
+            info->si_code = fpu_exception_code(false);
+            break;
         case 0x13:
             info->si_signo = SIGFPE;
-            info->si_code = FPE_FLTINV;
+            info->si_code = fpu_exception_code(true);
             break;
         case 0x11:
             info->si_signo = SIGBUS;
