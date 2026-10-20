@@ -217,9 +217,7 @@ struct ext2_superblock_s {
     uint32_t s_rev_level;
     uint16_t s_def_resuid;
     uint16_t s_def_resgid;
-
-    // EXT2_DYNAMIC_REV specific
-    uint32_t s_first_ino;
+    uint32_t s_first_ino; // From here on, valid only with EXT2_DYNAMIC_REV
     uint16_t s_inode_size;
     uint16_t s_block_group_nr;
     uint32_t s_feature_compat;
@@ -229,24 +227,16 @@ struct ext2_superblock_s {
     char s_volume_name[16]; // Not NUL-terminated when all 16 bytes are used
     char s_last_mounted[64];
     uint32_t s_algo_bitmap;
-
-    // Performance hints
     uint8_t s_prealloc_blocks;
     uint8_t s_prealloc_dir_blocks;
     uint16_t s_padding_1;
-
-    // Journaling support
     uint8_t s_journal_uuid[16];
     uint32_t s_journal_inum;
     uint32_t s_journal_dev;
     uint32_t s_last_orphan;
-
-    // Directory indexing support
     uint32_t s_hash_seed[4];
     uint8_t s_def_hash_version;
     uint8_t s_padding_2[3];
-
-    // Other options and reserved space
     uint32_t s_default_mount_opts;
     uint32_t s_first_meta_bg;
     uint8_t s_reserved[760];
@@ -268,7 +258,8 @@ static_assert(1024 == sizeof(ext2_superblock_t));
 static_assert(32 == sizeof(ext2_group_desc_t));
 #endif
 
-// Which variant of the OS-dependent inode fields is used depends on s_creator_os;
+// Which variant of the OS-dependent inode
+// fields is used depends on s_creator_os;
 // FreeBSD and Lites use the Linux one
 union ext2_osd1_u {
     uint32_t l_i_reserved1;

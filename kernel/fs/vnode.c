@@ -370,21 +370,20 @@ static int rename_crossed(vnode_t* olddir, const char* oldname, vnode_t* newdir,
         retval = check_rename(source, newdir, victim);
     }
 
-    // Both names already lead to the same file
-    bool same = victim == source;
+    bool same_file = victim == source;
 
     // The filesystem has to vcache_remove a victim left without names and vcache_rekey
     // the source under its own lock, before a lookup can see the new entry
-    if(retval == 0 && !same) {
+    if(retval == 0 && !same_file) {
         retval = olddir->ops->rename(olddir, oldname, source, newdir, newname, victim);
     }
 
-    if(retval == 0 && !same && victim && !vcache_cached(victim)) {
+    if(retval == 0 && !same_file && victim && !vcache_cached(victim)) {
         victim->orphaned = true;
         atomic_fetch_add(&victim->fs->orphans, 1, ATOMIC_RELAXED);
     }
 
-    if(retval == 0 && !same && source->type == VNODE_DIRECTORY && olddir != newdir) {
+    if(retval == 0 && !same_file && source->type == VNODE_DIRECTORY && olddir != newdir) {
         set_parent(source, newdir);
     }
 
