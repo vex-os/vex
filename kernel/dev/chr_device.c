@@ -97,6 +97,13 @@ int chr_device_remove(chr_device_t* restrict device)
     return -ENODEV;
 }
 
+void chr_device_revoke_mappings(const chr_device_t* restrict device)
+{
+    chr_event_lock();
+    chr_event_notify(CHR_EVENT_MEMORY_CHANGED, device);
+    chr_event_unlock();
+}
+
 void chr_device_incref(const chr_device_t* restrict device)
 {
     chr_device_t* mutable_device = (chr_device_t*)(device);

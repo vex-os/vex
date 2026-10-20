@@ -100,6 +100,16 @@ static const vnode_ops_t devfs_chr_ops = {
     .resolve_page = &devfs_chr_resolve_page,
 };
 
+static void revoke_mappings(vfs_t* restrict fs, const chr_device_t* restrict device)
+{
+    vnode_t* node = devfs_find(fs, device->name);
+
+    if(node) {
+        vms_revoke(node);
+        vnode_decref(node);
+    }
+}
+
 void devfs_chr_event_handler(unsigned event, const chr_device_t* restrict device, void* restrict ctxdata)
 {
     if(event == CHR_EVENT_DEVICE_ADDED) {
@@ -130,14 +140,13 @@ void devfs_chr_event_handler(unsigned event, const chr_device_t* restrict device
     }
 
     if(event == CHR_EVENT_DEVICE_REMOVED) {
-        vnode_t* node = devfs_find(ctxdata, device->name);
-
-        if(node) {
-            vms_revoke(node);
-            vnode_decref(node);
-        }
-
+        revoke_mappings(ctxdata, device);
         devfs_remove(ctxdata, device->name);
+        return;
+    }
+
+    if(event == CHR_EVENT_MEMORY_CHANGED) {
+        revoke_mappings(ctxdata, device);
         return;
     }
 }

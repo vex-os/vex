@@ -7,6 +7,7 @@ typedef struct chr_device_s chr_device_t;
 enum {
     CHR_EVENT_DEVICE_ADDED,
     CHR_EVENT_DEVICE_REMOVED,
+    CHR_EVENT_MEMORY_CHANGED,
 };
 
 typedef void (*chr_event_handler_t)(unsigned event, const chr_device_t* restrict device, void* restrict ctxdata);

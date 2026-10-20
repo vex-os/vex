@@ -69,6 +69,11 @@ int chr_device_add(chr_device_t* restrict device, dev_unit_t* restrict unit, uns
 /// on its next access, and the driver gets nothing but release
 int chr_device_remove(chr_device_t* restrict device);
 
+/// Unmaps the device's memory from every address space, so the next access faults on it again
+/// @pre Interrupts are enabled, as the event subscribers may sleep
+/// @note For a driver whose memory changed layout, such as a framebuffer after a mode change
+void chr_device_revoke_mappings(const chr_device_t* restrict device);
+
 void chr_device_incref(const chr_device_t* restrict device);
 void chr_device_decref(const chr_device_t* restrict device);
 
