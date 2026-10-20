@@ -107,14 +107,7 @@ int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restric
     struct sigframe frame = { 0 };
     frame.restorer = restorer;
     frame.uc.uc_flags = UC_FPU;
-    frame.uc.uc_stack.ss_sp = (void*)(thrd->sig_altstack);
-    frame.uc.uc_stack.ss_size = thrd->sig_altstack_size;
-    frame.uc.uc_stack.ss_flags = on_altstack ? SS_ONSTACK : 0;
-
-    if(thrd->sig_altstack_size == 0) {
-        frame.uc.uc_stack.ss_flags = SS_DISABLE;
-    }
-
+    signal_altstack_get(thrd, ctx->amd64_rsp, &frame.uc.uc_stack);
     frame.uc.uc_sigmask = old_mask;
     frame.uc.uc_mcontext.mc_fpu_state = (void*)(fpu_user);
     frame.uc.uc_mcontext.mc_fpu_size = fpu_state_size;

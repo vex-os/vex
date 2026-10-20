@@ -130,6 +130,7 @@ sigset_t signal_mask(struct thread* restrict thrd, int how, sigset_t set);
 sigset_t signal_pending(struct thread* restrict thrd);
 void signal_flush(struct sigqueue* restrict queue);
 bool signal_on_altstack(const struct thread* restrict thrd, uintptr_t sp) __nodiscard;
+void signal_altstack_get(const struct thread* restrict thrd, uintptr_t sp, struct k_stack* restrict out);
 
 int arch_signal_setup(struct thread* restrict thrd, struct hart_context* restrict ctx, const struct k_sigaction* restrict action,
     const struct k_siginfo* restrict info, sigset_t old_mask);

@@ -216,18 +216,9 @@ static intptr_t sys_sigaltstack(const uintptr_t* restrict args)
     }
 
     struct hart_context* ctx = thrd->syscall_ctx;
-    bool on_altstack = signal_on_altstack(thrd, ctx->syscall_sp);
 
-    struct k_stack old = { 0 };
-    old.ss_sp = (void*)(thrd->sig_altstack);
-    old.ss_size = thrd->sig_altstack_size;
-
-    if(thrd->sig_altstack_size == 0) {
-        old.ss_flags = SS_DISABLE;
-    }
-    else if(on_altstack) {
-        old.ss_flags = SS_ONSTACK;
-    }
+    struct k_stack old;
+    signal_altstack_get(thrd, ctx->syscall_sp, &old);
 
     if(user_ss) {
         struct k_stack ss;
@@ -237,7 +228,7 @@ static intptr_t sys_sigaltstack(const uintptr_t* restrict args)
             return copied;
         }
 
-        if(on_altstack) {
+        if(old.ss_flags & SS_ONSTACK) {
             return -EPERM;
         }
 

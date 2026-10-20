@@ -433,6 +433,21 @@ bool signal_on_altstack(const struct thread* restrict thrd, uintptr_t sp)
     return thrd->sig_altstack_size && sp > base && sp - base <= thrd->sig_altstack_size;
 }
 
+void signal_altstack_get(const struct thread* restrict thrd, uintptr_t sp, struct k_stack* restrict out)
+{
+    out->ss_sp = (void*)(thrd->sig_altstack);
+    out->ss_size = thrd->sig_altstack_size;
+    out->ss_flags = 0;
+    out->ss_reserved = 0;
+
+    if(thrd->sig_altstack_size == 0) {
+        out->ss_flags = SS_DISABLE;
+    }
+    else if(signal_on_altstack(thrd, sp)) {
+        out->ss_flags = SS_ONSTACK;
+    }
+}
+
 void signal_flush(struct sigqueue* restrict queue)
 {
     while(queue) {

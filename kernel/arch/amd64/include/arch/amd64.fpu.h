@@ -5,7 +5,6 @@
 
 #define FPU_STATE_ALIGN 64
 
-// Exception bits, laid out the same in the x87 status and control words and in MXCSR
 #define FPU_EXCEPTION_IE UINT32_C(0x00000001) // Invalid operation
 #define FPU_EXCEPTION_DE UINT32_C(0x00000002) // Denormal operand
 #define FPU_EXCEPTION_ZE UINT32_C(0x00000004) // Divide by zero
