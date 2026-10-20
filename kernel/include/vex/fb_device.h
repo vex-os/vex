@@ -9,6 +9,7 @@ typedef struct dev_unit_s dev_unit_t;
 
 typedef struct fb_device_s fb_device_t;
 typedef struct fb_device_ops_s fb_device_ops_t;
+typedef struct fb_device_private_s fb_device_private_t;
 
 struct fb_device_ops_s {
     /// @pre The rectangles are clipped to the screen
@@ -27,15 +28,21 @@ struct fb_device_ops_s {
     void (*release)(const fb_device_t* restrict device);
 };
 
+struct fb_device_private_s {
+    fb_device_t* boot_next;
+    dev_unit_t* unit;
+    unsigned in_flight; // Calls into the fb core that may still touch virt or the driver
+    bool removed;
+};
+
 struct fb_device_s {
     chr_device_t chr; // Its name, ops and ctxdata belong to the fb core
+    fb_device_private_t priv;
     const fb_device_ops_t* ops;
     vexfb_info_t info;
-    uintptr_t phys;   // Of the info.size bytes userspace maps
-    unsigned cache;   // A VPROT_CACHE value for them
-    void* virt;       // The kernel's mapping of them, for read and write
-    dev_unit_t* unit; // Taken by fb_device_add and freed by fb_device_remove
-    fb_device_t* boot_next;
+    uintptr_t phys; // Of the info.size bytes userspace maps
+    unsigned cache; // A VPROT_CACHE value for them
+    void* virt;     // The kernel's mapping of them, for read and write
     void* ctxdata;
 };
 
@@ -51,4 +58,8 @@ void fb_boot_add(fb_device_t* restrict device);
 int fb_boot_claim(uintptr_t phys, size_t size);
 
 int fb_device_add(fb_device_t* restrict device);
+
+/// @post No call into the fb core touches virt or the driver any more, and fbcons, if it drew
+/// to the device, waits for the next one added; the driver may unmap and tear down
+/// @note The driver's release still comes, once the last reference is gone
 int fb_device_remove(fb_device_t* restrict device);

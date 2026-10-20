@@ -4,8 +4,10 @@
 #include <vex/errno.h>
 #include <vex/fb_device.h>
 #include <vex/fbcons.h>
+#include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
+#include <vex/mutex.h>
 #include <vex/page.h>
 #include <vex/string.h>
 #include <vex/uaccess.h>
@@ -14,11 +16,13 @@
 #define COLOR_BATCH 64
 
 // Boot framebuffers are queued and claimed by initcalls on the
-// BSP, one at a time, so none of this needs a lock
+// BSP, one at a time, so the queue needs no lock
 static fb_device_t* boot_head = nullptr;
 static bool boot_added = false;
 static bool console_tried = false;
-static bool console_pending = false; // fbcons lost its device to a claim and waits for the next one
+
+static mutex_t console_mutex = MUTEX_INIT;
+static bool console_pending = false; // Under console_mutex; fbcons lost its device and waits for the next one
 
 static const fb_device_t* fb_of(const chr_device_t* restrict device)
 {
@@ -39,6 +43,21 @@ static void detach_console(void)
 #ifdef CONFIG_FBCONS
     fbcons_detach();
 #endif
+}
+
+// The device's memory is about to go
+// so fbcons moves to the next device added
+static void lose_console(fb_device_t* restrict device)
+{
+    mutex_acquire(&console_mutex);
+
+    if(device->chr.console) {
+        detach_console();
+        device->chr.console = nullptr;
+        console_pending = true;
+    }
+
+    mutex_release(&console_mutex);
 }
 
 static bool overlaps(const fb_device_t* restrict device, uintptr_t phys, size_t size)
@@ -173,10 +192,8 @@ static int ioctl_palette(const fb_device_t* restrict fb, uintptr_t argument, boo
     return 0;
 }
 
-static ssize_t fb_chr_read(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size)
+static ssize_t read_memory(const fb_device_t* restrict fb, off_t offset, void* restrict buffer, size_t size)
 {
-    const fb_device_t* fb = fb_of(device);
-
     if(offset < 0) {
         return -EINVAL;
     }
@@ -197,10 +214,8 @@ static ssize_t fb_chr_read(const chr_device_t* restrict device, off_t offset, vo
 }
 
 // Flushes the lines it touched, so a writer through write() needs no VEXFB_FLUSH
-static ssize_t fb_chr_write(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size)
+static ssize_t write_memory(const fb_device_t* restrict fb, off_t offset, const void* restrict buffer, size_t size)
 {
-    const fb_device_t* fb = fb_of(device);
-
     if(offset < 0) {
         return -EINVAL;
     }
@@ -240,10 +255,8 @@ static ssize_t fb_chr_write(const chr_device_t* restrict device, off_t offset, c
     return size;
 }
 
-static int fb_chr_ioctl(const chr_device_t* restrict device, uint32_t request, uintptr_t argument)
+static int ioctl_request(const fb_device_t* restrict fb, uint32_t request, uintptr_t argument)
 {
-    const fb_device_t* fb = fb_of(device);
-
     switch(request) {
         case VEXFB_GET_INFO:
             return user_copyout(argument, &fb->info, sizeof(fb->info)) < 0 ? -EFAULT : 0;
@@ -260,6 +273,69 @@ static int fb_chr_ioctl(const chr_device_t* restrict device, uint32_t request, u
         default:
             return -ENOTTY;
     }
+}
+
+// A call that passed the chr layer's removed check may still be on its way
+// here, so fb_device_remove waits for those that got in before it was set
+static bool enter(const fb_device_t* restrict fb)
+{
+    fb_device_t* mutable_fb = (fb_device_t*)(fb);
+    atomic_fetch_add(&mutable_fb->priv.in_flight, 1, ATOMIC_SEQ_CST);
+
+    if(atomic_load(&mutable_fb->priv.removed, ATOMIC_SEQ_CST)) {
+        atomic_fetch_sub(&mutable_fb->priv.in_flight, 1, ATOMIC_RELEASE);
+        return false;
+    }
+
+    return true;
+}
+
+static void leave(const fb_device_t* restrict fb)
+{
+    fb_device_t* mutable_fb = (fb_device_t*)(fb);
+    atomic_fetch_sub(&mutable_fb->priv.in_flight, 1, ATOMIC_RELEASE);
+}
+
+static ssize_t fb_chr_read(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size)
+{
+    const fb_device_t* fb = fb_of(device);
+
+    if(!enter(fb)) {
+        return -ENODEV;
+    }
+
+    ssize_t retval = read_memory(fb, offset, buffer, size);
+    leave(fb);
+
+    return retval;
+}
+
+static ssize_t fb_chr_write(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size)
+{
+    const fb_device_t* fb = fb_of(device);
+
+    if(!enter(fb)) {
+        return -ENODEV;
+    }
+
+    ssize_t retval = write_memory(fb, offset, buffer, size);
+    leave(fb);
+
+    return retval;
+}
+
+static int fb_chr_ioctl(const chr_device_t* restrict device, uint32_t request, uintptr_t argument)
+{
+    const fb_device_t* fb = fb_of(device);
+
+    if(!enter(fb)) {
+        return -ENODEV;
+    }
+
+    int retval = ioctl_request(fb, request, argument);
+    leave(fb);
+
+    return retval;
 }
 
 static int fb_chr_mmap(const chr_device_t* restrict device, off_t offset, size_t length)
@@ -309,17 +385,19 @@ static int add_device(fb_device_t* restrict device)
 {
     device->chr.ops = &fb_chr_ops;
     device->chr.ctxdata = device;
+    device->priv.in_flight = 0;
+    device->priv.removed = false;
 
-    int retval = dev_unit_alloc(&dev_prefix_fbd, &device->unit);
+    int retval = dev_unit_alloc(&dev_prefix_fbd, &device->priv.unit);
 
     if(retval < 0) {
         return retval;
     }
 
-    retval = chr_device_add(&device->chr, device->unit, DEV_NAME_NONE);
+    retval = chr_device_add(&device->chr, device->priv.unit, DEV_NAME_NONE);
 
     if(retval < 0) {
-        dev_unit_free(device->unit);
+        dev_unit_free(device->priv.unit);
         return retval;
     }
 
@@ -333,7 +411,7 @@ void fb_boot_add(fb_device_t* restrict device)
     kassert(!boot_added);
 
     device->chr.console = nullptr;
-    device->boot_next = nullptr;
+    device->priv.boot_next = nullptr;
 
     if(!console_tried) {
         console_tried = true;
@@ -343,7 +421,7 @@ void fb_boot_add(fb_device_t* restrict device)
     fb_device_t** tail = &boot_head;
 
     while(*tail) {
-        tail = &(*tail)->boot_next;
+        tail = &(*tail)->priv.boot_next;
     }
 
     *tail = device;
@@ -363,16 +441,13 @@ int fb_boot_claim(uintptr_t phys, size_t size)
         fb_device_t* device = *prev;
 
         if(!overlaps(device, phys, size)) {
-            prev = &device->boot_next;
+            prev = &device->priv.boot_next;
             continue;
         }
 
-        *prev = device->boot_next;
+        *prev = device->priv.boot_next;
 
-        if(device->chr.console) {
-            detach_console();
-            console_pending = true;
-        }
+        lose_console(device);
 
         if(device->ops->release) {
             device->ops->release(device);
@@ -384,6 +459,8 @@ int fb_boot_claim(uintptr_t phys, size_t size)
 
 int fb_device_add(fb_device_t* restrict device)
 {
+    mutex_acquire(&console_mutex);
+
     device->chr.console = nullptr;
 
     if(console_pending) {
@@ -391,25 +468,45 @@ int fb_device_add(fb_device_t* restrict device)
         device->chr.console = attach_console(device);
     }
 
-    return add_device(device);
+    mutex_release(&console_mutex);
+
+    int retval = add_device(device);
+
+    // The driver tears its memory down after a failure
+    if(retval < 0) {
+        lose_console(device);
+    }
+
+    return retval;
 }
 
 int fb_device_remove(fb_device_t* restrict device)
 {
+    atomic_store(&device->priv.removed, true, ATOMIC_SEQ_CST);
+
     int retval = chr_device_remove(&device->chr);
 
-    if(retval == 0) {
-        dev_unit_free(device->unit);
+    if(retval < 0) {
+        return retval;
     }
 
-    return retval;
+    while(atomic_load(&device->priv.in_flight, ATOMIC_ACQUIRE)) {
+        hart_relax();
+    }
+
+    // Even released, fbcons takes the screen back on a panic
+    lose_console(device);
+
+    dev_unit_free(device->priv.unit);
+
+    return 0;
 }
 
 static void init_fb_boot(void)
 {
     boot_added = true;
 
-    for(fb_device_t* device = boot_head; device; device = device->boot_next) {
+    for(fb_device_t* device = boot_head; device; device = device->priv.boot_next) {
         int retval = add_device(device);
 
         if(retval < 0) {
