@@ -29,10 +29,30 @@ static const fb_device_t* fb_of(const chr_device_t* restrict device)
     return device->ctxdata;
 }
 
+// Runs on a panic, so it takes no lock
+static void restore_console_mode(void* restrict ctxdata)
+{
+    fb_device_t* device = ctxdata;
+    const vexfb_mode_t* mode = &device->priv.console_mode;
+
+    if(device->ops->set_mode == nullptr) {
+        return;
+    }
+
+    if(device->info.width != mode->width || device->info.height != mode->height || device->info.bpp != mode->bpp) {
+        device->ops->set_mode(device, mode);
+    }
+}
+
 static console_t* attach_console(fb_device_t* restrict device)
 {
 #ifdef CONFIG_FBCONS
-    return fbcons_attach(&device->info, device->virt);
+    device->priv.console_mode.width = device->info.width;
+    device->priv.console_mode.height = device->info.height;
+    device->priv.console_mode.bpp = device->info.bpp;
+    device->priv.console_mode.flags = 0;
+
+    return fbcons_attach(&device->info, device->virt, &restore_console_mode, device);
 #else
     return nullptr;
 #endif
@@ -255,6 +275,57 @@ static ssize_t write_memory(const fb_device_t* restrict fb, off_t offset, const 
     return size;
 }
 
+static int ioctl_set_mode(const fb_device_t* restrict fb, uintptr_t argument)
+{
+    vexfb_mode_t mode;
+
+    if(user_copyin(&mode, argument, sizeof(mode)) < 0) {
+        return -EFAULT;
+    }
+
+    if(fb->ops->set_mode == nullptr) {
+        return -ENOTTY;
+    }
+
+    if(mode.flags) {
+        return -EINVAL;
+    }
+
+    fb_device_t* mutable_fb = (fb_device_t*)(fb);
+    int retval = fb->ops->set_mode(mutable_fb, &mode);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    chr_device_revoke_mappings(&fb->chr);
+
+    return 0;
+}
+
+static int ioctl_get_modes(const fb_device_t* restrict fb, uintptr_t argument)
+{
+    vexfb_modes_t modes;
+
+    if(user_copyin(&modes, argument, sizeof(modes)) < 0) {
+        return -EFAULT;
+    }
+
+    uint32_t copied = modes.count < fb->mode_count ? modes.count : fb->mode_count;
+
+    if(copied && user_copyout(modes.modes, fb->modes, copied * sizeof(vexfb_mode_t)) < 0) {
+        return -EFAULT;
+    }
+
+    modes.count = fb->mode_count;
+
+    if(user_copyout(argument, &modes, sizeof(modes)) < 0) {
+        return -EFAULT;
+    }
+
+    return 0;
+}
+
 static int ioctl_request(const fb_device_t* restrict fb, uint32_t request, uintptr_t argument)
 {
     switch(request) {
@@ -269,6 +340,12 @@ static int ioctl_request(const fb_device_t* restrict fb, uint32_t request, uintp
 
         case VEXFB_SET_PALETTE:
             return ioctl_palette(fb, argument, true);
+
+        case VEXFB_SET_MODE:
+            return ioctl_set_mode(fb, argument);
+
+        case VEXFB_GET_MODES:
+            return ioctl_get_modes(fb, argument);
 
         default:
             return -ENOTTY;
@@ -287,12 +364,15 @@ static bool enter(const fb_device_t* restrict fb)
         return false;
     }
 
+    mutex_acquire(&mutable_fb->priv.lock);
+
     return true;
 }
 
 static void leave(const fb_device_t* restrict fb)
 {
     fb_device_t* mutable_fb = (fb_device_t*)(fb);
+    mutex_release(&mutable_fb->priv.lock);
     atomic_fetch_sub(&mutable_fb->priv.in_flight, 1, ATOMIC_RELEASE);
 }
 
@@ -387,6 +467,7 @@ static int add_device(fb_device_t* restrict device)
     device->chr.ctxdata = device;
     device->priv.in_flight = 0;
     device->priv.removed = false;
+    mutex_init(&device->priv.lock);
 
     int retval = dev_unit_alloc(&dev_prefix_fbd, &device->priv.unit);
 

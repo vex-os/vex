@@ -3,6 +3,7 @@
 #include <vex/chr_device.h>
 #include <vex/compiler.h>
 #include <vex/fb.h>
+#include <vex/mutex.h>
 #include <vex/types.h>
 
 typedef struct dev_unit_s dev_unit_t;
@@ -24,6 +25,13 @@ struct fb_device_ops_s {
     /// @note nullptr when info.palette_size is zero
     int (*set_palette)(const fb_device_t* restrict device, uint32_t first, uint32_t count, const uint32_t* restrict colors);
 
+    /// Sets the mode and updates info, phys and virt to match it
+    /// @pre The fb core serializes it with its other calls, and mode->flags is zero
+    /// @retval -EINVAL The driver can't set the mode
+    /// @note Also called on a panic to bring back the mode fbcons draws in, so it takes no lock
+    /// and allocates nothing; nullptr when the mode is fixed
+    int (*set_mode)(fb_device_t* restrict device, const vexfb_mode_t* restrict mode);
+
     /// @note Also called for a boot framebuffer a native driver claimed before it was registered
     void (*release)(const fb_device_t* restrict device);
 };
@@ -33,6 +41,8 @@ struct fb_device_private_s {
     dev_unit_t* unit;
     unsigned in_flight; // Calls into the fb core that may still touch virt or the driver
     bool removed;
+    mutex_t lock;              // Serializes those calls, so info doesn't change under them
+    vexfb_mode_t console_mode; // The mode fbcons was attached in
 };
 
 struct fb_device_s {
@@ -40,9 +50,11 @@ struct fb_device_s {
     fb_device_private_t priv;
     const fb_device_ops_t* ops;
     vexfb_info_t info;
-    uintptr_t phys; // Of the info.size bytes userspace maps
-    unsigned cache; // A VPROT_CACHE value for them
-    void* virt;     // The kernel's mapping of them, for read and write
+    uintptr_t phys;            // Of the info.size bytes userspace maps
+    unsigned cache;            // A VPROT_CACHE value for them
+    void* virt;                // The kernel's mapping of them, for read and write
+    const vexfb_mode_t* modes; // What the display suggests, for VEXFB_GET_MODES
+    uint32_t mode_count;
     void* ctxdata;
 };
 

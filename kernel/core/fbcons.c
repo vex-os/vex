@@ -228,6 +228,8 @@ static uint32_t* fb_32 = nullptr;
 static size_t vt_width = 0U;
 static size_t vt_height = 0U;
 static size_t vt_length = 0U;
+static fbcons_restore_t restore_mode = nullptr;
+static void* restore_ctxdata = nullptr;
 static vt_cell_t* vt_cells = nullptr;
 
 static size_t cursor_xpos_prev = 0U;
@@ -453,6 +455,10 @@ static void fbcons_write(console_t* restrict cons, const void* restrict data, si
 // next; nothing here locks or allocates, as vt_cells is the one from the attach
 static bool fbcons_takeover(console_t* restrict cons)
 {
+    if(restore_mode) {
+        restore_mode(restore_ctxdata);
+    }
+
     do_reset();
 
     return true;
@@ -469,7 +475,7 @@ static console_t fbcons_driver = {
     .ops = &fbcons_ops,
 };
 
-console_t* fbcons_attach(const vexfb_info_t* restrict info, void* restrict virt)
+console_t* fbcons_attach(const vexfb_info_t* restrict info, void* restrict virt, fbcons_restore_t restore, void* restrict ctxdata)
 {
     bool depth_supported = info->bpp == 8 || info->bpp == 16 || info->bpp == 32;
 
@@ -481,6 +487,9 @@ console_t* fbcons_attach(const vexfb_info_t* restrict info, void* restrict virt)
     fb_height = info->height;
     fb_depth = info->bpp;
     fb_stride = info->pitch / (info->bpp / 8);
+
+    restore_mode = restore;
+    restore_ctxdata = ctxdata;
 
     fb_8 = virt;
     fb_16 = virt;
@@ -509,4 +518,7 @@ void fbcons_detach(void)
 
     kfree(vt_cells);
     vt_cells = nullptr;
+
+    restore_mode = nullptr;
+    restore_ctxdata = nullptr;
 }
