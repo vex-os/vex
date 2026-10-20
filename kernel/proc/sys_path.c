@@ -5,9 +5,11 @@
 #include <vex/file.h>
 #include <vex/path.h>
 #include <vex/process.h>
+#include <vex/stat.h>
 #include <vex/string.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
+#include <vex/time.h>
 #include <vex/uaccess.h>
 #include <vex/vnode.h>
 
@@ -95,7 +97,7 @@ static intptr_t readdir_file(file_t* restrict file, const uintptr_t* restrict ar
     return 1;
 }
 
-static intptr_t sys_unlinkat(const uintptr_t* restrict args)
+static intptr_t sys_fstatat(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
     process_t* process = thread->process;
@@ -104,9 +106,9 @@ static intptr_t sys_unlinkat(const uintptr_t* restrict args)
         return -ENOSYS;
     }
 
-    unsigned flags = args[2];
+    unsigned flags = args[3];
 
-    if(flags & ~AT_REMOVEDIR) {
+    if(flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)) {
         return -EINVAL;
     }
 
@@ -117,37 +119,159 @@ static intptr_t sys_unlinkat(const uintptr_t* restrict args)
         return copied;
     }
 
-    vnode_t* base_dir;
-    int retval = syscall_dirfd(args[0], path, &base_dir);
+    vnode_t* node;
+    int retval = syscall_resolve_at(args[0], path, flags, &node);
 
     if(retval < 0) {
         return retval;
     }
 
-    const credentials_t* credentials = thread->credentials;
+    stat_t st;
+    retval = vnode_stat(node, &st);
 
-    const char* name;
-    vnode_t* parent;
-    retval = path_resolve_parent_at(base_dir, path, credentials, &parent, &name);
-
-    if(base_dir) {
-        vnode_decref(base_dir);
-    }
+    vnode_decref(node);
 
     if(retval < 0) {
         return retval;
     }
 
-    retval = vnode_may_delete(parent, name, credentials);
+    copied = user_copyout(args[2], &st, sizeof(st));
 
-    if(retval == 0) {
-        retval = vnode_unlink(parent, name, flags & AT_REMOVEDIR);
+    if(copied < 0) {
+        return copied;
     }
 
-    vnode_decref(parent);
+    return 0;
+}
+
+define_syscall(sys_fstatat, SYS_FSTATAT);
+
+static intptr_t sys_fchmodat(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    if(process == nullptr) {
+        return -ENOSYS;
+    }
+
+    unsigned flags = args[3];
+
+    if(flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)) {
+        return -EINVAL;
+    }
+
+    char path[PATH_SIZE];
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    vnode_t* node;
+    int retval = syscall_resolve_at(args[0], path, flags, &node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = vnode_chmod(node, thread->credentials, args[2]);
+
+    vnode_decref(node);
 
     return retval;
 }
+
+define_syscall(sys_fchmodat, SYS_FCHMODAT);
+
+static intptr_t sys_fchownat(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    if(process == nullptr) {
+        return -ENOSYS;
+    }
+
+    unsigned flags = args[4];
+
+    if(flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)) {
+        return -EINVAL;
+    }
+
+    char path[PATH_SIZE];
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    vnode_t* node;
+    int retval = syscall_resolve_at(args[0], path, flags, &node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = vnode_chown(node, thread->credentials, args[2], args[3]);
+
+    vnode_decref(node);
+
+    return retval;
+}
+
+define_syscall(sys_fchownat, SYS_FCHOWNAT);
+
+static intptr_t sys_utimensat(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    if(process == nullptr) {
+        return -ENOSYS;
+    }
+
+    unsigned flags = args[3];
+
+    if(flags & ~(AT_SYMLINK_NOFOLLOW | AT_EMPTY_PATH)) {
+        return -EINVAL;
+    }
+
+    char path[PATH_SIZE];
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    timespec_t times[2];
+    const timespec_t* times_ptr = nullptr;
+
+    if(args[2]) {
+        copied = user_copyin(times, args[2], sizeof(times));
+
+        if(copied < 0) {
+            return copied;
+        }
+
+        times_ptr = times;
+    }
+
+    vnode_t* node;
+    int retval = syscall_resolve_at(args[0], path, flags, &node);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = vnode_utimes(node, thread->credentials, times_ptr);
+
+    vnode_decref(node);
+
+    return retval;
+}
+
+define_syscall(sys_utimensat, SYS_UTIMENSAT);
 
 static intptr_t sys_mkdirat(const uintptr_t* restrict args)
 {
@@ -205,6 +329,64 @@ static intptr_t sys_mkdirat(const uintptr_t* restrict args)
     return 0;
 }
 
+define_syscall(sys_mkdirat, SYS_MKDIRAT);
+
+static intptr_t sys_unlinkat(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    if(process == nullptr) {
+        return -ENOSYS;
+    }
+
+    unsigned flags = args[2];
+
+    if(flags & ~AT_REMOVEDIR) {
+        return -EINVAL;
+    }
+
+    char path[PATH_SIZE];
+    ssize_t copied = user_copyin_str(path, args[1], sizeof(path));
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    vnode_t* base_dir;
+    int retval = syscall_dirfd(args[0], path, &base_dir);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    const credentials_t* credentials = thread->credentials;
+
+    const char* name;
+    vnode_t* parent;
+    retval = path_resolve_parent_at(base_dir, path, credentials, &parent, &name);
+
+    if(base_dir) {
+        vnode_decref(base_dir);
+    }
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = vnode_may_delete(parent, name, credentials);
+
+    if(retval == 0) {
+        retval = vnode_unlink(parent, name, flags & AT_REMOVEDIR);
+    }
+
+    vnode_decref(parent);
+
+    return retval;
+}
+
+define_syscall(sys_unlinkat, SYS_UNLINKAT);
+
 static intptr_t sys_renameat(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -254,6 +436,8 @@ static intptr_t sys_renameat(const uintptr_t* restrict args)
 
     return retval;
 }
+
+define_syscall(sys_renameat, SYS_RENAMEAT);
 
 static intptr_t sys_linkat(const uintptr_t* restrict args)
 {
@@ -313,6 +497,8 @@ static intptr_t sys_linkat(const uintptr_t* restrict args)
     return retval;
 }
 
+define_syscall(sys_linkat, SYS_LINKAT);
+
 static intptr_t sys_symlinkat(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -357,6 +543,8 @@ static intptr_t sys_symlinkat(const uintptr_t* restrict args)
 
     return 0;
 }
+
+define_syscall(sys_symlinkat, SYS_SYMLINKAT);
 
 static intptr_t sys_readlinkat(const uintptr_t* restrict args)
 {
@@ -408,15 +596,21 @@ static intptr_t sys_readlinkat(const uintptr_t* restrict args)
     return length;
 }
 
+define_syscall(sys_readlinkat, SYS_READLINKAT);
+
 static intptr_t sys_readdir(const uintptr_t* restrict args)
 {
     return syscall_with_fd(args, &readdir_file);
 }
 
+define_syscall(sys_readdir, SYS_READDIR);
+
 static intptr_t sys_getcwd(const uintptr_t* restrict args)
 {
     return -ENOSYS;
 }
+
+define_syscall(sys_getcwd, SYS_GETCWD);
 
 static intptr_t sys_chdir(const uintptr_t* restrict args)
 {
@@ -471,6 +665,8 @@ static intptr_t sys_chdir(const uintptr_t* restrict args)
     return 0;
 }
 
+define_syscall(sys_chdir, SYS_CHDIR);
+
 static intptr_t sys_fchdir(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -508,13 +704,4 @@ static intptr_t sys_fchdir(const uintptr_t* restrict args)
     return 0;
 }
 
-define_syscall(sys_unlinkat, SYS_UNLINKAT);
-define_syscall(sys_mkdirat, SYS_MKDIRAT);
-define_syscall(sys_renameat, SYS_RENAMEAT);
-define_syscall(sys_readdir, SYS_READDIR);
-define_syscall(sys_getcwd, SYS_GETCWD);
-define_syscall(sys_chdir, SYS_CHDIR);
 define_syscall(sys_fchdir, SYS_FCHDIR);
-define_syscall(sys_linkat, SYS_LINKAT);
-define_syscall(sys_symlinkat, SYS_SYMLINKAT);
-define_syscall(sys_readlinkat, SYS_READLINKAT);

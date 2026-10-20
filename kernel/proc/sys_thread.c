@@ -8,26 +8,6 @@
 #include <vex/uaccess.h>
 #include <vex/vms.h>
 
-static intptr_t sys_tcb_set(const uintptr_t* restrict args)
-{
-    thread_t* thread = this_thread();
-
-    if(thread->process == nullptr) {
-        return -ENOSYS;
-    }
-
-    // A kernel address is useless to userspace and may not even be canonical
-    if(args[0] >= pmap_user_end(thread->process->vmspace->pmap)) {
-        return -EINVAL;
-    }
-
-    arch_thread_set_tcb(thread, args[0]);
-
-    return 0;
-}
-
-define_syscall(sys_tcb_set, SYS_TCB_SET);
-
 static intptr_t sys_thread_create(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -105,3 +85,31 @@ static intptr_t sys_gettid(const uintptr_t* restrict args)
 }
 
 define_syscall(sys_gettid, SYS_GETTID);
+
+static intptr_t sys_tcb_set(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+
+    if(thread->process == nullptr) {
+        return -ENOSYS;
+    }
+
+    // A kernel address is useless to userspace and may not even be canonical
+    if(args[0] >= pmap_user_end(thread->process->vmspace->pmap)) {
+        return -EINVAL;
+    }
+
+    arch_thread_set_tcb(thread, args[0]);
+
+    return 0;
+}
+
+define_syscall(sys_tcb_set, SYS_TCB_SET);
+
+static intptr_t sys_yield(const uintptr_t* restrict args)
+{
+    sched_yield();
+    return 0;
+}
+
+define_syscall(sys_yield, SYS_YIELD);

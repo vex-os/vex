@@ -69,6 +69,8 @@ static intptr_t sys_kill(const uintptr_t* restrict args)
     return retval;
 }
 
+define_syscall(sys_kill, SYS_KILL);
+
 static intptr_t sys_tgkill(const uintptr_t* restrict args)
 {
     pid_t pid = args[0];
@@ -119,6 +121,8 @@ static intptr_t sys_tgkill(const uintptr_t* restrict args)
 
     return retval;
 }
+
+define_syscall(sys_tgkill, SYS_TGKILL);
 
 static intptr_t sys_sigaction(const uintptr_t* restrict args)
 {
@@ -172,6 +176,8 @@ static intptr_t sys_sigaction(const uintptr_t* restrict args)
     return 0;
 }
 
+define_syscall(sys_sigaction, SYS_SIGACTION);
+
 static intptr_t sys_sigprocmask(const uintptr_t* restrict args)
 {
     int how = args[0];
@@ -214,6 +220,8 @@ static intptr_t sys_sigprocmask(const uintptr_t* restrict args)
     return 0;
 }
 
+define_syscall(sys_sigprocmask, SYS_SIGPROCMASK);
+
 static intptr_t sys_sigpending(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -231,6 +239,8 @@ static intptr_t sys_sigpending(const uintptr_t* restrict args)
 
     return 0;
 }
+
+define_syscall(sys_sigpending, SYS_SIGPENDING);
 
 static intptr_t sys_sigreturn(const uintptr_t* restrict args)
 {
@@ -254,6 +264,8 @@ static intptr_t sys_sigreturn(const uintptr_t* restrict args)
     // The return value lands in the register just restored
     return ctx->syscall_retval;
 }
+
+define_syscall(sys_sigreturn, SYS_SIGRETURN);
 
 static intptr_t sys_sigaltstack(const uintptr_t* restrict args)
 {
@@ -318,10 +330,4 @@ static intptr_t sys_sigaltstack(const uintptr_t* restrict args)
     return 0;
 }
 
-define_syscall(sys_kill, SYS_KILL);
-define_syscall(sys_tgkill, SYS_TGKILL);
-define_syscall(sys_sigaction, SYS_SIGACTION);
-define_syscall(sys_sigprocmask, SYS_SIGPROCMASK);
-define_syscall(sys_sigpending, SYS_SIGPENDING);
-define_syscall(sys_sigreturn, SYS_SIGRETURN);
 define_syscall(sys_sigaltstack, SYS_SIGALTSTACK);

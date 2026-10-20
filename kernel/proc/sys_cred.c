@@ -40,19 +40,7 @@ static intptr_t sys_getresuid(const uintptr_t* restrict args)
     return copyout_res(args, credentials->uid, credentials->euid, credentials->suid);
 }
 
-static intptr_t sys_getresgid(const uintptr_t* restrict args)
-{
-    thread_t* thread = this_thread();
-    process_t* process = thread->process;
-
-    if(process == nullptr) {
-        return -ENOSYS;
-    }
-
-    const credentials_t* credentials = thread->credentials;
-
-    return copyout_res(args, credentials->gid, credentials->egid, credentials->sgid);
-}
+define_syscall(sys_getresuid, SYS_GETRESUID);
 
 static intptr_t sys_setresuid(const uintptr_t* restrict args)
 {
@@ -84,6 +72,24 @@ static intptr_t sys_setresuid(const uintptr_t* restrict args)
     return retval;
 }
 
+define_syscall(sys_setresuid, SYS_SETRESUID);
+
+static intptr_t sys_getresgid(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    if(process == nullptr) {
+        return -ENOSYS;
+    }
+
+    const credentials_t* credentials = thread->credentials;
+
+    return copyout_res(args, credentials->gid, credentials->egid, credentials->sgid);
+}
+
+define_syscall(sys_getresgid, SYS_GETRESGID);
+
 static intptr_t sys_setresgid(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -114,6 +120,8 @@ static intptr_t sys_setresgid(const uintptr_t* restrict args)
     return retval;
 }
 
+define_syscall(sys_setresgid, SYS_SETRESGID);
+
 static intptr_t sys_getgroups(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -142,6 +150,8 @@ static intptr_t sys_getgroups(const uintptr_t* restrict args)
 
     return credentials->num_groups;
 }
+
+define_syscall(sys_getgroups, SYS_GETGROUPS);
 
 static intptr_t sys_setgroups(const uintptr_t* restrict args)
 {
@@ -191,6 +201,36 @@ static intptr_t sys_setgroups(const uintptr_t* restrict args)
     return retval;
 }
 
+define_syscall(sys_setgroups, SYS_SETGROUPS);
+
+static intptr_t sys_getumask(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    if(process == nullptr) {
+        return -ENOSYS;
+    }
+
+    return atomic_load_n(&process->umask, ATOMIC_RELAXED);
+}
+
+define_syscall(sys_getumask, SYS_GETUMASK);
+
+static intptr_t sys_setumask(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    if(process == nullptr) {
+        return -ENOSYS;
+    }
+
+    return atomic_exchange(&process->umask, args[0] & (S_IRWXU | S_IRWXG | S_IRWXO), ATOMIC_RELAXED);
+}
+
+define_syscall(sys_setumask, SYS_SETUMASK);
+
 static intptr_t sys_capget(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -217,6 +257,8 @@ static intptr_t sys_capget(const uintptr_t* restrict args)
 
     return 0;
 }
+
+define_syscall(sys_capget, SYS_CAPGET);
 
 static intptr_t sys_capset(const uintptr_t* restrict args)
 {
@@ -255,37 +297,4 @@ static intptr_t sys_capset(const uintptr_t* restrict args)
     return retval;
 }
 
-static intptr_t sys_getumask(const uintptr_t* restrict args)
-{
-    thread_t* thread = this_thread();
-    process_t* process = thread->process;
-
-    if(process == nullptr) {
-        return -ENOSYS;
-    }
-
-    return atomic_load_n(&process->umask, ATOMIC_RELAXED);
-}
-
-static intptr_t sys_setumask(const uintptr_t* restrict args)
-{
-    thread_t* thread = this_thread();
-    process_t* process = thread->process;
-
-    if(process == nullptr) {
-        return -ENOSYS;
-    }
-
-    return atomic_exchange(&process->umask, args[0] & (S_IRWXU | S_IRWXG | S_IRWXO), ATOMIC_RELAXED);
-}
-
-define_syscall(sys_getresuid, SYS_GETRESUID);
-define_syscall(sys_getresgid, SYS_GETRESGID);
-define_syscall(sys_setresuid, SYS_SETRESUID);
-define_syscall(sys_setresgid, SYS_SETRESGID);
-define_syscall(sys_getgroups, SYS_GETGROUPS);
-define_syscall(sys_setgroups, SYS_SETGROUPS);
-define_syscall(sys_capget, SYS_CAPGET);
 define_syscall(sys_capset, SYS_CAPSET);
-define_syscall(sys_getumask, SYS_GETUMASK);
-define_syscall(sys_setumask, SYS_SETUMASK);

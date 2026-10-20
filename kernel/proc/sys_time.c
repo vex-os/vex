@@ -35,6 +35,8 @@ static intptr_t sys_gettime(const uintptr_t* restrict args)
     return 0;
 }
 
+define_syscall(sys_gettime, SYS_GETTIME);
+
 static intptr_t sys_settime(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -61,5 +63,4 @@ static intptr_t sys_settime(const uintptr_t* restrict args)
     return wallclock_set(&time);
 }
 
-define_syscall(sys_gettime, SYS_GETTIME);
 define_syscall(sys_settime, SYS_SETTIME);

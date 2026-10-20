@@ -33,28 +33,6 @@ static intptr_t syncfs_file(file_t* restrict file, const uintptr_t* restrict arg
     return retval;
 }
 
-static intptr_t fsync_file(file_t* restrict file, const uintptr_t* restrict args)
-{
-    vnode_t* node;
-    int retval = vfs_cross_mount(file->node, &node);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    vfs_t* fs = node->fs;
-
-    retval = vnode_fsync(node);
-
-    if(retval == 0 && fs && fs->ops->sync) {
-        retval = fs->ops->sync(fs);
-    }
-
-    vnode_decref(node);
-
-    return retval;
-}
-
 static intptr_t statvfs_file(file_t* restrict file, const uintptr_t* restrict args)
 {
     vnode_t* node;
@@ -180,6 +158,8 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
     return retval;
 }
 
+define_syscall(sys_mount, SYS_MOUNT);
+
 static intptr_t sys_umount(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -205,29 +185,25 @@ static intptr_t sys_umount(const uintptr_t* restrict args)
     return vfs_unmount(path);
 }
 
+define_syscall(sys_umount, SYS_UMOUNT);
+
 static intptr_t sys_sync(const uintptr_t* restrict args)
 {
     return vfs_sync_all();
 }
+
+define_syscall(sys_sync, SYS_SYNC);
 
 static intptr_t sys_syncfs(const uintptr_t* restrict args)
 {
     return syscall_with_fd(args, &syncfs_file);
 }
 
-static intptr_t sys_fsync(const uintptr_t* restrict args)
-{
-    return syscall_with_fd(args, &fsync_file);
-}
+define_syscall(sys_syncfs, SYS_SYNCFS);
 
 static intptr_t sys_statvfs(const uintptr_t* restrict args)
 {
     return syscall_with_fd(args, &statvfs_file);
 }
 
-define_syscall(sys_mount, SYS_MOUNT);
-define_syscall(sys_umount, SYS_UMOUNT);
-define_syscall(sys_sync, SYS_SYNC);
-define_syscall(sys_syncfs, SYS_SYNCFS);
-define_syscall(sys_fsync, SYS_FSYNC);
 define_syscall(sys_statvfs, SYS_STATVFS);

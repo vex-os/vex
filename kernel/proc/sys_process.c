@@ -320,6 +320,8 @@ static intptr_t __noreturn sys_exit(const uintptr_t* restrict args)
     unreachable();
 }
 
+define_syscall(sys_exit, SYS_EXIT);
+
 static intptr_t sys_fork(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -367,6 +369,8 @@ static intptr_t sys_fork(const uintptr_t* restrict args)
     return pid;
 }
 
+define_syscall(sys_fork, SYS_FORK);
+
 static intptr_t sys_exec(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -389,6 +393,8 @@ static intptr_t sys_exec(const uintptr_t* restrict args)
 
     return retval;
 }
+
+define_syscall(sys_exec, SYS_EXEC);
 
 static intptr_t sys_waitpid(const uintptr_t* restrict args)
 {
@@ -441,6 +447,8 @@ static intptr_t sys_waitpid(const uintptr_t* restrict args)
     return collect_child(target, wstatus);
 }
 
+define_syscall(sys_waitpid, SYS_WAITPID);
+
 static intptr_t sys_getpid(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -452,6 +460,8 @@ static intptr_t sys_getpid(const uintptr_t* restrict args)
 
     return process->pid;
 }
+
+define_syscall(sys_getpid, SYS_GETPID);
 
 static intptr_t sys_getppid(const uintptr_t* restrict args)
 {
@@ -465,16 +475,4 @@ static intptr_t sys_getppid(const uintptr_t* restrict args)
     return atomic_load_n(&process->ppid, ATOMIC_RELAXED);
 }
 
-static intptr_t sys_yield(const uintptr_t* restrict args)
-{
-    sched_yield();
-    return 0;
-}
-
-define_syscall(sys_exit, SYS_EXIT);
-define_syscall(sys_fork, SYS_FORK);
-define_syscall(sys_exec, SYS_EXEC);
-define_syscall(sys_waitpid, SYS_WAITPID);
-define_syscall(sys_getpid, SYS_GETPID);
 define_syscall(sys_getppid, SYS_GETPPID);
-define_syscall(sys_yield, SYS_YIELD);

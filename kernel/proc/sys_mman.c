@@ -152,6 +152,8 @@ static intptr_t sys_mmap(const uintptr_t* restrict args)
     return retval;
 }
 
+define_syscall(sys_mmap, SYS_MMAP);
+
 static intptr_t sys_munmap(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -170,6 +172,8 @@ static intptr_t sys_munmap(const uintptr_t* restrict args)
     return vms_unmap(process->vmspace, args[0], end);
 }
 
+define_syscall(sys_munmap, SYS_MUNMAP);
+
 static intptr_t sys_mprotect(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -187,6 +191,8 @@ static intptr_t sys_mprotect(const uintptr_t* restrict args)
 
     return vms_protect(process->vmspace, args[0], end, prot_to_vprot(args[2]));
 }
+
+define_syscall(sys_mprotect, SYS_MPROTECT);
 
 static intptr_t sys_msync(const uintptr_t* restrict args)
 {
@@ -207,7 +213,4 @@ static intptr_t sys_msync(const uintptr_t* restrict args)
     return vms_sync(process->vmspace, args[0], end, 0 != (flags & MS_SYNC));
 }
 
-define_syscall(sys_mmap, SYS_MMAP);
 define_syscall(sys_msync, SYS_MSYNC);
-define_syscall(sys_munmap, SYS_MUNMAP);
-define_syscall(sys_mprotect, SYS_MPROTECT);

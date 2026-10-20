@@ -99,6 +99,8 @@ static intptr_t sys_getxattrat(const uintptr_t* restrict args)
     return length;
 }
 
+define_syscall(sys_getxattrat, SYS_GETXATTRAT);
+
 static intptr_t sys_setxattrat(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -156,6 +158,8 @@ static intptr_t sys_setxattrat(const uintptr_t* restrict args)
     return retval;
 }
 
+define_syscall(sys_setxattrat, SYS_SETXATTRAT);
+
 static intptr_t sys_listxattrat(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -210,6 +214,8 @@ static intptr_t sys_listxattrat(const uintptr_t* restrict args)
     return length;
 }
 
+define_syscall(sys_listxattrat, SYS_LISTXATTRAT);
+
 static intptr_t sys_removexattrat(const uintptr_t* restrict args)
 {
     thread_t* thread = this_thread();
@@ -244,7 +250,4 @@ static intptr_t sys_removexattrat(const uintptr_t* restrict args)
     return retval;
 }
 
-define_syscall(sys_getxattrat, SYS_GETXATTRAT);
-define_syscall(sys_setxattrat, SYS_SETXATTRAT);
-define_syscall(sys_listxattrat, SYS_LISTXATTRAT);
 define_syscall(sys_removexattrat, SYS_REMOVEXATTRAT);
