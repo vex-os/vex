@@ -7,6 +7,8 @@
 #include <vex/signal.h>
 #include <vex/spinlock.h>
 
+#define INIT_PID 1
+
 struct file;
 struct sigqueue;
 struct thread;

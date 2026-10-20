@@ -45,10 +45,22 @@ static bool default_kills(int sig)
     return action == DEFAULT_TERM || action == DEFAULT_CORE;
 }
 
-static bool ignored_locked(const struct sighand* restrict sighand, int sig)
+static bool ignored_locked(const struct process* restrict proc, int sig)
 {
+    struct sighand* sighand = proc->sighand;
     sighandler_t handler = sighand->actions[sig - 1].sa_handler;
-    return handler == SIG_IGN || (handler == SIG_DFL && !default_kills(sig));
+
+    if(handler == SIG_IGN) {
+        return true;
+    }
+
+    // Init going down takes the system with it, so only signals it handles reach it;
+    // its own faults are forced past this and still kill it
+    if(handler == SIG_DFL && proc->pid == INIT_PID) {
+        return true;
+    }
+
+    return handler == SIG_DFL && !default_kills(sig);
 }
 
 static void queue_append(struct sigqueue** restrict queue, struct sigqueue* restrict node)
@@ -133,7 +145,7 @@ static void queue_signal(struct process* restrict proc, struct thread* restrict 
     bool blocked = target && 0 != (target->sig_blocked & bit);
 
     // A blocked signal stays pending even if ignored: the action may change before it is unblocked
-    if((ignored_locked(sighand, sig) && !blocked) || (*pending & bit)) {
+    if((ignored_locked(proc, sig) && !blocked) || (*pending & bit)) {
         spinlock_release_intr(&sighand->lock, intr_state);
         slab_free(node);
         return;
@@ -211,7 +223,10 @@ void sighand_exec(struct sighand* restrict sighand)
 int signal_send(struct process* restrict proc, struct thread* restrict target, const struct k_siginfo* restrict info)
 {
     if(info->si_signo == SIGKILL) {
-        process_kill(proc, SIGKILL);
+        if(proc->pid != INIT_PID) {
+            process_kill(proc, SIGKILL); // Init is spared for the same reason as in ignored_locked
+        }
+
         return 0;
     }
 
@@ -368,7 +383,7 @@ void signal_action(struct process* restrict proc, int sig, const struct k_sigact
     if(act) {
         sighand->actions[sig - 1] = *act;
 
-        if(ignored_locked(sighand, sig)) {
+        if(ignored_locked(proc, sig)) {
             drop_locked(&proc->sig_pending, &proc->sig_queue, sig, &dropped);
 
             bool proc_intr_state = spinlock_acquire_intr(&proc->lock);

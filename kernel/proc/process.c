@@ -16,7 +16,6 @@
 #include <vex/vms.h>
 #include <vex/vnode.h>
 
-#define INIT_PID            1
 #define PROCTABLE_BUCKETS   1024
 #define PROCESS_SIZE_BUDGET 256
 
