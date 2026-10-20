@@ -239,26 +239,40 @@ void signal_force(struct thread* restrict thrd, const struct k_siginfo* restrict
     struct process* proc = thrd->proc;
     struct sighand* sighand = proc->sighand;
     int sig = info->si_signo;
+    sigset_t bit = sigbit(sig);
+    struct sigqueue* dropped = nullptr;
+
+    struct sigqueue* node = slab_alloc(sizeof(struct sigqueue));
+
+    if(node) {
+        node->info = *info;
+    }
 
     bool intr_state = spinlock_acquire_intr(&sighand->lock);
 
     struct k_sigaction* action = &sighand->actions[sig - 1];
 
-    if(action->sa_handler == SIG_IGN) {
-        action->sa_handler = SIG_DFL;
+    // A blocked signal means its handler is the one that faulted, or the fault
+    // came with the handler masked; running it would only fault again
+    if(action->sa_handler == SIG_IGN || 0 != (thrd->sig_blocked & bit)) {
+        memset(action, 0, sizeof(struct k_sigaction));
     }
 
-    thrd->sig_blocked &= ~sigbit(sig);
+    thrd->sig_blocked &= ~bit;
 
-    spinlock_release_intr(&sighand->lock, intr_state);
+    // The fault's own siginfo replaces whatever was pending for it already
+    drop_locked(&thrd->sig_pending, &thrd->sig_queue, sig, &dropped);
+    thrd->sig_pending |= bit;
 
-    signal_send(proc, thrd, info);
+    if(node) {
+        queue_append(&thrd->sig_queue, node);
+    }
 
-    // The signal may have been pending
-    // already, so the send set no work
-    intr_state = spinlock_acquire_intr(&sighand->lock);
     recalc_locked(thrd);
+
     spinlock_release_intr(&sighand->lock, intr_state);
+
+    signal_flush(dropped);
 }
 
 void signal_deliver(struct hart_context* restrict ctx)
