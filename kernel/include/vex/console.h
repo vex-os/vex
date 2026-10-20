@@ -16,16 +16,16 @@ typedef struct console_private_s console_private_t;
 struct console_ops_s {
     void (*init)(console_t* restrict cons);
 
-    /// Calls are serialized by the console core, so the driver needs no lock of its own;
-    /// it must not take one either, as a panic in the middle of a write writes again
+    /// @pre Calls are serialized by the console core
+    /// @note Takes no lock, as a panic in the middle of a write writes again
     void (*write)(console_t* restrict cons, const void* restrict data, size_t size);
 
-    /// Finishes the output in flight; from then on the console leaves the device alone
+    /// Finishes the output in flight and leaves the device alone from then on
     void (*release)(console_t* restrict cons);
 
-    /// Brings the device back to the state the console writes in, whatever its driver left it in.
-    /// Runs during panic with interrupts disabled, so it can't take locks or allocate; false means
-    /// the device is unusable and keeps the console released
+    /// Brings the device back to the state the console writes in, whatever its driver left it in
+    /// @pre Called by panic with interrupts disabled, so it can't take locks or allocate
+    /// @retval false The device is unusable, and the console stays released
     bool (*takeover)(console_t* restrict cons);
 };
 

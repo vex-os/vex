@@ -64,8 +64,7 @@ int vms_clone(vmspace_t* restrict vmspace, vmspace_t* restrict source);
 
 int vms_fault(vmspace_t* restrict vmspace, uintptr_t virt, unsigned access);
 
-/// Takes the pages of every device region mapping node away, from any address space and without
-/// its vmspace lock, so the next access faults on node again
+/// Unmaps the device memory of node from every address space, so the next access faults on it again
 /// @pre The node's resolve_page fails from now on, or that fault maps the page back
 void vms_revoke(vnode_t* restrict node);
 

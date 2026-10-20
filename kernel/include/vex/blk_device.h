@@ -42,11 +42,9 @@ struct blk_request_s {
 };
 
 struct blk_device_ops_s {
-    /// Gets requests blk_submit has checked against the device's limits and found present;
-    /// finishes each one by setting status and calling done exactly once, failure included
+    /// @pre blk_submit has checked the request against the device's limits and found the device present
+    /// @note Finish the request by setting status and calling done exactly once, failure included
     void (*submit)(const blk_device_t* restrict device, blk_request_t* restrict req);
-
-    /// Called once the last reference is gone
     void (*release)(const blk_device_t* restrict device);
 };
 

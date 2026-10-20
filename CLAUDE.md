@@ -82,13 +82,14 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
   - Before writing a comment, try to make it unnecessary: rename (`free_slots` instead of `slots // A set bit means free`), move the code into a function whose name says what it does, or turn the claim into a `static_assert` or `kassert`.
   - Don't describe a function's algorithm above it. Preconditions and ownership rules that every caller must respect stay at the declaration: in the header for public functions, at the definition for static ones. A guarantee that only some callers rely on goes at those call sites, as the reason the caller is correct.
   - A public function whose contract the signature can't express (a calling protocol, lock or interrupt state, reference ownership, return codes with distinct meanings, an obligation of an `arch_*` implementation) gets a `///` block above its prototype. Most functions get no such block. Inside one:
-    - Prose says what the function does, only where the name doesn't, and spells out a calling protocol made of several steps.
+    - Prose is one short line saying what the function does, only where the name doesn't, or the steps of a calling protocol. No reasons in it.
     - `@pre` states what must hold at the call (locks held or not, interrupt state, who calls, references the caller holds); `@post` what holds afterwards when the prose doesn't say it.
     - `@param` only for a parameter whose meaning the name doesn't carry; `@retval` lists return values that mean different things, `@return` describes a single kind of result.
-    - Commands use `@`, not `\`. `@note` isn't used; `NOTE:` comments cover that. A command's text wraps onto plain `/// ` lines, not indented under it.
-    - The clang cross file builds with `-Wdocumentation`, so a `@param` that drifts from the signature fails the build. Clang doesn't check `@param` on struct fields, so ops tables get prose only.
+    - `@note` holds what an implementation or a caller must know that isn't a precondition: a reason (`takes no lock, as a panic mid-write writes again`) or an obligation (`vcache_remove the target once its last name is gone`). Keep it to a sentence.
+    - Commands use `@`, not `\`. A command's text wraps onto plain `/// ` lines, not indented under it.
+    - The clang cross file builds with `-Wdocumentation`, so a `@param` that drifts from the signature fails the build.
+    - An op in an ops table follows the same rules: a block only when the op's contract isn't obvious, commands included, as hover shows it where the op is implemented. Clang doesn't check commands on struct fields, so a change to an op's signature updates its block by hand.
     - Every declaration gets its own complete block, even when that repeats a neighbour's: `///` attaches to the next declaration only, and hover tooltips show nothing else, so neither a comment above a group nor a "same as X" helps there.
-    - A documented declaration stands alone, with a blank line above its block and below the declaration, so the block can't be read as covering a neighbour. Undocumented prototypes may stay grouped.
   - Constants and fields get a comment only when it expands a spec name (FAT `BS_*`/`BPB_*`, AHCI registers, ELF), adds units or meaning the name lacks, or states an invariant. Format headers such as `vex/elf.h` keep their full constant tables for future ports, but drop comments that only repeat the name.
   - Use `//` (`#` in assembly and shell), start with a capital letter, and leave off the trailing period. Headers under `include/usr/` are the userspace ABI and must stay ANSI C89/ISO C90, so they use `/* */`.
   - A short note about a single line goes after it, as long as the line still fits the 140-column limit.

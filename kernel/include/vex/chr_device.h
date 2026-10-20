@@ -14,28 +14,29 @@ typedef struct chr_device_ops_s chr_device_ops_t;
 typedef struct chr_device_private_s chr_device_private_t;
 
 struct chr_device_ops_s {
-    /// Called on the first open, after the device's console is released: the console owns the hardware
-    /// until then, so the driver sets it up here and not at probe. A failure leaves the device to nobody
+    /// @pre This is the first open, and the device's console is released
+    /// @note Set the hardware up here, not at probe, as the console owns it until now;
+    /// a failure leaves the device to nobody
     int (*open)(const chr_device_t* restrict device, unsigned flags);
 
-    /// Called on the last close, unless the device was removed while open
+    /// @pre This is the last close, and the device wasn't removed while open
     void (*close)(const chr_device_t* restrict device);
 
     ssize_t (*read)(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size);
     ssize_t (*write)(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size);
     int (*ioctl)(const chr_device_t* restrict device, uint32_t request, uintptr_t argument);
 
-    /// Checks a mapping of length bytes of the device's memory from offset, both page aligned, before it is made.
-    /// Both mmap and resolve_page are nullptr for a device without memory
+    /// Checks a mapping of the device's memory before it is made
+    /// @pre offset and length are page aligned
     /// @retval -ENXIO The range runs past the end of the device's memory
+    /// @note nullptr, as is resolve_page, for a device without memory
     int (*mmap)(const chr_device_t* restrict device, off_t offset, size_t length);
 
-    /// Gives the physical address and memory type (a VPROT_CACHE_* value) of the page at offset, which is
-    /// page aligned, in the device's memory. Runs under a spinlock, so it can't sleep
-    /// @retval -ENXIO The offset is past the end of the device's memory
+    /// Gives the physical address and memory type (a VPROT_CACHE_* value) of the page at offset in the device's memory
+    /// @pre offset is page aligned; the caller holds a spinlock, so this can't sleep
+    /// @retval -ENXIO offset is past the end of the device's memory
     int (*resolve_page)(const chr_device_t* restrict device, off_t offset, uintptr_t* restrict phys, unsigned* restrict cache);
 
-    /// Called once the last reference is gone
     void (*release)(const chr_device_t* restrict device);
 };
 
@@ -61,12 +62,11 @@ struct chr_device_s {
 int chr_device_add(chr_device_t* restrict device, chr_name_t* restrict name);
 int chr_device_add_named(chr_device_t* restrict device, const char* restrict name);
 
-/// Takes the device out of the registry and drops the reference it held there; holders of
-/// other references keep the structure, but their calls fail with -ENODEV from now on,
-/// and a mapping of the device's memory takes SIGBUS on its next access
-/// @pre The driver already fails its own calls with -ENODEV and has woken those that sleep;
-/// a call that passed the check here may still reach it
-/// @post The chr layer calls nothing in the driver but release
+/// Drops the registry's reference; holders of others keep the structure
+/// @pre The driver fails its own calls with -ENODEV and has woken those that sleep, as a call
+/// that passed the chr layer's check may still reach it
+/// @post Calls through the chr layer fail with -ENODEV, a mapping of the device's memory takes SIGBUS
+/// on its next access, and the driver gets nothing but release
 int chr_device_remove(chr_device_t* restrict device);
 
 void chr_device_incref(const chr_device_t* restrict device);

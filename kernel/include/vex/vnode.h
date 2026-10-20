@@ -59,36 +59,35 @@ struct vnode_attr_s {
 /// filesystem, writes included as file_open refuses those; the filesystem serializes its
 /// operations with its own lock
 struct vnode_ops_s {
-    /// Called once the last reference is gone: frees ctxdata, and the
-    /// storage of a file whose last name was removed while it was open
+    /// @note Also frees the storage of a file whose last name was removed while it was open
     void (*release)(vnode_t* restrict node);
 
-    /// Finds the inode number only; the VFS takes the vnode from the vcache or builds it through vfs_ops_t.fill_node
+    /// Finds only the inode number; the VFS gets the vnode from the vcache or through vfs_ops_t.fill_node
     int (*lookup)(vnode_t* restrict node, const char* restrict name, ino_t* restrict out);
 
-    /// Fills the entry at index, counting entries a reader sees; -ENOENT past the last one
+    /// @param index Counts the entries a reader sees
+    /// @retval -ENOENT index is past the last entry
     int (*iterate)(vnode_t* restrict node, dirent_t* restrict out, size_t index);
 
-    /// Hands out a new vnode with one reference and fs and ino set, not yet in the vcache,
-    /// which the VFS inserts it into; on failure nothing is handed out
+    /// @post On success out has one reference and fs and ino set, and isn't in the vcache: the VFS inserts it
     int (*create)(vnode_t* restrict node, const char* restrict name, unsigned type, mode_t mode, const credentials_t* restrict credentials,
         vnode_t** restrict out);
 
-    /// The target is the vnode the name led to. Once its last name is gone, the filesystem calls vcache_remove
-    /// on it under its own lock, before the entry can be reused, or a new file there would get this vnode
+    /// @param target The vnode the name led to
+    /// @note Once its last name is gone, vcache_remove the target under the filesystem's lock, before the entry
+    /// can be reused, or a new file there would get this vnode
     int (*unlink)(vnode_t* restrict node, const char* restrict name, vnode_t* restrict target);
 
-    /// The victim, if any, is the vnode newname led to. Once its last name is gone, the filesystem calls vcache_remove
-    /// on it under its own lock, before the entry can be reused, and where the inode number follows from the entry's
-    /// location the source gets vcache_rekey under that lock too. The VFS has already filtered out renaming a file
-    /// onto itself and a directory into its own subtree
+    /// @param victim The vnode newname led to, or nullptr
+    /// @pre The VFS has filtered out renaming a file onto itself and a directory into its own subtree
+    /// @note The victim is unlinked as by unlink; where the inode number follows from the entry's location,
+    /// vcache_rekey the source under the same lock
     int (*rename)(vnode_t* olddir, const char* oldname, vnode_t* source, vnode_t* newdir, const char* newname, vnode_t* victim);
 
-    /// The target is never a directory
+    /// @pre The target isn't a directory
     int (*link)(vnode_t* restrict node, const char* restrict name, vnode_t* restrict target);
 
-    /// Hands out a new vnode with one reference and fs and ino set, not yet in the vcache,
-    /// which the VFS inserts it into; on failure nothing is handed out
+    /// @post On success out has one reference and fs and ino set, and isn't in the vcache: the VFS inserts it
     int (*symlink)(vnode_t* restrict node, const char* restrict name, const char* restrict target,
         const credentials_t* restrict credentials, vnode_t** restrict out);
 
@@ -99,41 +98,47 @@ struct vnode_ops_s {
     ssize_t (*readlink)(vnode_t* restrict node, char* restrict buf, size_t size);
     int (*ioctl)(vnode_t* restrict node, uint32_t request, uintptr_t argument);
     int (*stat)(vnode_t* restrict node, stat_t* restrict out);
-
-    /// Applies the fields in attr->mask; permission checks are done, and the VFS has
-    /// already added the ctime, and the mtime for a size change, unless the caller set them
-    int (*set_attr)(vnode_t* restrict node, const vnode_attr_t* restrict attr);
-
     int (*fsync)(vnode_t* restrict node);
 
-    /// Resolves a fault in a mapping of the file by mapping its contents at offset, which is page aligned,
-    /// at virt; normally through fcache_fault
+    /// @pre Permission checks are done, and the VFS has set the ctime, and the mtime for a size change,
+    /// unless the caller did
+    int (*set_attr)(vnode_t* restrict node, const vnode_attr_t* restrict attr);
+
+    /// Maps the file's contents at offset at virt, normally through fcache_fault
+    /// @pre offset is page aligned
     int (*fault)(vnode_t* restrict node, off_t offset, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot);
 
-    /// Checks a mapping of length bytes from offset, both page aligned, before mmap makes it; nullptr allows any
+    /// Checks a mapping before mmap makes it; nullptr allows any
+    /// @pre offset and length are page aligned
     /// @retval -ENXIO The range runs past the end of the device's memory
     int (*mmap)(vnode_t* restrict node, off_t offset, size_t length);
 
-    /// Set only by device nodes, whose memory is mapped through it instead of fault. Gives the physical address
-    /// and memory type (a VPROT_CACHE_* value) of the page at offset, which is page aligned, in the device's memory.
-    /// Runs under a spinlock, so it can't sleep
-    /// @retval -ENXIO The offset is past the end of the device's memory
+    /// Gives the physical address and memory type (a VPROT_CACHE_* value) of the page at offset in the device's memory
+    /// @pre offset is page aligned; the caller holds a spinlock, so this can't sleep
+    /// @retval -ENXIO offset is past the end of the device's memory
+    /// @note Set only by device nodes, whose memory is mapped through it instead of fault
     int (*resolve_page)(vnode_t* restrict node, off_t offset, uintptr_t* restrict phys, unsigned* restrict cache);
 
-    /// Gets the namespace as an XATTR space and the name without its prefix; permission
-    /// checks are done. A missing attribute is -ENODATA
+    /// @param space The name's namespace, as an XATTR space
+    /// @param name Without its namespace prefix
+    /// @pre Permission checks are done
+    /// @retval -ENODATA No such attribute
     ssize_t (*get_xattr)(vnode_t* restrict node, unsigned space, const char* restrict name, void* restrict value, size_t size);
 
-    /// Gets the namespace as an XATTR space and the name without its prefix; permission checks are done
+    /// @param space The name's namespace, as an XATTR space
+    /// @param name Without its namespace prefix
+    /// @pre Permission checks are done
     int (*set_xattr)(vnode_t* restrict node, unsigned space, const char* restrict name, const void* restrict value, size_t size,
         unsigned flags);
 
-    /// Fills the attribute at index, from every namespace, as the VFS hides what the caller may not
-    /// see; -ENOENT past the last one
+    /// @retval -ENOENT index is past the last attribute
+    /// @note Counts every namespace, as the VFS hides what the caller may not see
     int (*iterate_xattr)(vnode_t* restrict node, xattr_entry_t* restrict out, size_t index);
 
-    /// Gets the namespace as an XATTR space and the name without its prefix; permission
-    /// checks are done. A missing attribute is -ENODATA
+    /// @param space The name's namespace, as an XATTR space
+    /// @param name Without its namespace prefix
+    /// @pre Permission checks are done
+    /// @retval -ENODATA No such attribute
     int (*remove_xattr)(vnode_t* restrict node, unsigned space, const char* restrict name);
 };
 

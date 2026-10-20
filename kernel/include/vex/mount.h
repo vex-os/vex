@@ -15,22 +15,24 @@ typedef struct vfs_driver_s vfs_driver_t;
 typedef struct vfs_driver_private_s vfs_driver_private_t;
 
 struct vfs_ops_s {
-    /// Returns zero when the device holds this filesystem, for mounts that name no type; fs is nullptr
+    /// Checks the device for this filesystem, for mounts that name no type
+    /// @param fs nullptr, as nothing is mounted yet
+    /// @retval 0 The device holds this filesystem
     int (*probe)(vfs_t* restrict fs, const blk_device_t* restrict device);
 
-    /// Sets root, holding a reference to it until unmount, and ctxdata and readonly;
-    /// fs->device is already set, and nullptr for a filesystem without one.
-    /// On failure nothing of the filesystem is left behind
+    /// Sets root, holding a reference to it until unmount, and ctxdata and readonly
+    /// @pre fs->device is set, and nullptr for a filesystem without one
+    /// @post On failure nothing of the filesystem is left behind
     int (*mount)(vfs_t* restrict fs, const blk_device_t* restrict device, const cmdline_t* restrict params);
 
     int (*statvfs)(vfs_t* restrict fs, statvfs_t* restrict out);
 
-    /// Fills in a fresh vnode whose fs and ino are set: its type, ctxdata and whatever else the
-    /// filesystem keeps there; -ENOENT when the number no longer names a file
+    /// @pre The vnode is fresh, with fs and ino set
+    /// @retval -ENOENT The number no longer names a file
     int (*fill_node)(vfs_t* restrict fs, vnode_t* restrict node);
 
-    /// Called once the vcache is evicted and no vnode but the root is referenced;
-    /// drops the root and frees everything mount set up
+    /// Drops the root and frees what mount set up
+    /// @pre The vcache is evicted, and no vnode but the root is referenced
     int (*unmount)(vfs_t* restrict fs);
 
     int (*sync)(vfs_t* restrict fs);
