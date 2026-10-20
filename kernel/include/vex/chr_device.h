@@ -37,6 +37,7 @@ struct chr_device_private_s {
     bool removed;
     mutex_t open_lock; // Serializes open_count with the driver's open and close
     unsigned open_count;
+    bool exclusive; // Opened with O_EXCL; other opens fail with -EBUSY until the last close
 };
 
 struct chr_device_s {

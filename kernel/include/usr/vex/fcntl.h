@@ -9,6 +9,7 @@
 #define __k_O_CREAT  ((__k_mode_t)(0x0004))
 #define __k_O_TRUNC  ((__k_mode_t)(0x0008))
 #define __k_O_APPEND ((__k_mode_t)(0x0010))
+#define __k_O_EXCL   ((__k_mode_t)(0x0020))
 
 #define __k_F_OK 0x0000
 #define __k_X_OK 0x0001

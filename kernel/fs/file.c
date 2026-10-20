@@ -88,9 +88,18 @@ int file_open(vnode_t* restrict base_dir, const char* restrict path, unsigned fl
         return -EINVAL;
     }
 
+    // The name itself must be new, so a
+    // symlink there counts even when it dangles
+    bool exclusive_create = (flags & O_CREAT) && (flags & O_EXCL);
+
     vnode_t* node;
-    int retval = path_resolve_at(base_dir, path, 0, credentials, &node);
+    int retval = path_resolve_at(base_dir, path, exclusive_create ? PATH_NOFOLLOW : 0, credentials, &node);
     bool created = false;
+
+    if(retval == 0 && exclusive_create) {
+        vnode_decref(node);
+        return -EEXIST;
+    }
 
     if(retval == -ENOENT && (flags & O_CREAT)) {
         const char* filename;
@@ -111,7 +120,7 @@ int file_open(vnode_t* restrict base_dir, const char* restrict path, unsigned fl
 
         vnode_decref(parent);
 
-        if(retval == -EEXIST) {
+        if(retval == -EEXIST && !exclusive_create) {
             retval = path_resolve_at(base_dir, path, 0, credentials, &node); // Lost a race with another creator
         }
 

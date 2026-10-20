@@ -4,6 +4,7 @@
 #include <vex/chr_event.h>
 #include <vex/chr_name.h>
 #include <vex/console.h>
+#include <vex/fcntl.h>
 #include <vex/limits.h>
 #include <vex/spinlock.h>
 #include <vex/sprintf.h>
@@ -33,6 +34,7 @@ static int chr_device_register_internal(chr_device_t* restrict device)
 
     mutex_init(&device->priv.open_lock);
     device->priv.open_count = 0;
+    device->priv.exclusive = false;
 
     device->priv.next = chr_devices_head;
     chr_devices_head = device;
@@ -128,6 +130,9 @@ int chr_device_open(const chr_device_t* restrict device, unsigned flags)
     if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE)) {
         retval = -ENODEV;
     }
+    else if(device->priv.exclusive || (device->priv.open_count > 0 && (flags & O_EXCL))) {
+        retval = -EBUSY;
+    }
     else if(device->priv.open_count == 0) {
         if(device->console) {
             console_release(device->console);
@@ -140,6 +145,7 @@ int chr_device_open(const chr_device_t* restrict device, unsigned flags)
 
     if(retval >= 0) {
         mutable_device->priv.open_count += 1;
+        mutable_device->priv.exclusive = flags & O_EXCL;
         retval = 0;
     }
 
@@ -156,6 +162,10 @@ void chr_device_close(const chr_device_t* restrict device)
 
     kassert(device->priv.open_count > 0);
     mutable_device->priv.open_count -= 1;
+
+    if(device->priv.open_count == 0) {
+        mutable_device->priv.exclusive = false;
+    }
 
     if(device->priv.open_count == 0 && !atomic_load(&device->priv.removed, ATOMIC_ACQUIRE) && device->ops->close) {
         device->ops->close(device);

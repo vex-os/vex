@@ -8,6 +8,7 @@
 #define O_CREAT  __k_O_CREAT
 #define O_TRUNC  __k_O_TRUNC
 #define O_APPEND __k_O_APPEND
+#define O_EXCL   __k_O_EXCL
 
 #define F_OK __k_F_OK
 #define X_OK __k_X_OK
