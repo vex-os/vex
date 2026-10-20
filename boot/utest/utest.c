@@ -1,5 +1,6 @@
 #include <vex/fcntl.h>
 #include <vex/futex.h>
+#include <vex/mman.h>
 #include <vex/signal.h>
 #include <vex/stat.h>
 #include <vex/syscall.h>
@@ -41,6 +42,16 @@ static long syscall5(long num, long a1, long a2, long a3, long a4, long a5)
     register long r10 asm("r10") = a4;
     register long r8 asm("r8") = a5;
     asm volatile("syscall" : "=a"(ret) : "a"(num), "D"(a1), "S"(a2), "d"(a3), "r"(r10), "r"(r8) : "rcx", "r11", "memory");
+    return ret;
+}
+
+static long syscall6(long num, long a1, long a2, long a3, long a4, long a5, long a6)
+{
+    long ret;
+    register long r10 asm("r10") = a4;
+    register long r8 asm("r8") = a5;
+    register long r9 asm("r9") = a6;
+    asm volatile("syscall" : "=a"(ret) : "a"(num), "D"(a1), "S"(a2), "d"(a3), "r"(r10), "r"(r8), "r"(r9) : "rcx", "r11", "memory");
     return ret;
 }
 
@@ -259,7 +270,122 @@ static int exec_child(char** argv)
 
 static volatile long handled_tid;
 
-static void on_signal(int sig)
+#define PAGE_SIZE             4096
+#define SHOOTDOWN_WRITERS     3
+#define SHOOTDOWN_ROUNDS      10
+#define SHOOTDOWN_WARMUP      100000
+#define SHOOTDOWN_REUSE_PAGES 64
+#define SHOOTDOWN_JOIN_TRIES  20
+
+static _Alignas(16) char writer_stacks[SHOOTDOWN_WRITERS][THREAD_STACK_SIZE];
+static long writer_tcb[SHOOTDOWN_WRITERS]; // A writer finds its index at %fs:0
+static volatile unsigned int writer_join[SHOOTDOWN_WRITERS];
+static volatile long writer_writes[SHOOTDOWN_WRITERS];
+static volatile long writer_final[SHOOTDOWN_WRITERS];
+static volatile long* volatile target_page;
+
+// Counts every write that went through, after the write itself
+static void __attribute__((noreturn)) writer(long arg)
+{
+    volatile long* page = target_page;
+
+    for(;;) {
+        page[arg] = writer_writes[arg];
+        writer_writes[arg] += 1;
+    }
+}
+
+static void on_fault(__k_int32_t sig)
+{
+    long index;
+    asm volatile("movq %%fs:0, %0" : "=r"(index));
+
+    writer_final[index] = writer_writes[index];
+    syscall1(__k_SYS_THREAD_EXIT, 0);
+}
+
+static long shootdown_worst;
+static long shootdown_corrupted;
+static long shootdown_stuck;
+
+// Once munmap or mprotect returns, a writer gets at most the one write it had
+// in flight; any more went through a translation the shootdown should have killed
+static void shootdown_round(int protect)
+{
+    // Pages on both sides keep the hole a single page, too small
+    // for the next mapping to land on the address the writers use
+    long guarded = syscall6(__k_SYS_MMAP, 0, 3 * PAGE_SIZE, __k_PROT_READ | __k_PROT_WRITE, __k_MAP_PRIVATE | __k_MAP_ANONYMOUS, -1, 0);
+    long page = guarded + PAGE_SIZE;
+    target_page = (volatile long*)page;
+
+    for(long i = 0; i < SHOOTDOWN_WRITERS; ++i) {
+        writer_writes[i] = 0;
+        writer_final[i] = -1;
+        writer_join[i] = 1;
+        writer_tcb[i] = i;
+        syscall5(__k_SYS_THREAD_CREATE, (long)&writer, (long)(writer_stacks[i] + THREAD_STACK_SIZE - 8), (long)&writer_tcb[i], i,
+            (long)&writer_join[i]);
+    }
+
+    for(long i = 0; i < SHOOTDOWN_WRITERS; ++i) {
+        while(writer_writes[i] < SHOOTDOWN_WARMUP) {
+            // All writers busy on their own harts
+        }
+    }
+
+    if(protect) {
+        syscall3(__k_SYS_MPROTECT, page, PAGE_SIZE, __k_PROT_READ);
+    }
+    else {
+        syscall2(__k_SYS_MUNMAP, page, PAGE_SIZE);
+    }
+
+    long snapshot[SHOOTDOWN_WRITERS];
+
+    for(long i = 0; i < SHOOTDOWN_WRITERS; ++i) {
+        snapshot[i] = writer_writes[i];
+    }
+
+    // The freed frame is likely among these; a writer that still reached it would leave its counter here
+    long length = SHOOTDOWN_REUSE_PAGES * PAGE_SIZE;
+    long* reuse = (long*)syscall6(__k_SYS_MMAP, 0, length, __k_PROT_READ | __k_PROT_WRITE, __k_MAP_PRIVATE | __k_MAP_ANONYMOUS, -1, 0);
+
+    for(long i = 0; i < length / 8; ++i) {
+        reuse[i] = -1;
+    }
+
+    struct __k_timespec timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_nsec = 100000000;
+
+    for(long i = 0; i < SHOOTDOWN_WRITERS; ++i) {
+        for(int tries = 0; writer_join[i] && tries < SHOOTDOWN_JOIN_TRIES; ++tries) {
+            syscall4(__k_SYS_FUTEX_WAIT, (long)&writer_join[i], 1, (long)&timeout, 0);
+        }
+
+        if(writer_join[i]) {
+            shootdown_stuck += 1;
+            continue;
+        }
+
+        long extra = writer_final[i] - snapshot[i];
+
+        if(extra > shootdown_worst) {
+            shootdown_worst = extra;
+        }
+    }
+
+    for(long i = 0; i < length / 8; ++i) {
+        if(reuse[i] != -1) {
+            shootdown_corrupted += 1;
+        }
+    }
+
+    syscall2(__k_SYS_MUNMAP, (long)reuse, length);
+    syscall2(__k_SYS_MUNMAP, guarded, 3 * PAGE_SIZE);
+}
+
+static void on_signal(__k_int32_t sig)
 {
     handled_tid = syscall1(__k_SYS_GETTID, 0);
 }
@@ -533,6 +659,19 @@ int main(int argc, char** argv)
     __k_sigset_t pending = 0;
     syscall1(__k_SYS_SIGPENDING, (long)&pending);
     printnumber(pending == blocked); // should print 1
+
+    // TLB shootdown: writers on other harts lose the page as soon as munmap or mprotect returns
+    action.sa_handler = &on_fault;
+    syscall3(__k_SYS_SIGACTION, __k_SIGSEGV, (long)&action, 0);
+
+    for(int round = 0; round < SHOOTDOWN_ROUNDS; ++round) {
+        shootdown_round(0);
+        shootdown_round(1);
+    }
+
+    printnumber(shootdown_worst);     // should print 1 or 0, the write in flight at most
+    printnumber(shootdown_corrupted); // should print 0
+    printnumber(shootdown_stuck);     // should print 0, every writer faulted
 
     // exec from a secondary thread takes the other threads away and keeps the pid
     long child = syscall1(__k_SYS_FORK, 0);

@@ -38,7 +38,7 @@
 
 typedef __k_uint64_t __k_sigset_t;
 
-typedef void (*__k_sighandler_t)(int);
+typedef void (*__k_sighandler_t)(__k_int32_t);
 
 #define __k_SIG_DFL ((__k_sighandler_t)(0))
 #define __k_SIG_IGN ((__k_sighandler_t)(1))
