@@ -4,3 +4,11 @@ config LIMINEFB
     help
       The framebuffers the bootloader set up, as fbd devices
       unless a native display driver takes their memory over
+
+config BOCHSFB
+    bool "Bochs and QEMU standard VGA"
+    default y
+    help
+      The Bochs display of QEMU's -vga std, secondary-vga and
+      bochs-display, in the mode the firmware set; it takes the
+      screen over from the boot framebuffer on the same memory
