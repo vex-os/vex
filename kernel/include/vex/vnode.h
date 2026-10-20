@@ -109,6 +109,15 @@ struct vnode_ops_s {
     /// Maps page index of the file at virt, normally through fcache_map_page
     int (*map_page)(vnode_t* restrict node, uint64_t index, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot);
 
+    /// Checks a mapping of page_count pages from first_page before mmap makes it; nullptr allows any
+    /// @retval -ENXIO The range runs past the end of the device's memory
+    int (*mmap)(vnode_t* restrict node, uint64_t first_page, uint64_t page_count);
+
+    /// Set only by device nodes, whose memory is mapped through it instead of map_page. Gives the physical
+    /// address and memory type (a VPROT_CACHE_* value) of page index of the device's memory
+    /// @retval -ENXIO The page is past the end of the device's memory
+    int (*resolve_page)(vnode_t* restrict node, uint64_t index, uintptr_t* restrict phys, unsigned* restrict cache);
+
     /// Gets the namespace as an XATTR space and the name without its prefix; permission
     /// checks are done. A missing attribute is -ENODATA
     ssize_t (*xattr_get)(vnode_t* restrict node, unsigned space, const char* restrict name, void* restrict value, size_t size);
@@ -179,6 +188,8 @@ int vnode_remove_privs(vnode_t* restrict node, const credentials_t* restrict cre
 int vnode_ioctl(vnode_t* restrict node, uint32_t request, uintptr_t argument);
 int vnode_fsync(vnode_t* restrict node);
 int vnode_map_page(vnode_t* restrict node, uint64_t index, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot);
+int vnode_mmap(vnode_t* restrict node, uint64_t first_page, uint64_t page_count);
+int vnode_resolve_page(vnode_t* restrict node, uint64_t index, uintptr_t* restrict phys, unsigned* restrict cache);
 ssize_t vnode_xattr_get(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name, void* restrict value,
     size_t size);
 int vnode_xattr_set(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name,

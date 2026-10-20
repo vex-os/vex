@@ -124,27 +124,37 @@ static intptr_t sys_mmap(const uintptr_t* restrict args)
         return -EBADF;
     }
 
+    bool device = file->node->ops->resolve_page != nullptr;
     bool shared = sharing == MAP_SHARED;
-    bool may_write = !shared || ((file->flags & O_WRONLY) && !file->node->fs->readonly);
+    bool readonly = !device && file->node->fs->readonly; // A device node stays writable on a read-only filesystem
+    bool may_write = !shared || ((file->flags & O_WRONLY) && !readonly);
     intptr_t retval;
 
-    if(file->node->type != VNODE_FILE) {
+    if(file->node->type != VNODE_FILE && !device) {
         retval = -ENODEV;
+    }
+    else if(device && !shared) {
+        retval = -EINVAL; // Device memory has no pages of its own to copy on write
     }
     else if(0 == (file->flags & O_RDONLY)) {
         retval = -EACCES;
     }
     else if((prot & PROT_WRITE) && !may_write) {
-        retval = file->node->fs->readonly ? -EROFS : -EACCES;
+        retval = readonly ? -EROFS : -EACCES;
     }
     else {
-        vm_backing_t backing;
-        backing.file = file;
-        backing.file_page = offset / PAGE_SIZE;
-        backing.shared = shared;
-        backing.may_write = may_write;
+        retval = vnode_mmap(file->node, offset / PAGE_SIZE, page_align_up(length) / PAGE_SIZE);
 
-        retval = place_mapping(process->vmspace, addr, length, flags, vprot, &backing);
+        if(retval == 0) {
+            vm_backing_t backing;
+            backing.file = file;
+            backing.file_page = offset / PAGE_SIZE;
+            backing.shared = shared;
+            backing.may_write = may_write;
+            backing.device = device;
+
+            retval = place_mapping(process->vmspace, addr, length, flags, vprot, &backing);
+        }
     }
 
     file_close(file);

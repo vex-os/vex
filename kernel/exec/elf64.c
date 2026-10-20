@@ -165,6 +165,7 @@ static int map_segment(vmspace_t* restrict vmspace, file_t* restrict file, const
         backing.file_page = (page_align(phdr->p_offset) + map_start - seg_start) / PAGE_SIZE;
         backing.shared = false;
         backing.may_write = true;
+        backing.device = false;
 
         int retval = vms_map(vmspace, map_start, file_end, vprot, &backing);
 

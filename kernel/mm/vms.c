@@ -8,12 +8,14 @@
 #include <vex/panic.h>
 #include <vex/pframe.h>
 #include <vex/pmap.h>
+#include <vex/process.h>
 #include <vex/pslab.h>
 #include <vex/rmap.h>
 #include <vex/sched.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
+#include <vex/thread.h>
 #include <vex/tlb.h>
 #include <vex/vms.h>
 #include <vex/vnode.h>
@@ -82,6 +84,7 @@ static int split_region(vmspace_t* restrict vmspace, uintptr_t virt)
     upper->file_page = region->file_page + (virt - region->start) / PAGE_SIZE;
     upper->shared = region->shared;
     upper->may_write = region->may_write;
+    upper->device = region->device;
     upper->next = region->next;
 
     region->end = virt;
@@ -185,6 +188,26 @@ static int unshare_locked(vmspace_t* restrict vmspace, const vm_region_t* restri
     return 0;
 }
 
+// Device pages have no pframe, so they stay out of the rmap, and no write
+// faults are needed to track them dirty: they map with the region's vprot
+static int fault_device_locked(vmspace_t* restrict vmspace, const vm_region_t* restrict region, uintptr_t page)
+{
+    if(pmap_resolve_address(vmspace->pmap, page)) {
+        return 0;
+    }
+
+    uint64_t index = region->file_page + (page - region->start) / PAGE_SIZE;
+    uintptr_t phys;
+    unsigned cache;
+    int retval = vnode_resolve_page(region->file->node, index, &phys, &cache);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    return pmap_map(vmspace->pmap, page, phys, region->vprot | (cache & VPROT_CACHE_MASK) | VPROT_USER);
+}
+
 static int fault_locked(vmspace_t* restrict vmspace, uintptr_t page, unsigned access, bool exclusive)
 {
     vm_region_t* region = find_region(vmspace, page);
@@ -195,6 +218,10 @@ static int fault_locked(vmspace_t* restrict vmspace, uintptr_t page, unsigned ac
 
     if((region->vprot & access) != access) {
         return -EACCES;
+    }
+
+    if(region->device) {
+        return fault_device_locked(vmspace, region, page);
     }
 
     for(;;) {
@@ -257,6 +284,12 @@ static uintptr_t pin_locked(vmspace_t* restrict vmspace, uintptr_t virt, unsigne
     uintptr_t page = page_align(virt);
     uintptr_t phys = 0;
 
+    vm_region_t* region = find_region(vmspace, page);
+
+    if(region && region->device) {
+        return 0; // No pframe to pin
+    }
+
     while(phys == 0) {
         if(fault_locked(vmspace, page, access, exclusive) < 0) {
             return 0;
@@ -266,6 +299,42 @@ static uintptr_t pin_locked(vmspace_t* restrict vmspace, uintptr_t virt, unsigne
     }
 
     return phys;
+}
+
+static bool vms_current(const vmspace_t* restrict vmspace)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    return process && process->vmspace == vmspace;
+}
+
+// Gives where the byte at virt can be reached from the kernel, and in *pinned the frame to put_frame
+// once done with it, or zero. Device memory is neither pinnable nor in the HHDM, so it is reached
+// through the user's own mapping, which the vmspace lock keeps in place
+static void* access_locked(vmspace_t* restrict vmspace, uintptr_t virt, unsigned access, bool exclusive, uintptr_t* restrict pinned)
+{
+    vm_region_t* region = find_region(vmspace, virt);
+
+    *pinned = 0;
+
+    if(region && region->device) {
+        // UNDONE: another address space isn't loaded, so its device memory needs a temporary
+        // kernel mapping, and the driver's leave, as a read of MMIO registers may have side effects
+        if(!vms_current(vmspace) || fault_locked(vmspace, page_align(virt), access, exclusive) < 0) {
+            return nullptr;
+        }
+
+        return (void*)(virt);
+    }
+
+    *pinned = pin_locked(vmspace, virt, access, exclusive);
+
+    if(*pinned == 0) {
+        return nullptr;
+    }
+
+    return (uint8_t*)(phys_to_virt(*pinned)) + page_offset(virt);
 }
 
 static void free_batch(uintptr_t* restrict batch, size_t* restrict count, bool shootdown)
@@ -285,9 +354,29 @@ static void free_batch(uintptr_t* restrict batch, size_t* restrict count, bool s
     *count = 0;
 }
 
+static void release_device_pages(vmspace_t* restrict vmspace, const vm_region_t* restrict region, bool shootdown)
+{
+    bool unmapped = false;
+
+    for(uintptr_t page = region->start; page < region->end; page += PAGE_SIZE) {
+        if(0 == pmap_unmap_noflush(vmspace->pmap, page)) {
+            unmapped = true;
+        }
+    }
+
+    if(unmapped && shootdown) {
+        tlb_shootdown();
+    }
+}
+
 static void release_pages(vmspace_t* restrict vmspace, const vm_region_t* restrict region, uintptr_t* restrict batch,
     size_t* restrict count, bool shootdown)
 {
+    if(region->device) {
+        release_device_pages(vmspace, region, shootdown);
+        return;
+    }
+
     for(uintptr_t page = region->start; page < region->end; page += PAGE_SIZE) {
         uintptr_t phys = rmap_unmap(vmspace->pmap, page);
 
@@ -399,12 +488,14 @@ static vm_region_t* alloc_region(uintptr_t start, uintptr_t end, unsigned vprot,
     region->file_page = 0;
     region->shared = false;
     region->may_write = true;
+    region->device = false;
 
     if(backing && backing->file) {
         region->file = file_dupe(backing->file);
         region->file_page = backing->file_page;
         region->shared = backing->shared;
         region->may_write = backing->may_write;
+        region->device = backing->device;
     }
 
     return region;
@@ -606,7 +697,10 @@ int vms_protect(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end, uns
 
             unsigned page_vprot = vprot | VPROT_USER;
 
-            if(it->shared || pframe_shared(pframe_of(phys))) {
+            if(it->device) {
+                page_vprot |= pmap_resolve_vprot(vmspace->pmap, page) & VPROT_CACHE_MASK;
+            }
+            else if(it->shared || pframe_shared(pframe_of(phys))) {
                 page_vprot &= ~VPROT_WRITE;
             }
 
@@ -655,7 +749,7 @@ int vms_sync(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end, bool w
 
             cursor = it->end;
 
-            if(it->shared) {
+            if(it->shared && !it->device) {
                 node = it->file->node;
                 vnode_incref(node);
             }
@@ -703,6 +797,7 @@ int vms_clone(vmspace_t* restrict vmspace, vmspace_t* restrict source)
         backing.file_page = it->file_page;
         backing.shared = it->shared;
         backing.may_write = it->may_write;
+        backing.device = it->device;
 
         vm_region_t* region = alloc_region(it->start, it->end, it->vprot, &backing);
 
@@ -714,6 +809,10 @@ int vms_clone(vmspace_t* restrict vmspace, vmspace_t* restrict source)
         region->next = nullptr;
         *tail = region;
         tail = &region->next;
+
+        if(it->device) {
+            continue; // The child faults its device pages in itself
+        }
 
         unsigned vprot = (it->vprot & ~VPROT_WRITE) | VPROT_USER;
 
@@ -829,9 +928,10 @@ ssize_t vms_copyin(void* restrict dst, vmspace_t* restrict vmspace, uintptr_t sr
     mutex_acquire(&vmspace->lock);
 
     while(size) {
-        uintptr_t src_phys = pin_locked(vmspace, src, VPROT_READ, false);
+        uintptr_t pinned;
+        const uint8_t* page = access_locked(vmspace, src, VPROT_READ, false, &pinned);
 
-        if(src_phys == 0) {
+        if(page == nullptr) {
             mutex_release(&vmspace->lock);
             return -EFAULT;
         }
@@ -842,8 +942,11 @@ ssize_t vms_copyin(void* restrict dst, vmspace_t* restrict vmspace, uintptr_t sr
             chunk = size;
         }
 
-        memcpy(ptr, (const uint8_t*)(phys_to_virt(src_phys)) + page_offset(src), chunk);
-        put_frame(src_phys);
+        memcpy(ptr, page, chunk);
+
+        if(pinned) {
+            put_frame(pinned);
+        }
 
         src += chunk;
         ptr += chunk;
@@ -867,13 +970,14 @@ ssize_t vms_copyin_str(char* restrict dst, vmspace_t* restrict vmspace, uintptr_
     mutex_acquire(&vmspace->lock);
 
     while(remaining) {
-        uintptr_t src_phys = 0;
+        uintptr_t pinned = 0;
+        const char* page = nullptr;
 
         if(src < pmap_user_end(vmspace->pmap)) {
-            src_phys = pin_locked(vmspace, src, VPROT_READ, false);
+            page = access_locked(vmspace, src, VPROT_READ, false, &pinned);
         }
 
-        if(src_phys == 0) {
+        if(page == nullptr) {
             mutex_release(&vmspace->lock);
             return -EFAULT;
         }
@@ -884,14 +988,16 @@ ssize_t vms_copyin_str(char* restrict dst, vmspace_t* restrict vmspace, uintptr_
             chunk = remaining;
         }
 
-        const char* page = (const char*)(phys_to_virt(src_phys)) + page_offset(src);
         const char* null_pos = memchr(page, 0x00, chunk);
 
         if(null_pos) {
             size_t len = null_pos - page + 1;
 
             memcpy(ptr, page, len);
-            put_frame(src_phys);
+
+            if(pinned) {
+                put_frame(pinned);
+            }
 
             mutex_release(&vmspace->lock);
 
@@ -899,7 +1005,10 @@ ssize_t vms_copyin_str(char* restrict dst, vmspace_t* restrict vmspace, uintptr_
         }
 
         memcpy(ptr, page, chunk);
-        put_frame(src_phys);
+
+        if(pinned) {
+            put_frame(pinned);
+        }
 
         src += chunk;
         ptr += chunk;
@@ -924,9 +1033,10 @@ ssize_t vms_copyout(vmspace_t* restrict vmspace, uintptr_t dst, const void* rest
     mutex_acquire(&vmspace->lock);
 
     while(size) {
-        uintptr_t dst_phys = pin_locked(vmspace, dst, VPROT_WRITE, true);
+        uintptr_t pinned;
+        uint8_t* page = access_locked(vmspace, dst, VPROT_WRITE, true, &pinned);
 
-        if(dst_phys == 0) {
+        if(page == nullptr) {
             mutex_release(&vmspace->lock);
             return -EFAULT;
         }
@@ -937,8 +1047,11 @@ ssize_t vms_copyout(vmspace_t* restrict vmspace, uintptr_t dst, const void* rest
             chunk = size;
         }
 
-        memcpy((uint8_t*)(phys_to_virt(dst_phys)) + page_offset(dst), ptr, chunk);
-        put_frame(dst_phys);
+        memcpy(page, ptr, chunk);
+
+        if(pinned) {
+            put_frame(pinned);
+        }
 
         dst += chunk;
         ptr += chunk;

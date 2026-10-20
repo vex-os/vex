@@ -19,6 +19,7 @@ struct vm_backing_s {
     uint64_t file_page; // File page at the start of the range
     bool shared;
     bool may_write; // Whether a shared mapping can ever be made writable
+    bool device;    // Device memory: shared, mapped as the driver says, without pframes
 };
 
 struct vm_region_s {
@@ -30,6 +31,7 @@ struct vm_region_s {
     uint64_t file_page;
     bool shared;
     bool may_write;
+    bool device;
 };
 
 struct vmspace_s {

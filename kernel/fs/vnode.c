@@ -1340,6 +1340,28 @@ int vnode_map_page(vnode_t* restrict node, uint64_t index, pmap_t* restrict pmap
     return node->ops->map_page(node, index, pmap, virt, vprot);
 }
 
+int vnode_mmap(vnode_t* restrict node, uint64_t first_page, uint64_t page_count)
+{
+    kassert(node);
+
+    if(node->ops->mmap == nullptr) {
+        return 0;
+    }
+
+    return node->ops->mmap(node, first_page, page_count);
+}
+
+int vnode_resolve_page(vnode_t* restrict node, uint64_t index, uintptr_t* restrict phys, unsigned* restrict cache)
+{
+    kassert(node);
+
+    if(node->ops->resolve_page == nullptr) {
+        return -ENODEV;
+    }
+
+    return node->ops->resolve_page(node, index, phys, cache);
+}
+
 ssize_t vnode_xattr_get(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name, void* restrict value,
     size_t size)
 {

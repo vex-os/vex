@@ -60,6 +60,20 @@ static int devfs_chr_ioctl(vnode_t* restrict node, unsigned request, uintptr_t a
     return chr_device_ioctl(context->device, request, argument);
 }
 
+static int devfs_chr_mmap(vnode_t* restrict node, uint64_t first_page, uint64_t page_count)
+{
+    const devfs_chr_context_t* context = node->ctxdata;
+
+    return chr_device_mmap(context->device, first_page, page_count);
+}
+
+static int devfs_chr_resolve_page(vnode_t* restrict node, uint64_t index, uintptr_t* restrict phys, unsigned* restrict cache)
+{
+    const devfs_chr_context_t* context = node->ctxdata;
+
+    return chr_device_resolve_page(context->device, index, phys, cache);
+}
+
 static int devfs_chr_stat(vnode_t* restrict node, stat_t* restrict out)
 {
     memset(out, 0, sizeof(stat_t));
@@ -77,6 +91,8 @@ static const vnode_ops_t devfs_chr_ops = {
     .stat = &devfs_chr_stat,
     .open = &devfs_chr_open,
     .close = &devfs_chr_close,
+    .mmap = &devfs_chr_mmap,
+    .resolve_page = &devfs_chr_resolve_page,
 };
 
 void devfs_chr_event_handler(unsigned event, const chr_device_t* restrict device, void* restrict ctxdata)
