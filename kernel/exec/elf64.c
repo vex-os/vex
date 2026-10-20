@@ -161,7 +161,7 @@ static int map_segment(vmspace_t* restrict vmspace, file_t* restrict file, const
 
     if(map_start < file_end) {
         vm_backing_t backing;
-        backing.node = file->node;
+        backing.file = file;
         backing.file_page = (page_align(phdr->p_offset) + map_start - seg_start) / PAGE_SIZE;
         backing.shared = false;
         backing.may_write = true;

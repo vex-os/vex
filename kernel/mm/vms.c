@@ -1,6 +1,7 @@
 #include <vex/assert.h>
 #include <vex/errno.h>
 #include <vex/event.h>
+#include <vex/file.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/page.h>
@@ -77,15 +78,11 @@ static int split_region(vmspace_t* restrict vmspace, uintptr_t virt)
     upper->start = virt;
     upper->end = region->end;
     upper->vprot = region->vprot;
-    upper->node = region->node;
+    upper->file = file_dupe(region->file);
     upper->file_page = region->file_page + (virt - region->start) / PAGE_SIZE;
     upper->shared = region->shared;
     upper->may_write = region->may_write;
     upper->next = region->next;
-
-    if(upper->node) {
-        vnode_incref(upper->node);
-    }
 
     region->end = virt;
     region->next = upper;
@@ -122,13 +119,13 @@ static void put_frame(uintptr_t phys)
 
 static void free_region(vm_region_t* restrict region, bool deferred)
 {
-    if(region->node == nullptr) {
+    if(region->file == nullptr) {
         slab_free(region);
         return;
     }
 
     if(!deferred) {
-        vnode_decref(region->node);
+        file_close(region->file);
         slab_free(region);
         return;
     }
@@ -217,7 +214,7 @@ static int fault_locked(vmspace_t* restrict vmspace, uintptr_t page, unsigned ac
             continue;
         }
 
-        if(region->node == nullptr) {
+        if(region->file == nullptr) {
             break;
         }
 
@@ -230,7 +227,7 @@ static int fault_locked(vmspace_t* restrict vmspace, uintptr_t page, unsigned ac
             vprot &= ~VPROT_WRITE;
         }
 
-        int retval = vnode_map_page(region->node, index, vmspace->pmap, page, vprot);
+        int retval = vnode_map_page(region->file->node, index, vmspace->pmap, page, vprot);
 
         if(retval < 0 || region->shared) {
             return retval;
@@ -398,17 +395,16 @@ static vm_region_t* alloc_region(uintptr_t start, uintptr_t end, unsigned vprot,
     region->start = start;
     region->end = end;
     region->vprot = vprot & ~VPROT_USER;
-    region->node = nullptr;
+    region->file = nullptr;
     region->file_page = 0;
     region->shared = false;
     region->may_write = true;
 
-    if(backing && backing->node) {
-        region->node = backing->node;
+    if(backing && backing->file) {
+        region->file = file_dupe(backing->file);
         region->file_page = backing->file_page;
         region->shared = backing->shared;
         region->may_write = backing->may_write;
-        vnode_incref(region->node);
     }
 
     return region;
@@ -660,7 +656,7 @@ int vms_sync(vmspace_t* restrict vmspace, uintptr_t start, uintptr_t end, bool w
             cursor = it->end;
 
             if(it->shared) {
-                node = it->node;
+                node = it->file->node;
                 vnode_incref(node);
             }
         }
@@ -703,7 +699,7 @@ int vms_clone(vmspace_t* restrict vmspace, vmspace_t* restrict source)
 
     for(const vm_region_t* it = source->regions; it; it = it->next) {
         vm_backing_t backing;
-        backing.node = it->node;
+        backing.file = it->file;
         backing.file_page = it->file_page;
         backing.shared = it->shared;
         backing.may_write = it->may_write;

@@ -139,7 +139,7 @@ static intptr_t sys_mmap(const uintptr_t* restrict args)
     }
     else {
         vm_backing_t backing;
-        backing.node = file->node;
+        backing.file = file;
         backing.file_page = offset / PAGE_SIZE;
         backing.shared = shared;
         backing.may_write = may_write;

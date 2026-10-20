@@ -4,8 +4,8 @@
 #include <vex/mutex.h>
 #include <vex/types.h>
 
+typedef struct file_s file_t;
 typedef struct pmap_s pmap_t;
-typedef struct vnode_s vnode_t;
 
 #define VMS_MMAP_TOP UINT64_C(0x0000600000000000) // Placement without a fixed address searches down from here
 #define VMS_MMAP_MIN UINT64_C(0x0000000000010000) // Keeps null pointer dereferences faulting
@@ -15,7 +15,7 @@ typedef struct vm_region_s vm_region_t;
 typedef struct vmspace_s vmspace_t;
 
 struct vm_backing_s {
-    vnode_t* node;
+    file_t* file;
     uint64_t file_page; // File page at the start of the range
     bool shared;
     bool may_write; // Whether a shared mapping can ever be made writable
@@ -26,7 +26,7 @@ struct vm_region_s {
     uintptr_t start;   // Page aligned, inclusive
     uintptr_t end;     // Page aligned, exclusive
     unsigned vprot;    // Without VPROT_USER, which every user page has
-    vnode_t* node;     // Holds a reference; nullptr for anonymous memory
+    file_t* file;      // Holds a reference, so the mapping keeps the file open; nullptr for anonymous memory
     uint64_t file_page;
     bool shared;
     bool may_write;
