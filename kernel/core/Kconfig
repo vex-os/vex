@@ -10,6 +10,7 @@ comment "Consoles"
 
 config FBCONS
     bool "Framebuffer console"
+    depends on BOOTFB
     default y
     help
       Print kernel messages to the framebuffer

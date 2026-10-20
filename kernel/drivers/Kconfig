@@ -7,6 +7,15 @@ config AHCI
       SATA disks and ATAPI drives behind an AHCI host
       bus adapter, the usual controller on PCI(e) machines
 
+comment "Display"
+
+config BOOTFB
+    bool "Boot framebuffer"
+    default y
+    help
+      The framebuffer the bootloader set up, as fbd0; the
+      framebuffer console prints to it until fbd0 is first opened
+
 comment "Input"
 
 config PS2KBD

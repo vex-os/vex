@@ -1,11 +1,9 @@
-#include <limine.h>
 #include <vex/console.h>
+#include <vex/fb.h>
+#include <vex/fbcons.h>
 #include <vex/hart.h>
-#include <vex/hhdm.h>
-#include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/mmio.h>
 #include <vex/panic.h>
 #include <vex/string.h>
 
@@ -219,12 +217,6 @@ static const char fbcons_font[4096] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
     0x00, 0x00, 0x00, 0x00, 0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x3E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-// FIXME: this is not a good place to house the framebuffer request
-static volatile __used __section(".limine_requests") struct limine_framebuffer_request fb_request = {
-    .id = LIMINE_FRAMEBUFFER_REQUEST_ID,
-    .revision = 0,
-};
-
 static size_t fb_width = 0U;
 static size_t fb_height = 0U;
 static size_t fb_depth = 0U;
@@ -393,6 +385,16 @@ static void do_clear(void)
     dirty_last = 0U;
 }
 
+static void do_reset(void)
+{
+    do_clear();
+
+    cursor_xpos_prev = 0U;
+    cursor_ypos_prev = 0U;
+    cursor_xpos = 0U;
+    cursor_ypos = 0U;
+}
+
 static void fbcons_putchar(int character)
 {
     switch(character) {
@@ -418,11 +420,7 @@ static void fbcons_putchar(int character)
             return;
 
         case CHR_FF:
-            do_clear();
-            cursor_xpos_prev = 0U;
-            cursor_ypos_prev = 0U;
-            cursor_xpos = 0U;
-            cursor_ypos = 0U;
+            do_reset();
             return;
 
         case CHR_CR:
@@ -451,8 +449,18 @@ static void fbcons_write(console_t* restrict cons, const void* restrict data, si
     do_redraw();
 }
 
+// Whatever the device's owner drew, the console core's recall fills a blank screen
+// next; nothing here locks or allocates, as vt_cells is the one from the attach
+static bool fbcons_takeover(console_t* restrict cons)
+{
+    do_reset();
+
+    return true;
+}
+
 static const console_ops_t fbcons_ops = {
     .write = &fbcons_write,
+    .takeover = &fbcons_takeover,
 };
 
 static console_t fbcons_driver = {
@@ -461,56 +469,36 @@ static console_t fbcons_driver = {
     .ops = &fbcons_ops,
 };
 
-static void init_fbcons(void)
+console_t* fbcons_attach(const vexfb_info_t* restrict info, void* restrict virt)
 {
-    if(fb_request.response) {
-        for(size_t i = 0U; i < fb_request.response->framebuffer_count; ++i) {
-            struct limine_framebuffer* fb = fb_request.response->framebuffers[i];
+    bool depth_supported = info->bpp == 8 || info->bpp == 16 || info->bpp == 32;
 
-            bool depth_supported = fb->bpp == 8 || fb->bpp == 16 || fb->bpp == 32;
-
-            if(depth_supported && 0 == fb->pitch % (fb->bpp / 8)) {
-                fb_width = fb->width;
-                fb_height = fb->height;
-                fb_depth = fb->bpp;
-                fb_stride = fb->pitch / (fb->bpp / 8);
-
-                // Limine hands out an HHDM address, but only RAM is in the direct map
-                uintptr_t fb_phys = virt_to_phys(fb->address);
-                void* fb_virt = mmio_map(fb_phys, fb->pitch * fb->height, VPROT_RW | VPROT_CACHE_WC);
-
-                if(fb_virt == nullptr) {
-                    pr_warning("fbcons: failed to map the framebuffer");
-                    return;
-                }
-
-                fb_8 = fb_virt;
-                fb_16 = fb_virt;
-                fb_32 = fb_virt;
-
-                vt_width = fb_width / FONT_WIDTH;
-                vt_height = fb_height / FONT_HEIGHT;
-                vt_length = vt_width * vt_height;
-
-                vt_cells = kmalloc(vt_length * sizeof(vt_cell_t));
-
-                if(vt_cells == nullptr) {
-                    panic("fbcons: out of memory: vt_cells");
-                }
-
-                cursor_xpos = 0U;
-                cursor_ypos = 0U;
-                cursor_xpos_prev = 0U;
-                cursor_ypos_prev = 0U;
-
-                do_clear();
-
-                console_add(&fbcons_driver);
-
-                return;
-            }
-        }
+    if(!depth_supported || 0 != info->pitch % (info->bpp / 8)) {
+        return nullptr;
     }
-}
 
-initcall_bsp_heap(init_fbcons, INIT_LAST);
+    fb_width = info->width;
+    fb_height = info->height;
+    fb_depth = info->bpp;
+    fb_stride = info->pitch / (info->bpp / 8);
+
+    fb_8 = virt;
+    fb_16 = virt;
+    fb_32 = virt;
+
+    vt_width = fb_width / FONT_WIDTH;
+    vt_height = fb_height / FONT_HEIGHT;
+    vt_length = vt_width * vt_height;
+
+    vt_cells = kmalloc(vt_length * sizeof(vt_cell_t));
+
+    if(vt_cells == nullptr) {
+        panic("fbcons: out of memory: vt_cells");
+    }
+
+    do_reset();
+
+    console_add(&fbcons_driver);
+
+    return &fbcons_driver;
+}
