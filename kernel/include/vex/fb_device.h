@@ -5,7 +5,6 @@
 #include <vex/fb.h>
 #include <vex/types.h>
 
-typedef struct console_s console_t;
 typedef struct dev_unit_s dev_unit_t;
 
 typedef struct fb_device_s fb_device_t;
@@ -24,6 +23,7 @@ struct fb_device_ops_s {
     /// @note nullptr when info.palette_size is zero
     int (*set_palette)(const fb_device_t* restrict device, uint32_t first, uint32_t count, const uint32_t* restrict colors);
 
+    /// @note Also called for a boot framebuffer a native driver claimed before it was registered
     void (*release)(const fb_device_t* restrict device);
 };
 
@@ -35,9 +35,20 @@ struct fb_device_s {
     unsigned cache;   // A VPROT_CACHE value for them
     void* virt;       // The kernel's mapping of them, for read and write
     dev_unit_t* unit; // Taken by fb_device_add and freed by fb_device_remove
+    fb_device_t* boot_next;
     void* ctxdata;
 };
 
-/// @param console Writes to the device's memory until its first open; may be nullptr
-int fb_device_add(fb_device_t* restrict device, console_t* restrict console);
+/// Queues a framebuffer set up before the kernel, to be added at dev INIT_LAST
+/// unless a native driver claims its memory first; the first one queued gets fbcons
+/// @pre The heap stage, before any boot framebuffer is added
+void fb_boot_add(fb_device_t* restrict device);
+
+/// Takes the boot framebuffers within the memory out of the queue and releases them
+/// @pre A native driver's probe, before its fb_device_add for the same memory
+/// @retval -EBUSY The boot framebuffers are already added
+/// @note fbcons, if it drew to one of them, moves to the next device added
+int fb_boot_claim(uintptr_t phys, size_t size);
+
+int fb_device_add(fb_device_t* restrict device);
 int fb_device_remove(fb_device_t* restrict device);

@@ -1,3 +1,3 @@
-if kconfig.get('CONFIG_BOOTFB', 'n') == 'y'
-    kernel_sources += files('bootfb.c')
+if kconfig.get('CONFIG_LIMINEFB', 'n') == 'y'
+    kernel_sources += files('limine.c')
 endif

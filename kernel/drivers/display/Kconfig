@@ -1,6 +1,6 @@
-config BOOTFB
-    bool "Boot framebuffers"
+config LIMINEFB
+    bool "Limine framebuffers"
     default y
     help
-      The framebuffers the bootloader set up, as fbd devices; the
-      framebuffer console prints to fbd0 until it is first opened
+      The framebuffers the bootloader set up, as fbd devices
+      unless a native display driver takes their memory over

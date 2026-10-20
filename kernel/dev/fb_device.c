@@ -1,7 +1,11 @@
+#include <vex/assert.h>
 #include <vex/chr_device.h>
 #include <vex/dev_name.h>
 #include <vex/errno.h>
 #include <vex/fb_device.h>
+#include <vex/fbcons.h>
+#include <vex/initcall.h>
+#include <vex/kprintf.h>
 #include <vex/page.h>
 #include <vex/string.h>
 #include <vex/uaccess.h>
@@ -9,9 +13,37 @@
 #define RECT_BATCH  16
 #define COLOR_BATCH 64
 
+// Boot framebuffers are queued and claimed by initcalls on the
+// BSP, one at a time, so none of this needs a lock
+static fb_device_t* boot_head = nullptr;
+static bool boot_added = false;
+static bool console_tried = false;
+static bool console_pending = false; // fbcons lost its device to a claim and waits for the next one
+
 static const fb_device_t* fb_of(const chr_device_t* restrict device)
 {
     return device->ctxdata;
+}
+
+static console_t* attach_console(fb_device_t* restrict device)
+{
+#ifdef CONFIG_FBCONS
+    return fbcons_attach(&device->info, device->virt);
+#else
+    return nullptr;
+#endif
+}
+
+static void detach_console(void)
+{
+#ifdef CONFIG_FBCONS
+    fbcons_detach();
+#endif
+}
+
+static bool overlaps(const fb_device_t* restrict device, uintptr_t phys, size_t size)
+{
+    return device->phys < phys + size && phys < device->phys + device->info.size;
 }
 
 static uint64_t mapped_size(const fb_device_t* restrict fb)
@@ -273,11 +305,10 @@ static const chr_device_ops_t fb_chr_ops = {
     .release = &fb_chr_release,
 };
 
-int fb_device_add(fb_device_t* restrict device, console_t* restrict console)
+static int add_device(fb_device_t* restrict device)
 {
     device->chr.ops = &fb_chr_ops;
     device->chr.ctxdata = device;
-    device->chr.console = console;
 
     int retval = dev_unit_alloc(&dev_prefix_fbd, &device->unit);
 
@@ -289,9 +320,78 @@ int fb_device_add(fb_device_t* restrict device, console_t* restrict console)
 
     if(retval < 0) {
         dev_unit_free(device->unit);
+        return retval;
     }
 
-    return retval;
+    pr_inform("fb: %s: %ux%u, %u bpp", device->chr.name, device->info.width, device->info.height, device->info.bpp);
+
+    return 0;
+}
+
+void fb_boot_add(fb_device_t* restrict device)
+{
+    kassert(!boot_added);
+
+    device->chr.console = nullptr;
+    device->boot_next = nullptr;
+
+    if(!console_tried) {
+        console_tried = true;
+        device->chr.console = attach_console(device);
+    }
+
+    fb_device_t** tail = &boot_head;
+
+    while(*tail) {
+        tail = &(*tail)->boot_next;
+    }
+
+    *tail = device;
+}
+
+int fb_boot_claim(uintptr_t phys, size_t size)
+{
+    // UNDONE: remove the added ones instead which
+    // revokes their mappings and leaves a gap in the names
+    if(boot_added) {
+        return -EBUSY;
+    }
+
+    fb_device_t** prev = &boot_head;
+
+    while(*prev) {
+        fb_device_t* device = *prev;
+
+        if(!overlaps(device, phys, size)) {
+            prev = &device->boot_next;
+            continue;
+        }
+
+        *prev = device->boot_next;
+
+        if(device->chr.console) {
+            detach_console();
+            console_pending = true;
+        }
+
+        if(device->ops->release) {
+            device->ops->release(device);
+        }
+    }
+
+    return 0;
+}
+
+int fb_device_add(fb_device_t* restrict device)
+{
+    device->chr.console = nullptr;
+
+    if(console_pending) {
+        console_pending = false;
+        device->chr.console = attach_console(device);
+    }
+
+    return add_device(device);
 }
 
 int fb_device_remove(fb_device_t* restrict device)
@@ -304,3 +404,18 @@ int fb_device_remove(fb_device_t* restrict device)
 
     return retval;
 }
+
+static void init_fb_boot(void)
+{
+    boot_added = true;
+
+    for(fb_device_t* device = boot_head; device; device = device->boot_next) {
+        int retval = add_device(device);
+
+        if(retval < 0) {
+            pr_warning("fb: failed to add a boot framebuffer: %s", strerror(retval));
+        }
+    }
+}
+
+initcall_bsp_dev(init_fb_boot, INIT_LAST);

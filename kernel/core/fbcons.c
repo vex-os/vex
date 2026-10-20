@@ -502,3 +502,11 @@ console_t* fbcons_attach(const vexfb_info_t* restrict info, void* restrict virt)
 
     return &fbcons_driver;
 }
+
+void fbcons_detach(void)
+{
+    console_remove(&fbcons_driver);
+
+    kfree(vt_cells);
+    vt_cells = nullptr;
+}

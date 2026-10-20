@@ -1,6 +1,5 @@
 #include <limine.h>
 #include <vex/fb_device.h>
-#include <vex/fbcons.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
@@ -15,19 +14,7 @@ static volatile __used __section(".limine_requests") struct limine_framebuffer_r
     .revision = 0,
 };
 
-typedef struct bootfb_s bootfb_t;
-
-struct bootfb_s {
-    fb_device_t device;
-    bootfb_t* next;
-};
-
-static_assert(sizeof(bootfb_t) <= SLAB_MAX_SIZE);
-
-static const fb_device_ops_t bootfb_ops = {}; // Scanned out directly, without a palette
-
-static bootfb_t* bootfb_head = nullptr;
-static console_t* bootfb_console = nullptr;
+static_assert(sizeof(fb_device_t) <= SLAB_MAX_SIZE);
 
 static bool describe(const struct limine_framebuffer* restrict fb, vexfb_info_t* restrict info)
 {
@@ -56,22 +43,31 @@ static bool describe(const struct limine_framebuffer* restrict fb, vexfb_info_t*
     return true;
 }
 
-static bootfb_t* bootfb_create(const struct limine_framebuffer* restrict fb)
+static void liminefb_release(const fb_device_t* restrict device)
 {
-    bootfb_t* bootfb = slab_alloc(sizeof(bootfb_t));
+    mmio_unmap(device->virt);
+    slab_free((void*)(device));
+}
 
-    if(bootfb == nullptr) {
-        pr_warning("bootfb: out of memory");
+static const fb_device_ops_t liminefb_ops = {
+    .release = &liminefb_release,
+};
+
+static fb_device_t* liminefb_create(const struct limine_framebuffer* restrict fb)
+{
+    fb_device_t* device = slab_alloc(sizeof(fb_device_t));
+
+    if(device == nullptr) {
+        pr_warning("liminefb: out of memory");
         return nullptr;
     }
 
-    memset(bootfb, 0, sizeof(bootfb_t));
+    memset(device, 0, sizeof(fb_device_t));
 
-    fb_device_t* device = &bootfb->device;
-    device->ops = &bootfb_ops;
+    device->ops = &liminefb_ops;
 
     if(!describe(fb, &device->info)) {
-        slab_free(bootfb);
+        slab_free(device);
         return nullptr;
     }
 
@@ -82,55 +78,27 @@ static bootfb_t* bootfb_create(const struct limine_framebuffer* restrict fb)
     device->virt = mmio_map(device->phys, device->info.size, VPROT_RW | device->cache);
 
     if(device->virt == nullptr) {
-        pr_warning("bootfb: failed to map a framebuffer");
-        slab_free(bootfb);
+        pr_warning("liminefb: failed to map a framebuffer");
+        slab_free(device);
         return nullptr;
     }
 
-    return bootfb;
+    return device;
 }
 
-static void init_bootfb(void)
+static void init_liminefb(void)
 {
     if(fb_request.response == nullptr) {
         return;
     }
 
-    bootfb_t** tail = &bootfb_head;
-
     for(size_t i = 0; i < fb_request.response->framebuffer_count; ++i) {
-        bootfb_t* bootfb = bootfb_create(fb_request.response->framebuffers[i]);
+        fb_device_t* device = liminefb_create(fb_request.response->framebuffers[i]);
 
-        if(bootfb == nullptr) {
-            continue;
+        if(device) {
+            fb_boot_add(device);
         }
-
-        *tail = bootfb;
-        tail = &bootfb->next;
-    }
-
-#ifdef CONFIG_FBCONS
-    if(bootfb_head) {
-        bootfb_console = fbcons_attach(&bootfb_head->device.info, bootfb_head->device.virt);
-    }
-#endif
-}
-
-initcall_bsp_heap(init_bootfb, INIT_LAST);
-
-static void init_bootfb_device(void)
-{
-    for(bootfb_t* bootfb = bootfb_head; bootfb; bootfb = bootfb->next) {
-        fb_device_t* device = &bootfb->device;
-        int retval = fb_device_add(device, bootfb == bootfb_head ? bootfb_console : nullptr);
-
-        if(retval < 0) {
-            pr_warning("bootfb: %s", strerror(retval));
-            continue;
-        }
-
-        pr_inform("bootfb: %s: %ux%u, %u bpp", device->chr.name, device->info.width, device->info.height, device->info.bpp);
     }
 }
 
-initcall_bsp_dev(init_bootfb_device, INIT_MIDDLE);
+initcall_bsp_heap(init_liminefb, INIT_LAST);

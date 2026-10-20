@@ -134,8 +134,8 @@ int main(void)
     printnumber(info.width);
     printnumber(info.height);
     printnumber(info.bpp);
-    printnumber(info.palette_size); // should print 0, bootfb is direct color
-    printnumber(info.flags);        // should print 0, bootfb is scanned out directly
+    printnumber(info.palette_size); // should print 0, liminefb is direct color
+    printnumber(info.flags);        // should print 0, liminefb is scanned out directly
 
     unsigned char* fb = (unsigned char*)syscall6(__k_SYS_MMAP, 0, info.size, __k_PROT_READ | __k_PROT_WRITE, __k_MAP_SHARED, fd, 0);
     printnumber((long)fb > 0); // should print 1
