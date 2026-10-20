@@ -44,8 +44,20 @@ void cred_decref(credentials_t* restrict credentials);
 
 bool cred_capable(const credentials_t* restrict credentials, unsigned cap) __nodiscard;
 int cred_setcaps(credentials_t* restrict credentials, const caps_t* restrict caps) __nodiscard;
+
+/// Works out the capabilities a program starts with. There is no inheritable
+/// set, so the file's inheritable set never grants anything
+/// @pre The ids the program will run with are already in place
+/// @param privileged Whether a setuid or setgid bit of the program took effect
+/// @param file The program's file capabilities, nullptr when it has none
 int cred_exec_caps(credentials_t* restrict credentials, bool privileged, const file_caps_t* restrict file) __nodiscard;
+
+/// Tells the new program not to trust what the caller passed it: it runs
+/// with other ids, or holds capabilities the caller couldn't hand down itself
 bool cred_exec_secure(const credentials_t* restrict credentials) __nodiscard;
+
+/// Revision 3 names the uid that counts as root for the capabilities; without user namespaces
+/// only 0 makes sense, so others leave the file without capabilities, as on Linux
 int cred_parse_file_caps(const void* restrict value, size_t size, file_caps_t* restrict out) __nodiscard;
 bool cred_in_group(const credentials_t* restrict credentials, gid_t gid) __nodiscard;
 

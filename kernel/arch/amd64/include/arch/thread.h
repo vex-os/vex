@@ -24,23 +24,23 @@ void arch_thread_setup_kern(thread_t* restrict thread, void* restrict entry, voi
 void arch_thread_setup_user(thread_t* restrict thread, void* restrict entry, void* restrict user_stack_top, uintptr_t arg, uintptr_t tcb,
     vmspace_t* restrict vmspace);
 
-/// Makes the child of a fork resume from the parent's system call
-/// with a return value of zero; called by the parent in that call, so
-/// the thread pointer and FPU state come from the current hart
-/// \param ctx The parent's system call frame
+/// Makes the child of a fork resume from the parent's system call with a return value of zero
+/// @pre The parent calls this in that system call, as the thread pointer and FPU state come from the current hart
+/// @param ctx The parent's system call frame
 void arch_thread_setup_fork(thread_t* restrict thread, const hart_context_t* restrict ctx, vmspace_t* restrict vmspace);
 
-/// Called by the thread itself in exec: rewrites its system call frame to enter the new image,
-/// clears the thread pointer and FPU state, and switches to the new page tables right away
+/// Rewrites the system call frame to enter the new image, clears the thread pointer
+/// and FPU state, and switches to the new page tables right away
+/// @pre The thread itself calls this, in exec
 void arch_thread_exec(thread_t* restrict thread, vmspace_t* restrict vmspace, uintptr_t entry, uintptr_t user_stack_top);
 
 /// Sets the calling thread's thread pointer, effective right away
 void arch_thread_set_tcb(thread_t* restrict thread, uintptr_t tcb);
 
-/// Called by the scheduler with interrupts disabled around a switch, with the
-/// registers already in the saved context; these save and load the rest of the
-/// thread's state: thread pointers, page tables, FPU state and, on load, the
-/// stack the hart enters the kernel on from user mode
+/// Save and load the thread's state beyond its registers: thread pointers, page tables,
+/// FPU state and, on load, the stack the hart enters the kernel on from user mode
+/// @pre The scheduler calls these around a switch, with interrupts disabled
+/// and the registers already in the saved context
 void arch_thread_ctx_save(thread_t* restrict thread);
 void arch_thread_ctx_load(thread_t* restrict thread);
 

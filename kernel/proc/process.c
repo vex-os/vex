@@ -217,7 +217,6 @@ static void begin_exit(process_t* restrict process, int exit_code, int exit_sign
     release_files(process);
 }
 
-// Threads take their ids from the same counter, so a tid never names another process
 pid_t process_alloc_id(void)
 {
     return atomic_fetch_add(&next_pid, 1, ATOMIC_RELAXED);
@@ -453,7 +452,6 @@ int process_dethread(process_t* process, thread_t* thread)
     return 0;
 }
 
-// A thread already leaving does not count, signals and lookups treat it as gone
 bool process_has_thread(process_t* process, pid_t tid)
 {
     bool intr_state = spinlock_acquire_intr(&process->lock);

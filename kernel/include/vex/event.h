@@ -25,28 +25,28 @@ void event_init(event_t* restrict event);
 void event_deinit(event_t* restrict event);
 
 /// Takes a pending wakeup from the first event that has one, without blocking
-/// \return The index of that event in events
-/// \retval -EAGAIN No event has a pending wakeup
+/// @return The index of that event in events
+/// @retval -EAGAIN No event has a pending wakeup
 ssize_t event_await(event_t** restrict events, size_t count);
 
 /// Waits until one of the events is triggered, or takes a pending wakeup
-/// \return The index of the event in events
-/// \retval -ENOMEM No memory to register the thread as a listener
+/// @return The index of the event in events
+/// @retval -ENOMEM No memory to register the thread as a listener
 ssize_t event_await_blocking(event_t** restrict events, size_t count);
 
 /// Like event_await_blocking, giving up after the timeout
-/// \retval -ETIMEDOUT No event was triggered in time
+/// @retval -ETIMEDOUT No event was triggered in time
 ssize_t event_await_timeout(event_t** restrict events, size_t count, uint64_t timeout_nsec);
 
 /// Like event_await_blocking, ending early for pending work such as a signal
-/// \retval -ERESTART Work is pending; a system call returns this as it is
+/// @retval -ERESTART Work is pending; a system call returns this as it is
 /// and runs again or fails with EINTR on the way out
 ssize_t event_await_interruptible(event_t** restrict events, size_t count);
 
 /// Wakes every thread waiting on the event
-/// \param linger_pending With nobody waiting, keep the wakeup for the next await
+/// @param linger_pending With nobody waiting, keep the wakeup for the next await
 /// instead; each call adds one, like a semaphore
-/// \return The number of threads woken
+/// @return The number of threads woken
 size_t event_trigger(event_t* restrict event, bool linger_pending);
 
 void event_reset(event_t* restrict event);

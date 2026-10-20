@@ -194,9 +194,6 @@ int cred_setcaps(credentials_t* restrict credentials, const caps_t* restrict cap
     return 0;
 }
 
-// Called with the ids the program will run with already in place; a privileged program
-// is one whose setuid or setgid bit took effect, file holds its capabilities if it has any;
-// there is no inheritable set, so the file's inheritable set never grants anything
 int cred_exec_caps(credentials_t* restrict credentials, bool privileged, const file_caps_t* restrict file)
 {
     kassert(credentials);
@@ -237,8 +234,6 @@ int cred_exec_caps(credentials_t* restrict credentials, bool privileged, const f
     return 0;
 }
 
-// Tells the new program not to trust what the caller passed it: it runs
-// with other ids, or holds capabilities the caller couldn't hand down itself
 bool cred_exec_secure(const credentials_t* restrict credentials)
 {
     kassert(credentials);
@@ -250,8 +245,6 @@ bool cred_exec_secure(const credentials_t* restrict credentials)
     return credentials->uid && (credentials->cap_permitted & ~credentials->cap_ambient);
 }
 
-// Revision 3 names the uid that counts as root for the capabilities; without user namespaces
-// only 0 makes sense, so others leave the file without capabilities, as on Linux
 int cred_parse_file_caps(const void* restrict value, size_t size, file_caps_t* restrict out)
 {
     kassert(value);
