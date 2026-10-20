@@ -53,14 +53,37 @@ struct vnode_attr_s {
     timespec_t ctime;
 };
 
+/// Implemented by each filesystem. An operation left nullptr makes the VFS fail the call.
+/// By the time an operation runs, the VFS has crossed mount points and turned away "."
+/// and ".." as new names, links or renames across filesystems, and changes to a read-only
+/// filesystem, writes included as file_open refuses those; the filesystem serializes its
+/// operations with its own lock
 struct vnode_ops_s {
+    /// Called once the last reference is gone: frees ctxdata, and the
+    /// storage of a file whose last name was removed while it was open
     void (*release)(vnode_t* restrict node);
+
+    /// Finds the inode number only; the VFS takes the vnode from the vcache or builds it through vfs_ops_t.fillnode
     int (*lookup)(vnode_t* restrict node, const char* restrict name, ino_t* restrict out);
+
+    /// Fills the entry at index, counting entries a reader sees; -ENOENT past the last one
     int (*iterate)(vnode_t* restrict node, dirent_t* restrict out, size_t index);
+
+    /// Hands out a new vnode with one reference and fs and ino set, not yet in the vcache, which
+    /// the VFS inserts it into; on failure nothing is handed out. symlink follows the same rules
     int (*create)(vnode_t* restrict node, const char* restrict name, unsigned type, mode_t mode, const credentials_t* restrict credentials,
         vnode_t** restrict out);
+
+    /// The target is the vnode the name led to. Once its last name is gone, the filesystem calls vcache_remove
+    /// on it under its own lock, before the entry can be reused, or a new file there would get this vnode
     int (*unlink)(vnode_t* restrict node, const char* restrict name, vnode_t* restrict target);
+
+    /// Same rules as unlink for a victim left without names, and the victim may be nullptr. Where the inode number
+    /// follows from the entry's location, the source gets vcache_rekey under the same lock; the VFS has already
+    /// filtered out renaming a file onto itself and a directory into its own subtree
     int (*rename)(vnode_t* olddir, const char* oldname, vnode_t* source, vnode_t* newdir, const char* newname, vnode_t* victim);
+
+    /// The target is never a directory
     int (*link)(vnode_t* restrict node, const char* restrict name, vnode_t* restrict target);
     int (*symlink)(vnode_t* restrict node, const char* restrict name, const char* restrict target,
         const credentials_t* restrict credentials, vnode_t** restrict out);
@@ -71,9 +94,18 @@ struct vnode_ops_s {
     ssize_t (*readlink)(vnode_t* restrict node, char* restrict buf, size_t size);
     int (*ioctl)(vnode_t* restrict node, uint32_t request, uintptr_t argument);
     int (*stat)(vnode_t* restrict node, stat_t* restrict out);
+
+    /// Applies the fields in attr->mask; permission checks are done, and the VFS has
+    /// already added the ctime, and the mtime for a size change, unless the caller set them
     int (*setattr)(vnode_t* restrict node, const vnode_attr_t* restrict attr);
     int (*fsync)(vnode_t* restrict node);
+
+    /// Maps page index of the file at virt, normally through fcache_map_page
     int (*map_page)(vnode_t* restrict node, uint64_t index, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot);
+
+    /// The xattr operations get the namespace as an XATTR space and the name without its
+    /// prefix; permission checks are done. A missing attribute is -ENODATA, and iterate
+    /// returns -ENOENT past the last one
     ssize_t (*xattr_get)(vnode_t* restrict node, unsigned space, const char* restrict name, void* restrict value, size_t size);
     int (*xattr_set)(vnode_t* restrict node, unsigned space, const char* restrict name, const void* restrict value, size_t size,
         unsigned flags);
@@ -120,6 +152,8 @@ ssize_t vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, o
 ssize_t vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset);
 ssize_t vnode_readlink(vnode_t* restrict node, char* restrict buf, size_t size);
 int vnode_stat(vnode_t* restrict node, stat_t* restrict out);
+/// Every change made through here is a status change, so the ctime
+/// moves with it unless the caller set one; a new size also modifies
 int vnode_setattr(vnode_t* restrict node, const vnode_attr_t* restrict request);
 int vnode_chmod(vnode_t* restrict node, const credentials_t* restrict credentials, mode_t mode);
 int vnode_chown(vnode_t* restrict node, const credentials_t* restrict credentials, uid_t uid, gid_t gid);
@@ -136,4 +170,6 @@ int vnode_xattr_set(vnode_t* restrict node, const credentials_t* restrict creden
     const void* restrict value, size_t size, unsigned flags);
 ssize_t vnode_xattr_list(vnode_t* restrict node, const credentials_t* restrict credentials, char* restrict list, size_t size);
 int vnode_xattr_remove(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name);
+/// Skips both the permission check and the trip to
+/// the filesystem once a file is known to have no caps
 ssize_t vnode_caps_get(vnode_t* restrict node, void* restrict value, size_t size);

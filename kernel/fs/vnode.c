@@ -942,8 +942,6 @@ int vnode_stat(vnode_t* restrict node, stat_t* restrict out)
     return retval;
 }
 
-// Every change made through here is a status change, so the ctime
-// moves with it unless the caller set one; a new size also modifies
 int vnode_setattr(vnode_t* restrict node, const vnode_attr_t* restrict request)
 {
     kassert(node);
@@ -1532,8 +1530,6 @@ int vnode_xattr_remove(vnode_t* restrict node, const credentials_t* restrict cre
     return retval;
 }
 
-// Skips both the permission check and the trip to
-// the filesystem once a file is known to have no caps
 ssize_t vnode_caps_get(vnode_t* restrict node, void* restrict value, size_t size)
 {
     kassert(node);

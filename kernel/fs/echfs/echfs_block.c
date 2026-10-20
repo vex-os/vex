@@ -15,7 +15,6 @@ static void set_entry(echfs_vfs_context_t* restrict context, uintptr_t block, ui
     fcache_dev_write(context->device_node, entry_offset(context, block), &value, sizeof(value));
 }
 
-// An entry that can't be read looks reserved, which ends any chain through it
 uint64_t echfs_block_entry(const echfs_vfs_context_t* restrict context, uintptr_t block)
 {
     uint64_t value;
