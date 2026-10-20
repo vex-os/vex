@@ -77,9 +77,13 @@ static int devfs_chr_resolve_page(vnode_t* restrict node, off_t offset, uintptr_
 
 static int devfs_chr_stat(vnode_t* restrict node, stat_t* restrict out)
 {
+    const devfs_chr_context_t* context = node->ctxdata;
+    const chr_device_t* device = context->device;
+
     memset(out, 0, sizeof(stat_t));
 
     out->st_mode = S_IFCHR | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+    out->st_rdev = device->priv.dev;
 
     return 0;
 }

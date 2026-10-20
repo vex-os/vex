@@ -6,6 +6,7 @@
 #include <vex/types.h>
 
 typedef struct console_s console_t;
+typedef struct dev_unit_s dev_unit_t;
 
 typedef struct fb_device_s fb_device_t;
 typedef struct fb_device_ops_s fb_device_ops_t;
@@ -30,9 +31,10 @@ struct fb_device_s {
     chr_device_t chr; // Its name, ops and ctxdata belong to the fb core
     const fb_device_ops_t* ops;
     vexfb_info_t info;
-    uintptr_t phys; // Of the info.size bytes userspace maps
-    unsigned cache; // A VPROT_CACHE value for them
-    void* virt;     // The kernel's mapping of them, for read and write
+    uintptr_t phys;   // Of the info.size bytes userspace maps
+    unsigned cache;   // A VPROT_CACHE value for them
+    void* virt;       // The kernel's mapping of them, for read and write
+    dev_unit_t* unit; // Taken by fb_device_add and freed by fb_device_remove
     void* ctxdata;
 };
 

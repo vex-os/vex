@@ -49,7 +49,8 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
 
 - Headers under `include/usr/` are shared with userspace and must compile as ANSI C89/ISO C90: no `//` comments, `nullptr`, `bool`, `static_assert`, `restrict`, `inline`, designated initializers, or declarations mixed with code. Fixed-width types come from the `__k_`-prefixed typedefs. Only `usr/vex/types.h` touches `<stdint.h>`, and only behind its C23/C++ check.
 - Kernel-private headers use only `#pragma once`. Public headers under `include/usr/` (the userspace ABI) instead use a classic path-derived guard, e.g. `usr/vex/errno.h` → `USR_VEX_ERRNO_H`, closed with `#endif /* USR_VEX_ERRNO_H */`. Never start these names with `_`. Keep the guard in sync if the header is renamed.
-- C23 idioms are used throughout: `nullptr`, `static_assert`, `unreachable()`, `restrict` pointer params.
+- C23 idioms are used throughout: `nullptr`, `static_assert`, `unreachable()`, `restrict` pointer params, and `{}` for empty initialization (not `{ 0 }`).
+- Don't initialize a struct with its fields on one line; it's hard to read. Either list the designated fields one per line, with a comma after the last one so clang-format keeps them apart, or start from `{}` and assign the fields after it.
 - Every kernel type is used through a `_t` typedef. Tags end in `_s`, `_u` or `_e` (`struct thread_s`, `union fat_entry_u`, `enum cpu_feature_e`):
   - Forward declarations of other files' types (`typedef struct vnode_s vnode_t;`) form one block right after the includes; C11 allows identical typedefs to repeat across headers.
   - The typedefs of the file's own types form a second block right before its first struct definition (after the `#define`s), in definition order. Structs then refer to each other through pointers in any order.

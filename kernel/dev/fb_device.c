@@ -1,5 +1,5 @@
 #include <vex/chr_device.h>
-#include <vex/chr_name.h>
+#include <vex/dev_name.h>
 #include <vex/errno.h>
 #include <vex/fb_device.h>
 #include <vex/page.h>
@@ -279,10 +279,28 @@ int fb_device_add(fb_device_t* restrict device, console_t* restrict console)
     device->chr.ctxdata = device;
     device->chr.console = console;
 
-    return chr_device_add(&device->chr, chr_name_fbd);
+    int retval = dev_unit_alloc(&dev_prefix_fbd, &device->unit);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = chr_device_add(&device->chr, device->unit, DEV_NAME_NONE);
+
+    if(retval < 0) {
+        dev_unit_free(device->unit);
+    }
+
+    return retval;
 }
 
 int fb_device_remove(fb_device_t* restrict device)
 {
-    return chr_device_remove(&device->chr);
+    int retval = chr_device_remove(&device->chr);
+
+    if(retval == 0) {
+        dev_unit_free(device->unit);
+    }
+
+    return retval;
 }

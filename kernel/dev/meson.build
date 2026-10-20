@@ -3,12 +3,11 @@ kernel_sources += files(
     'blk_atapi.c',
     'blk_device.c',
     'blk_event.c',
-    'blk_name.c',
     'blk_ptable.c',
     'blk_request.c',
     'chr_device.c',
     'chr_event.c',
-    'chr_name.c',
+    'dev_name.c',
     'fb_device.c',
 )
 

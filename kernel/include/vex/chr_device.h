@@ -2,11 +2,11 @@
 
 #include <vex/atomic.h>
 #include <vex/compiler.h>
+#include <vex/dev_name.h>
 #include <vex/errno.h>
 #include <vex/mutex.h>
 #include <vex/types.h>
 
-typedef struct chr_name_s chr_name_t;
 typedef struct console_s console_t;
 
 typedef struct chr_device_s chr_device_t;
@@ -42,8 +42,8 @@ struct chr_device_ops_s {
 
 struct chr_device_private_s {
     chr_device_t* next;
-    chr_name_t* name;
-    unsigned name_iterator;
+    dev_name_t name;
+    dev_t dev;
     unsigned refcount;
     bool removed;
     mutex_t open_lock; // Serializes open_count with the driver's open and close
@@ -59,8 +59,8 @@ struct chr_device_s {
     void* ctxdata;
 };
 
-int chr_device_add(chr_device_t* restrict device, chr_name_t* restrict name);
-int chr_device_add_named(chr_device_t* restrict device, const char* restrict name);
+/// @param index The n of the name, such as the card's port; DEV_NAME_NONE for a device that is its unit's only one
+int chr_device_add(chr_device_t* restrict device, dev_unit_t* restrict unit, unsigned index);
 
 /// Drops the registry's reference; holders of others keep the structure
 /// @pre The driver fails its own calls with -ENODEV and has woken those that sleep, as a call

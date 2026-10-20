@@ -23,5 +23,5 @@ struct atapi_device_s {
 
 #define ATAPI_DEVICE_FROM_BLK(device) ((atapi_device_t*)(device))
 
-int atapi_device_add(atapi_device_t* restrict device, blk_name_t* restrict name, unsigned iterator, unsigned index);
+int atapi_device_add(atapi_device_t* restrict device, dev_unit_t* restrict unit, unsigned index);
 void atapi_device_remove(atapi_device_t* restrict device);

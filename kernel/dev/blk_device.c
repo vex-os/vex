@@ -1,11 +1,9 @@
 #include <vex/atomic.h>
 #include <vex/blk_device.h>
 #include <vex/blk_event.h>
-#include <vex/blk_name.h>
+#include <vex/dev_name.h>
 #include <vex/kmalloc.h>
-#include <vex/limits.h>
 #include <vex/spinlock.h>
-#include <vex/sprintf.h>
 #include <vex/string.h>
 
 // Writers also hold blk_event_lock, which keeps the list still for
@@ -40,33 +38,47 @@ static int blk_device_register_internal(blk_device_t* restrict device)
     return 0;
 }
 
-int blk_device_add_root(blk_device_t* restrict device, blk_name_t* restrict name, unsigned iterator, unsigned index)
+static int name_device(blk_device_t* restrict device, const dev_name_t* restrict name)
 {
-    device->priv.name = name;
-    device->priv.name_iterator = iterator;
-    device->partition = UINT_MAX;
+    int retval = dev_name_format(name, device->name, sizeof(device->name));
 
-    snprintf(device->name, sizeof(device->name), "%s%un%u", name->device_prefix, device->priv.name_iterator, index + 1);
+    if(retval < 0) {
+        return retval;
+    }
+
+    device->priv.name = *name;
+    device->priv.dev = dev_name_to_dev(name);
+
+    return 0;
+}
+
+int blk_device_add_root(blk_device_t* restrict device, dev_unit_t* restrict unit, unsigned index)
+{
+    dev_name_t name = {};
+    name.unit = unit;
+    name.index = index;
+    name.partition = DEV_NAME_NONE;
+
+    int retval = name_device(device, &name);
+
+    if(retval < 0) {
+        return retval;
+    }
 
     return blk_device_register_internal(device);
 }
 
 int blk_device_add_part(blk_device_t* restrict device, const blk_device_t* restrict root, unsigned partition)
 {
-    device->priv.name = root->priv.name;
-    device->priv.name_iterator = root->priv.name_iterator;
-    device->partition = partition;
+    dev_name_t name = root->priv.name;
+    name.partition = partition;
 
-    snprintf(device->name, sizeof(device->name), "%sp%u", root->name, partition + 1);
+    int retval = name_device(device, &name);
 
-    return blk_device_register_internal(device);
-}
+    if(retval < 0) {
+        return retval;
+    }
 
-int blk_device_add_named(blk_device_t* restrict device)
-{
-    device->priv.name = nullptr;
-    device->priv.name_iterator = 0;
-    device->partition = UINT_MAX;
     return blk_device_register_internal(device);
 }
 

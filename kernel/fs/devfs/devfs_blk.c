@@ -211,6 +211,7 @@ static int devfs_blk_stat(vnode_t* restrict node, stat_t* restrict out)
     memset(out, 0, sizeof(stat_t));
 
     out->st_mode = S_IFBLK | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
+    out->st_rdev = device->priv.dev;
 
     out->st_size = device->sector_count * device->sector_size;
     out->st_blksize = device->sector_size;

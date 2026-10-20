@@ -129,7 +129,7 @@ static void probe_device(const blk_device_t* restrict device)
             part->base.flags = BLK_FLAG_PARTITION | (device->flags & BLK_FLAG_PRESENT);
             part->base.ctxdata = nullptr;
 
-            if(blk_device_add_part(&part->base, device, info.part_index)) {
+            if(blk_device_add_part(&part->base, device, info.part_index + 1)) {
                 kfree(part);
                 continue;
             }

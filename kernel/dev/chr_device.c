@@ -2,14 +2,11 @@
 #include <vex/atomic.h>
 #include <vex/chr_device.h>
 #include <vex/chr_event.h>
-#include <vex/chr_name.h>
 #include <vex/console.h>
+#include <vex/dev_name.h>
 #include <vex/fcntl.h>
-#include <vex/limits.h>
 #include <vex/spinlock.h>
-#include <vex/sprintf.h>
 #include <vex/string.h>
-#include <vex/strings.h>
 
 // Writers also hold chr_event_lock, which keeps the list still for
 // chr_device_for_each; the spinlock is for lookups from anywhere else
@@ -48,22 +45,21 @@ static int chr_device_register_internal(chr_device_t* restrict device)
     return 0;
 }
 
-int chr_device_add(chr_device_t* restrict device, chr_name_t* restrict name)
+int chr_device_add(chr_device_t* restrict device, dev_unit_t* restrict unit, unsigned index)
 {
+    dev_name_t name = {};
+    name.unit = unit;
+    name.index = index;
+    name.partition = DEV_NAME_NONE;
+
+    int retval = dev_name_format(&name, device->name, sizeof(device->name));
+
+    if(retval < 0) {
+        return retval;
+    }
+
     device->priv.name = name;
-    device->priv.name_iterator = chr_name_increment(name);
-
-    snprintf(device->name, sizeof(device->name), "%s%u", name->device_prefix, device->priv.name_iterator);
-
-    return chr_device_register_internal(device);
-}
-
-int chr_device_add_named(chr_device_t* restrict device, const char* restrict name)
-{
-    device->priv.name = nullptr;
-    device->priv.name_iterator = 0;
-
-    kstrncpy(device->name, name, sizeof(device->name));
+    device->priv.dev = dev_name_to_dev(&name);
 
     return chr_device_register_internal(device);
 }

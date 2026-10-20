@@ -70,7 +70,7 @@ typedef __k_SINT32_TYPE __k_uid_t;
 
 typedef __k_SINT64_TYPE __k_blkcnt_t;
 typedef __k_SINT64_TYPE __k_blksize_t;
-typedef __k_SINT64_TYPE __k_dev_t;
+typedef __k_UINT64_TYPE __k_dev_t;
 typedef __k_SINT64_TYPE __k_nlink_t;
 typedef __k_SINT64_TYPE __k_off_t;
 typedef __k_UINT32_TYPE __k_mode_t;

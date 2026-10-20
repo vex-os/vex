@@ -4,9 +4,9 @@
 #include <vex/blk_atapi.h>
 #include <vex/blk_device.h>
 #include <vex/blk_event.h>
-#include <vex/blk_name.h>
 #include <vex/clocksrc.h>
 #include <vex/delay.h>
+#include <vex/dev_name.h>
 #include <vex/endian.h>
 #include <vex/event.h>
 #include <vex/hart.h>
@@ -180,8 +180,8 @@ struct ahci_pci_context_s {
     blk_device_t devices[32];
     atapi_device_t atapi_devices[32];
     ahci_port_t ports[32];
-    unsigned atapi_iterator;
-    unsigned ata_iterator;
+    dev_unit_t* atapi_unit;
+    dev_unit_t* ata_unit;
     uint32_t atapi_mask;
     uint32_t ata_mask;
     unsigned refcount;
@@ -220,6 +220,20 @@ static void context_decref(ahci_pci_context_t* restrict context)
         }
 
         kfree(context);
+    }
+}
+
+// The names stay with devices someone still holds, so the units can go before the context
+static void free_units(ahci_pci_context_t* restrict context)
+{
+    if(context->ata_unit) {
+        dev_unit_free(context->ata_unit);
+        context->ata_unit = nullptr;
+    }
+
+    if(context->atapi_unit) {
+        dev_unit_free(context->atapi_unit);
+        context->atapi_unit = nullptr;
     }
 }
 
@@ -662,8 +676,12 @@ static void set_limits(const ahci_pci_context_t* restrict context, blk_device_t*
 
 static int ahci_port_register_ata(ahci_pci_context_t* restrict context, unsigned port_num)
 {
-    if(context->ata_iterator == UINT_MAX) {
-        context->ata_iterator = blk_name_increment(blk_name_ata);
+    if(context->ata_unit == nullptr) {
+        int retval = dev_unit_alloc(&dev_prefix_ata, &context->ata_unit);
+
+        if(retval < 0) {
+            return retval;
+        }
     }
 
     blk_device_t* device = &context->devices[port_num];
@@ -679,7 +697,7 @@ static int ahci_port_register_ata(ahci_pci_context_t* restrict context, unsigned
 
     set_limits(context, device);
 
-    int retval = blk_device_add_root(device, blk_name_ata, context->ata_iterator, port_num);
+    int retval = blk_device_add_root(device, context->ata_unit, port_num + 1);
 
     if(retval == 0) {
         context->refcount += 1;
@@ -690,8 +708,12 @@ static int ahci_port_register_ata(ahci_pci_context_t* restrict context, unsigned
 
 static int ahci_port_register_atapi(ahci_pci_context_t* restrict context, unsigned port_num)
 {
-    if(context->atapi_iterator == UINT_MAX) {
-        context->atapi_iterator = blk_name_increment(blk_name_atapi);
+    if(context->atapi_unit == nullptr) {
+        int retval = dev_unit_alloc(&dev_prefix_atapi, &context->atapi_unit);
+
+        if(retval < 0) {
+            return retval;
+        }
     }
 
     atapi_device_t* atapi_dev = &context->atapi_devices[port_num];
@@ -708,7 +730,7 @@ static int ahci_port_register_atapi(ahci_pci_context_t* restrict context, unsign
 
     set_limits(context, &atapi_dev->base);
 
-    int retval = atapi_device_add(atapi_dev, blk_name_atapi, context->atapi_iterator, port_num);
+    int retval = atapi_device_add(atapi_dev, context->atapi_unit, port_num + 1);
 
     if(retval == 0) {
         context->refcount += 1;
@@ -726,10 +748,10 @@ static void ahci_port_probe_ata(ahci_pci_context_t* restrict context, pci_bar_t*
     ata_identify_t identify;
     ahci_port_t* port = &context->ports[port_num];
 
-    port->iterator = context->ata_iterator;
+    port->iterator = context->ata_unit->number;
 
     if(ahci_identify(port, identify)) {
-        pr_verbose("ahci: %u.%u: identify failed", context->ata_iterator, port_num);
+        pr_verbose("ahci: %u.%u: identify failed", context->ata_unit->number, port_num);
         ahci_port_teardown(port);
         return;
     }
@@ -744,7 +766,7 @@ static void ahci_port_probe_ata(ahci_pci_context_t* restrict context, pci_bar_t*
     device->sector_size = ata_identify_logical_sector_size(identify);
 
     if(device->sector_size == 0 || device->sector_size > AHCI_MAX_TRANSFER) {
-        pr_verbose("ahci: %u.%u: unsupported sector size %zu", context->ata_iterator, port_num, device->sector_size);
+        pr_verbose("ahci: %u.%u: unsupported sector size %zu", context->ata_unit->number, port_num, device->sector_size);
         ahci_port_teardown(port);
         return;
     }
@@ -754,7 +776,7 @@ static void ahci_port_probe_ata(ahci_pci_context_t* restrict context, pci_bar_t*
 
     char model[41];
     ata_identify_string(&identify[ATA_IDENTIFY_MODEL_WORD], ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
-    pr_verbose("ahci: %u.%u: model=%s sector_count=%zu sector_size=%zu", context->ata_iterator, port_num, model, device->sector_count,
+    pr_verbose("ahci: %u.%u: model=%s sector_count=%zu sector_size=%zu", context->ata_unit->number, port_num, model, device->sector_count,
         device->sector_size);
 
     blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, device);
@@ -770,7 +792,7 @@ static void ahci_port_probe_atapi(ahci_pci_context_t* restrict context, pci_bar_
     ahci_port_t* port = &context->ports[port_num];
     atapi_device_t* atapi_dev = &context->atapi_devices[port_num];
 
-    port->iterator = context->atapi_iterator;
+    port->iterator = context->atapi_unit->number;
 
     char model[41];
 
@@ -785,13 +807,13 @@ static void ahci_port_probe_atapi(ahci_pci_context_t* restrict context, pci_bar_
     size_t sector_size;
 
     if(ahci_atapi_capacity(port, &sector_count, &sector_size)) {
-        pr_verbose("ahci: %u.%u: no media present", context->atapi_iterator, port_num);
+        pr_verbose("ahci: %u.%u: no media present", context->atapi_unit->number, port_num);
         ahci_port_teardown(port);
         return;
     }
 
     if(sector_size == 0 || sector_size > AHCI_MAX_TRANSFER) {
-        pr_verbose("ahci: %u.%u: unsupported sector size %zu", context->atapi_iterator, port_num, sector_size);
+        pr_verbose("ahci: %u.%u: unsupported sector size %zu", context->atapi_unit->number, port_num, sector_size);
         ahci_port_teardown(port);
         return;
     }
@@ -801,7 +823,7 @@ static void ahci_port_probe_atapi(ahci_pci_context_t* restrict context, pci_bar_
     atapi_dev->base.flags = BLK_FLAG_PRESENT;
     atapi_dev->base.ctxdata = port;
 
-    pr_verbose("ahci: %u.%u: model=%s sector_count=%zu sector_size=%zu", context->atapi_iterator, port_num, model, sector_count,
+    pr_verbose("ahci: %u.%u: model=%s sector_count=%zu sector_size=%zu", context->atapi_unit->number, port_num, model, sector_count,
         sector_size);
 
     blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, &atapi_dev->base);
@@ -873,8 +895,8 @@ static int ahci_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* res
     }
 
     context->irq = false;
-    context->ata_iterator = UINT_MAX;
-    context->atapi_iterator = UINT_MAX;
+    context->ata_unit = nullptr;
+    context->atapi_unit = nullptr;
     context->refcount = 1;
 
     pci_dev->ctxdata = context;
@@ -931,6 +953,7 @@ static int ahci_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* res
     }
 
     if(0 == (context->ata_mask | context->atapi_mask)) {
+        free_units(context);
         pci_bar_unmap(pci_dev, 5);
         kfree(context);
         pci_dev->ctxdata = nullptr;
@@ -1005,6 +1028,8 @@ static void ahci_remove(pci_device_t* restrict pci_dev)
             ahci_port_teardown(&context->ports[port_num]);
         }
     }
+
+    free_units(context);
 
     pci_bar_unmap(pci_dev, 5);
 

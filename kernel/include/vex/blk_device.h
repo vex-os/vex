@@ -1,10 +1,9 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/dev_name.h>
 #include <vex/errno.h>
 #include <vex/types.h>
-
-typedef struct blk_name_s blk_name_t;
 
 enum {
     BLK_REQ_READ,
@@ -50,8 +49,8 @@ struct blk_device_ops_s {
 
 struct blk_device_private_s {
     blk_device_t* next;
-    blk_name_t* name;
-    unsigned name_iterator;
+    dev_name_t name;
+    dev_t dev;
     unsigned refcount;
 };
 
@@ -65,14 +64,15 @@ struct blk_device_s {
     size_t max_segments;
     uintptr_t dma_limit; // Highest physical address a segment may reach
     uintptr_t dma_align; // A mask: segment addresses and lengths have these bits clear
-    unsigned partition;
     unsigned flags;
     void* ctxdata;
 };
 
-int blk_device_add_root(blk_device_t* restrict device, blk_name_t* restrict name, unsigned iterator, unsigned index);
+/// @param index The n of the name, such as the controller's port
+int blk_device_add_root(blk_device_t* restrict device, dev_unit_t* restrict unit, unsigned index);
+
+/// @param partition The p of the name, from one
 int blk_device_add_part(blk_device_t* restrict device, const blk_device_t* restrict root, unsigned partition);
-int blk_device_add_named(blk_device_t* restrict device);
 
 /// Takes the device out of the registry and drops the reference it held there; holders of
 /// other references keep the structure, but their requests fail with -ENODEV from now on

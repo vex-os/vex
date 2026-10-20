@@ -1,6 +1,5 @@
 #include <vex/blk_atapi.h>
 #include <vex/blk_device.h>
-#include <vex/blk_name.h>
 #include <vex/errno.h>
 #include <vex/string.h>
 
@@ -70,11 +69,11 @@ static const blk_device_ops_t atapi_blk_device_ops = {
     .release = &atapi_release,
 };
 
-int atapi_device_add(atapi_device_t* restrict device, blk_name_t* restrict name, unsigned iterator, unsigned index)
+int atapi_device_add(atapi_device_t* restrict device, dev_unit_t* restrict unit, unsigned index)
 {
     device->base.ops = &atapi_blk_device_ops;
 
-    return blk_device_add_root(&device->base, name, iterator, index);
+    return blk_device_add_root(&device->base, unit, index);
 }
 
 void atapi_device_remove(atapi_device_t* restrict device)
