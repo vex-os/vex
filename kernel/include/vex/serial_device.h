@@ -2,6 +2,7 @@
 
 #include <vex/chr_device.h>
 #include <vex/compiler.h>
+#include <vex/console.h>
 #include <vex/mutex.h>
 #include <vex/serial.h>
 #include <vex/spinlock.h>
@@ -56,6 +57,19 @@ struct serial_device_ops_s {
     void (*set_break)(serial_device_t* restrict device, bool on);
 
     void (*release)(const serial_device_t* restrict device);
+
+    /// Writes bytes for the kernel console, waiting on the transmitter instead of an interrupt
+    /// @pre Interrupts may be disabled, and any other call may have stopped midway, as in a panic
+    /// @note Takes no lock; nullptr when the port can't be a console
+    void (*poll_write)(serial_device_t* restrict device, const void* restrict data, size_t size);
+
+    /// Waits until what poll_write wrote is on the line
+    /// @pre As for poll_write
+    void (*poll_drain)(serial_device_t* restrict device);
+
+    /// Turns the port's interrupts off and sets the line, so poll_write works whatever the driver left the port in
+    /// @pre As for poll_write
+    void (*poll_reset)(serial_device_t* restrict device, const serial_line_t* restrict line);
 };
 
 struct serial_device_private_s {
@@ -69,6 +83,8 @@ struct serial_device_private_s {
     uint32_t modem; // The SERIAL_MODEM_DTR and SERIAL_MODEM_RTS raised
     uint32_t lost;  // Bytes that came with nothing to take them
     bool removed;
+    console_t console;          // Set up when console= names the port
+    serial_line_t console_line; // What a panic puts the line back to
 };
 
 struct serial_device_s {

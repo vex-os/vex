@@ -9,6 +9,12 @@
 #define CONSF_LOGLEVEL 0x0002U // Filter by the console's own loglevel instead of the global one
 #define CONSF_RELEASED 0x1000U // The device belongs to its driver and won't receive write calls
 
+enum {
+    CONSOLE_UNSPECIFIED, // There's no console= option, so drivers do as they would without one
+    CONSOLE_LISTED,
+    CONSOLE_UNLISTED,
+};
+
 typedef struct console_s console_t;
 typedef struct console_ops_s console_ops_t;
 typedef struct console_private_s console_private_t;
@@ -53,6 +59,11 @@ int console_remove(console_t* restrict cons);
 /// @note Returns at once while another writer holds the consoles, on
 /// any hart or lower in this one's stack, as that writer writes them
 void console_flush(void);
+
+/// Looks the device up in the console= option, a list such as console=serial1:115200n8,fbd0
+/// @param options Gets what follows the device's colon, or an empty string without one
+/// @return One of CONSOLE_*
+unsigned console_lookup(const char* restrict name, char* restrict options, size_t size);
 
 /// Hands the console's device over to its driver, on the device's first open
 void console_release(console_t* restrict cons);

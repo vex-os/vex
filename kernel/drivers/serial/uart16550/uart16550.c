@@ -48,6 +48,7 @@
 #define LSR_FE   0x08 // Framing Error
 #define LSR_BI   0x10 // Break Interrupt
 #define LSR_THRE 0x20 // Transmitter Holding Register Empty
+#define LSR_TEMT 0x40 // Transmitter Empty, the shift register too
 
 #define MSR_CTS 0x10
 #define MSR_DSR 0x20
@@ -59,6 +60,10 @@
 #define INTERRUPT_ROUNDS 16 // Before letting a port that never goes quiet go
 
 #define DIVISOR_MAX 0xFFFF
+
+// Of LSR reads before a transmitter that never empties is given up on, as
+// the console must not hang a panic; a byte at 300 bps is under 40000 of them
+#define POLL_READS_MAX 1000000
 
 typedef struct received_s received_t;
 
@@ -420,6 +425,49 @@ static void uart16550_release(const serial_device_t* restrict device)
     kfree(port_of(device));
 }
 
+static void wait_transmitter(const uart16550_t* restrict port, uint8_t bits)
+{
+    for(unsigned long i = 0; i < POLL_READS_MAX; ++i) {
+        if((read_reg(port, UART_LSR) & bits) == bits) {
+            return;
+        }
+    }
+}
+
+static void uart16550_poll_write(serial_device_t* restrict device, const void* restrict data, size_t size)
+{
+    uart16550_t* port = port_of(device);
+    const uint8_t* bytes = data;
+
+    for(size_t i = 0; i < size; ++i) {
+        wait_transmitter(port, LSR_THRE);
+        write_reg(port, UART_THR, bytes[i]);
+    }
+}
+
+static void uart16550_poll_drain(serial_device_t* restrict device)
+{
+    wait_transmitter(port_of(device), LSR_THRE | LSR_TEMT);
+}
+
+static void uart16550_poll_reset(serial_device_t* restrict device, const serial_line_t* restrict line)
+{
+    uart16550_t* port = port_of(device);
+
+    port->ier = 0;
+    write_reg(port, UART_IER, port->ier);
+
+    port->lcr &= ~LCR_BREAK;
+    write_line(port, line);
+
+    port->mcr = MCR_DTR | MCR_RTS;
+    write_reg(port, UART_MCR, port->mcr);
+
+    if(port->fifo_size > 1) {
+        write_reg(port, UART_FCR, FCR_ENABLE);
+    }
+}
+
 static const serial_device_ops_t uart16550_ops = {
     .startup = &uart16550_startup,
     .shutdown = &uart16550_shutdown,
@@ -429,6 +477,9 @@ static const serial_device_ops_t uart16550_ops = {
     .get_modem = &uart16550_get_modem,
     .set_break = &uart16550_set_break,
     .release = &uart16550_release,
+    .poll_write = &uart16550_poll_write,
+    .poll_drain = &uart16550_poll_drain,
+    .poll_reset = &uart16550_poll_reset,
 };
 
 uart16550_t* uart16550_create(const io_region_t* restrict io, unsigned reg_shift, uint32_t clock, const char* restrict name)

@@ -24,6 +24,8 @@
 #define EXCHANGE_MAX_MSEC  60000
 #define REMOVE_RETRY_MSEC  10
 
+#define CONSOLE_OPTIONS_MAX 16
+
 typedef struct exchange_s exchange_t;
 
 // Under the port's dispatch lock
@@ -735,6 +737,115 @@ static const chr_device_ops_t serial_chr_ops = {
     .release = &serial_chr_release,
 };
 
+static serial_device_t* console_port(const console_t* restrict cons)
+{
+    return cons->ctxdata;
+}
+
+static void serial_console_write(console_t* restrict cons, const void* restrict data, size_t size)
+{
+    serial_device_t* device = console_port(cons);
+    device->ops->poll_write(device, data, size);
+}
+
+static void serial_console_release(console_t* restrict cons)
+{
+    serial_device_t* device = console_port(cons);
+    device->ops->poll_drain(device);
+}
+
+static bool serial_console_takeover(console_t* restrict cons)
+{
+    serial_device_t* device = console_port(cons);
+    device->ops->poll_reset(device, &device->priv.console_line);
+
+    return true;
+}
+
+static const console_ops_t serial_console_ops = {
+    .write = &serial_console_write,
+    .release = &serial_console_release,
+    .takeover = &serial_console_takeover,
+};
+
+// As Linux's console= takes them: a speed, then the parity's letter and the data bits, as in 115200n8
+static bool parse_console_line(const char* restrict options, serial_line_t* restrict line)
+{
+    static const char parity_letters[] = "noems"; // In the order of SERIAL_PARITY_*
+    serial_line_t parsed = *line;
+
+    parsed.speed = 0;
+
+    while(isdigit(*options)) {
+        parsed.speed = parsed.speed * 10 + (*options - '0');
+        options += 1;
+    }
+
+    const char* parity = nullptr;
+
+    if(*options) {
+        parity = strchr(parity_letters, *options);
+    }
+
+    if(parity) {
+        parsed.parity = parity - parity_letters;
+        options += 1;
+    }
+
+    if(*options >= '5' && *options <= '8') {
+        parsed.data_bits = *options - '0';
+        options += 1;
+    }
+
+    if(parsed.speed == 0 || *options) {
+        return false;
+    }
+
+    *line = parsed;
+
+    return true;
+}
+
+// The console is added once the port has its name, but the
+// port's first open, which may come first, already releases it
+static void prepare_console(serial_device_t* restrict device, const char* restrict name)
+{
+    char options[CONSOLE_OPTIONS_MAX];
+    serial_line_t line = device->line;
+
+    if(console_lookup(name, options, sizeof(options)) != CONSOLE_LISTED) {
+        return;
+    }
+
+    if(device->ops->poll_write == nullptr) {
+        pr_warning("serial: %s can't be a console", name);
+        return;
+    }
+
+    if(options[0] && !parse_console_line(options, &line)) {
+        pr_warning("serial: %s: bad console line %s", name, options);
+    }
+    else if(options[0]) {
+        mutex_acquire(&device->priv.lock);
+        int retval = set_line_locked(device, &line);
+        mutex_release(&device->priv.lock);
+
+        if(retval < 0) {
+            pr_warning("serial: %s: can't run the console at %s", name, options);
+        }
+    }
+
+    device->priv.console_line = device->line;
+
+    console_t* cons = &device->priv.console;
+    cons->ops = &serial_console_ops;
+    cons->name = device->chr.name;
+    cons->consflags = CONSF_RECALL;
+    cons->ctxdata = device;
+
+    device->chr.console = cons;
+}
+
 int serial_device_add(serial_device_t* restrict device)
 {
     serial_device_private_t* priv = &device->priv;
@@ -762,12 +873,29 @@ int serial_device_add(serial_device_t* restrict device)
     device->chr.ops = &serial_chr_ops;
     device->chr.ctxdata = device;
 
+    char name[sizeof(device->chr.name)];
+    dev_name_t dev_name = {};
+    dev_name.prefix = priv->unit->prefix;
+    dev_name.unit = priv->unit->number;
+    dev_name.index = DEV_NAME_NONE;
+    dev_name.partition = DEV_NAME_NONE;
+
+    device->chr.console = nullptr;
+
+    if(0 == dev_name_format(&dev_name, name, sizeof(name))) {
+        prepare_console(device, name);
+    }
+
     retval = chr_device_add(&device->chr, priv->unit, DEV_NAME_NONE);
 
     if(retval < 0) {
         dev_unit_free(priv->unit);
         mutex_deinit(&priv->lock);
         return retval;
+    }
+
+    if(device->chr.console) {
+        console_add(device->chr.console);
     }
 
     bind_from_cmdline(device);
@@ -777,6 +905,10 @@ int serial_device_add(serial_device_t* restrict device)
 
 int serial_device_remove(serial_device_t* restrict device)
 {
+    if(device->chr.console) {
+        console_remove(device->chr.console);
+    }
+
     atomic_store(&device->priv.removed, true, ATOMIC_SEQ_CST);
 
     bool intr_state = spinlock_acquire_intr(&device->priv.dispatch_lock);
@@ -872,9 +1004,14 @@ void serial_device_detach(serial_device_t* restrict device)
     set_dispatch(device, nullptr);
 }
 
+// The port is the consumer's from now on, and the console writes to it only in a panic
 int serial_device_startup(serial_device_t* restrict device)
 {
     int retval = -ENODEV;
+
+    if(device->chr.console) {
+        console_release(device->chr.console);
+    }
 
     mutex_acquire(&device->priv.lock);
 

@@ -1,5 +1,6 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
+#include <vex/cmdline.h>
 #include <vex/console.h>
 #include <vex/errno.h>
 #include <vex/kprintf.h>
@@ -7,6 +8,7 @@
 #include <vex/spinlock.h>
 #include <vex/sprintf.h>
 #include <vex/string.h>
+#include <vex/strings.h>
 
 #define TIMESTAMP_MAX   24U // Fits "[%5ju.%04ju] " for any uint64_t of nanoseconds
 #define OUTPUT_LINE_MAX (TIMESTAMP_MAX + KP_LINE_MAX + 2U)
@@ -190,6 +192,51 @@ void console_flush(void)
     }
 
     restore_interrupts(irq_state);
+}
+
+unsigned console_lookup(const char* restrict name, char* restrict options, size_t size)
+{
+    const char* list = cmdline_argument(&sys_cmdline, "console");
+    size_t name_length = strlen(name);
+
+    options[0] = 0;
+
+    if(list == nullptr) {
+        return CONSOLE_UNSPECIFIED;
+    }
+
+    while(*list) {
+        const char* comma = strchr(list, ',');
+        size_t length = strlen(list);
+
+        if(comma) {
+            length = (size_t)(comma - list);
+        }
+
+        bool matches = length >= name_length && 0 == strncmp(list, name, name_length);
+        bool has_options = length > name_length && list[name_length] == ':';
+
+        if(matches && length == name_length) {
+            return CONSOLE_LISTED;
+        }
+
+        if(matches && has_options) {
+            size_t copied = length - name_length - 1;
+
+            if(copied >= size) {
+                copied = size - 1;
+            }
+
+            kstrncpy(options, &list[name_length + 1], copied);
+            options[copied] = 0;
+
+            return CONSOLE_LISTED;
+        }
+
+        list += comma ? length + 1 : length;
+    }
+
+    return CONSOLE_UNLISTED;
 }
 
 void console_release(console_t* restrict cons)

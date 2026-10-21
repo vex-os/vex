@@ -1,5 +1,6 @@
 #include <vex/assert.h>
 #include <vex/chr_device.h>
+#include <vex/console.h>
 #include <vex/dev_name.h>
 #include <vex/errno.h>
 #include <vex/fb_device.h>
@@ -44,9 +45,16 @@ static void restore_console_mode(void* restrict ctxdata)
     }
 }
 
+// fbcons starts on the first framebuffer, which becomes fbd0, so console= names it so
 static console_t* attach_console(fb_device_t* restrict device)
 {
 #ifdef CONFIG_FBCONS
+    char options[1];
+
+    if(console_lookup("fbd0", options, sizeof(options)) == CONSOLE_UNLISTED) {
+        return nullptr;
+    }
+
     device->priv.console_mode.width = device->info.width;
     device->priv.console_mode.height = device->info.height;
     device->priv.console_mode.bpp = device->info.bpp;
