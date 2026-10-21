@@ -4,6 +4,7 @@
 #include <vex/types.h>
 
 typedef struct process_s process_t;
+typedef struct tty_device_s tty_device_t;
 
 typedef struct session_s session_t;
 typedef struct process_group_s process_group_t;
@@ -11,6 +12,7 @@ typedef struct process_group_s process_group_t;
 struct session_s {
     pid_t sid;
     uint32_t refcount;
+    tty_device_t* tty; // The controlling terminal, under process_group_lock; holds a reference to its chr device
 };
 
 struct process_group_s {
@@ -21,6 +23,21 @@ struct process_group_s {
     process_t* members; // Under process_group_lock, linked through process_t.group_next
     process_group_t* hash_next;
 };
+
+/// Holds the lock that guards every process's group, the groups' members and the sessions' terminals;
+/// a mutex, so it can be held while signals go out
+void process_group_lock_acquire(void);
+void process_group_lock_release(void);
+
+/// @pre The caller holds process_group_lock, which keeps the group alive without a reference
+process_group_t* process_group_find_locked(pid_t pgid) __nodiscard;
+
+/// Sends a signal from the kernel to every member of the group
+/// @pre The caller holds process_group_lock
+void process_group_signal_locked(process_group_t* restrict group, int sig);
+
+void session_incref(session_t* session);
+void session_decref(session_t* session);
 
 /// Puts a new process in its parent's group, or init, which has no parent, in a session of its own
 /// @pre The process is not in a group yet

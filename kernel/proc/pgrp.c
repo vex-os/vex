@@ -1,14 +1,16 @@
+#include <vex/assert.h>
 #include <vex/atomic.h>
 #include <vex/errno.h>
 #include <vex/mutex.h>
 #include <vex/pgrp.h>
 #include <vex/process.h>
+#include <vex/signal.h>
 #include <vex/slab.h>
 
 #define PROCESS_GROUP_BUCKETS 64
 
-// Guards the table, every group's members and every process's group; a mutex,
-// as signals sent to a group's members may sleep. It nests outside process locks
+// Guards the table, every group's members, every process's group and every session's
+// tty; a mutex, as signals sent to a group's members may sleep. It nests outside process locks
 static mutex_t process_group_lock = MUTEX_INIT;
 static process_group_t* process_group_table[PROCESS_GROUP_BUCKETS];
 
@@ -29,13 +31,6 @@ static session_t* session_create(pid_t sid)
     return session;
 }
 
-static void session_decref(session_t* session)
-{
-    if(1 == atomic_fetch_sub(&session->refcount, 1, ATOMIC_ACQ_REL)) {
-        slab_free(session);
-    }
-}
-
 // The group takes a reference of its own to the session
 static process_group_t* group_create_locked(pid_t pgid, session_t* restrict session)
 {
@@ -45,7 +40,7 @@ static process_group_t* group_create_locked(pid_t pgid, session_t* restrict sess
         return nullptr;
     }
 
-    atomic_fetch_add(&session->refcount, 1, ATOMIC_RELAXED);
+    session_incref(session);
 
     group->pgid = pgid;
     group->refcount = 1;
@@ -60,7 +55,7 @@ static process_group_t* group_create_locked(pid_t pgid, session_t* restrict sess
     return group;
 }
 
-static process_group_t* find_locked(pid_t pgid)
+static process_group_t* find_in_table(pid_t pgid)
 {
     for(process_group_t* it = process_group_table[pgid_bucket(pgid)]; it; it = it->hash_next) {
         if(it->pgid == pgid) {
@@ -150,7 +145,7 @@ static int check_movable_locked(process_t* restrict caller, process_t* restrict 
 // Hands out a new reference to the group, created when the id is the process's own
 static int destination_locked(process_t* restrict process, pid_t pgid, session_t* restrict session, process_group_t** restrict out)
 {
-    process_group_t* group = find_locked(pgid);
+    process_group_t* group = find_in_table(pgid);
 
     if(group) {
         if(group->session != session) {
@@ -174,6 +169,48 @@ static int destination_locked(process_t* restrict process, pid_t pgid, session_t
 
     *out = group;
     return 0;
+}
+
+void process_group_lock_acquire(void)
+{
+    mutex_acquire(&process_group_lock);
+}
+
+void process_group_lock_release(void)
+{
+    mutex_release(&process_group_lock);
+}
+
+process_group_t* process_group_find_locked(pid_t pgid)
+{
+    kassert(mutex_held(&process_group_lock));
+
+    return find_in_table(pgid);
+}
+
+void process_group_signal_locked(process_group_t* restrict group, int sig)
+{
+    kassert(mutex_held(&process_group_lock));
+
+    siginfo_t info = {};
+    info.si_signo = sig;
+    info.si_code = SI_KERNEL;
+
+    for(process_t* it = group->members; it; it = it->group_next) {
+        signal_send(it, 0, &info);
+    }
+}
+
+void session_incref(session_t* session)
+{
+    atomic_fetch_add(&session->refcount, 1, ATOMIC_RELAXED);
+}
+
+void session_decref(session_t* session)
+{
+    if(1 == atomic_fetch_sub(&session->refcount, 1, ATOMIC_ACQ_REL)) {
+        slab_free(session);
+    }
 }
 
 int process_group_attach(process_t* restrict process, process_t* restrict parent)
@@ -229,7 +266,7 @@ process_group_t* process_group_find(pid_t pgid)
 {
     mutex_acquire(&process_group_lock);
 
-    process_group_t* group = find_locked(pgid);
+    process_group_t* group = find_in_table(pgid);
 
     if(group) {
         process_group_incref(group);
@@ -306,7 +343,7 @@ pid_t process_group_new_session(process_t* process)
 
     // Whether or not the process is in it, a group with
     // its id would clash with the one the session needs
-    if(find_locked(pid)) {
+    if(find_in_table(pid)) {
         mutex_release(&process_group_lock);
         return -EPERM;
     }
@@ -366,7 +403,7 @@ int process_group_for_each(pid_t pgid, void (*callback)(process_t* restrict proc
 {
     mutex_acquire(&process_group_lock);
 
-    process_group_t* group = find_locked(pgid);
+    process_group_t* group = find_in_table(pgid);
 
     if(group == nullptr) {
         mutex_release(&process_group_lock);
