@@ -571,13 +571,20 @@ int pci_root_add(const firmware_node_t* restrict node, unsigned segment, unsigne
         return -ENOMEM;
     }
 
+    int retval = firmware_node_claim(node);
+
+    if(retval < 0) {
+        kfree(root);
+        return retval;
+    }
+
     root->segment = segment;
     root->num_windows = 0;
 
     firmware_node_for_each_resource(node, &collect_window, root);
 
     mutex_acquire(&pci_mutex);
-    int retval = add_bus(root, nullptr, config, node, bus);
+    retval = add_bus(root, nullptr, config, node, bus);
     mutex_release(&pci_mutex);
 
     if(retval < 0) {

@@ -88,6 +88,12 @@ struct firmware_node_s {
 /// @retval -ENODEV The system has no firmware tables to describe its devices
 int firmware_root(firmware_node_t* restrict root);
 
+/// Marks the node as a device of a bus, so the platform bus leaves it and all below it alone
+/// @retval -EBUSY Another bus has it
+int firmware_node_claim(const firmware_node_t* restrict node);
+
+bool firmware_node_is_claimed(const firmware_node_t* restrict node) __nodiscard;
+
 static __always_inline bool firmware_node_is_present(const firmware_node_t* restrict node)
 {
     return node->ops->is_present(node);

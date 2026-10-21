@@ -217,6 +217,7 @@ pci_config_t* pci_config_find(unsigned segment, unsigned bus) __nodiscard;
 
 /// Scans the hierarchy below a host bridge, with the windows and interrupt routes the node gives it
 /// @retval -ENODEV No way reaches the configuration space of the root bus
+/// @retval -EBUSY Another bus has the node
 int pci_root_add(const firmware_node_t* restrict node, unsigned segment, unsigned bus);
 
 int pci_driver_add(pci_driver_t* restrict driver);
