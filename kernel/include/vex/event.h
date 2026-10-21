@@ -48,6 +48,16 @@ ssize_t event_await_timeout(event_t** restrict events, size_t count, uint64_t ti
 /// as it is and runs again or fails with EINTR on the way out
 ssize_t event_await_interruptible(event_t** restrict events, size_t count);
 
+/// event_await_interruptible that releases the lock guarding the condition waited for only once
+/// the thread listens, so a trigger made under that lock after the caller checked can't be missed
+/// @pre The caller holds the lock, taken with spinlock_acquire_intr, which returned intr_state
+/// @post The lock is released and interrupts are back to intr_state, whatever the result
+/// @return The index of the event in events
+/// @retval -ENOMEM     No memory to register the thread as a listener
+/// @retval -ERESTART   Work is pending; a system call returns this
+/// as it is and runs again or fails with EINTR on the way out
+ssize_t event_await_interruptible_unlock(event_t** restrict events, size_t count, spinlock_t* restrict lock, bool intr_state);
+
 /// Wakes every thread waiting on the event
 /// @param linger_pending With nobody waiting, keep the wakeup for the next await
 /// instead; each call adds one, like a semaphore

@@ -11,18 +11,33 @@
 
 static_assert(sizeof(event_t) <= SLAB_MAX_SIZE);
 
-// A deadline of zero waits forever
-static ssize_t await_until(event_t** restrict events, size_t count, uint64_t deadline, bool interruptible)
+static void release_locks(event_t** restrict events, size_t count, spinlock_t* restrict lock)
 {
-    ssize_t result = event_await(events, count);
-
-    if(result >= 0) {
-        return result;
+    for(size_t i = 0; i < count; ++i) {
+        spinlock_release(&events[i]->lock);
     }
 
+    if(lock) {
+        raw_spinlock_release(lock);
+    }
+}
+
+// A deadline of zero waits forever. A lock, held by the caller as spinlock_acquire_intr
+// left it, is released only once the thread listens, together with the events' locks
+static ssize_t await_until(event_t** restrict events, size_t count, uint64_t deadline, bool interruptible, spinlock_t* restrict lock,
+    bool intr_state)
+{
     thread_t* thread = this_thread();
 
-    bool intr_state = disable_interrupts();
+    if(lock == nullptr) {
+        ssize_t result = event_await(events, count);
+
+        if(result >= 0) {
+            return result;
+        }
+
+        intr_state = disable_interrupts();
+    }
 
     for(size_t i = 0; i < count; ++i) {
         spinlock_acquire(&events[i]->lock);
@@ -32,13 +47,8 @@ static ssize_t await_until(event_t** restrict events, size_t count, uint64_t dea
     for(size_t i = 0; i < count; ++i) {
         if(events[i]->num_pending > 0) {
             events[i]->num_pending -= 1;
-
-            for(size_t j = 0; j < count; ++j) {
-                spinlock_release(&events[j]->lock);
-            }
-
+            release_locks(events, count, lock);
             restore_interrupts(intr_state);
-
             return i;
         }
     }
@@ -47,10 +57,7 @@ static ssize_t await_until(event_t** restrict events, size_t count, uint64_t dea
         event_t** grown = krealloc(thread->events, count * sizeof(event_t*));
 
         if(grown == nullptr) {
-            for(size_t i = 0; i < count; ++i) {
-                spinlock_release(&events[i]->lock);
-            }
-
+            release_locks(events, count, lock);
             restore_interrupts(intr_state);
             return -ENOMEM;
         }
@@ -85,10 +92,7 @@ static ssize_t await_until(event_t** restrict events, size_t count, uint64_t dea
                     }
                 }
 
-                for(size_t j = 0; j < count; ++j) {
-                    spinlock_release(&events[j]->lock);
-                }
-
+                release_locks(events, count, lock);
                 restore_interrupts(intr_state);
                 return -ENOMEM;
             }
@@ -112,9 +116,7 @@ static ssize_t await_until(event_t** restrict events, size_t count, uint64_t dea
         sched_wake_at(thread, deadline);
     }
 
-    for(size_t i = 0; i < count; ++i) {
-        spinlock_release(&events[i]->lock);
-    }
+    release_locks(events, count, lock);
 
     // sched_yield waits for its own IPI, so interrupts have to be back on first
     restore_interrupts(intr_state);
@@ -212,7 +214,7 @@ ssize_t event_await(event_t** restrict events, size_t count)
 
 ssize_t event_await_blocking(event_t** restrict events, size_t count)
 {
-    return await_until(events, count, 0, false);
+    return await_until(events, count, 0, false, nullptr, false);
 }
 
 ssize_t event_await_timeout(event_t** restrict events, size_t count, uint64_t timeout_nsec)
@@ -223,12 +225,17 @@ ssize_t event_await_timeout(event_t** restrict events, size_t count, uint64_t ti
         deadline = UINT64_MAX;
     }
 
-    return await_until(events, count, deadline, false);
+    return await_until(events, count, deadline, false, nullptr, false);
 }
 
 ssize_t event_await_interruptible(event_t** restrict events, size_t count)
 {
-    return await_until(events, count, 0, true);
+    return await_until(events, count, 0, true, nullptr, false);
+}
+
+ssize_t event_await_interruptible_unlock(event_t** restrict events, size_t count, spinlock_t* restrict lock, bool intr_state)
+{
+    return await_until(events, count, 0, true, lock, intr_state);
 }
 
 size_t event_trigger(event_t* restrict event, bool linger_pending)
