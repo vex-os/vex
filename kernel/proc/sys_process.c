@@ -312,7 +312,7 @@ static intptr_t wait_child(process_t* restrict caller, pid_t pid, const process_
 
         if(target == nullptr && has_match) {
             event_t* child_exited = &caller->child_exited;
-            ssize_t result = event_await_interruptible_unlock(&child_exited, 1, &caller->lock, intr_state);
+            ssize_t result = event_await_unlock(&child_exited, 1, &caller->lock, intr_state, 0);
 
             if(result < 0) {
                 return result;

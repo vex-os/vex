@@ -11,6 +11,18 @@
 
 static_assert(sizeof(event_t) <= SLAB_MAX_SIZE);
 
+// Never zero, which await_until takes as no deadline
+static uint64_t deadline_after(uint64_t timeout_nsec)
+{
+    uint64_t deadline = clock_source_now_ns() + timeout_nsec;
+
+    if(deadline < timeout_nsec || deadline == 0) {
+        deadline = UINT64_MAX;
+    }
+
+    return deadline;
+}
+
 static void release_locks(event_t** restrict events, size_t count, spinlock_t* restrict lock)
 {
     for(size_t i = 0; i < count; ++i) {
@@ -219,13 +231,7 @@ ssize_t event_await_blocking(event_t** restrict events, size_t count)
 
 ssize_t event_await_timeout(event_t** restrict events, size_t count, uint64_t timeout_nsec)
 {
-    uint64_t deadline = clock_source_now_ns() + timeout_nsec;
-
-    if(deadline < timeout_nsec || deadline == 0) {
-        deadline = UINT64_MAX;
-    }
-
-    return await_until(events, count, deadline, false, nullptr, false);
+    return await_until(events, count, deadline_after(timeout_nsec), false, nullptr, false);
 }
 
 ssize_t event_await_interruptible(event_t** restrict events, size_t count)
@@ -233,9 +239,15 @@ ssize_t event_await_interruptible(event_t** restrict events, size_t count)
     return await_until(events, count, 0, true, nullptr, false);
 }
 
-ssize_t event_await_interruptible_unlock(event_t** restrict events, size_t count, spinlock_t* restrict lock, bool intr_state)
+ssize_t event_await_unlock(event_t** restrict events, size_t count, spinlock_t* restrict lock, bool intr_state, uint64_t timeout_nsec)
 {
-    return await_until(events, count, 0, true, lock, intr_state);
+    uint64_t deadline = 0;
+
+    if(timeout_nsec) {
+        deadline = deadline_after(timeout_nsec);
+    }
+
+    return await_until(events, count, deadline, true, lock, intr_state);
 }
 
 size_t event_trigger(event_t* restrict event, bool linger_pending)
