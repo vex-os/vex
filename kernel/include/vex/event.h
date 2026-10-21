@@ -7,6 +7,7 @@ typedef struct thread_s thread_t;
 
 typedef struct event_listener_s event_listener_t;
 typedef struct event_s event_t;
+typedef struct event_deferral_s event_deferral_t;
 
 struct event_listener_s {
     thread_t* thread;
@@ -19,6 +20,12 @@ struct event_s {
     uint32_t num_listeners;
     uint32_t max_listeners;
     event_listener_t* listeners;
+};
+
+struct event_deferral_s {
+    event_deferral_t* next;
+    event_t* event;
+    bool queued;
 };
 
 void event_init(event_t* restrict event);
@@ -67,3 +74,11 @@ ssize_t event_await_unlock(event_t** restrict events, size_t count, spinlock_t* 
 size_t event_trigger(event_t* restrict event, bool linger_pending);
 
 void event_reset(event_t* restrict event);
+
+/// Triggers the event from the next scheduler tick on any hart, keeping at most one wakeup for the next await
+/// @note Takes no lock, so it works where event_trigger can't, such as in code the scheduler's locks may be held around
+void event_trigger_deferred(event_deferral_t* restrict deferral);
+
+/// Triggers the events of the deferrals queued so far
+/// @pre Called by the scheduler tick, with interrupts disabled
+void event_run_deferred(void);

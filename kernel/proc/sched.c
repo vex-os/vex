@@ -3,6 +3,7 @@
 #include <vex/atomic.h>
 #include <vex/clockevt.h>
 #include <vex/clocksrc.h>
+#include <vex/event.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/irq.h>
@@ -253,6 +254,7 @@ static void sched_irq_handler(unsigned number, const hart_context_t* restrict ct
     clock_source_update();
 
     wake_expired();
+    event_run_deferred();
 
     hart_local_t* hart = this_hart();
 

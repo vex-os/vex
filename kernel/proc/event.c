@@ -11,6 +11,8 @@
 
 static_assert(sizeof(event_t) <= SLAB_MAX_SIZE);
 
+static event_deferral_t* deferred_head = nullptr;
+
 // Never zero, which await_until takes as no deadline
 static uint64_t deadline_after(uint64_t timeout_nsec)
 {
@@ -178,6 +180,41 @@ static ssize_t await_until(event_t** restrict events, size_t count, uint64_t dea
     return thread->wakeup_index;
 }
 
+static size_t trigger(event_t* restrict event, uint32_t max_pending)
+{
+    bool intr_state = disable_interrupts();
+
+    spinlock_acquire(&event->lock);
+
+    if(event->num_listeners == 0) {
+        if(event->num_pending < max_pending) {
+            event->num_pending += 1;
+        }
+
+        spinlock_release(&event->lock);
+        restore_interrupts(intr_state);
+        return 0;
+    }
+
+    for(size_t i = 0; i < event->num_listeners; ++i) {
+        event_listener_t* dest = &event->listeners[i];
+        thread_t* thread = dest->thread;
+
+        thread->wakeup_index = dest->wakeup_index;
+
+        sched_enqueue(thread);
+    }
+
+    size_t num_handled = event->num_listeners;
+
+    event->num_listeners = 0;
+
+    spinlock_release(&event->lock);
+    restore_interrupts(intr_state);
+
+    return num_handled;
+}
+
 void event_init(event_t* restrict event)
 {
     event->lock = SPINLOCK_INIT;
@@ -252,37 +289,11 @@ ssize_t event_await_unlock(event_t** restrict events, size_t count, spinlock_t* 
 
 size_t event_trigger(event_t* restrict event, bool linger_pending)
 {
-    bool intr_state = disable_interrupts();
-
-    spinlock_acquire(&event->lock);
-
-    if(event->num_listeners == 0) {
-        if(linger_pending) {
-            event->num_pending += 1;
-        }
-
-        spinlock_release(&event->lock);
-        restore_interrupts(intr_state);
-        return 0;
+    if(linger_pending) {
+        return trigger(event, UINT32_MAX);
     }
 
-    for(size_t i = 0; i < event->num_listeners; ++i) {
-        event_listener_t* dest = &event->listeners[i];
-        thread_t* thread = dest->thread;
-
-        thread->wakeup_index = dest->wakeup_index;
-
-        sched_enqueue(thread);
-    }
-
-    size_t num_handled = event->num_listeners;
-
-    event->num_listeners = 0;
-
-    spinlock_release(&event->lock);
-    restore_interrupts(intr_state);
-
-    return num_handled;
+    return trigger(event, 0U);
 }
 
 void event_reset(event_t* restrict event)
@@ -290,4 +301,34 @@ void event_reset(event_t* restrict event)
     bool intr_state = spinlock_acquire_intr(&event->lock);
     event->num_pending = 0;
     spinlock_release_intr(&event->lock, intr_state);
+}
+
+void event_trigger_deferred(event_deferral_t* restrict deferral)
+{
+    if(atomic_exchange(&deferral->queued, true, ATOMIC_ACQ_REL)) {
+        return;
+    }
+
+    event_deferral_t* head = atomic_load(&deferred_head, ATOMIC_RELAXED);
+
+    do {
+        deferral->next = head;
+    } while(!atomic_cmpxchg_weak(&deferred_head, &head, deferral, ATOMIC_RELEASE, ATOMIC_RELAXED));
+}
+
+void event_run_deferred(void)
+{
+    event_deferral_t* it = atomic_exchange(&deferred_head, nullptr, ATOMIC_ACQUIRE);
+
+    while(it) {
+        event_deferral_t* next = it->next;
+
+        // Unqueued, the deferral may be queued again over its next, so that's read first;
+        // a deferred trigger after the store queues it again, one before is served below
+        atomic_store(&it->queued, false, ATOMIC_RELEASE);
+
+        trigger(it->event, 1U);
+
+        it = next;
+    }
 }
