@@ -7,3 +7,25 @@ config SERIAL_TEST
       port, reading it gives what the port sent, and an ioctl
       on it receives a byte with a line error. For the
       userspace tests of serial ports and terminals
+
+config UART16550
+    bool "16550 UARTs"
+    default y
+    help
+      Serial ports on a 16550 or a compatible UART, such as
+      the COM ports of a PC
+
+config UART16550_ISA
+    bool "16550 UARTs on the ISA bus"
+    depends on UART16550 && ISA
+    default y
+    help
+      The COM ports of the chipset, as the firmware describes them
+
+config UART16550_PCI
+    bool "16550 UARTs on PCI serial cards"
+    depends on UART16550 && PCI
+    default y
+    help
+      PCI serial controllers of the 16550 interface, and the
+      pci-serial cards of QEMU with up to four ports
