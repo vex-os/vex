@@ -68,6 +68,13 @@ struct firmware_node_ops_s {
     /// @retval -ENOENT The node has no resources
     int (*for_each_resource)(const firmware_node_t* restrict node, void (*callback)(const firmware_resource_t* resource, void* arg),
         void* arg);
+
+    /// Gets the interrupt that an INTx pin of a device on the PCI bus below the node raises, as ACPI's _PRT gives it
+    /// @param slot The device number on that bus
+    /// @param pin 0 for INTA through 3 for INTD
+    /// @retval -ENOENT The node doesn't route the pin, so it swizzles on through the bridge above
+    /// @retval -ENXIO The pin goes to an interrupt link that has no interrupt yet
+    int (*route_pci_interrupt)(const firmware_node_t* restrict node, unsigned slot, unsigned pin, firmware_irq_t* restrict irq);
 };
 
 // A device as the firmware describes it, held by value; the
@@ -111,4 +118,10 @@ static __always_inline int firmware_node_for_each_resource(const firmware_node_t
     void (*callback)(const firmware_resource_t* resource, void* arg), void* arg)
 {
     return node->ops->for_each_resource(node, callback, arg);
+}
+
+static __always_inline int firmware_node_route_pci_interrupt(const firmware_node_t* restrict node, unsigned slot, unsigned pin,
+    firmware_irq_t* restrict irq)
+{
+    return node->ops->route_pci_interrupt(node, slot, pin, irq);
 }

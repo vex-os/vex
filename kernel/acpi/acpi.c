@@ -1,3 +1,4 @@
+#include <arch/acpi.h>
 #include <uacpi/uacpi.h>
 #include <vex/errno.h>
 #include <vex/hart.h>
@@ -44,6 +45,13 @@ static void init_acpi(void)
 
     if(uacpi_unlikely_error(status)) {
         panic("acpi: uacpi_namespace_initialize: %s", uacpi_status_to_string(status));
+    }
+
+    // Through _PIC, which picks the routes _PRT returns
+    status = uacpi_set_interrupt_model(ARCH_ACPI_INTERRUPT_MODEL);
+
+    if(uacpi_unlikely_error(status)) {
+        panic("acpi: uacpi_set_interrupt_model: %s", uacpi_status_to_string(status));
     }
 
     disable_interrupts();

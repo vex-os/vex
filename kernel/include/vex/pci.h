@@ -1,10 +1,14 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/firmware.h>
+#include <vex/intctl.h>
 #include <vex/io.h>
 #include <vex/irq.h>
 #include <vex/limits.h>
 #include <vex/types.h>
+
+typedef struct pci_bus_s pci_bus_t;
 
 #define PCI_CFG_VENDOR_ID       0x00
 #define PCI_CFG_DEVICE_ID       0x02
@@ -33,6 +37,10 @@
 #define PCI_CFG_INT_PIN         0x3D
 #define PCI_CFG_MIN_GNT         0x3E
 #define PCI_CFG_MAX_LAT         0x3F
+
+#define PCI_CFG_PRIMARY_BUS     0x18 // Of a PCI-PCI bridge
+#define PCI_CFG_SECONDARY_BUS   0x19
+#define PCI_CFG_SUBORDINATE_BUS 0x1A
 
 #define PCI_HDR_TYPE_MASK    0x7F
 #define PCI_HDR_TYPE_NORMAL  0x00
@@ -80,59 +88,74 @@
 #define PCI_MSI_CONTROL_64BIT  0x0080 // 64 Bit Address Capable
 #define PCI_MSI_CONTROL_PVM    0x0100 // Per-Vector Masking Capable
 
+#define PCI_BUS_MAX      256
+#define PCI_DEVICE_MAX   32
+#define PCI_FUNCTION_MAX 8
+
+typedef struct pci_address_s pci_address_t;
 typedef struct pci_bar_s pci_bar_t;
-typedef struct pci_bus_s pci_bus_t;
-typedef struct pci_bus_ops_s pci_bus_ops_t;
-typedef struct pci_device_s pci_device_t;
-typedef struct pci_bus_private_s pci_bus_private_t;
-typedef struct pci_driver_s pci_driver_t;
+typedef struct pci_config_ops_s pci_config_ops_t;
+typedef struct pci_config_private_s pci_config_private_t;
+typedef struct pci_config_s pci_config_t;
 typedef struct pci_device_private_s pci_device_private_t;
+typedef struct pci_device_s pci_device_t;
 typedef struct pci_driver_id_s pci_driver_id_t;
 typedef struct pci_driver_ops_s pci_driver_ops_t;
 typedef struct pci_driver_private_s pci_driver_private_t;
+typedef struct pci_driver_s pci_driver_t;
+
+struct pci_address_s {
+    unsigned segment;
+    unsigned bus;
+    unsigned device;
+    unsigned function;
+};
 
 struct pci_bar_s {
     io_region_t io;
-    uintptr_t phys; // Of a memory BAR
-    unsigned vprot; // Of a memory BAR's mapping
+    uintptr_t phys; // Of a BAR the CPU reaches through memory
+    unsigned vprot; // Of that mapping
 };
 
-struct pci_bus_ops_s {
-    uint8_t (*read8)(pci_bus_t* restrict bus, unsigned device_index, unsigned function, uintptr_t offset);
-    uint16_t (*read16)(pci_bus_t* restrict bus, unsigned device_index, unsigned function, uintptr_t offset);
-    uint32_t (*read32)(pci_bus_t* restrict bus, unsigned device_index, unsigned function, uintptr_t offset);
-    void (*write8)(pci_bus_t* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint8_t value);
-    void (*write16)(pci_bus_t* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint16_t value);
-    void (*write32)(pci_bus_t* restrict bus, unsigned device_index, unsigned function, uintptr_t offset, uint32_t value);
+struct pci_config_ops_s {
+    uint8_t (*read8)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset);
+    uint16_t (*read16)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset);
+    uint32_t (*read32)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset);
+    void (*write8)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset, uint8_t value);
+    void (*write16)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset, uint16_t value);
+    void (*write32)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset, uint32_t value);
 };
 
-struct pci_bus_private_s {
-    pci_bus_t* next;
-    pci_device_t* devices;
+struct pci_config_private_s {
+    pci_config_t* next;
 };
 
-struct pci_bus_s {
-    pci_bus_private_t priv;
-    const pci_bus_ops_t* ops;
+// A way to reach the configuration space of the buses bus_start through bus_end of a segment
+struct pci_config_s {
+    pci_config_private_t priv;
+    const pci_config_ops_t* ops;
     const char* name;
     unsigned segment;
-    unsigned index;
+    unsigned bus_start;
+    unsigned bus_end;
     void* ctxdata;
 };
 
 struct pci_device_private_s {
-    pci_device_t* next;
+    pci_device_t* next; // On its bus
+    pci_bus_t* bus;
+    pci_config_t* config;
     pci_driver_t* driver;
-    unsigned irq_number;
+    firmware_node_t node;          // The companion; ops is nullptr without one
+    unsigned irq_number;           // Of MSI, UINT_MAX without
+    interrupt_action_t* interrupt; // Of INTx
     pci_bar_t bars[6];
     unsigned bars_mapped; // bitmask, bit N set = bars[N] initialized
 };
 
 struct pci_device_s {
     pci_device_private_t priv;
-    pci_bus_t* bus;
-    unsigned index;
-    unsigned function;
+    pci_address_t address;
     unsigned vendor_id;
     unsigned device_id;
     unsigned class_id;
@@ -186,13 +209,22 @@ struct pci_driver_s {
         .subclass_id = UINT_MAX, \
     })
 
-int pci_bus_add(pci_bus_t* restrict bus);
-int pci_bus_remove(pci_bus_t* restrict bus);
+/// @retval -EEXIST Another way already reaches some of the buses
+int pci_config_add(pci_config_t* restrict config);
+
+/// @return The way to reach the bus, which stays for good, or nullptr when there is none
+pci_config_t* pci_config_find(unsigned segment, unsigned bus) __nodiscard;
+
+/// Scans the hierarchy below a host bridge, with the windows and interrupt routes the node gives it
+/// @retval -ENODEV No way reaches the configuration space of the root bus
+int pci_root_add(const firmware_node_t* restrict node, unsigned segment, unsigned bus);
 
 int pci_driver_add(pci_driver_t* restrict driver);
 int pci_driver_remove(pci_driver_t* restrict driver);
 
-pci_device_t* pci_find(unsigned segment, unsigned bus, unsigned device, unsigned function) __nodiscard;
+/// Gets the firmware's node for the device
+/// @retval -ENOENT The firmware doesn't describe the device
+int pci_get_companion(const pci_device_t* restrict device, firmware_node_t* restrict node);
 
 uint8_t pci_cfg_read8(pci_device_t* restrict device, uintptr_t offset);
 uint16_t pci_cfg_read16(pci_device_t* restrict device, uintptr_t offset);
@@ -215,5 +247,41 @@ uint8_t pci_get_cap(pci_device_t* restrict device, uint8_t cap_id) __nodiscard;
 void pci_enable_busmaster(pci_device_t* restrict device);
 void pci_disable_busmaster(pci_device_t* restrict device);
 
+/// Takes MSI where the device has it, or its INTx pin as the firmware routes it, shared with other devices
+/// @retval -ENODEV The device has neither, or the firmware routes no interrupt for the pin
+/// @retval -EBUSY The pin's GSI is taken by a handler that doesn't share it
 int pci_request_irq(pci_device_t* restrict device, irq_handler_t handler, void* restrict ctxdata);
 void pci_release_irq(pci_device_t* restrict device);
+
+static __always_inline uint8_t pci_config_read8(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset)
+{
+    return config->ops->read8(config, address, offset);
+}
+
+static __always_inline uint16_t pci_config_read16(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset)
+{
+    return config->ops->read16(config, address, offset);
+}
+
+static __always_inline uint32_t pci_config_read32(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset)
+{
+    return config->ops->read32(config, address, offset);
+}
+
+static __always_inline void pci_config_write8(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset,
+    uint8_t value)
+{
+    config->ops->write8(config, address, offset, value);
+}
+
+static __always_inline void pci_config_write16(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset,
+    uint16_t value)
+{
+    config->ops->write16(config, address, offset, value);
+}
+
+static __always_inline void pci_config_write32(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset,
+    uint32_t value)
+{
+    config->ops->write32(config, address, offset, value);
+}

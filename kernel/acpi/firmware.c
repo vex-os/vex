@@ -14,6 +14,7 @@
 
 typedef struct child_walk_s child_walk_t;
 typedef struct resource_walk_s resource_walk_t;
+typedef struct link_walk_s link_walk_t;
 
 struct child_walk_s {
     void (*callback)(const firmware_node_t* child, void* arg);
@@ -23,6 +24,11 @@ struct child_walk_s {
 struct resource_walk_s {
     void (*callback)(const firmware_resource_t* resource, void* arg);
     void* arg;
+};
+
+struct link_walk_s {
+    firmware_irq_t* irq;
+    bool found;
 };
 
 static const firmware_node_ops_t acpi_node_ops;
@@ -332,6 +338,103 @@ static int acpi_node_for_each_resource(const firmware_node_t* restrict node,
     return 0;
 }
 
+static void take_link_irq(link_walk_t* restrict walk, uint32_t number, uacpi_u8 triggering, uacpi_u8 polarity, uacpi_u8 sharing)
+{
+    walk->irq->number = number;
+    walk->irq->trigger = trigger_of(triggering);
+    walk->irq->polarity = polarity_of(polarity);
+    walk->irq->flags = sharing == UACPI_SHARED ? FIRMWARE_IRQ_SHARED : 0;
+    walk->found = true;
+}
+
+// A link's interrupt is a GSI even when a legacy IRQ descriptor gives it
+static uacpi_iteration_decision visit_link_resource(void* arg, uacpi_resource* resource)
+{
+    link_walk_t* walk = arg;
+
+    if(resource->type == UACPI_RESOURCE_TYPE_IRQ && resource->irq.num_irqs) {
+        take_link_irq(walk, resource->irq.irqs[0], resource->irq.triggering, resource->irq.polarity, resource->irq.sharing);
+        return UACPI_ITERATION_DECISION_BREAK;
+    }
+
+    if(resource->type == UACPI_RESOURCE_TYPE_EXTENDED_IRQ && resource->extended_irq.num_irqs) {
+        take_link_irq(walk, resource->extended_irq.irqs[0], resource->extended_irq.triggering, resource->extended_irq.polarity,
+            resource->extended_irq.sharing);
+        return UACPI_ITERATION_DECISION_BREAK;
+    }
+
+    return UACPI_ITERATION_DECISION_CONTINUE;
+}
+
+// UNDONE: a link without an interrupt needs one picked from its _PRS and set through _SRS
+static int route_through_link(uacpi_namespace_node* restrict link, firmware_irq_t* restrict irq)
+{
+    link_walk_t walk = {};
+    walk.irq = irq;
+
+    if(uacpi_unlikely_error(uacpi_for_each_device_resource(link, "_CRS", &visit_link_resource, &walk))) {
+        return -ENXIO;
+    }
+
+    if(!walk.found) {
+        return -ENXIO;
+    }
+
+    return 0;
+}
+
+static const uacpi_pci_routing_table_entry* find_route(const uacpi_pci_routing_table* restrict table, unsigned slot, unsigned pin)
+{
+    for(uacpi_size i = 0; i < table->num_entries; ++i) {
+        const uacpi_pci_routing_table_entry* entry = &table->entries[i];
+
+        if(slot == (entry->address >> 16) && entry->pin == pin) {
+            return entry;
+        }
+    }
+
+    return nullptr;
+}
+
+// ACPI 6.5, 6.2.13 _PRT: without a source the index is the GSI, level-triggered and active-low
+static int route_entry(const uacpi_pci_routing_table_entry* restrict entry, firmware_irq_t* restrict irq)
+{
+    if(entry->source) {
+        return route_through_link(entry->source, irq);
+    }
+
+    irq->number = entry->index;
+    irq->trigger = TRIGGER_LEVEL;
+    irq->polarity = ACTIVE_LOW;
+    irq->flags = FIRMWARE_IRQ_SHARED;
+
+    return 0;
+}
+
+static int acpi_node_route_pci_interrupt(const firmware_node_t* restrict node, unsigned slot, unsigned pin, firmware_irq_t* restrict irq)
+{
+    uacpi_pci_routing_table* table;
+
+    if(uacpi_unlikely_error(uacpi_get_pci_routing_table(namespace_node_of(node), &table))) {
+        return -ENOENT;
+    }
+
+    const uacpi_pci_routing_table_entry* entry = find_route(table, slot, pin);
+
+    int retval;
+
+    if(entry == nullptr) {
+        retval = -ENOENT;
+    }
+    else {
+        retval = route_entry(entry, irq);
+    }
+
+    uacpi_free_pci_routing_table(table);
+
+    return retval;
+}
+
 static const firmware_node_ops_t acpi_node_ops = {
     .is_present = &acpi_node_is_present,
     .matches = &acpi_node_matches,
@@ -339,6 +442,7 @@ static const firmware_node_ops_t acpi_node_ops = {
     .get_id = &acpi_node_get_id,
     .for_each_child = &acpi_node_for_each_child,
     .for_each_resource = &acpi_node_for_each_resource,
+    .route_pci_interrupt = &acpi_node_route_pci_interrupt,
 };
 
 int firmware_root(firmware_node_t* restrict root)

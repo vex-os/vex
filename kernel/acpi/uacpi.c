@@ -1,5 +1,4 @@
 #include "uacpi/status.h"
-#include <arch/irq.h>
 #include <uacpi/kernel_api.h>
 #include <vex/atomic.h>
 #include <vex/clocksrc.h>
@@ -12,7 +11,6 @@
 #include <vex/irq.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/limits.h>
 #include <vex/memmap.h>
 #include <vex/mmio.h>
 #include <vex/page.h>
@@ -30,6 +28,7 @@
 typedef struct acpi_work_s acpi_work_t;
 typedef struct acpi_semaphore_s acpi_semaphore_t;
 typedef struct acpi_irq_trampoline_s acpi_irq_trampoline_t;
+typedef struct acpi_pci_function_s acpi_pci_function_t;
 
 struct acpi_work_s {
     acpi_work_t* next;
@@ -43,14 +42,19 @@ struct acpi_semaphore_s {
 };
 
 struct acpi_irq_trampoline_s {
-    unsigned irq_number;
+    interrupt_action_t* action;
     uacpi_interrupt_handler handler;
     uacpi_handle ctxdata;
-    uint32_t gsi;
+};
+
+struct acpi_pci_function_s {
+    pci_config_t* config;
+    pci_address_t address;
 };
 
 static_assert(sizeof(acpi_work_t) <= SLAB_MAX_SIZE);
 static_assert(sizeof(acpi_semaphore_t) <= SLAB_MAX_SIZE);
+static_assert(sizeof(acpi_pci_function_t) <= SLAB_MAX_SIZE);
 
 static acpi_work_t* work_head;
 static acpi_work_t* work_tail;
@@ -324,62 +328,87 @@ void uacpi_kernel_sleep(uacpi_u64 msec)
     }
 }
 
+// AML may reach a function before the bus it is on is scanned, or one that isn't there
 uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handle* out_handle)
 {
-    pci_device_t* dev = pci_find(address.segment, address.bus, address.device, address.function);
+    pci_config_t* config = pci_config_find(address.segment, address.bus);
 
-    if(dev == nullptr) {
+    if(config == nullptr) {
         return UACPI_STATUS_NOT_FOUND;
     }
 
-    *out_handle = dev;
+    acpi_pci_function_t* function = slab_alloc(sizeof(acpi_pci_function_t));
+
+    if(function == nullptr) {
+        return UACPI_STATUS_OUT_OF_MEMORY;
+    }
+
+    function->config = config;
+    function->address.segment = address.segment;
+    function->address.bus = address.bus;
+    function->address.device = address.device;
+    function->address.function = address.function;
+
+    *out_handle = function;
 
     return UACPI_STATUS_OK;
 }
 
 void uacpi_kernel_pci_device_close(uacpi_handle handle)
 {
-    // empty
+    slab_free(handle);
 }
 
 uacpi_status uacpi_kernel_pci_read8(uacpi_handle handle, uacpi_size off, uacpi_u8* value)
 {
-    *value = pci_cfg_read8(handle, off);
+    acpi_pci_function_t* function = handle;
+
+    *value = pci_config_read8(function->config, &function->address, off);
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_pci_read16(uacpi_handle handle, uacpi_size off, uacpi_u16* value)
 {
-    *value = pci_cfg_read16(handle, off);
+    acpi_pci_function_t* function = handle;
+
+    *value = pci_config_read16(function->config, &function->address, off);
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_pci_read32(uacpi_handle handle, uacpi_size off, uacpi_u32* value)
 {
-    *value = pci_cfg_read32(handle, off);
+    acpi_pci_function_t* function = handle;
+
+    *value = pci_config_read32(function->config, &function->address, off);
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_pci_write8(uacpi_handle handle, uacpi_size off, uacpi_u8 value)
 {
-    pci_cfg_write8(handle, off, value);
+    acpi_pci_function_t* function = handle;
+
+    pci_config_write8(function->config, &function->address, off, value);
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_pci_write16(uacpi_handle handle, uacpi_size off, uacpi_u16 value)
 {
-    pci_cfg_write16(handle, off, value);
+    acpi_pci_function_t* function = handle;
+
+    pci_config_write16(function->config, &function->address, off, value);
 
     return UACPI_STATUS_OK;
 }
 
 uacpi_status uacpi_kernel_pci_write32(uacpi_handle handle, uacpi_size off, uacpi_u32 value)
 {
-    pci_cfg_write32(handle, off, value);
+    acpi_pci_function_t* function = handle;
+
+    pci_config_write32(function->config, &function->address, off, value);
 
     return UACPI_STATUS_OK;
 }
@@ -409,30 +438,16 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
 
-    interrupt_controller_t* controller = interrupt_controller_find(gsi);
-
-    if(controller == nullptr) {
-        kfree(trampoline);
-
-        return UACPI_STATUS_NOT_FOUND;
-    }
-
     trampoline->handler = handler;
     trampoline->ctxdata = ctxdata;
-    trampoline->gsi = gsi;
 
-    unsigned irq_number = irq_handler_add(UINT_MAX, &acpi_irq_dispatch, trampoline);
+    int retval = interrupt_attach(gsi, TRIGGER_LEVEL, ACTIVE_LOW, INTERRUPT_SHARED, &acpi_irq_dispatch, trampoline, &trampoline->action);
 
-    if(irq_number == UINT_MAX) {
+    if(retval < 0) {
         kfree(trampoline);
 
-        return UACPI_STATUS_OUT_OF_MEMORY;
+        return retval == -ENOMEM ? UACPI_STATUS_OUT_OF_MEMORY : UACPI_STATUS_NOT_FOUND;
     }
-
-    trampoline->irq_number = irq_number;
-
-    interrupt_controller_route(controller, gsi, irq_number + ARCH_IRQ_BASE, 0, TRIGGER_LEVEL, ACTIVE_LOW);
-    interrupt_controller_unmask(controller, gsi);
 
     *out_handle = trampoline;
 
@@ -443,13 +458,7 @@ uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler ha
 {
     acpi_irq_trampoline_t* trampoline = irq_handle;
 
-    interrupt_controller_t* controller = interrupt_controller_find(trampoline->gsi);
-
-    if(controller) {
-        interrupt_controller_mask(controller, trampoline->gsi);
-    }
-
-    irq_handler_remove(trampoline->irq_number);
+    interrupt_detach(trampoline->action);
     kfree(trampoline);
 
     return UACPI_STATUS_OK;
