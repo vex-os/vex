@@ -141,7 +141,7 @@ static void notify_input_locked(tty_device_t* restrict device)
 static bool notify_output_locked(tty_device_t* restrict device)
 {
     const tty_ring_t* output = &device->priv.output;
-    bool pending = tty_ring_used(output) != 0;
+    bool pending = tty_ring_used(output);
 
     if(tty_ring_room(output) >= TTY_EXPANSION_MAX) {
         event_trigger(&device->priv.writable, false);
@@ -698,7 +698,7 @@ static int set_window_size(tty_device_t* restrict device, uintptr_t argument)
     }
 
     bool intr_state = spinlock_acquire_intr(&device->priv.lock);
-    bool changed = 0 != memcmp(&device->priv.winsize, &winsize, sizeof(winsize));
+    bool changed = memcmp(&device->priv.winsize, &winsize, sizeof(winsize));
     device->priv.winsize = winsize;
     spinlock_release_intr(&device->priv.lock, intr_state);
 

@@ -1,7 +1,7 @@
 #include <vex/errno.h>
 #include <vex/fwnode.h>
 #include <vex/initcall.h>
-#include <vex/isa.h>
+#include <vex/intctl.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/mmio.h>
@@ -279,7 +279,7 @@ int sysbus_request_irq(sysbus_device_t* restrict device, unsigned index, irq_han
     unsigned flags = 0;
 
     if(resource->irq.flags & FWNODE_IRQ_ISA) {
-        isa_irq_route(resource->irq.number, &gsi, &trigger, &polarity);
+        interrupt_isa_route(resource->irq.number, &gsi, &trigger, &polarity);
     }
 
     if(resource->irq.flags & FWNODE_IRQ_SHARED) {

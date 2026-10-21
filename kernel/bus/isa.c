@@ -1,5 +1,3 @@
-#include <uacpi/acpi.h>
-#include <uacpi/tables.h>
 #include <vex/errno.h>
 #include <vex/fwnode.h>
 #include <vex/initcall.h>
@@ -11,18 +9,10 @@
 #include <vex/pci.h>
 #include <vex/string.h>
 
-#define ISA_IRQ_COUNT    16
 #define ISA_RESOURCE_MAX 16
 #define ISA_ID_MAX       16
 
-typedef struct irq_route_info_s irq_route_info_t;
 typedef struct resource_list_s resource_list_t;
-
-struct irq_route_info_s {
-    uint32_t gsi;
-    unsigned trigger;
-    unsigned polarity;
-};
 
 struct isa_bus_s {
     pci_device_t* bridge;
@@ -38,38 +28,10 @@ static const pci_driver_id_t bridge_ids[] = {
     PCI_DEVICE_END(),
 };
 
-static irq_route_info_t isa_irq_table[ISA_IRQ_COUNT];
 static mutex_t isa_mutex = MUTEX_INIT;
 static isa_device_t* device_head = nullptr;
 static isa_device_t** device_tail = &device_head;
 static isa_driver_t* driver_head = nullptr;
-
-static uacpi_iteration_decision isa_iso_madt_callback(uacpi_handle user, struct acpi_entry_hdr* entry)
-{
-    if(entry->type == ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE) {
-        struct acpi_madt_interrupt_source_override* iso = (struct acpi_madt_interrupt_source_override*)(entry);
-
-        if(iso->bus == 0 && iso->source < ISA_IRQ_COUNT) {
-            if(3 == (iso->flags & 3)) {
-                isa_irq_table[iso->source].polarity = ACTIVE_LOW;
-            }
-            else {
-                isa_irq_table[iso->source].polarity = ACTIVE_HIGH;
-            }
-
-            if(3 == ((iso->flags >> 2) & 3)) {
-                isa_irq_table[iso->source].trigger = TRIGGER_LEVEL;
-            }
-            else {
-                isa_irq_table[iso->source].trigger = TRIGGER_EDGE;
-            }
-
-            isa_irq_table[iso->source].gsi = iso->gsi;
-        }
-    }
-
-    return UACPI_ITERATION_DECISION_CONTINUE;
-}
 
 static void device_bind(isa_device_t* restrict device, isa_driver_t* restrict driver)
 {
@@ -338,7 +300,7 @@ int isa_request_irq(isa_device_t* restrict device, unsigned index, irq_handler_t
     unsigned flags = 0;
 
     if(resource->irq.flags & FWNODE_IRQ_ISA) {
-        isa_irq_route(resource->irq.number, &gsi, &trigger, &polarity);
+        interrupt_isa_route(resource->irq.number, &gsi, &trigger, &polarity);
     }
 
     if(resource->irq.flags & FWNODE_IRQ_SHARED) {
@@ -365,36 +327,8 @@ void isa_release_irq(isa_device_t* restrict device, unsigned index)
     device->priv.interrupts[slot] = nullptr;
 }
 
-void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsigned* out_polarity)
-{
-    if(line < ISA_IRQ_COUNT) {
-        *out_gsi = isa_irq_table[line].gsi;
-        *out_trigger = isa_irq_table[line].trigger;
-        *out_polarity = isa_irq_table[line].polarity;
-    }
-    else {
-        *out_gsi = line;
-        *out_trigger = TRIGGER_EDGE;
-        *out_polarity = ACTIVE_HIGH;
-    }
-}
-
 static void init_isa(void)
 {
-    for(uint32_t i = 0; i < ISA_IRQ_COUNT; ++i) {
-        isa_irq_table[i].gsi = i;
-        isa_irq_table[i].trigger = TRIGGER_EDGE;
-        isa_irq_table[i].polarity = ACTIVE_HIGH;
-    }
-
-    uacpi_table madt;
-    uacpi_status status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);
-
-    if(uacpi_likely_success(status)) {
-        uacpi_for_each_subtable(madt.hdr, sizeof(struct acpi_madt), &isa_iso_madt_callback, nullptr);
-        uacpi_table_unref(&madt);
-    }
-
     pci_driver_add(&bridge_driver);
 }
 

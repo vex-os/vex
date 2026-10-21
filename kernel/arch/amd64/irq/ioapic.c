@@ -29,8 +29,17 @@
 #define IOAPIC_VER_MAXREDIR_SHIFT 16
 #define IOAPIC_VER_MAXREDIR_MASK  0xFF
 
+#define ISA_IRQ_COUNT 16
+
+// ACPI 6.5, 5.2.12.5 MPS INTI flags
+#define MPS_INTI_POLARITY_MASK 0x03
+#define MPS_INTI_POLARITY_LOW  0x03
+#define MPS_INTI_TRIGGER_MASK  0x0C
+#define MPS_INTI_TRIGGER_LEVEL 0x0C
+
 typedef struct rte_entry_s rte_entry_t;
 typedef struct ioapic_data_s ioapic_data_t;
+typedef struct isa_route_s isa_route_t;
 
 struct rte_entry_s {
     uint64_t vector : 8;
@@ -50,6 +59,14 @@ static_assert(8 == sizeof(rte_entry_t));
 struct ioapic_data_s {
     volatile uint32_t* base;
 };
+
+struct isa_route_s {
+    uint32_t gsi;
+    unsigned trigger;
+    unsigned polarity;
+};
+
+static isa_route_t isa_routes[ISA_IRQ_COUNT];
 
 static uint32_t ioapic_read(ioapic_data_t* data, uint32_t index)
 {
@@ -132,8 +149,25 @@ static const interrupt_controller_ops_t ioapic_ops = {
     .route = &ioapic_route,
 };
 
+// A flag that conforms to the bus means ISA's own: edge-triggered and active-high
+static void record_override(const struct acpi_madt_interrupt_source_override* restrict iso)
+{
+    if(iso->bus || iso->source >= ISA_IRQ_COUNT) {
+        return;
+    }
+
+    isa_route_t* route = &isa_routes[iso->source];
+    route->gsi = iso->gsi;
+    route->trigger = (iso->flags & MPS_INTI_TRIGGER_MASK) == MPS_INTI_TRIGGER_LEVEL ? TRIGGER_LEVEL : TRIGGER_EDGE;
+    route->polarity = (iso->flags & MPS_INTI_POLARITY_MASK) == MPS_INTI_POLARITY_LOW ? ACTIVE_LOW : ACTIVE_HIGH;
+}
+
 static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct acpi_entry_hdr* entry)
 {
+    if(entry->type == ACPI_MADT_ENTRY_TYPE_INTERRUPT_SOURCE_OVERRIDE) {
+        record_override((struct acpi_madt_interrupt_source_override*)(entry));
+    }
+
     if(entry->type == ACPI_MADT_ENTRY_TYPE_IOAPIC) {
         struct acpi_madt_ioapic* ioapic = (struct acpi_madt_ioapic*)(entry);
 
@@ -181,8 +215,28 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
     return UACPI_ITERATION_DECISION_CONTINUE;
 }
 
+void interrupt_isa_route(unsigned irq, uint32_t* restrict gsi, unsigned* restrict trigger, unsigned* restrict polarity)
+{
+    if(irq >= ISA_IRQ_COUNT) {
+        *gsi = irq;
+        *trigger = TRIGGER_EDGE;
+        *polarity = ACTIVE_HIGH;
+        return;
+    }
+
+    *gsi = isa_routes[irq].gsi;
+    *trigger = isa_routes[irq].trigger;
+    *polarity = isa_routes[irq].polarity;
+}
+
 static void arch_init_ioapic(void)
 {
+    for(unsigned i = 0; i < ISA_IRQ_COUNT; ++i) {
+        isa_routes[i].gsi = i;
+        isa_routes[i].trigger = TRIGGER_EDGE;
+        isa_routes[i].polarity = ACTIVE_HIGH;
+    }
+
     uacpi_table madt;
     uacpi_status status = uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt);
 

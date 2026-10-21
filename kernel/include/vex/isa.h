@@ -67,6 +67,3 @@ void isa_unmap_io(io_region_t* restrict region);
 int isa_request_irq(isa_device_t* restrict device, unsigned index, irq_handler_t handler, void* restrict ctxdata);
 
 void isa_release_irq(isa_device_t* restrict device, unsigned index);
-
-/// Maps an ISA IRQ to its GSI through the MADT's overrides; without one the GSI is the IRQ itself, edge-triggered and active-high
-void isa_irq_route(uint8_t line, uint32_t* out_gsi, unsigned* out_trigger, unsigned* out_polarity);

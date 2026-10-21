@@ -20,6 +20,10 @@ menu "Block devices"
 source "kernel/dev/Kconfig"
 endmenu
 
+menu "Buses"
+source "kernel/bus/Kconfig"
+endmenu
+
 menu "Device drivers"
 source "kernel/drivers/Kconfig"
 endmenu

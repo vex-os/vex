@@ -1,0 +1,15 @@
+config PCI
+    bool "PCI"
+    default y
+    help
+      PCI and PCI Express devices below the host bridges the
+      firmware describes, with the bridges between them
+
+config ISA
+    bool "ISA"
+    depends on PCI
+    default y
+    help
+      Devices behind a PCI-ISA bridge as the firmware describes
+      them, such as the PS/2 controller and COM ports of the
+      chipset

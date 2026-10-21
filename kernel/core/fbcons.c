@@ -479,7 +479,7 @@ console_t* fbcons_attach(const vexfb_info_t* restrict info, void* restrict virt,
 {
     bool depth_supported = info->bpp == 8 || info->bpp == 16 || info->bpp == 32;
 
-    if(!depth_supported || 0 != info->pitch % (info->bpp / 8)) {
+    if(!depth_supported || (info->pitch % (info->bpp / 8))) {
         return nullptr;
     }
 

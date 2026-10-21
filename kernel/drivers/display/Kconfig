@@ -7,6 +7,7 @@ config LIMINEFB
 
 config BOCHSFB
     bool "Bochs and QEMU standard VGA"
+    depends on PCI
     default y
     help
       The Bochs display of QEMU's -vga std, secondary-vga and

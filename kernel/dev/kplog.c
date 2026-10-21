@@ -125,7 +125,7 @@ static off_t kplog_seek(const chr_device_t* restrict device, void* restrict file
 {
     kplog_file_t* file = file_ctxdata;
 
-    if(offset != 0 || (origin != SEEK_SET && origin != SEEK_END)) {
+    if(offset || (origin != SEEK_SET && origin != SEEK_END)) {
         return -EINVAL;
     }
 

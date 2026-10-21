@@ -331,7 +331,11 @@ void uacpi_kernel_sleep(uacpi_u64 msec)
 // AML may reach a function before the bus it is on is scanned, or one that isn't there
 uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handle* out_handle)
 {
+#ifdef CONFIG_PCI
     pci_config_t* config = pci_config_find(address.segment, address.bus);
+#else
+    pci_config_t* config = nullptr;
+#endif
 
     if(config == nullptr) {
         return UACPI_STATUS_NOT_FOUND;

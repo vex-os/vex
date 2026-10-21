@@ -49,6 +49,10 @@ void interrupt_controller_unmask(interrupt_controller_t* restrict controller, ui
 void interrupt_controller_route(interrupt_controller_t* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
     unsigned polarity);
 
+/// Maps an ISA IRQ to the GSI it raises, through the firmware's overrides
+/// @note Without an override the GSI is the IRQ itself, edge-triggered and active-high
+void interrupt_isa_route(unsigned irq, uint32_t* restrict gsi, unsigned* restrict trigger, unsigned* restrict polarity);
+
 /// Routes a GSI to a handler; every handler on a shared GSI is called for each interrupt
 /// @param flags INTERRUPT_*
 /// @retval -ENODEV No interrupt controller has the GSI

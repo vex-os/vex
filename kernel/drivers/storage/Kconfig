@@ -1,5 +1,6 @@
 config AHCI
     bool "AHCI SATA controllers"
+    depends on PCI
     default y
     help
       SATA disks and ATAPI drives behind an AHCI host
