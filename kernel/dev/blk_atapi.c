@@ -19,14 +19,28 @@ static void setup_rw_cdb(atapi_cdb_t cdb, uint8_t command, uintptr_t lba, size_t
     cdb[8] = count & 0xFF;
 }
 
+static int check_request(const atapi_device_t* restrict atapi, const blk_request_t* restrict req, size_t count)
+{
+    if(count > UINT16_MAX) {
+        return -EINVAL;
+    }
+
+    if(req->op == BLK_REQ_WRITE && 0 == (atapi->flags & ATAPI_FLAG_WRITABLE)) {
+        return -EROFS;
+    }
+
+    return 0;
+}
+
 static void atapi_submit(const blk_device_t* restrict device, blk_request_t* restrict req)
 {
     const atapi_device_t* atapi = ATAPI_DEVICE_FROM_BLK(device);
     size_t count = req->length / device->sector_size;
+    int retval = check_request(atapi, req, count);
     atapi_cdb_t cdb;
 
-    if(count > UINT16_MAX) {
-        req->status = -EINVAL;
+    if(retval < 0) {
+        req->status = retval;
         req->done(req);
         return;
     }
@@ -37,12 +51,6 @@ static void atapi_submit(const blk_device_t* restrict device, blk_request_t* res
             break;
 
         case BLK_REQ_WRITE:
-            if(0 == (atapi->flags & ATAPI_FLAG_WRITABLE)) {
-                req->status = -EROFS;
-                req->done(req);
-                return;
-            }
-
             setup_rw_cdb(cdb, ATAPI_CMD_WRITE_10, req->lba, count);
             break;
 
