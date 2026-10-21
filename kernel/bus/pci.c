@@ -354,6 +354,42 @@ static uint64_t bar_length(pci_device_t* restrict device, unsigned bar_index)
     return ~mask + 1;
 }
 
+// A window can show the CPU ports as memory or the other way round, so the type
+// the range has on the bus doesn't say how the CPU reaches it
+static int map_range(const pci_root_t* restrict root, unsigned type, uint64_t start, uint64_t length, unsigned vprot,
+    io_region_t* restrict region, uintptr_t* restrict phys)
+{
+    const fwnode_range_t* window = find_window(root, type, start, length);
+
+    if(window == nullptr) {
+        return -ERANGE;
+    }
+
+    uint64_t cpu_address = start + window->translation;
+    bool other_type = window->flags & FWNODE_RANGE_OTHER_TYPE;
+
+    if((type == FWNODE_RESOURCE_PORT) != other_type) {
+        region->space = IO_SPACE_PORT;
+        region->base = cpu_address;
+        region->length = length;
+        *phys = 0;
+        return 0;
+    }
+
+    void* virt = mmio_map(cpu_address, length, vprot);
+
+    if(virt == nullptr) {
+        return -ENOMEM;
+    }
+
+    region->space = IO_SPACE_MEMORY;
+    region->base = (uintptr_t)(virt);
+    region->length = length;
+    *phys = cpu_address;
+
+    return 0;
+}
+
 static void warn_outside_windows(const pci_device_t* restrict device, unsigned bar_index, uint64_t address)
 {
     const pci_address_t* location = &device->address;
@@ -391,36 +427,17 @@ static pci_bar_t* map_bar(pci_device_t* restrict device, unsigned bar_index, uns
 
     unsigned type = (raw & PCI_BAR_IO) ? FWNODE_RESOURCE_PORT : FWNODE_RESOURCE_MEMORY;
     uint64_t address = bar_address(device, bar_index);
-    const fwnode_range_t* window = find_window(device->priv.bus->root, type, address, length);
+    int retval = map_range(device->priv.bus->root, type, address, length, vprot, &bar->io, &bar->phys);
 
-    if(window == nullptr) {
+    if(retval == -ERANGE) {
         warn_outside_windows(device, bar_index, address);
+    }
+
+    if(retval < 0) {
         return nullptr;
     }
 
-    uint64_t cpu_address = address + window->translation;
-    bool other_type = window->flags & FWNODE_RANGE_OTHER_TYPE;
-
-    if((type == FWNODE_RESOURCE_PORT) != other_type) {
-        bar->io.space = IO_SPACE_PORT;
-        bar->io.base = cpu_address;
-        bar->io.length = length;
-        bar->phys = 0;
-        bar->vprot = VPROT_NONE;
-    }
-    else {
-        void* virt = mmio_map(cpu_address, length, vprot);
-
-        if(virt == nullptr) {
-            return nullptr;
-        }
-
-        bar->io.space = IO_SPACE_MEMORY;
-        bar->io.base = (uintptr_t)(virt);
-        bar->io.length = length;
-        bar->phys = cpu_address;
-        bar->vprot = vprot;
-    }
+    bar->vprot = bar->io.space == IO_SPACE_MEMORY ? vprot : VPROT_NONE;
 
     device->priv.bars_mapped |= 1U << bar_index;
 
@@ -702,6 +719,20 @@ pci_bar_t* pci_bar_map(pci_device_t* restrict device, unsigned bar_index)
 pci_bar_t* pci_bar_map_vprot(pci_device_t* restrict device, unsigned bar_index, unsigned vprot)
 {
     return map_bar(device, bar_index, vprot, true);
+}
+
+int pci_map_range(pci_device_t* restrict device, unsigned type, uint64_t start, uint64_t length, io_region_t* restrict region)
+{
+    uintptr_t phys;
+
+    return map_range(device->priv.bus->root, type, start, length, VPROT_MMIO, region, &phys);
+}
+
+void pci_unmap_range(io_region_t* restrict region)
+{
+    if(region->space == IO_SPACE_MEMORY) {
+        mmio_unmap((volatile void*)(region->base));
+    }
 }
 
 void pci_bar_unmap(pci_device_t* restrict device, unsigned bar_index)

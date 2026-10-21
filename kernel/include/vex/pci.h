@@ -243,6 +243,14 @@ pci_bar_t* pci_bar_map(pci_device_t* restrict device, unsigned bar_index) __nodi
 pci_bar_t* pci_bar_map_vprot(pci_device_t* restrict device, unsigned bar_index, unsigned vprot) __nodiscard;
 void pci_bar_unmap(pci_device_t* restrict device, unsigned bar_index);
 
+/// Maps a range of the bus address space that the device decodes for others, as a bridge to another bus does
+/// @param type FWNODE_RESOURCE_PORT or FWNODE_RESOURCE_MEMORY, as the range is on the bus
+/// @retval -ERANGE The host bridge doesn't pass the range on
+/// @retval -ENOMEM No address space to map memory into
+int pci_map_range(pci_device_t* restrict device, unsigned type, uint64_t start, uint64_t length, io_region_t* restrict region);
+
+void pci_unmap_range(io_region_t* restrict region);
+
 uint8_t pci_get_cap(pci_device_t* restrict device, uint8_t cap_id) __nodiscard;
 
 void pci_enable_busmaster(pci_device_t* restrict device);
