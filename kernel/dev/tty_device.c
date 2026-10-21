@@ -16,7 +16,7 @@
 #include <vex/signal.h>
 #include <vex/string.h>
 #include <vex/thread.h>
-#include <vex/tty_ldisc.h>
+#include <vex/tty_discipline.h>
 #include <vex/uaccess.h>
 
 #define VTIME_UNIT_NSEC UINT64_C(100000000) // VTIME counts tenths of a second
@@ -124,15 +124,15 @@ static void reset_rings_locked(tty_device_t* restrict device)
     discard_flip_locked(device);
     priv->output.head = priv->output.tail;
     priv->xchar = 0;
+    priv->output_stopped = false;
+    priv->signals = 0;
 
-    memset(&priv->ldisc, 0, sizeof(priv->ldisc));
-    priv->ldisc.line_end = priv->input.tail;
-    priv->input.head = priv->input.tail;
+    tty_discipline_reset(device);
 }
 
 static void notify_input_locked(tty_device_t* restrict device)
 {
-    if(tty_ldisc_readable(device)) {
+    if(tty_discipline_readable(device)) {
         event_trigger(&device->priv.readable, false);
     }
 }
@@ -152,7 +152,7 @@ static bool notify_output_locked(tty_device_t* restrict device)
     }
 
     // A flow control character goes out even while the output is stopped
-    return device->priv.xchar || (pending && !device->priv.ldisc.output_stopped);
+    return device->priv.xchar || (pending && !device->priv.output_stopped);
 }
 
 static void start_tx(tty_device_t* restrict device, bool transmit)
@@ -274,7 +274,7 @@ static void report_status(tty_device_t* restrict device)
     bool intr_state = spinlock_acquire_intr(&device->priv.lock);
 
     for(size_t i = 0; i < line.length; ++i) {
-        if(!tty_ldisc_output(device, line.text[i])) {
+        if(!tty_discipline_output(device, line.text[i])) {
             break;
         }
     }
@@ -301,20 +301,44 @@ static void send_signals(tty_device_t* restrict device, uint32_t signals)
     process_group_lock_release();
 }
 
+static bool take_error_mark(tty_device_t* restrict device)
+{
+    bitmap_t* flip_errors = device->priv.flip_errors;
+    uint32_t position = device->priv.flip.head % TTY_RING_SIZE;
+
+    if(!bitmap_isset(flip_errors, position)) {
+        return false;
+    }
+
+    bitmap_clear(flip_errors, position);
+
+    return true;
+}
+
 static void process_input(tty_device_t* restrict device)
 {
     if(!enter(device)) {
         return;
     }
 
+    tty_ring_t* flip = &device->priv.flip;
+
     bool intr_state = spinlock_acquire_intr(&device->priv.lock);
 
-    tty_ldisc_receive(device);
+    while(tty_ring_used(flip)) {
+        unsigned error = TTY_ERROR_NONE;
 
-    uint32_t signals = device->priv.ldisc.signals;
+        if(take_error_mark(device)) {
+            error = tty_ring_take(flip);
+        }
+
+        tty_discipline_receive(device, tty_ring_take(flip), error);
+    }
+
+    uint32_t signals = device->priv.signals;
     uint32_t lflag = device->priv.termios.c_lflag;
 
-    device->priv.ldisc.signals = 0;
+    device->priv.signals = 0;
 
     notify_input_locked(device);
     bool transmit = notify_output_locked(device);
@@ -632,11 +656,11 @@ static int set_termios(tty_device_t* restrict device, uintptr_t argument, uint32
         termios_t old_termios = device->priv.termios;
 
         device->priv.termios = termios;
-        tty_ldisc_set_termios(device, &old_termios);
+        tty_discipline_set_termios(device, &old_termios);
 
         if(request == TCSETSF) {
             discard_flip_locked(device);
-            tty_ldisc_flush_input(device);
+            tty_discipline_flush_input(device);
         }
 
         notify_input_locked(device);
@@ -701,11 +725,11 @@ static int flush_queues(tty_device_t* restrict device, uintptr_t argument)
 
     if(queue != TCOFLUSH) {
         discard_flip_locked(device);
-        tty_ldisc_flush_input(device);
+        tty_discipline_flush_input(device);
     }
 
     if(queue != TCIFLUSH) {
-        device->priv.output.head = device->priv.output.tail;
+        tty_output_flush(device);
     }
 
     // Flushed input may let a stopped sender go on
@@ -730,11 +754,8 @@ static int control_flow(tty_device_t* restrict device, uintptr_t argument)
     const termios_t* termios = &device->priv.termios;
     int retval = 0;
 
-    if(action == TCOOFF) {
-        device->priv.ldisc.output_stopped = true;
-    }
-    else if(action == TCOON) {
-        device->priv.ldisc.output_stopped = false;
+    if(action == TCOOFF || action == TCOON) {
+        tty_output_set_stopped(device, action == TCOOFF);
     }
     else if(action == TCIOFF || action == TCION) {
         uint8_t special = termios->c_cc[VSTART];
@@ -744,7 +765,7 @@ static int control_flow(tty_device_t* restrict device, uintptr_t argument)
         }
 
         if(special != _POSIX_VDISABLE) {
-            device->priv.xchar = special;
+            tty_output_put_ahead(device, special);
         }
     }
     else {
@@ -780,7 +801,7 @@ static int set_exclusive(tty_device_t* restrict device, bool exclusive)
 static int count_input(tty_device_t* restrict device, uintptr_t argument)
 {
     bool intr_state = spinlock_acquire_intr(&device->priv.lock);
-    size_t count = tty_ldisc_readable(device);
+    size_t count = tty_discipline_readable(device);
     spinlock_release_intr(&device->priv.lock, intr_state);
 
     return copyout_count(argument, count);
@@ -907,7 +928,7 @@ static ssize_t read_input(tty_device_t* restrict device, uint8_t* restrict buffe
         const termios_t* termios = &device->priv.termios;
         bool end_of_file;
 
-        copied += tty_ldisc_read(device, buffer + copied, size - copied, &end_of_file);
+        copied += tty_discipline_read(device, buffer + copied, size - copied, &end_of_file);
 
         if(termios->c_lflag & ICANON) {
             if(copied || end_of_file) {
@@ -973,7 +994,7 @@ static ssize_t write_output(tty_device_t* restrict device, const uint8_t* restri
     bool intr_state = spinlock_acquire_intr(&device->priv.lock);
 
     for(;;) {
-        while(written < size && tty_ldisc_output(device, buffer[written])) {
+        while(written < size && tty_discipline_output(device, buffer[written])) {
             written += 1;
         }
 
@@ -1125,8 +1146,8 @@ static void tty_chr_release(const chr_device_t* restrict chr)
     tty_device_t* device = tty_of(chr);
 
     pslab_free_virt(device->priv.flip.data);
-    pslab_free_virt(device->priv.input.data);
     pslab_free_virt(device->priv.output.data);
+    tty_discipline_deinit(device);
 
     event_deinit(&device->priv.readable);
     event_deinit(&device->priv.writable);
@@ -1154,14 +1175,20 @@ int tty_device_add(tty_device_t* restrict device, dev_unit_t* restrict unit, uns
     memset(priv, 0, sizeof(*priv));
 
     priv->flip.data = pslab_alloc_virt();
-    priv->input.data = pslab_alloc_virt();
     priv->output.data = pslab_alloc_virt();
 
-    if(priv->flip.data == nullptr || priv->input.data == nullptr || priv->output.data == nullptr) {
+    if(priv->flip.data == nullptr || priv->output.data == nullptr) {
         pslab_free_virt(priv->flip.data);
-        pslab_free_virt(priv->input.data);
         pslab_free_virt(priv->output.data);
         return -ENOMEM;
+    }
+
+    int retval = tty_discipline_init(device);
+
+    if(retval < 0) {
+        pslab_free_virt(priv->flip.data);
+        pslab_free_virt(priv->output.data);
+        return retval;
     }
 
     priv->lock = SPINLOCK_INIT;
@@ -1174,12 +1201,12 @@ int tty_device_add(tty_device_t* restrict device, dev_unit_t* restrict unit, uns
     device->chr.ops = &tty_chr_ops;
     device->chr.ctxdata = device;
 
-    int retval = chr_device_add(&device->chr, unit, index);
+    retval = chr_device_add(&device->chr, unit, index);
 
     if(retval < 0) {
         pslab_free_virt(priv->flip.data);
-        pslab_free_virt(priv->input.data);
         pslab_free_virt(priv->output.data);
+        tty_discipline_deinit(device);
         event_deinit(&priv->readable);
         event_deinit(&priv->writable);
         event_deinit(&priv->drained);
@@ -1299,7 +1326,7 @@ size_t tty_transmit_take(tty_device_t* restrict device, void* restrict buffer, s
         taken = 1;
     }
 
-    if(!device->priv.ldisc.output_stopped) {
+    if(!device->priv.output_stopped) {
         while(taken < size && tty_ring_used(output)) {
             out[taken] = tty_ring_take(output);
             taken += 1;
@@ -1313,6 +1340,47 @@ size_t tty_transmit_take(tty_device_t* restrict device, void* restrict buffer, s
     spinlock_release_intr(&device->priv.lock, intr_state);
 
     return taken;
+}
+
+bool tty_output_put(tty_device_t* restrict device, const uint8_t* restrict bytes, size_t count)
+{
+    tty_ring_t* output = &device->priv.output;
+
+    if(tty_ring_room(output) < count) {
+        return false;
+    }
+
+    for(size_t i = 0; i < count; ++i) {
+        tty_ring_put(output, bytes[i]);
+    }
+
+    return true;
+}
+
+void tty_output_put_ahead(tty_device_t* restrict device, uint8_t byte)
+{
+    device->priv.xchar = byte;
+}
+
+void tty_output_flush(tty_device_t* restrict device)
+{
+    tty_ring_t* output = &device->priv.output;
+    output->head = output->tail;
+}
+
+void tty_output_set_stopped(tty_device_t* restrict device, bool stopped)
+{
+    device->priv.output_stopped = stopped;
+}
+
+bool tty_output_is_stopped(const tty_device_t* restrict device)
+{
+    return device->priv.output_stopped;
+}
+
+void tty_queue_signal(tty_device_t* restrict device, int sig)
+{
+    device->priv.signals |= 1U << sig;
 }
 
 static void init_tty(void)

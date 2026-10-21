@@ -12,7 +12,7 @@ kernel_sources += files(
     'fb_edid.c',
     'kplog.c',
     'tty_device.c',
-    'tty_ldisc.c',
+    'tty_discipline.c',
 )
 
 if kconfig.get('CONFIG_PTABLE_GPT', 'n') == 'y'

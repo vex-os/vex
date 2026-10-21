@@ -16,13 +16,14 @@ typedef struct session_s session_t;
 
 #define TTY_RING_SIZE PAGE_SIZE
 
+#define TTY_ERROR_NONE    0U
 #define TTY_ERROR_BREAK   1U
 #define TTY_ERROR_PARITY  2U
 #define TTY_ERROR_FRAMING 3U
 #define TTY_ERROR_OVERRUN 4U // The hardware lost bytes before this one, which came intact
 
 typedef struct tty_ring_s tty_ring_t;
-typedef struct tty_ldisc_state_s tty_ldisc_state_t;
+typedef struct tty_discipline_state_s tty_discipline_state_t;
 typedef struct tty_device_s tty_device_t;
 typedef struct tty_device_ops_s tty_device_ops_t;
 typedef struct tty_device_private_s tty_device_private_t;
@@ -35,15 +36,14 @@ struct tty_ring_s {
     uint32_t tail; // Where the next byte goes
 };
 
-struct tty_ldisc_state_s {
+struct tty_discipline_state_s {
+    tty_ring_t input;
     uint8_t delimiters[TTY_RING_SIZE / 8]; // A set bit ends a line at that input position; a NUL there is VEOF
     uint32_t line_end;                     // Input position past the last line read may hand out; the line being edited follows
     uint32_t line_column;                  // The output column the line being edited started at
     uint32_t column;                       // Of the output, for tabs, ONOCR and erasing
-    uint32_t signals;                      // Bit n set: signal n is to go to the foreground group
     bool literal_next;                     // VLNEXT came, so the next byte is plain data
     bool escaped;                          // XCASE: a backslash came, so the next letter is a capital
-    bool output_stopped;                   // VSTOP came while IXON was set
     bool input_stopped;                    // IXOFF sent VSTOP, and VSTART follows once a reader made room
     bool hardcopy_erasing;                 // ECHOPRT: erased bytes are being echoed between \ and /
 };
@@ -73,17 +73,18 @@ struct tty_device_ops_s {
 };
 
 struct tty_device_private_s {
-    spinlock_t lock;    // Taken with interrupts disabled: the rings, ldisc and termios
+    spinlock_t lock;    // Taken with interrupts disabled: the rings, discipline and termios
     mutex_t write_lock; // Keeps writes from mixing, and termios from changing under one
-    termios_t termios;
+    termios_t termios;  // The line discipline reads it, only the tty core changes it
     winsize_t winsize;
     tty_ring_t flip; // From the driver, for tty_worker
-    tty_ring_t input;
     tty_ring_t output;
-    uint8_t xchar; // VSTOP or VSTART to send ahead of the output; 0 for none, as that is _POSIX_VDISABLE
-    uint32_t lost; // Bytes the flip ring had no room for, and those the hardware overran
+    uint8_t xchar;       // VSTOP or VSTART to send ahead of the output; 0 for none, as that is _POSIX_VDISABLE
+    bool output_stopped; // By VSTOP while IXON is set, or by TCOOFF
+    uint32_t signals;    // Bit n set: signal n is to go to the foreground group
+    uint32_t lost;       // Bytes the flip ring had no room for, and those the hardware overran
     bitmap_t flip_errors[TTY_RING_SIZE / BITMAP_CHUNK_BITS]; // Set bits mark TTY_ERROR at that flip position if it's between head and tail
-    tty_ldisc_state_t ldisc;
+    tty_discipline_state_t discipline;
     event_t readable;
     event_t writable;
     event_t drained;
@@ -125,3 +126,31 @@ void tty_receive_error(tty_device_t* restrict device, uint8_t byte, unsigned err
 /// @return How many bytes it took; zero when the output is empty or stopped
 /// @note Any context, an interrupt handler among them
 size_t tty_transmit_take(tty_device_t* restrict device, void* restrict buffer, size_t size);
+
+static __always_inline uint32_t tty_ring_used(const tty_ring_t* restrict ring)
+{
+    return ring->tail - ring->head;
+}
+
+static __always_inline uint32_t tty_ring_room(const tty_ring_t* restrict ring)
+{
+    return TTY_RING_SIZE - (ring->tail - ring->head);
+}
+
+static __always_inline uint8_t tty_ring_at(const tty_ring_t* restrict ring, uint32_t position)
+{
+    return ring->data[position % TTY_RING_SIZE];
+}
+
+static __always_inline void tty_ring_put(tty_ring_t* restrict ring, uint8_t byte)
+{
+    ring->data[ring->tail % TTY_RING_SIZE] = byte;
+    ring->tail += 1;
+}
+
+static __always_inline uint8_t tty_ring_take(tty_ring_t* restrict ring)
+{
+    uint8_t byte = ring->data[ring->head % TTY_RING_SIZE];
+    ring->head += 1;
+    return byte;
+}

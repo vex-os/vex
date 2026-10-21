@@ -1,8 +1,11 @@
 #include <vex/ctype.h>
+#include <vex/errno.h>
 #include <vex/limits.h>
+#include <vex/pslab.h>
 #include <vex/signal.h>
+#include <vex/string.h>
 #include <vex/termios.h>
-#include <vex/tty_ldisc.h>
+#include <vex/tty_discipline.h>
 
 #define TAB_WIDTH 8
 #define DELETE    0x7F
@@ -243,7 +246,7 @@ static size_t expand(const termios_t* restrict termios, uint8_t byte, uint8_t* r
 static void output_or_drop(tty_device_t* restrict device, uint8_t byte)
 {
     // Echo only: the user sees less, but the input is kept
-    (void)tty_ldisc_output(device, byte);
+    (void)tty_discipline_output(device, byte);
 }
 
 static void echo(tty_device_t* restrict device, uint8_t byte)
@@ -267,23 +270,23 @@ static void echo_string(tty_device_t* restrict device, const char* restrict stri
     }
 }
 
-static bool delimiter_at(const tty_ldisc_state_t* restrict ldisc, uint32_t position)
+static bool delimiter_at(const tty_discipline_state_t* restrict discipline, uint32_t position)
 {
     uint32_t bit = position % TTY_RING_SIZE;
-    return ldisc->delimiters[bit / 8] & (1U << (bit % 8));
+    return discipline->delimiters[bit / 8] & (1U << (bit % 8));
 }
 
 static void store(tty_device_t* restrict device, uint8_t byte, bool delimiter)
 {
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
-    tty_ring_t* input = &device->priv.input;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
+    tty_ring_t* input = &discipline->input;
     uint32_t bit = input->tail % TTY_RING_SIZE;
 
     if(delimiter) {
-        ldisc->delimiters[bit / 8] |= 1U << (bit % 8);
+        discipline->delimiters[bit / 8] |= 1U << (bit % 8);
     }
     else {
-        ldisc->delimiters[bit / 8] &= ~(1U << (bit % 8));
+        discipline->delimiters[bit / 8] &= ~(1U << (bit % 8));
     }
 
     tty_ring_put(input, byte);
@@ -291,10 +294,10 @@ static void store(tty_device_t* restrict device, uint8_t byte, bool delimiter)
 
 static void close_hardcopy_erase(tty_device_t* restrict device)
 {
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
 
-    if(ldisc->hardcopy_erasing) {
-        ldisc->hardcopy_erasing = false;
+    if(discipline->hardcopy_erasing) {
+        discipline->hardcopy_erasing = false;
         echo(device, '/');
     }
 }
@@ -302,11 +305,11 @@ static void close_hardcopy_erase(tty_device_t* restrict device)
 static uint32_t line_width(const tty_device_t* restrict device, uint32_t end)
 {
     const termios_t* termios = &device->priv.termios;
-    const tty_ldisc_state_t* ldisc = &device->priv.ldisc;
-    uint32_t column = ldisc->line_column;
+    const tty_discipline_state_t* discipline = &device->priv.discipline;
+    uint32_t column = discipline->line_column;
 
-    for(uint32_t position = ldisc->line_end; position != end; position += 1) {
-        uint8_t byte = tty_ring_at(&device->priv.input, position);
+    for(uint32_t position = discipline->line_end; position != end; position += 1) {
+        uint8_t byte = tty_ring_at(&discipline->input, position);
 
         if(byte == '\t') {
             column = next_tab_stop(column);
@@ -322,27 +325,27 @@ static uint32_t line_width(const tty_device_t* restrict device, uint32_t end)
 static void echo_erase(tty_device_t* restrict device, uint32_t erased_at, uint32_t erased_end)
 {
     const termios_t* termios = &device->priv.termios;
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
 
     if(termios->c_lflag & ECHOPRT) {
-        if(!ldisc->hardcopy_erasing) {
-            ldisc->hardcopy_erasing = true;
+        if(!discipline->hardcopy_erasing) {
+            discipline->hardcopy_erasing = true;
             echo(device, '\\');
         }
 
         for(uint32_t position = erased_at; position != erased_end; position += 1) {
-            echo(device, tty_ring_at(&device->priv.input, position));
+            echo(device, tty_ring_at(&discipline->input, position));
         }
 
         return;
     }
 
-    uint8_t lead = tty_ring_at(&device->priv.input, erased_at);
+    uint8_t lead = tty_ring_at(&discipline->input, erased_at);
 
     if(lead == '\t') {
         uint32_t target = line_width(device, erased_at);
 
-        for(uint32_t i = ldisc->column - target; i > 0 && ldisc->column > target; --i) {
+        for(uint32_t i = discipline->column - target; i > 0 && discipline->column > target; --i) {
             output_or_drop(device, '\b');
         }
 
@@ -359,17 +362,17 @@ static void echo_erase(tty_device_t* restrict device, uint32_t erased_at, uint32
 static bool erase_last(tty_device_t* restrict device)
 {
     const termios_t* termios = &device->priv.termios;
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
-    tty_ring_t* input = &device->priv.input;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
+    tty_ring_t* input = &discipline->input;
     uint32_t end = input->tail;
 
-    if(input->tail == ldisc->line_end) {
+    if(input->tail == discipline->line_end) {
         return false;
     }
 
     input->tail -= 1;
 
-    while((termios->c_iflag & IUTF8) && input->tail != ldisc->line_end && is_utf8_continuation(tty_ring_at(input, input->tail))) {
+    while((termios->c_iflag & IUTF8) && input->tail != discipline->line_end && is_utf8_continuation(tty_ring_at(input, input->tail))) {
         input->tail -= 1;
     }
 
@@ -401,14 +404,14 @@ static void erase(tty_device_t* restrict device, uint8_t byte)
 static void erase_word(tty_device_t* restrict device, uint8_t byte)
 {
     const termios_t* termios = &device->priv.termios;
-    const tty_ldisc_state_t* ldisc = &device->priv.ldisc;
-    tty_ring_t* input = &device->priv.input;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
+    const tty_ring_t* input = &discipline->input;
 
-    while(input->tail != ldisc->line_end && isblank(tty_ring_at(input, input->tail - 1))) {
+    while(input->tail != discipline->line_end && isblank(tty_ring_at(input, input->tail - 1))) {
         (void)erase_last(device);
     }
 
-    while(input->tail != ldisc->line_end && !isblank(tty_ring_at(input, input->tail - 1))) {
+    while(input->tail != discipline->line_end && !isblank(tty_ring_at(input, input->tail - 1))) {
         (void)erase_last(device);
     }
 
@@ -420,7 +423,7 @@ static void erase_word(tty_device_t* restrict device, uint8_t byte)
 static void kill_line(tty_device_t* restrict device, uint8_t byte)
 {
     const termios_t* termios = &device->priv.termios;
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
     uint32_t lflag = termios->c_lflag;
 
     if((lflag & (ECHO | ECHOKE | ECHOE)) == (ECHO | ECHOKE | ECHOE)) {
@@ -431,7 +434,7 @@ static void kill_line(tty_device_t* restrict device, uint8_t byte)
         return;
     }
 
-    device->priv.input.tail = ldisc->line_end;
+    discipline->input.tail = discipline->line_end;
 
     if(lflag & ECHO) {
         echo(device, byte);
@@ -441,13 +444,13 @@ static void kill_line(tty_device_t* restrict device, uint8_t byte)
         }
     }
 
-    ldisc->line_column = ldisc->column;
+    discipline->line_column = discipline->column;
 }
 
 static void reprint(tty_device_t* restrict device, uint8_t byte)
 {
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
-    const tty_ring_t* input = &device->priv.input;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
+    const tty_ring_t* input = &discipline->input;
 
     if(0 == (device->priv.termios.c_lflag & ECHO)) {
         return;
@@ -456,9 +459,9 @@ static void reprint(tty_device_t* restrict device, uint8_t byte)
     echo(device, byte);
     echo(device, '\n');
 
-    ldisc->line_column = ldisc->column;
+    discipline->line_column = discipline->column;
 
-    for(uint32_t position = ldisc->line_end; position != input->tail; position += 1) {
+    for(uint32_t position = discipline->line_end; position != input->tail; position += 1) {
         echo(device, tty_ring_at(input, position));
     }
 }
@@ -466,11 +469,11 @@ static void reprint(tty_device_t* restrict device, uint8_t byte)
 // A canonical line keeps a byte free for the delimiter that ends it
 static bool input_fits(const tty_device_t* restrict device, uint32_t count)
 {
-    const tty_ldisc_state_t* ldisc = &device->priv.ldisc;
-    const tty_ring_t* input = &device->priv.input;
+    const tty_discipline_state_t* discipline = &device->priv.discipline;
+    const tty_ring_t* input = &discipline->input;
 
     if(device->priv.termios.c_lflag & ICANON) {
-        return tty_ring_room(input) > count && input->tail - ldisc->line_end + count < MAX_CANON;
+        return tty_ring_room(input) > count && input->tail - discipline->line_end + count < MAX_CANON;
     }
 
     return tty_ring_room(input) >= count;
@@ -478,8 +481,10 @@ static bool input_fits(const tty_device_t* restrict device, uint32_t count)
 
 static void end_raw_data(tty_device_t* restrict device)
 {
+    tty_discipline_state_t* discipline = &device->priv.discipline;
+
     if(0 == (device->priv.termios.c_lflag & ICANON)) {
-        device->priv.ldisc.line_end = device->priv.input.tail;
+        discipline->line_end = discipline->input.tail;
     }
 }
 
@@ -534,11 +539,11 @@ static void put_error(tty_device_t* restrict device, uint8_t byte)
 static void end_line(tty_device_t* restrict device, uint8_t byte)
 {
     const termios_t* termios = &device->priv.termios;
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
 
     close_hardcopy_erase(device);
 
-    if(tty_ring_room(&device->priv.input) == 0) {
+    if(tty_ring_room(&discipline->input) == 0) {
         return;
     }
 
@@ -548,14 +553,13 @@ static void end_line(tty_device_t* restrict device, uint8_t byte)
 
     store(device, byte, true);
 
-    ldisc->line_end = device->priv.input.tail;
-    ldisc->line_column = ldisc->column;
+    discipline->line_end = discipline->input.tail;
+    discipline->line_column = discipline->column;
 }
 
 static bool flow_control(tty_device_t* restrict device, uint8_t byte)
 {
     const termios_t* termios = &device->priv.termios;
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
 
     if(0 == (termios->c_iflag & IXON)) {
         return false;
@@ -565,22 +569,17 @@ static bool flow_control(tty_device_t* restrict device, uint8_t byte)
     bool stop = is_special(termios, byte, VSTOP);
 
     if(start && stop) {
-        ldisc->output_stopped = !ldisc->output_stopped;
+        tty_output_set_stopped(device, !tty_output_is_stopped(device));
         return true;
     }
 
-    if(stop) {
-        ldisc->output_stopped = true;
+    if(stop || start) {
+        tty_output_set_stopped(device, stop);
         return true;
     }
 
-    if(start) {
-        ldisc->output_stopped = false;
-        return true;
-    }
-
-    if(ldisc->output_stopped && (termios->c_iflag & IXANY)) {
-        ldisc->output_stopped = false;
+    if(termios->c_iflag & IXANY) {
+        tty_output_set_stopped(device, false);
     }
 
     return false;
@@ -610,7 +609,6 @@ static int signal_of(const termios_t* restrict termios, uint8_t byte)
 static bool signal_character(tty_device_t* restrict device, uint8_t byte)
 {
     const termios_t* termios = &device->priv.termios;
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
 
     if(0 == (termios->c_lflag & ISIG)) {
         return false;
@@ -624,15 +622,15 @@ static bool signal_character(tty_device_t* restrict device, uint8_t byte)
 
     // A status request interrupts nothing, so it keeps what was typed and is still to print
     if(sig != SIGINFO && 0 == (termios->c_lflag & NOFLSH)) {
-        tty_ldisc_flush_input(device);
-        device->priv.output.head = device->priv.output.tail;
+        tty_discipline_flush_input(device);
+        tty_output_flush(device);
     }
 
     if(termios->c_lflag & ECHO) {
         echo(device, byte);
     }
 
-    ldisc->signals |= 1U << sig;
+    tty_queue_signal(device, sig);
 
     return true;
 }
@@ -640,11 +638,11 @@ static bool signal_character(tty_device_t* restrict device, uint8_t byte)
 static void receive_canonical(tty_device_t* restrict device, uint8_t byte)
 {
     const termios_t* termios = &device->priv.termios;
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
     uint32_t lflag = termios->c_lflag;
 
-    if(ldisc->escaped) {
-        ldisc->escaped = false;
+    if(discipline->escaped) {
+        discipline->escaped = false;
 
         uint8_t unescaped = xcase_unescape(byte);
 
@@ -681,7 +679,7 @@ static void receive_canonical(tty_device_t* restrict device, uint8_t byte)
         }
 
         if(is_special(termios, byte, VLNEXT)) {
-            ldisc->literal_next = true;
+            discipline->literal_next = true;
             return;
         }
     }
@@ -697,7 +695,7 @@ static void receive_canonical(tty_device_t* restrict device, uint8_t byte)
     }
 
     if((lflag & XCASE) && byte == '\\') {
-        ldisc->escaped = true;
+        discipline->escaped = true;
 
         if(lflag & ECHO) {
             echo(device, byte);
@@ -712,15 +710,15 @@ static void receive_canonical(tty_device_t* restrict device, uint8_t byte)
 static void receive_byte(tty_device_t* restrict device, uint8_t byte)
 {
     const termios_t* termios = &device->priv.termios;
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
     uint32_t iflag = termios->c_iflag;
 
     if(iflag & ISTRIP) {
         byte &= 0x7F;
     }
 
-    if(ldisc->literal_next) {
-        ldisc->literal_next = false;
+    if(discipline->literal_next) {
+        discipline->literal_next = false;
         put_data(device, byte);
         return;
     }
@@ -765,9 +763,9 @@ static void receive_break(tty_device_t* restrict device)
     }
 
     if(iflag & BRKINT) {
-        tty_ldisc_flush_input(device);
-        device->priv.output.head = device->priv.output.tail;
-        device->priv.ldisc.signals |= 1U << SIGINT;
+        tty_discipline_flush_input(device);
+        tty_output_flush(device);
+        tty_queue_signal(device, SIGINT);
         return;
     }
 
@@ -789,26 +787,12 @@ static void receive_bad_byte(tty_device_t* restrict device, uint8_t byte)
     }
 }
 
-static bool take_error_mark(tty_device_t* restrict device)
-{
-    bitmap_t* flip_errors = device->priv.flip_errors;
-    uint32_t position = device->priv.flip.head % TTY_RING_SIZE;
-
-    if(!bitmap_isset(flip_errors, position)) {
-        return false;
-    }
-
-    bitmap_clear(flip_errors, position);
-
-    return true;
-}
-
 static void send_flow_character(tty_device_t* restrict device, unsigned index)
 {
     uint8_t special = device->priv.termios.c_cc[index];
 
     if(special != _POSIX_VDISABLE) {
-        device->priv.xchar = special;
+        tty_output_put_ahead(device, special);
     }
 }
 
@@ -817,99 +801,119 @@ static void send_flow_character(tty_device_t* restrict device, unsigned index)
 static void update_input_flow(tty_device_t* restrict device)
 {
     const termios_t* termios = &device->priv.termios;
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
-    uint32_t room = tty_ring_room(&device->priv.input);
+    tty_discipline_state_t* discipline = &device->priv.discipline;
+    uint32_t room = tty_ring_room(&discipline->input);
 
-    if(ldisc->input_stopped) {
+    if(discipline->input_stopped) {
         if(room >= START_ROOM || 0 == (termios->c_iflag & IXOFF)) {
-            ldisc->input_stopped = false;
+            discipline->input_stopped = false;
             send_flow_character(device, VSTART);
         }
 
         return;
     }
 
-    if((termios->c_iflag & IXOFF) && room < STOP_ROOM && tty_ldisc_readable(device)) {
-        ldisc->input_stopped = true;
+    if((termios->c_iflag & IXOFF) && room < STOP_ROOM && tty_discipline_readable(device)) {
+        discipline->input_stopped = true;
         send_flow_character(device, VSTOP);
     }
 }
 
-void tty_ldisc_flush_input(tty_device_t* restrict device)
+int tty_discipline_init(tty_device_t* restrict device)
 {
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
-    tty_ring_t* input = &device->priv.input;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
+
+    memset(discipline, 0, sizeof(*discipline));
+    discipline->input.data = pslab_alloc_virt();
+
+    if(discipline->input.data == nullptr) {
+        return -ENOMEM;
+    }
+
+    return 0;
+}
+
+void tty_discipline_deinit(tty_device_t* restrict device)
+{
+    pslab_free_virt(device->priv.discipline.input.data);
+}
+
+void tty_discipline_reset(tty_device_t* restrict device)
+{
+    tty_discipline_state_t* discipline = &device->priv.discipline;
+    tty_ring_t input = discipline->input;
+
+    memset(discipline, 0, sizeof(*discipline));
+
+    discipline->input.data = input.data;
+    discipline->input.head = input.tail;
+    discipline->input.tail = input.tail;
+    discipline->line_end = input.tail;
+}
+
+void tty_discipline_flush_input(tty_device_t* restrict device)
+{
+    tty_discipline_state_t* discipline = &device->priv.discipline;
+    tty_ring_t* input = &discipline->input;
 
     input->head = input->tail;
-    ldisc->line_end = input->tail;
-    ldisc->line_column = ldisc->column;
-    ldisc->literal_next = false;
-    ldisc->escaped = false;
-    ldisc->hardcopy_erasing = false;
+    discipline->line_end = input->tail;
+    discipline->line_column = discipline->column;
+    discipline->literal_next = false;
+    discipline->escaped = false;
+    discipline->hardcopy_erasing = false;
 
     update_input_flow(device);
 }
 
-void tty_ldisc_receive(tty_device_t* restrict device)
+void tty_discipline_receive(tty_device_t* restrict device, uint8_t byte, unsigned error)
 {
-    tty_ring_t* flip = &device->priv.flip;
-
-    while(tty_ring_used(flip)) {
-        if(!take_error_mark(device)) {
-            receive_byte(device, tty_ring_take(flip));
-            continue;
-        }
-
-        unsigned error = tty_ring_take(flip);
-        uint8_t byte = tty_ring_take(flip);
-
-        if(error == TTY_ERROR_BREAK) {
-            receive_break(device);
-        }
-        else {
-            receive_bad_byte(device, byte);
-        }
+    if(error == TTY_ERROR_NONE) {
+        receive_byte(device, byte);
+    }
+    else if(error == TTY_ERROR_BREAK) {
+        receive_break(device);
+    }
+    else {
+        receive_bad_byte(device, byte);
     }
 
     update_input_flow(device);
 }
 
-bool tty_ldisc_output(tty_device_t* restrict device, uint8_t byte)
+bool tty_discipline_output(tty_device_t* restrict device, uint8_t byte)
 {
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
     uint8_t expanded[TTY_EXPANSION_MAX];
-    uint32_t column = ldisc->column;
+    uint32_t column = discipline->column;
     size_t length = expand(&device->priv.termios, byte, expanded, &column);
 
-    if(tty_ring_room(&device->priv.output) < length) {
+    if(!tty_output_put(device, expanded, length)) {
         return false;
     }
 
-    for(size_t i = 0; i < length; ++i) {
-        tty_ring_put(&device->priv.output, expanded[i]);
-    }
-
-    ldisc->column = column;
+    discipline->column = column;
 
     return true;
 }
 
-size_t tty_ldisc_readable(const tty_device_t* restrict device)
+size_t tty_discipline_readable(const tty_device_t* restrict device)
 {
-    return device->priv.ldisc.line_end - device->priv.input.head;
+    const tty_discipline_state_t* discipline = &device->priv.discipline;
+    return discipline->line_end - discipline->input.head;
 }
 
-size_t tty_ldisc_read(tty_device_t* restrict device, uint8_t* restrict buffer, size_t size, bool* restrict end_of_file)
+size_t tty_discipline_read(tty_device_t* restrict device, uint8_t* restrict buffer, size_t size, bool* restrict end_of_file)
 {
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
-    tty_ring_t* input = &device->priv.input;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
+    tty_ring_t* input = &discipline->input;
     bool canonical = device->priv.termios.c_lflag & ICANON;
     size_t copied = 0;
 
     *end_of_file = false;
 
-    while(copied < size && input->head != ldisc->line_end) {
-        bool delimiter = canonical && delimiter_at(ldisc, input->head);
+    while(copied < size && input->head != discipline->line_end) {
+        bool delimiter = canonical && delimiter_at(discipline, input->head);
         uint8_t byte = tty_ring_take(input);
 
         // VEOF ends the line without being part of
@@ -932,14 +936,14 @@ size_t tty_ldisc_read(tty_device_t* restrict device, uint8_t* restrict buffer, s
     return copied;
 }
 
-void tty_ldisc_set_termios(tty_device_t* restrict device, const termios_t* restrict old_termios)
+void tty_discipline_set_termios(tty_device_t* restrict device, const termios_t* restrict old_termios)
 {
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
+    tty_discipline_state_t* discipline = &device->priv.discipline;
 
     if((old_termios->c_lflag & ICANON) && 0 == (device->priv.termios.c_lflag & ICANON)) {
-        ldisc->line_end = device->priv.input.tail;
-        ldisc->literal_next = false;
-        ldisc->escaped = false;
+        discipline->line_end = discipline->input.tail;
+        discipline->literal_next = false;
+        discipline->escaped = false;
     }
 
     update_input_flow(device);
