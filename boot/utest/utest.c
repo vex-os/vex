@@ -953,6 +953,214 @@ static void test_kplog_write(void)
     syscall1(__k_SYS_CLOSE, reader);
 }
 
+/* A console on the first 16550 port, for trying the driver by hand: Enter within
+ * CONSOLE_WAIT_DECISECONDS of the prompt opens it, and without one utest goes on */
+#define CONSOLE_WAIT_DECISECONDS 50
+#define CONSOLE_PORTS_MAX        16
+#define CONSOLE_EOF              0x04 /* Ctrl-D, which leaves raw mode */
+
+static long console_fd;
+
+static void console_write(const char* text)
+{
+    syscall3(__k_SYS_WRITE, console_fd, (long)text, ustrlen(text));
+}
+
+static void console_number(long number)
+{
+    char buffer[24];
+
+    if(number < 0) {
+        console_write("-");
+        number = -number;
+    }
+
+    format_number(buffer, number);
+    console_write(buffer);
+    console_write("\n");
+}
+
+static void console_mode(int canonical, int vmin, int vtime)
+{
+    struct __k_termios termios;
+
+    syscall3(__k_SYS_IOCTL, console_fd, __k_TCGETS, (long)&termios);
+
+    if(canonical) {
+        termios.c_lflag |= __k_ICANON | __k_ECHO;
+    }
+    else {
+        termios.c_lflag &= ~(__k_ICANON | __k_ECHO);
+    }
+
+    termios.c_cc[__k_VMIN] = vmin;
+    termios.c_cc[__k_VTIME] = vtime;
+    syscall3(__k_SYS_IOCTL, console_fd, __k_TCSETS, (long)&termios);
+}
+
+static int has_prefix(const char* text, const char* prefix)
+{
+    while(*prefix && *text == *prefix) {
+        text++;
+        prefix++;
+    }
+
+    return *prefix == 0;
+}
+
+static void append_string(char* buffer, const char* text)
+{
+    buffer += ustrlen(buffer);
+
+    while(*text) {
+        *buffer++ = *text++;
+    }
+
+    *buffer = 0;
+}
+
+static void console_raw(void)
+{
+    static const char hex[] = "0123456789abcdef";
+    char byte;
+    char text[4];
+
+    console_write("raw: bytes in hex, Ctrl-D to leave\n");
+    console_mode(0, 1, 0);
+
+    while(syscall3(__k_SYS_READ, console_fd, (long)&byte, 1) == 1 && byte != CONSOLE_EOF) {
+        text[0] = hex[(byte >> 4) & 0x0F];
+        text[1] = hex[byte & 0x0F];
+        text[2] = ' ';
+        text[3] = 0;
+        console_write(text);
+    }
+
+    console_mode(1, 1, 0);
+    console_write("\n");
+}
+
+static void console_speed(const char* text)
+{
+    struct __k_termios termios;
+
+    syscall3(__k_SYS_IOCTL, console_fd, __k_TCGETS, (long)&termios);
+    termios.c_ispeed = parse_number(text);
+    termios.c_ospeed = termios.c_ispeed;
+    console_number(syscall3(__k_SYS_IOCTL, console_fd, __k_TCSETSW, (long)&termios));
+}
+
+/* Returns 0 for the line that closes the console */
+static int console_command(const char* line)
+{
+    __k_int32_t msec = 0;
+
+    if(same_string(line, "quit")) {
+        return 0;
+    }
+
+    if(has_prefix(line, "echo ")) {
+        console_write(line + 5);
+        console_write("\n");
+    }
+    else if(same_string(line, "raw")) {
+        console_raw();
+    }
+    else if(has_prefix(line, "speed ")) {
+        console_speed(line + 6);
+    }
+    else if(same_string(line, "break")) {
+        console_number(syscall3(__k_SYS_IOCTL, console_fd, __k_TCSENDBREAK, (long)&msec));
+    }
+    else if(line[0]) {
+        console_write("commands: echo <text>, raw, speed <bps>, break, quit\n");
+    }
+
+    return 1;
+}
+
+/* Binds a terminal to the first 16550 port, and opens it */
+static long console_open(void)
+{
+    struct __k_serial_info info;
+    struct __k_serial_binding binding;
+    char path[48] = "/dev/serial";
+    long port;
+
+    for(int i = 0; i < CONSOLE_PORTS_MAX; ++i) {
+        format_number(path + 11, i);
+        port = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)path, __k_O_RDWR | __k_O_EXCL, 0);
+
+        if(port < 0) {
+            continue;
+        }
+
+        syscall3(__k_SYS_IOCTL, port, __k_SERIAL_GET_INFO, (long)&info);
+
+        if(!same_string(info.driver, "uart16550")) {
+            syscall1(__k_SYS_CLOSE, port);
+            continue;
+        }
+
+        binding = (struct __k_serial_binding) {};
+        binding.consumer[0] = 't';
+        binding.consumer[1] = 't';
+        binding.consumer[2] = 'y';
+        binding.index = __k_SERIAL_ANY_INDEX;
+
+        long retval = syscall3(__k_SYS_IOCTL, port, __k_SERIAL_BIND, (long)&binding);
+        syscall1(__k_SYS_CLOSE, port);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        path[5] = 0;
+        append_string(path, binding.object);
+
+        return syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)path, __k_O_RDWR, 0);
+    }
+
+    return -__k_ENOENT;
+}
+
+static void serial_console(void)
+{
+    char line[128];
+    long length;
+
+    console_fd = console_open();
+
+    if(console_fd < 0) {
+        return;
+    }
+
+    console_write("utest: press Enter for a console\n");
+    console_mode(0, 0, CONSOLE_WAIT_DECISECONDS);
+
+    if(syscall3(__k_SYS_READ, console_fd, (long)line, sizeof(line)) <= 0) {
+        console_write("utest: no console\n");
+        syscall1(__k_SYS_CLOSE, console_fd);
+        return;
+    }
+
+    console_mode(1, 1, 0);
+
+    do {
+        console_write("utest> ");
+        length = syscall3(__k_SYS_READ, console_fd, (long)line, sizeof(line) - 1);
+
+        if(length <= 0) {
+            break;
+        }
+
+        line[length - 1] = 0;
+    } while(console_command(line));
+
+    console_write("utest: bye\n");
+    syscall1(__k_SYS_CLOSE, console_fd);
+}
+
 int main(int argc, char** argv)
 {
     if(argc > 2 && same_string(argv[1], "exec-child")) {
@@ -1367,6 +1575,7 @@ int main(int argc, char** argv)
     test_tty();
     test_kplog();
     test_kplog_write();
+    serial_console();
 
     return 1337;
 }
