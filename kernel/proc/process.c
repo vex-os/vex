@@ -17,7 +17,8 @@
 #include <vex/vms.h>
 #include <vex/vnode.h>
 
-#define PROCTABLE_BUCKETS   1024
+#define PROCTABLE_BUCKETS 1024
+
 #define PROCESS_SIZE_BUDGET 256
 
 static_assert(sizeof(process_t) <= PROCESS_SIZE_BUDGET);
