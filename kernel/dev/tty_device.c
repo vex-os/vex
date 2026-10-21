@@ -2,6 +2,7 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
 #include <vex/capability.h>
+#include <vex/clocksrc.h>
 #include <vex/cred.h>
 #include <vex/errno.h>
 #include <vex/fcntl.h>
@@ -20,6 +21,8 @@
 #include <vex/uaccess.h>
 
 #define VTIME_UNIT_NSEC UINT64_C(100000000) // VTIME counts tenths of a second
+
+#define CLOSE_DRAIN_NSEC UINT64_C(30000000000) // As Linux's closing_wait; output left after it is dropped
 
 #define DEFAULT_SPEED 38400
 
@@ -597,13 +600,22 @@ static int get_session(tty_device_t* restrict device, uintptr_t argument)
     return retval;
 }
 
-static int wait_drained(tty_device_t* restrict device)
+// A zero timeout waits for as long as it takes
+static int wait_drained(tty_device_t* restrict device, uint64_t timeout_nsec)
 {
+    uint64_t deadline = clock_source_now_ns() + timeout_nsec;
     bool intr_state = spinlock_acquire_intr(&device->priv.lock);
 
     while(tty_ring_used(&device->priv.output) && !is_removed(device)) {
+        uint64_t now = clock_source_now_ns();
+
+        if(timeout_nsec && now >= deadline) {
+            spinlock_release_intr(&device->priv.lock, intr_state);
+            return -ETIMEDOUT;
+        }
+
         event_t* drained = &device->priv.drained;
-        ssize_t result = event_await_unlock(&drained, 1, &device->priv.lock, intr_state, 0);
+        ssize_t result = event_await_unlock(&drained, 1, &device->priv.lock, intr_state, timeout_nsec ? deadline - now : 0);
 
         if(result < 0) {
             return result;
@@ -644,7 +656,7 @@ static int set_termios(tty_device_t* restrict device, uintptr_t argument, uint32
     bool transmit = false; // Leaving IXOFF while the input is stopped sends VSTART
 
     if(request != TCSETS) {
-        retval = wait_drained(device);
+        retval = wait_drained(device, 0);
     }
 
     if(retval == 0 && device->ops->set_termios) {
@@ -855,7 +867,7 @@ static int handle_ioctl(tty_device_t* restrict device, uint32_t request, uintptr
             return control_flow(device, argument);
 
         case TCDRAIN:
-            return wait_drained(device);
+            return wait_drained(device, 0);
 
         case TIOCEXCL:
             return set_exclusive(device, true);
@@ -1081,9 +1093,12 @@ static int tty_chr_open(const chr_device_t* restrict chr, unsigned flags)
     return 0;
 }
 
+// A program's last words would be lost otherwise; a signal cuts the wait short
 static void tty_chr_close(const chr_device_t* restrict chr)
 {
     tty_device_t* device = tty_of(chr);
+
+    wait_drained(device, CLOSE_DRAIN_NSEC);
 
     if(device->ops->close) {
         device->ops->close(device);
