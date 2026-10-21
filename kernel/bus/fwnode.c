@@ -1,5 +1,5 @@
 #include <vex/errno.h>
-#include <vex/firmware.h>
+#include <vex/fwnode.h>
 #include <vex/kmalloc.h>
 #include <vex/spinlock.h>
 
@@ -13,7 +13,7 @@ struct claim_s {
 static spinlock_t claim_lock = SPINLOCK_INIT;
 static claim_t* claim_head = nullptr;
 
-static bool is_claimed_nolock(const firmware_node_t* restrict node)
+static bool is_claimed_nolock(const fwnode_t* restrict node)
 {
     for(const claim_t* claim = claim_head; claim; claim = claim->next) {
         if(claim->handle == node->handle) {
@@ -24,7 +24,7 @@ static bool is_claimed_nolock(const firmware_node_t* restrict node)
     return false;
 }
 
-int firmware_node_claim(const firmware_node_t* restrict node)
+int fwnode_claim(const fwnode_t* restrict node)
 {
     claim_t* claim = kmalloc(sizeof(claim_t));
 
@@ -50,7 +50,7 @@ int firmware_node_claim(const firmware_node_t* restrict node)
     return 0;
 }
 
-bool firmware_node_is_claimed(const firmware_node_t* restrict node)
+bool fwnode_is_claimed(const fwnode_t* restrict node)
 {
     spinlock_acquire(&claim_lock);
     bool claimed = is_claimed_nolock(node);

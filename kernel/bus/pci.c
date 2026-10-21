@@ -21,7 +21,7 @@ typedef struct companion_search_s companion_search_t;
 
 struct pci_root_s {
     unsigned segment;
-    firmware_resource_t windows[PCI_ROOT_WINDOW_MAX]; // Ports and memory the host bridge passes on
+    fwnode_resource_t windows[PCI_ROOT_WINDOW_MAX]; // Ports and memory the host bridge passes on
     size_t num_windows;
 };
 
@@ -30,7 +30,7 @@ struct pci_bus_s {
     pci_root_t* root;
     pci_device_t* bridge; // nullptr on a root bus
     pci_config_t* config;
-    firmware_node_t node; // Of the host bridge, or the bridge's companion; ops is nullptr without one
+    fwnode_t node; // Of the host bridge, or the bridge's companion; ops is nullptr without one
     unsigned number;
     pci_device_t* devices; // In the order of their addresses
 };
@@ -38,7 +38,7 @@ struct pci_bus_s {
 // The firmware gives a function's address on its bus as device << 16 | function, as ACPI's _ADR does
 struct companion_search_s {
     uint64_t address;
-    firmware_node_t* node;
+    fwnode_t* node;
     bool found;
 };
 
@@ -87,7 +87,7 @@ static void device_bind(pci_device_t* restrict device, pci_driver_t* restrict dr
     }
 }
 
-static void visit_companion(const firmware_node_t* child, void* arg)
+static void visit_companion(const fwnode_t* child, void* arg)
 {
     companion_search_t* search = arg;
     uint64_t address;
@@ -96,7 +96,7 @@ static void visit_companion(const firmware_node_t* child, void* arg)
         return;
     }
 
-    if(firmware_node_get_address(child, &address) < 0) {
+    if(fwnode_get_address(child, &address) < 0) {
         return;
     }
 
@@ -118,7 +118,7 @@ static void find_companion(pci_device_t* restrict device)
     search.address = (uint64_t)(device->address.device) << 16 | device->address.function;
     search.node = &device->priv.node;
 
-    firmware_node_for_each_child(&bus->node, &visit_companion, &search);
+    fwnode_for_each_child(&bus->node, &visit_companion, &search);
 }
 
 // A companion of a PCI function usually has an address and no id
@@ -131,8 +131,8 @@ static void log_device(pci_device_t* restrict device)
         address->device, address->function, companion);
 }
 
-static int add_bus(pci_root_t* restrict root, pci_device_t* restrict bridge, pci_config_t* restrict config,
-    const firmware_node_t* restrict node, unsigned number)
+static int add_bus(pci_root_t* restrict root, pci_device_t* restrict bridge, pci_config_t* restrict config, const fwnode_t* restrict node,
+    unsigned number)
 {
     pci_bus_t* bus = kmalloc(sizeof(pci_bus_t));
 
@@ -194,7 +194,7 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
     device->priv.bus = bus;
     device->priv.config = bus->config;
     device->priv.driver = nullptr;
-    device->priv.node = (firmware_node_t) {};
+    device->priv.node = (fwnode_t) {};
     device->priv.irq_number = UINT_MAX;
     device->priv.interrupt = nullptr;
     device->priv.bars_mapped = 0;
@@ -256,12 +256,12 @@ static void scan_bus(pci_bus_t* restrict bus)
     }
 }
 
-static void collect_window(const firmware_resource_t* resource, void* arg)
+static void collect_window(const fwnode_resource_t* resource, void* arg)
 {
     pci_root_t* root = arg;
-    bool passes_registers = resource->type == FIRMWARE_RESOURCE_PORT || resource->type == FIRMWARE_RESOURCE_MEMORY;
+    bool passes_registers = resource->type == FWNODE_RESOURCE_PORT || resource->type == FWNODE_RESOURCE_MEMORY;
 
-    if(!passes_registers || 0 == (resource->range.flags & FIRMWARE_RANGE_WINDOW) || root->num_windows == PCI_ROOT_WINDOW_MAX) {
+    if(!passes_registers || 0 == (resource->range.flags & FWNODE_RANGE_WINDOW) || root->num_windows == PCI_ROOT_WINDOW_MAX) {
         return;
     }
 
@@ -273,13 +273,13 @@ static void collect_window(const firmware_resource_t* resource, void* arg)
     unsigned long long translation = resource->range.translation;
 
     pr_verbose("pci: segment %04X window %s 0x%llX-0x%llX, translation 0x%llX", root->segment,
-        resource->type == FIRMWARE_RESOURCE_PORT ? "port" : "memory", first, last, translation);
+        resource->type == FWNODE_RESOURCE_PORT ? "port" : "memory", first, last, translation);
 }
 
-static const firmware_range_t* find_window(const pci_root_t* restrict root, unsigned type, uint64_t start, uint64_t length)
+static const fwnode_range_t* find_window(const pci_root_t* restrict root, unsigned type, uint64_t start, uint64_t length)
 {
     for(size_t i = 0; i < root->num_windows; ++i) {
-        const firmware_resource_t* window = &root->windows[i];
+        const fwnode_resource_t* window = &root->windows[i];
 
         if(window->type == type && start >= window->range.start && start + length <= window->range.start + window->range.length) {
             return &window->range;
@@ -389,9 +389,9 @@ static pci_bar_t* map_bar(pci_device_t* restrict device, unsigned bar_index, uns
         return nullptr;
     }
 
-    unsigned type = (raw & PCI_BAR_IO) ? FIRMWARE_RESOURCE_PORT : FIRMWARE_RESOURCE_MEMORY;
+    unsigned type = (raw & PCI_BAR_IO) ? FWNODE_RESOURCE_PORT : FWNODE_RESOURCE_MEMORY;
     uint64_t address = bar_address(device, bar_index);
-    const firmware_range_t* window = find_window(device->priv.bus->root, type, address, length);
+    const fwnode_range_t* window = find_window(device->priv.bus->root, type, address, length);
 
     if(window == nullptr) {
         warn_outside_windows(device, bar_index, address);
@@ -399,9 +399,9 @@ static pci_bar_t* map_bar(pci_device_t* restrict device, unsigned bar_index, uns
     }
 
     uint64_t cpu_address = address + window->translation;
-    bool other_type = window->flags & FIRMWARE_RANGE_OTHER_TYPE;
+    bool other_type = window->flags & FWNODE_RANGE_OTHER_TYPE;
 
-    if((type == FIRMWARE_RESOURCE_PORT) != other_type) {
+    if((type == FWNODE_RESOURCE_PORT) != other_type) {
         bar->io.space = IO_SPACE_PORT;
         bar->io.base = cpu_address;
         bar->io.length = length;
@@ -472,7 +472,7 @@ static int request_msi(pci_device_t* restrict device, uint8_t cap, irq_handler_t
 
 // PCI-to-PCI Bridge Architecture 1.2, 9.1: a bridge the firmware gives no routes for
 // passes a pin on as a pin of its own slot, rotated by the number of the device behind it
-static int route_intx(const pci_device_t* restrict device, unsigned pin, firmware_irq_t* restrict irq)
+static int route_intx(const pci_device_t* restrict device, unsigned pin, fwnode_irq_t* restrict irq)
 {
     const pci_device_t* current = device;
 
@@ -481,7 +481,7 @@ static int route_intx(const pci_device_t* restrict device, unsigned pin, firmwar
         int retval = -ENOENT;
 
         if(bus->node.ops) {
-            retval = firmware_node_route_pci_interrupt(&bus->node, current->address.device, pin, irq);
+            retval = fwnode_route_pci_interrupt(&bus->node, current->address.device, pin, irq);
         }
 
         if(retval != -ENOENT || bus->bridge == nullptr) {
@@ -496,7 +496,7 @@ static int route_intx(const pci_device_t* restrict device, unsigned pin, firmwar
 static int request_intx(pci_device_t* restrict device, irq_handler_t handler, void* restrict ctxdata)
 {
     unsigned pin = pci_cfg_read8(device, PCI_CFG_INT_PIN);
-    firmware_irq_t irq;
+    fwnode_irq_t irq;
 
     if(pin == 0 || pin > sizeof(pin_names) / sizeof(pin_names[0])) {
         return -ENODEV;
@@ -557,7 +557,7 @@ pci_config_t* pci_config_find(unsigned segment, unsigned bus)
     return nullptr;
 }
 
-int pci_root_add(const firmware_node_t* restrict node, unsigned segment, unsigned bus)
+int pci_root_add(const fwnode_t* restrict node, unsigned segment, unsigned bus)
 {
     pci_config_t* config = pci_config_find(segment, bus);
 
@@ -571,7 +571,7 @@ int pci_root_add(const firmware_node_t* restrict node, unsigned segment, unsigne
         return -ENOMEM;
     }
 
-    int retval = firmware_node_claim(node);
+    int retval = fwnode_claim(node);
 
     if(retval < 0) {
         kfree(root);
@@ -581,7 +581,7 @@ int pci_root_add(const firmware_node_t* restrict node, unsigned segment, unsigne
     root->segment = segment;
     root->num_windows = 0;
 
-    firmware_node_for_each_resource(node, &collect_window, root);
+    fwnode_for_each_resource(node, &collect_window, root);
 
     mutex_acquire(&pci_mutex);
     retval = add_bus(root, nullptr, config, node, bus);
@@ -653,7 +653,7 @@ int pci_driver_remove(pci_driver_t* restrict driver)
     return 0;
 }
 
-int pci_get_companion(const pci_device_t* restrict device, firmware_node_t* restrict node)
+int pci_get_companion(const pci_device_t* restrict device, fwnode_t* restrict node)
 {
     if(device->priv.node.ops == nullptr) {
         return -ENOENT;

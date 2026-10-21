@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vex/compiler.h>
-#include <vex/firmware.h>
+#include <vex/fwnode.h>
 #include <vex/intctl.h>
 #include <vex/io.h>
 #include <vex/irq.h>
@@ -146,7 +146,7 @@ struct pci_device_private_s {
     pci_bus_t* bus;
     pci_config_t* config;
     pci_driver_t* driver;
-    firmware_node_t node;          // The companion; ops is nullptr without one
+    fwnode_t node;                 // The companion; ops is nullptr without one
     unsigned irq_number;           // Of MSI, UINT_MAX without
     interrupt_action_t* interrupt; // Of INTx
     pci_bar_t bars[6];
@@ -218,14 +218,14 @@ pci_config_t* pci_config_find(unsigned segment, unsigned bus) __nodiscard;
 /// Scans the hierarchy below a host bridge, with the windows and interrupt routes the node gives it
 /// @retval -ENODEV No way reaches the configuration space of the root bus
 /// @retval -EBUSY Another bus has the node
-int pci_root_add(const firmware_node_t* restrict node, unsigned segment, unsigned bus);
+int pci_root_add(const fwnode_t* restrict node, unsigned segment, unsigned bus);
 
 int pci_driver_add(pci_driver_t* restrict driver);
 int pci_driver_remove(pci_driver_t* restrict driver);
 
 /// Gets the firmware's node for the device
 /// @retval -ENOENT The firmware doesn't describe the device
-int pci_get_companion(const pci_device_t* restrict device, firmware_node_t* restrict node);
+int pci_get_companion(const pci_device_t* restrict device, fwnode_t* restrict node);
 
 uint8_t pci_cfg_read8(pci_device_t* restrict device, uintptr_t offset);
 uint16_t pci_cfg_read16(pci_device_t* restrict device, uintptr_t offset);

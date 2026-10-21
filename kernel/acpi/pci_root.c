@@ -1,5 +1,5 @@
 #include <uacpi/uacpi.h>
-#include <vex/firmware.h>
+#include <vex/fwnode.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 #include <vex/pci.h>
@@ -12,7 +12,7 @@ static const char* const host_bridge_ids[] = {
 };
 
 // ACPI 6.5, 6.5.5 _BBN and 6.5.6 _SEG: either is zero when the bridge has none
-static unsigned evaluate_number(const firmware_node_t* restrict node, const char* restrict name)
+static unsigned evaluate_number(const fwnode_t* restrict node, const char* restrict name)
 {
     uacpi_u64 value;
 
@@ -23,7 +23,7 @@ static unsigned evaluate_number(const firmware_node_t* restrict node, const char
     return value;
 }
 
-static void add_host_bridge(const firmware_node_t* restrict node)
+static void add_host_bridge(const fwnode_t* restrict node)
 {
     unsigned segment = evaluate_number(node, "_SEG");
     unsigned bus = evaluate_number(node, "_BBN");
@@ -34,27 +34,27 @@ static void add_host_bridge(const firmware_node_t* restrict node)
     }
 }
 
-static void visit_node(const firmware_node_t* node, void* arg)
+static void visit_node(const fwnode_t* node, void* arg)
 {
-    if(!firmware_node_matches(node, host_bridge_ids)) {
-        firmware_node_for_each_child(node, &visit_node, nullptr);
+    if(!fwnode_matches(node, host_bridge_ids)) {
+        fwnode_for_each_child(node, &visit_node, nullptr);
         return;
     }
 
-    if(firmware_node_is_present(node)) {
+    if(fwnode_is_present(node)) {
         add_host_bridge(node);
     }
 }
 
 static void init_pci_root(void)
 {
-    firmware_node_t root;
+    fwnode_t root;
 
-    if(firmware_root(&root) < 0) {
+    if(fwnode_root(&root) < 0) {
         return;
     }
 
-    firmware_node_for_each_child(&root, &visit_node, nullptr);
+    fwnode_for_each_child(&root, &visit_node, nullptr);
 }
 
 initcall_bsp_bus(init_pci_root, INIT_LATE);

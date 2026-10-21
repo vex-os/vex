@@ -2,7 +2,7 @@
 #include <uacpi/resources.h>
 #include <uacpi/utilities.h>
 #include <vex/errno.h>
-#include <vex/firmware.h>
+#include <vex/fwnode.h>
 #include <vex/intctl.h>
 #include <vex/string.h>
 #include <vex/strings.h>
@@ -17,23 +17,23 @@ typedef struct resource_walk_s resource_walk_t;
 typedef struct link_walk_s link_walk_t;
 
 struct child_walk_s {
-    void (*callback)(const firmware_node_t* child, void* arg);
+    void (*callback)(const fwnode_t* child, void* arg);
     void* arg;
 };
 
 struct resource_walk_s {
-    void (*callback)(const firmware_resource_t* resource, void* arg);
+    void (*callback)(const fwnode_resource_t* resource, void* arg);
     void* arg;
 };
 
 struct link_walk_s {
-    firmware_irq_t* irq;
+    fwnode_irq_t* irq;
     bool found;
 };
 
-static const firmware_node_ops_t acpi_node_ops;
+static const fwnode_ops_t acpi_node_ops;
 
-static uacpi_namespace_node* namespace_node_of(const firmware_node_t* restrict node)
+static uacpi_namespace_node* namespace_node_of(const fwnode_t* restrict node)
 {
     return node->handle;
 }
@@ -49,18 +49,18 @@ static uint32_t status_of(uacpi_namespace_node* restrict namespace_node)
     return status;
 }
 
-static bool acpi_node_is_present(const firmware_node_t* restrict node)
+static bool acpi_node_is_present(const fwnode_t* restrict node)
 {
     uint32_t status = status_of(namespace_node_of(node));
     return (status & (STA_PRESENT | STA_ENABLED)) == (STA_PRESENT | STA_ENABLED);
 }
 
-static bool acpi_node_matches(const firmware_node_t* restrict node, const char* const* restrict ids)
+static bool acpi_node_matches(const fwnode_t* restrict node, const char* const* restrict ids)
 {
     return uacpi_device_matches_pnp_id(namespace_node_of(node), ids);
 }
 
-static int acpi_node_get_address(const firmware_node_t* restrict node, uint64_t* restrict address)
+static int acpi_node_get_address(const fwnode_t* restrict node, uint64_t* restrict address)
 {
     uacpi_u64 value;
 
@@ -73,7 +73,7 @@ static int acpi_node_get_address(const firmware_node_t* restrict node, uint64_t*
     return 0;
 }
 
-static int acpi_node_get_id(const firmware_node_t* restrict node, char* restrict buffer, size_t size)
+static int acpi_node_get_id(const fwnode_t* restrict node, char* restrict buffer, size_t size)
 {
     uacpi_namespace_node* namespace_node = namespace_node_of(node);
     uacpi_id_string* hid;
@@ -114,7 +114,7 @@ static uacpi_iteration_decision visit_child(void* arg, uacpi_namespace_node* nam
         return UACPI_ITERATION_DECISION_CONTINUE;
     }
 
-    firmware_node_t child = {};
+    fwnode_t child = {};
     child.ops = &acpi_node_ops;
     child.handle = namespace_node;
 
@@ -123,8 +123,7 @@ static uacpi_iteration_decision visit_child(void* arg, uacpi_namespace_node* nam
     return UACPI_ITERATION_DECISION_CONTINUE;
 }
 
-static void acpi_node_for_each_child(const firmware_node_t* restrict node, void (*callback)(const firmware_node_t* child, void* arg),
-    void* arg)
+static void acpi_node_for_each_child(const fwnode_t* restrict node, void (*callback)(const fwnode_t* child, void* arg), void* arg)
 {
     child_walk_t walk = {};
     walk.callback = callback;
@@ -147,7 +146,7 @@ static unsigned polarity_of(uacpi_u8 polarity)
 static void report_range(const resource_walk_t* restrict walk, unsigned type, uint64_t start, uint64_t length, uint64_t translation,
     unsigned flags)
 {
-    firmware_resource_t resource = {};
+    fwnode_resource_t resource = {};
     resource.type = type;
     resource.range.start = start;
     resource.range.length = length;
@@ -160,15 +159,15 @@ static void report_range(const resource_walk_t* restrict walk, unsigned type, ui
 static void report_irq(const resource_walk_t* restrict walk, uint32_t number, uacpi_u8 triggering, uacpi_u8 polarity, uacpi_u8 sharing,
     unsigned flags)
 {
-    firmware_resource_t resource = {};
-    resource.type = FIRMWARE_RESOURCE_IRQ;
+    fwnode_resource_t resource = {};
+    resource.type = FWNODE_RESOURCE_IRQ;
     resource.irq.number = number;
     resource.irq.trigger = trigger_of(triggering);
     resource.irq.polarity = polarity_of(polarity);
     resource.irq.flags = flags;
 
     if(sharing == UACPI_SHARED) {
-        resource.irq.flags |= FIRMWARE_IRQ_SHARED;
+        resource.irq.flags |= FWNODE_IRQ_SHARED;
     }
 
     walk->callback(&resource, walk->arg);
@@ -176,8 +175,8 @@ static void report_irq(const resource_walk_t* restrict walk, uint32_t number, ua
 
 static void report_dma(const resource_walk_t* restrict walk, uint8_t channel)
 {
-    firmware_resource_t resource = {};
-    resource.type = FIRMWARE_RESOURCE_DMA;
+    fwnode_resource_t resource = {};
+    resource.type = FWNODE_RESOURCE_DMA;
     resource.dma_channel = channel;
 
     walk->callback(&resource, walk->arg);
@@ -204,15 +203,15 @@ static void report_address(const resource_walk_t* restrict walk, const uacpi_res
 
     switch(common->type) {
         case UACPI_RANGE_MEMORY:
-            type = FIRMWARE_RESOURCE_MEMORY;
+            type = FWNODE_RESOURCE_MEMORY;
             break;
 
         case UACPI_RANGE_IO:
-            type = FIRMWARE_RESOURCE_PORT;
+            type = FWNODE_RESOURCE_PORT;
             break;
 
         case UACPI_RANGE_BUS:
-            type = FIRMWARE_RESOURCE_BUS;
+            type = FWNODE_RESOURCE_BUS;
             break;
 
         default:
@@ -220,11 +219,11 @@ static void report_address(const resource_walk_t* restrict walk, const uacpi_res
     }
 
     if(common->direction == UACPI_PRODUCER) {
-        flags |= FIRMWARE_RANGE_WINDOW;
+        flags |= FWNODE_RANGE_WINDOW;
     }
 
     if(is_translated(common)) {
-        flags |= FIRMWARE_RANGE_OTHER_TYPE;
+        flags |= FWNODE_RANGE_OTHER_TYPE;
     }
 
     if(length) {
@@ -235,7 +234,7 @@ static void report_address(const resource_walk_t* restrict walk, const uacpi_res
 static void report_irqs(const resource_walk_t* restrict walk, const uacpi_resource_irq* restrict irq)
 {
     for(uacpi_u8 i = 0; i < irq->num_irqs; ++i) {
-        report_irq(walk, irq->irqs[i], irq->triggering, irq->polarity, irq->sharing, FIRMWARE_IRQ_ISA);
+        report_irq(walk, irq->irqs[i], irq->triggering, irq->polarity, irq->sharing, FWNODE_IRQ_ISA);
     }
 }
 
@@ -260,23 +259,23 @@ static uacpi_iteration_decision visit_resource(void* arg, uacpi_resource* resour
 
     switch(resource->type) {
         case UACPI_RESOURCE_TYPE_IO:
-            report_range(walk, FIRMWARE_RESOURCE_PORT, resource->io.minimum, resource->io.length, 0, 0);
+            report_range(walk, FWNODE_RESOURCE_PORT, resource->io.minimum, resource->io.length, 0, 0);
             break;
 
         case UACPI_RESOURCE_TYPE_FIXED_IO:
-            report_range(walk, FIRMWARE_RESOURCE_PORT, resource->fixed_io.address, resource->fixed_io.length, 0, 0);
+            report_range(walk, FWNODE_RESOURCE_PORT, resource->fixed_io.address, resource->fixed_io.length, 0, 0);
             break;
 
         case UACPI_RESOURCE_TYPE_MEMORY24:
-            report_range(walk, FIRMWARE_RESOURCE_MEMORY, resource->memory24.minimum, resource->memory24.length, 0, 0);
+            report_range(walk, FWNODE_RESOURCE_MEMORY, resource->memory24.minimum, resource->memory24.length, 0, 0);
             break;
 
         case UACPI_RESOURCE_TYPE_MEMORY32:
-            report_range(walk, FIRMWARE_RESOURCE_MEMORY, resource->memory32.minimum, resource->memory32.length, 0, 0);
+            report_range(walk, FWNODE_RESOURCE_MEMORY, resource->memory32.minimum, resource->memory32.length, 0, 0);
             break;
 
         case UACPI_RESOURCE_TYPE_FIXED_MEMORY32:
-            report_range(walk, FIRMWARE_RESOURCE_MEMORY, resource->fixed_memory32.address, resource->fixed_memory32.length, 0, 0);
+            report_range(walk, FWNODE_RESOURCE_MEMORY, resource->fixed_memory32.address, resource->fixed_memory32.length, 0, 0);
             break;
 
         case UACPI_RESOURCE_TYPE_ADDRESS16:
@@ -318,8 +317,8 @@ static uacpi_iteration_decision visit_resource(void* arg, uacpi_resource* resour
     return UACPI_ITERATION_DECISION_CONTINUE;
 }
 
-static int acpi_node_for_each_resource(const firmware_node_t* restrict node,
-    void (*callback)(const firmware_resource_t* resource, void* arg), void* arg)
+static int acpi_node_for_each_resource(const fwnode_t* restrict node, void (*callback)(const fwnode_resource_t* resource, void* arg),
+    void* arg)
 {
     resource_walk_t walk = {};
     walk.callback = callback;
@@ -343,7 +342,7 @@ static void take_link_irq(link_walk_t* restrict walk, uint32_t number, uacpi_u8 
     walk->irq->number = number;
     walk->irq->trigger = trigger_of(triggering);
     walk->irq->polarity = polarity_of(polarity);
-    walk->irq->flags = sharing == UACPI_SHARED ? FIRMWARE_IRQ_SHARED : 0;
+    walk->irq->flags = sharing == UACPI_SHARED ? FWNODE_IRQ_SHARED : 0;
     walk->found = true;
 }
 
@@ -367,7 +366,7 @@ static uacpi_iteration_decision visit_link_resource(void* arg, uacpi_resource* r
 }
 
 // UNDONE: a link without an interrupt needs one picked from its _PRS and set through _SRS
-static int route_through_link(uacpi_namespace_node* restrict link, firmware_irq_t* restrict irq)
+static int route_through_link(uacpi_namespace_node* restrict link, fwnode_irq_t* restrict irq)
 {
     link_walk_t walk = {};
     walk.irq = irq;
@@ -397,7 +396,7 @@ static const uacpi_pci_routing_table_entry* find_route(const uacpi_pci_routing_t
 }
 
 // ACPI 6.5, 6.2.13 _PRT: without a source the index is the GSI, level-triggered and active-low
-static int route_entry(const uacpi_pci_routing_table_entry* restrict entry, firmware_irq_t* restrict irq)
+static int route_entry(const uacpi_pci_routing_table_entry* restrict entry, fwnode_irq_t* restrict irq)
 {
     if(entry->source) {
         return route_through_link(entry->source, irq);
@@ -406,12 +405,12 @@ static int route_entry(const uacpi_pci_routing_table_entry* restrict entry, firm
     irq->number = entry->index;
     irq->trigger = TRIGGER_LEVEL;
     irq->polarity = ACTIVE_LOW;
-    irq->flags = FIRMWARE_IRQ_SHARED;
+    irq->flags = FWNODE_IRQ_SHARED;
 
     return 0;
 }
 
-static int acpi_node_route_pci_interrupt(const firmware_node_t* restrict node, unsigned slot, unsigned pin, firmware_irq_t* restrict irq)
+static int acpi_node_route_pci_interrupt(const fwnode_t* restrict node, unsigned slot, unsigned pin, fwnode_irq_t* restrict irq)
 {
     uacpi_pci_routing_table* table;
 
@@ -435,7 +434,7 @@ static int acpi_node_route_pci_interrupt(const firmware_node_t* restrict node, u
     return retval;
 }
 
-static const firmware_node_ops_t acpi_node_ops = {
+static const fwnode_ops_t acpi_node_ops = {
     .is_present = &acpi_node_is_present,
     .matches = &acpi_node_matches,
     .get_address = &acpi_node_get_address,
@@ -445,7 +444,7 @@ static const firmware_node_ops_t acpi_node_ops = {
     .route_pci_interrupt = &acpi_node_route_pci_interrupt,
 };
 
-int firmware_root(firmware_node_t* restrict root)
+int fwnode_root(fwnode_t* restrict root)
 {
     uacpi_namespace_node* system_bus = uacpi_namespace_get_predefined(UACPI_PREDEFINED_NAMESPACE_SB);
 

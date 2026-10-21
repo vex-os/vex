@@ -1,7 +1,7 @@
 kernel_sources += files(
-    'firmware.c',
+    'fwnode.c',
     'isa.c',
     'isa_acpi.c',
     'pci.c',
-    'platform.c',
+    'sysbus.c',
 )

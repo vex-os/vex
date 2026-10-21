@@ -1,6 +1,6 @@
 kernel_sources += files(
     'acpi.c',
-    'firmware.c',
+    'fwnode.c',
     'gas.c',
     'pci_root.c',
     'rsdp.c',
