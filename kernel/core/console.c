@@ -28,7 +28,7 @@ static unsigned console_loglevel(const console_t* restrict cons)
     return loglevel;
 }
 
-static size_t format_record(const kp_record_t* restrict record)
+static size_t format_record(const kplog_record_t* restrict record)
 {
     uint64_t seconds = record->time_ns / UINT64_C(1000000000);
     uint64_t fraction = (record->time_ns / UINT64_C(100000)) % UINT64_C(10000);
@@ -53,7 +53,7 @@ static void write_dropped(console_t* restrict cons, uint64_t count)
 static void flush_console(console_t* restrict cons)
 {
     uint64_t expected = cons->priv.cursor.seq;
-    kp_record_t record;
+    kplog_record_t record;
 
     while(kprintf_read(&cons->priv.cursor, &record, record_text)) {
         if(record.seq != expected) {

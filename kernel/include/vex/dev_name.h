@@ -39,6 +39,7 @@ extern dev_prefix_t dev_prefix_virtio;
 extern dev_prefix_t dev_prefix_tty;
 extern dev_prefix_t dev_prefix_pty;
 extern dev_prefix_t dev_prefix_fbd;
+extern dev_prefix_t dev_prefix_kplog;
 
 /// Takes the prefix alone as the name of one device
 /// @retval -EEXIST Another device has the prefix, or a unit under it was taken

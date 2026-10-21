@@ -1,6 +1,7 @@
 #include <vex/errno.h>
 #include <vex/fcntl.h>
 #include <vex/futex.h>
+#include <vex/kplog.h>
 #include <vex/mman.h>
 #include <vex/signal.h>
 #include <vex/stat.h>
@@ -628,6 +629,77 @@ static void test_tty(void)
     syscall1(__k_SYS_CLOSE, line_fd);
 }
 
+#define KPLOG_POKE "kplog poke"
+
+/* Sleeps so the reader blocks first, then logs a line through sys_test */
+static void __attribute__((noreturn)) kplog_poker(long arg)
+{
+    struct __k_timespec delay;
+    delay.tv_sec = 0;
+    delay.tv_nsec = 100000000;
+    syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 0, (long)&delay, 0);
+    syscall2(__k_SYS_TEST, (long)KPLOG_POKE, ustrlen(KPLOG_POKE));
+    syscall1(__k_SYS_THREAD_EXIT, 0);
+    __builtin_unreachable();
+}
+
+/* Whether the record's text ends with what sys_test logs for data */
+static int kplog_has_data(const struct __k_kplog_record* record, const char* data)
+{
+    const char* text = (const char*)(record + 1);
+    long length = ustrlen(data);
+
+    if(record->size < length + 1) {
+        return 0;
+    }
+
+    return same_bytes(text + record->size - length - 1, data, length) && text[record->size - 1] == '"';
+}
+
+static void test_kplog(void)
+{
+    _Alignas(8) char buffer[1024];
+    struct __k_kplog_record* record = (struct __k_kplog_record*)buffer;
+    long fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kplog", __k_O_RDONLY, 0);
+    long length, small, nonblock, seek_bad, seek_end;
+    long reads = 0;
+    int found = 0;
+
+    printnumber(fd >= 0); /* should print 1 */
+
+    length = syscall3(__k_SYS_READ, fd, (long)buffer, sizeof(buffer));
+    printnumber(length == (long)(sizeof(*record) + record->size) && record->seq == 0); /* should print 1 */
+    syscall2(__k_SYS_TEST, (long)(record + 1), record->size);                          /* should print the banner */
+
+    printnumber(syscall3(__k_SYS_READ, fd, (long)buffer, 8)); /* should print -226 (EINVAL) */
+    syscall3(__k_SYS_READ, fd, (long)buffer, sizeof(buffer));
+    printnumber(record->seq == 1); /* should print 1 */
+
+    /* Nothing logs between the seek and the reads, so the results wait until after them */
+    seek_bad = syscall3(__k_SYS_SEEK, fd, 5, 0);
+    seek_end = syscall3(__k_SYS_SEEK, fd, 0, 2);
+    syscall3(__k_SYS_FCNTL, fd, __k_F_SETFL, __k_O_NONBLOCK);
+    nonblock = syscall3(__k_SYS_READ, fd, (long)buffer, sizeof(buffer));
+    syscall3(__k_SYS_FCNTL, fd, __k_F_SETFL, 0);
+    spawn_joinable(&kplog_poker, 0);
+
+    /* The kernel may log something else first */
+    while(!found && reads < 16) {
+        length = syscall3(__k_SYS_READ, fd, (long)buffer, sizeof(buffer));
+        found = length > 0 && kplog_has_data(record, KPLOG_POKE);
+        reads += 1;
+    }
+
+    join();
+
+    printnumber(seek_bad); /* should print -226 (EINVAL) */
+    printnumber(seek_end); /* should print 0 */
+    printnumber(nonblock); /* should print -206 (EAGAIN) */
+    printnumber(found);    /* should print 1 */
+
+    syscall1(__k_SYS_CLOSE, fd);
+}
+
 int main(int argc, char** argv)
 {
     if(argc > 2 && same_string(argv[1], "exec-child")) {
@@ -1040,6 +1112,7 @@ int main(int argc, char** argv)
     printnumber(wstatus);                                               // should print 1024 (exit code 4)
 
     test_tty();
+    test_kplog();
 
     return 1337;
 }

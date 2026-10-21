@@ -19,7 +19,7 @@ static intptr_t read_file(file_t* restrict file, const uintptr_t* restrict args)
     size_t remaining = args[2];
     size_t total = 0;
 
-    char buffer[512];
+    char buffer[FILE_IO_CHUNK];
 
     while(remaining > 0) {
         size_t chunk;
@@ -70,7 +70,7 @@ static intptr_t write_file(file_t* restrict file, const uintptr_t* restrict args
     size_t remaining = args[2];
     size_t total = 0;
 
-    char buffer[512];
+    char buffer[FILE_IO_CHUNK];
 
     while(remaining > 0) {
         size_t chunk;

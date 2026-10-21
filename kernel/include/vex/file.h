@@ -10,6 +10,8 @@
 #define SEEK_CUR 1
 #define SEEK_END 2
 
+#define FILE_IO_CHUNK 1024U // The most a read or write system call passes to the file layer at once
+
 typedef struct file_s file_t;
 
 struct file_s {
