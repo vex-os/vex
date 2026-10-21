@@ -5,6 +5,7 @@ kernel_sources += files(
     'futex.c',
     'hart.c',
     'mutex.c',
+    'pgrp.c',
     'process.c',
     'sched.c',
     'signal.c',

@@ -1,6 +1,7 @@
 #include <vex/capability.h>
 #include <vex/cred.h>
 #include <vex/errno.h>
+#include <vex/pgrp.h>
 #include <vex/process.h>
 #include <vex/signal.h>
 #include <vex/syscall.h>
@@ -9,6 +10,14 @@
 
 #define SA_KNOWN (SA_NOCLDSTOP | SA_NOCLDWAIT | SA_SIGINFO | SA_ONSTACK | SA_RESTART | SA_NODEFER | SA_RESETHAND | SA_RESTORER)
 
+typedef struct group_kill_s group_kill_t;
+
+struct group_kill_s {
+    thread_t* thread;
+    int sig;
+    int retval; // -EPERM until one member may be signalled, then the first failure if any
+};
+
 static bool may_signal(const credentials_t* restrict sender, const credentials_t* restrict target)
 {
     if(cred_capable(sender, CAP_KILL)) {
@@ -16,6 +25,61 @@ static bool may_signal(const credentials_t* restrict sender, const credentials_t
     }
 
     return sender->uid == target->uid || sender->uid == target->suid || sender->euid == target->uid || sender->euid == target->suid;
+}
+
+static int kill_process(thread_t* restrict thread, process_t* restrict target, int sig)
+{
+    credentials_t* target_cred = process_get_cred(target);
+    bool allowed = may_signal(thread->credentials, target_cred);
+    cred_decref(target_cred);
+
+    if(!allowed) {
+        return -EPERM;
+    }
+
+    if(sig == 0) {
+        return 0;
+    }
+
+    process_t* sender = thread->process;
+
+    siginfo_t info = {};
+    info.si_signo = sig;
+    info.si_code = SI_USER;
+    info.si_pid = sender->pid;
+    info.si_uid = thread->credentials->uid;
+
+    return signal_send(target, 0, &info);
+}
+
+static void kill_member(process_t* restrict process, void* restrict arg)
+{
+    group_kill_t* kill = arg;
+    int retval = kill_process(kill->thread, process, kill->sig);
+
+    if(retval == -EPERM) {
+        return;
+    }
+
+    if(kill->retval == -EPERM || kill->retval == 0) {
+        kill->retval = retval;
+    }
+}
+
+static intptr_t kill_group(thread_t* restrict thread, pid_t pgid, int sig)
+{
+    group_kill_t kill = { 0 };
+    kill.thread = thread;
+    kill.sig = sig;
+    kill.retval = -EPERM;
+
+    int retval = process_group_for_each(pgid, &kill_member, &kill);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    return kill.retval;
 }
 
 static intptr_t sys_kill(const uintptr_t* restrict args)
@@ -34,8 +98,21 @@ static intptr_t sys_kill(const uintptr_t* restrict args)
         return -EINVAL;
     }
 
-    if(pid <= 0) {
-        return -EINVAL; // Process groups don't exist yet
+    if(pid == -1) {
+        return -EINVAL; // UNDONE: every process the sender may signal
+    }
+
+    if(pid == INT32_MIN) {
+        return -ESRCH; // No group has the negated id
+    }
+
+    if(pid == 0) {
+        pid_t pgid = process_get_pgid(sender);
+        return kill_group(thread, pgid, sig);
+    }
+
+    if(pid < 0) {
+        return kill_group(thread, -pid, sig);
     }
 
     process_t* target = process_locate(pid);
@@ -44,26 +121,7 @@ static intptr_t sys_kill(const uintptr_t* restrict args)
         return -ESRCH;
     }
 
-    credentials_t* target_cred = process_get_cred(target);
-    bool allowed = may_signal(thread->credentials, target_cred);
-    cred_decref(target_cred);
-
-    intptr_t retval = -EPERM;
-
-    if(allowed) {
-        retval = 0;
-
-        if(sig) {
-            siginfo_t info = {};
-            info.si_signo = sig;
-            info.si_code = SI_USER;
-            info.si_pid = sender->pid;
-            info.si_uid = thread->credentials->uid;
-
-            retval = signal_send(target, 0, &info);
-        }
-    }
-
+    intptr_t retval = kill_process(thread, target, sig);
     process_decref(target);
 
     return retval;

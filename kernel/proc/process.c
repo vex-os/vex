@@ -6,6 +6,7 @@
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/mount.h>
+#include <vex/pgrp.h>
 #include <vex/process.h>
 #include <vex/sched.h>
 #include <vex/signal.h>
@@ -300,6 +301,12 @@ process_t* process_create(process_t* restrict parent)
         return nullptr;
     }
 
+    if(process_group_attach(process, parent) < 0) {
+        vnode_decref(process->cwd);
+        process_decref(process);
+        return nullptr;
+    }
+
     if(parent) {
         bool intr_state = spinlock_acquire_intr(&parent->lock);
 
@@ -581,6 +588,7 @@ void process_destroy(process_t* process)
     }
 
     release_files(process);
+    process_group_detach(process);
 
     process_decref(process);
 }

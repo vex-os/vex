@@ -11,6 +11,10 @@
 #define __k_SYS_WAITPID 0x13
 #define __k_SYS_GETPID  0x14
 #define __k_SYS_GETPPID 0x15
+#define __k_SYS_SETSID  0x16
+#define __k_SYS_SETPGID 0x17
+#define __k_SYS_GETPGID 0x18
+#define __k_SYS_GETSID  0x19
 
 #define __k_SYS_THREAD_CREATE 0x20
 #define __k_SYS_THREAD_EXIT   0x21

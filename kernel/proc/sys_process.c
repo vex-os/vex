@@ -7,6 +7,7 @@
 #include <vex/kmalloc.h>
 #include <vex/limits.h>
 #include <vex/page.h>
+#include <vex/pgrp.h>
 #include <vex/process.h>
 #include <vex/pslab.h>
 #include <vex/sched.h>
@@ -245,6 +246,7 @@ static intptr_t exec_image(thread_t* restrict thread, char* restrict path, char*
     thread->sig_altstack = 0;
     thread->sig_altstack_size = 0;
     thread->clear_tid = 0; // An address in the image just left
+    atomic_fetch_or(&process->flags, PROCESS_DID_EXEC, ATOMIC_RELEASE);
 
     vms_release(old_vms);
 
@@ -270,12 +272,18 @@ static intptr_t collect_child(process_t* restrict target, uintptr_t wstatus)
     return retval;
 }
 
-static bool wait_matches(const process_t* restrict child, pid_t pid)
+// A group to wait for is compared by address, which the
+// caller's reference keeps from going to another group
+static bool wait_matches(process_t* restrict child, pid_t pid, const process_group_t* restrict group)
 {
+    if(group) {
+        return atomic_load_n(&child->group, ATOMIC_ACQUIRE) == group;
+    }
+
     return pid == -1 || child->pid == pid;
 }
 
-static intptr_t wait_child(process_t* restrict caller, pid_t pid, uintptr_t wstatus)
+static intptr_t wait_child(process_t* restrict caller, pid_t pid, const process_group_t* restrict group, uintptr_t wstatus)
 {
     for(;;) {
         process_t* target = nullptr;
@@ -289,7 +297,7 @@ static intptr_t wait_child(process_t* restrict caller, pid_t pid, uintptr_t wsta
                 continue;
             }
 
-            if(!wait_matches(it, pid)) {
+            if(!wait_matches(it, pid, group)) {
                 continue;
             }
 
@@ -321,6 +329,21 @@ static intptr_t wait_child(process_t* restrict caller, pid_t pid, uintptr_t wsta
 
         return collect_child(target, wstatus);
     }
+}
+
+// Zero is the caller; a reference to the process is handed out
+static process_t* locate_target(process_t* restrict caller, pid_t pid)
+{
+    if(pid == 0) {
+        process_incref(caller);
+        return caller;
+    }
+
+    if(pid < 0) {
+        return nullptr;
+    }
+
+    return process_locate(pid);
 }
 
 static intptr_t __noreturn sys_exit(const uintptr_t* restrict args)
@@ -423,11 +446,31 @@ static intptr_t sys_waitpid(const uintptr_t* restrict args)
         return -ECHILD;
     }
 
-    if(pid <= 0 && pid != -1) {
-        return -EINVAL; // Process groups don't exist yet
+    if(pid > 0 || pid == -1) {
+        return wait_child(caller, pid, nullptr, wstatus);
     }
 
-    return wait_child(caller, pid, wstatus);
+    if(pid == INT32_MIN) {
+        return -ECHILD; // No group has the negated id
+    }
+
+    process_group_t* group;
+
+    if(pid == 0) {
+        group = process_get_group(caller);
+    }
+    else {
+        group = process_group_find(-pid);
+    }
+
+    if(group == nullptr) {
+        return -ECHILD;
+    }
+
+    intptr_t retval = wait_child(caller, pid, group, wstatus);
+    process_group_decref(group);
+
+    return retval;
 }
 
 define_syscall(sys_waitpid, SYS_WAITPID);
@@ -459,3 +502,101 @@ static intptr_t sys_getppid(const uintptr_t* restrict args)
 }
 
 define_syscall(sys_getppid, SYS_GETPPID);
+
+static intptr_t sys_setsid(const uintptr_t* restrict args)
+{
+    thread_t* thread = this_thread();
+    process_t* process = thread->process;
+
+    if(process == nullptr) {
+        return -EPERM;
+    }
+
+    return process_group_new_session(process);
+}
+
+define_syscall(sys_setsid, SYS_SETSID);
+
+static intptr_t sys_setpgid(const uintptr_t* restrict args)
+{
+    pid_t pid = args[0];
+    pid_t pgid = args[1];
+
+    thread_t* thread = this_thread();
+    process_t* caller = thread->process;
+
+    if(caller == nullptr) {
+        return -ESRCH;
+    }
+
+    if(pgid < 0) {
+        return -EINVAL;
+    }
+
+    process_t* process = locate_target(caller, pid);
+
+    if(process == nullptr) {
+        return -ESRCH;
+    }
+
+    if(pgid == 0) {
+        pgid = process->pid;
+    }
+
+    int retval = process_group_move(caller, process, pgid);
+    process_decref(process);
+
+    return retval;
+}
+
+define_syscall(sys_setpgid, SYS_SETPGID);
+
+static intptr_t sys_getpgid(const uintptr_t* restrict args)
+{
+    pid_t pid = args[0];
+
+    thread_t* thread = this_thread();
+    process_t* caller = thread->process;
+
+    if(caller == nullptr) {
+        return -ESRCH;
+    }
+
+    process_t* process = locate_target(caller, pid);
+
+    if(process == nullptr) {
+        return -ESRCH;
+    }
+
+    pid_t pgid = process_get_pgid(process);
+    process_decref(process);
+
+    return pgid;
+}
+
+define_syscall(sys_getpgid, SYS_GETPGID);
+
+static intptr_t sys_getsid(const uintptr_t* restrict args)
+{
+    pid_t pid = args[0];
+
+    thread_t* thread = this_thread();
+    process_t* caller = thread->process;
+
+    if(caller == nullptr) {
+        return -ESRCH;
+    }
+
+    process_t* process = locate_target(caller, pid);
+
+    if(process == nullptr) {
+        return -ESRCH;
+    }
+
+    pid_t sid = process_get_sid(process);
+    process_decref(process);
+
+    return sid;
+}
+
+define_syscall(sys_getsid, SYS_GETSID);

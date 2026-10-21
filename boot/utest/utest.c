@@ -1,3 +1,4 @@
+#include <vex/errno.h>
 #include <vex/fcntl.h>
 #include <vex/futex.h>
 #include <vex/mman.h>
@@ -758,6 +759,84 @@ int main(int argc, char** argv)
 
     printnumber(syscall2(__k_SYS_WAITPID, slow_child, (long)&wstatus)); // should print -212 (ECHILD), collected already
     printnumber(syscall2(__k_SYS_WAITPID, 1, (long)&wstatus));          // should print -212 (ECHILD), not a child
+
+    // Init leads session 1 and group 1, so it can neither start a session nor leave its group
+    printnumber(syscall1(__k_SYS_GETPGID, 0));     // should print 1
+    printnumber(syscall1(__k_SYS_GETSID, 0));      // should print 1
+    printnumber(syscall1(__k_SYS_SETSID, 0));      // should print -263 (EPERM)
+    printnumber(syscall2(__k_SYS_SETPGID, 0, 0));  // should print -263 (EPERM)
+    printnumber(syscall1(__k_SYS_GETPGID, 99999)); // should print -270 (ESRCH)
+    printnumber(syscall2(__k_SYS_KILL, 0, 0));     // should print 0, its own group
+
+    // Both the shell and the job set the job's group, whichever runs first
+    long leader = syscall1(__k_SYS_FORK, 0);
+
+    if(leader == 0) {
+        syscall2(__k_SYS_SETPGID, 0, 0);
+
+        for(;;) {
+            syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 0, 0, 0);
+        }
+    }
+
+    long member = syscall1(__k_SYS_FORK, 0);
+
+    if(member == 0) {
+        for(;;) {
+            syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 0, 0, 0);
+        }
+    }
+
+    printnumber(syscall2(__k_SYS_SETPGID, leader, leader));    // should print 0
+    printnumber(syscall2(__k_SYS_SETPGID, member, leader));    // should print 0
+    printnumber(syscall1(__k_SYS_GETPGID, member) == leader);  // should print 1
+    printnumber(syscall2(__k_SYS_SETPGID, member, 99999));     // should print -263 (EPERM), no such group
+    printnumber(syscall2(__k_SYS_SETPGID, 99999, leader));     // should print -270 (ESRCH)
+    printnumber(syscall2(__k_SYS_KILL, -leader, __k_SIGKILL)); // should print 0
+
+    printnumber(syscall2(__k_SYS_WAITPID, -leader, (long)&wstatus) > 0); // should print 1
+    printnumber(wstatus);                                                // should print 9 (SIGKILL)
+    printnumber(syscall2(__k_SYS_WAITPID, -leader, (long)&wstatus) > 0); // should print 1
+    printnumber(wstatus);                                                // should print 9 (SIGKILL)
+    printnumber(syscall2(__k_SYS_WAITPID, -leader, (long)&wstatus));     // should print -212 (ECHILD), group gone
+    printnumber(syscall2(__k_SYS_KILL, -leader, 0));                     // should print -270 (ESRCH)
+
+    // A session leader stays in its own group, and its session is out of the parent's reach
+    child = syscall1(__k_SYS_FORK, 0);
+
+    if(child == 0) {
+        long pid = syscall1(__k_SYS_GETPID, 0);
+        int code = 0;
+
+        if(syscall1(__k_SYS_SETSID, 0) == pid && syscall1(__k_SYS_GETSID, 0) == pid && syscall1(__k_SYS_GETPGID, 0) == pid) {
+            code += 1;
+        }
+
+        if(syscall2(__k_SYS_SETPGID, 0, 1) == -__k_EPERM) {
+            code += 2;
+        }
+
+        if(syscall1(__k_SYS_SETSID, 0) == -__k_EPERM) {
+            code += 4;
+        }
+
+        syscall1(__k_SYS_EXIT, code);
+    }
+
+    wstatus = -1;
+    syscall2(__k_SYS_WAITPID, child, (long)&wstatus);
+    printnumber(wstatus); // should print 1792 (exit code 7)
+
+    // A child left in the caller's group is what waitpid(0) waits for
+    child = syscall1(__k_SYS_FORK, 0);
+
+    if(child == 0) {
+        syscall1(__k_SYS_EXIT, 4);
+    }
+
+    wstatus = -1;
+    printnumber(syscall2(__k_SYS_WAITPID, 0, (long)&wstatus) == child); // should print 1
+    printnumber(wstatus);                                               // should print 1024 (exit code 4)
 
     return 1337;
 }

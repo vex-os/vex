@@ -9,6 +9,7 @@
 
 typedef struct file_s file_t;
 typedef struct pending_signal_s pending_signal_t;
+typedef struct process_group_s process_group_t;
 typedef struct thread_s thread_t;
 typedef struct vmspace_s vmspace_t;
 typedef struct vnode_s vnode_t;
@@ -18,6 +19,7 @@ typedef struct vnode_s vnode_t;
 #define PROCESS_EXITING   0x01U
 #define PROCESS_ZOMBIE    0x02U // Every thread is reaped
 #define PROCESS_COLLECTED 0x04U // A waiter claimed the zombie
+#define PROCESS_DID_EXEC  0x08U // Its parent can no longer move it to another group
 
 typedef struct process_s process_t;
 
@@ -45,6 +47,9 @@ struct process_s {
     process_t* sibling_prev;
 
     process_t* hash_next;
+
+    process_group_t* group; // Changed under process_group_lock, held from creation until the process is destroyed
+    process_t* group_next;
 
     event_t child_exited; // Triggered under lock once a child is a zombie or init adopts one
 
