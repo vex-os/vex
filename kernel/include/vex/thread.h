@@ -78,6 +78,7 @@ struct thread_s {
     uint32_t sig_altstack_size;
     uintptr_t clear_tid; // Zeroed and woken as a futex when the thread exits
     void* kstack_top;
+    void* io_page; // The bounce buffer of read and write system calls, which never nest; allocated on first use
 
     arch_thread_t arch;
 };

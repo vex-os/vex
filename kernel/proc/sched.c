@@ -14,6 +14,7 @@
 #include <vex/panic.h>
 #include <vex/preempt.h>
 #include <vex/process.h>
+#include <vex/pslab.h>
 #include <vex/sched.h>
 #include <vex/signal.h>
 #include <vex/slab.h>
@@ -23,7 +24,8 @@
 #include <vex/vms.h>
 
 #define SCHED_TIMESLICE_NS (1000 * UINT64_C(CONFIG_SCHED_TIMESLICE))
-#define THREAD_SIZE_BUDGET 256
+
+#define THREAD_SIZE_BUDGET 512
 
 static_assert(sizeof(thread_t) <= THREAD_SIZE_BUDGET);
 
@@ -239,6 +241,7 @@ static void reap_thread(thread_t* restrict thread)
     cred_decref(thread->credentials);
     signal_flush(thread->sig_queue);
     kstack_free(thread->kstack_top);
+    pslab_free_virt(thread->io_page);
     kfree(thread->events);
     slab_free(thread);
 }
@@ -402,6 +405,7 @@ static thread_t* alloc_thread_user(process_t* restrict process)
     thread->hart_lock = SPINLOCK_INIT;
     thread->yield_await = SPINLOCK_INIT;
     thread->kstack_top = kstack_top;
+    thread->io_page = nullptr;
 
     return thread;
 }
@@ -489,6 +493,7 @@ thread_t* thread_create_kernel(kernel_thread_entry_t entry, void* restrict arg)
     thread->hart_lock = SPINLOCK_INIT;
     thread->yield_await = SPINLOCK_INIT;
     thread->kstack_top = kstack_top;
+    thread->io_page = nullptr;
 
     cred_incref(&kernel_credentials);
 

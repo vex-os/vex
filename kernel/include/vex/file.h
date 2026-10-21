@@ -3,6 +3,7 @@
 #include <vex/atomic.h>
 #include <vex/compiler.h>
 #include <vex/fcntl.h>
+#include <vex/limits.h>
 #include <vex/types.h>
 #include <vex/vnode.h>
 
@@ -10,7 +11,7 @@
 #define SEEK_CUR 1
 #define SEEK_END 2
 
-#define FILE_IO_CHUNK 1024U // The most a read or write system call passes to the file layer at once
+#define FILE_IO_CHUNK PAGE_SIZE // The most a read or write system call passes to the file layer at once
 
 typedef struct file_s file_t;
 

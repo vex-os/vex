@@ -5,6 +5,7 @@
 #include <vex/mount.h>
 #include <vex/path.h>
 #include <vex/process.h>
+#include <vex/pslab.h>
 #include <vex/stat.h>
 #include <vex/syscall.h>
 #include <vex/thread.h>
@@ -13,19 +14,35 @@
 
 #define FCNTL_SETTABLE_FLAGS (O_APPEND | O_NONBLOCK)
 
+static_assert(FILE_IO_CHUNK <= PAGE_SIZE);
+
+static char* io_page_of(thread_t* restrict thread)
+{
+    if(thread->io_page == nullptr) {
+        thread->io_page = pslab_alloc_virt();
+    }
+
+    return thread->io_page;
+}
+
 static intptr_t read_file(file_t* restrict file, const uintptr_t* restrict args)
 {
+    thread_t* thread = this_thread();
     uintptr_t user_buf = args[1];
     size_t remaining = args[2];
     size_t total = 0;
 
-    char buffer[FILE_IO_CHUNK];
+    char* buffer = io_page_of(thread);
+
+    if(buffer == nullptr) {
+        return -ENOMEM;
+    }
 
     while(remaining > 0) {
         size_t chunk;
 
-        if(remaining > sizeof(buffer)) {
-            chunk = sizeof(buffer);
+        if(remaining > FILE_IO_CHUNK) {
+            chunk = FILE_IO_CHUNK;
         }
         else {
             chunk = remaining;
@@ -70,13 +87,17 @@ static intptr_t write_file(file_t* restrict file, const uintptr_t* restrict args
     size_t remaining = args[2];
     size_t total = 0;
 
-    char buffer[FILE_IO_CHUNK];
+    char* buffer = io_page_of(thread);
+
+    if(buffer == nullptr) {
+        return -ENOMEM;
+    }
 
     while(remaining > 0) {
         size_t chunk;
 
-        if(remaining > sizeof(buffer)) {
-            chunk = sizeof(buffer);
+        if(remaining > FILE_IO_CHUNK) {
+            chunk = FILE_IO_CHUNK;
         }
         else {
             chunk = remaining;
