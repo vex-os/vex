@@ -1124,6 +1124,38 @@ static long console_open(void)
     return -__k_ENOENT;
 }
 
+/* Reads a line without its newline, cutting what doesn't fit; returns -1 at the end of input */
+static long console_read_line(char* line, long size)
+{
+    char rest[64];
+    char last = 0;
+    long length = syscall3(__k_SYS_READ, console_fd, (long)line, size - 1);
+
+    if(length <= 0) {
+        return -1;
+    }
+
+    if(line[length - 1] == '\n') {
+        line[length - 1] = 0;
+        return length - 1;
+    }
+
+    line[length] = 0;
+
+    /* A canonical read stops at the newline, so the rest of a long line waits for the next reads */
+    while(last != '\n') {
+        long piece = syscall3(__k_SYS_READ, console_fd, (long)rest, sizeof(rest));
+
+        if(piece <= 0) {
+            break;
+        }
+
+        last = rest[piece - 1];
+    }
+
+    return length;
+}
+
 static void serial_console(void)
 {
     char line[128];
@@ -1148,13 +1180,11 @@ static void serial_console(void)
 
     do {
         console_write("utest> ");
-        length = syscall3(__k_SYS_READ, console_fd, (long)line, sizeof(line) - 1);
+        length = console_read_line(line, sizeof(line));
 
-        if(length <= 0) {
+        if(length < 0) {
             break;
         }
-
-        line[length - 1] = 0;
     } while(console_command(line));
 
     console_write("utest: bye\n");
