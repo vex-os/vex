@@ -1,33 +1,19 @@
-#include <arch/io.h>
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
+#include <vex/acpi.h>
 #include <vex/clocksrc.h>
 #include <vex/initcall.h>
-#include <vex/kmalloc.h>
+#include <vex/io.h>
 #include <vex/kprintf.h>
-#include <vex/mmio.h>
-#include <vex/panic.h>
-#include <vex/vprot.h>
+#include <vex/string.h>
 
 #define ACPI_PMT_FREQ_HZ UINT64_C(3579545)
 
-typedef struct acpi_pmt_privdata_s acpi_pmt_privdata_t;
-
-struct acpi_pmt_privdata_s {
-    volatile uint32_t* mmio;
-    uintptr_t pmio;
-};
+static io_region_t timer_register;
 
 static uint64_t acpi_pmt_read(clock_source_t* restrict source)
 {
-    acpi_pmt_privdata_t* priv = source->ctxdata;
-
-    if(priv->mmio) {
-        return priv->mmio[0];
-    }
-    else {
-        return port_read32(priv->pmio);
-    }
+    return io_read32(&timer_register, 0);
 }
 
 static const clock_source_ops_t acpi_pmt_ops = {
@@ -50,41 +36,13 @@ static void init_acpi_pmt(void)
     }
 
     struct acpi_fadt* fadt = (struct acpi_fadt*)(table.hdr);
-    acpi_pmt_privdata_t* priv = kmalloc(sizeof(acpi_pmt_privdata_t));
+    struct acpi_gas gas = fadt->x_pm_tmr_blk;
 
-    if(priv == nullptr) {
-        pr_warning("acpi_pmt: out of memory");
-        return;
-    }
-
-    priv->mmio = nullptr;
-    priv->pmio = 0;
-
-    if(fadt->x_pm_tmr_blk.address) {
-        if(fadt->x_pm_tmr_blk.address_space_id == ACPI_AS_ID_SYS_MEM) {
-            priv->mmio = mmio_map(fadt->x_pm_tmr_blk.address, sizeof(uint32_t), VPROT_MMIO);
-
-            if(priv->mmio == nullptr) {
-                pr_warning("acpi_pmt: failed to map the timer");
-
-                kfree(priv);
-
-                return;
-            }
-        }
-        else {
-            priv->pmio = fadt->x_pm_tmr_blk.address;
-        }
-    }
-    else if(fadt->pm_tmr_blk) {
-        priv->pmio = fadt->pm_tmr_blk;
-    }
-    else {
-        uacpi_table_unref(&table);
-
-        kfree(priv);
-
-        return;
+    // Before ACPI 2.0 the block is in ports, and the FADT only has its address
+    if(gas.address == 0) {
+        memset(&gas, 0, sizeof(gas));
+        gas.address_space_id = ACPI_AS_ID_SYS_IO;
+        gas.address = fadt->pm_tmr_blk;
     }
 
     if(fadt->flags & ACPI_TMR_VAL_EXT) {
@@ -94,11 +52,20 @@ static void init_acpi_pmt(void)
         acpi_pmt_clock_source.mask = CLOCK_SOURCE_MASK_24;
     }
 
-    acpi_pmt_clock_source.ctxdata = priv;
+    uacpi_table_unref(&table);
+
+    if(gas.address == 0) {
+        return;
+    }
+
+    int retval = acpi_gas_region(&gas, sizeof(uint32_t), &timer_register);
+
+    if(retval < 0) {
+        pr_warning("acpi_pmt: %s", strerror(retval));
+        return;
+    }
 
     clock_source_add_hz(&acpi_pmt_clock_source, ACPI_PMT_FREQ_HZ);
-
-    uacpi_table_unref(&table);
 }
 
 initcall_bsp_timer(init_acpi_pmt, INIT_FIRST);

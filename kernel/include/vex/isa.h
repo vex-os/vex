@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/firmware.h>
 #include <vex/io.h>
 #include <vex/irq.h>
 #include <vex/types.h>
@@ -47,7 +48,7 @@ struct isa_device_private_s {
     isa_driver_t* driver;
     isa_resource_t* resources;
     size_t num_resources;
-    void* acpi_node;
+    firmware_node_t node;
 };
 
 struct isa_device_s {

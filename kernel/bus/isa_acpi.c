@@ -1,9 +1,5 @@
-#include <uacpi/namespace.h>
-#include <uacpi/resources.h>
-#include <uacpi/utilities.h>
-#include <vex/errno.h>
+#include <vex/firmware.h>
 #include <vex/initcall.h>
-#include <vex/intctl.h>
 #include <vex/isa.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
@@ -11,6 +7,7 @@
 #include <vex/string.h>
 
 #define ACPI_MAX_ISA_RESOURCES 16
+#define ACPI_ID_MAX            16
 
 typedef struct parse_context_s parse_context_t;
 
@@ -19,118 +16,63 @@ struct parse_context_s {
     unsigned num_resources;
 };
 
-static uacpi_iteration_decision parse_resource(void* ctxdata, uacpi_resource* acpi_resource)
+static void parse_resource(const firmware_resource_t* resource, void* arg)
 {
-    parse_context_t* context = ctxdata;
+    parse_context_t* context = arg;
 
-    if(context->num_resources < ACPI_MAX_ISA_RESOURCES) {
-        isa_resource_t* resource = &context->resources[context->num_resources];
-
-        if(acpi_resource->type == UACPI_RESOURCE_TYPE_IO) {
-            resource->type = ISA_RESOURCE_PMIO;
-            resource->io.space = IO_SPACE_PORT;
-            resource->io.base = acpi_resource->io.minimum;
-            resource->io.length = acpi_resource->io.length;
-            context->num_resources += 1;
-            return UACPI_ITERATION_DECISION_CONTINUE;
-        }
-
-        if(acpi_resource->type == UACPI_RESOURCE_TYPE_FIXED_IO) {
-            resource->type = ISA_RESOURCE_PMIO;
-            resource->io.space = IO_SPACE_PORT;
-            resource->io.base = acpi_resource->fixed_io.address;
-            resource->io.length = acpi_resource->fixed_io.length;
-            context->num_resources += 1;
-            return UACPI_ITERATION_DECISION_CONTINUE;
-        }
-
-        if(acpi_resource->type == UACPI_RESOURCE_TYPE_IRQ && acpi_resource->irq.num_irqs) {
-            resource->type = ISA_RESOURCE_IRQ;
-            resource->irq.line = acpi_resource->irq.irqs[0];
-            resource->irq.gsi = 0;
-            resource->irq.irq_number = UINT_MAX;
-
-            if(acpi_resource->irq.triggering == UACPI_TRIGGERING_EDGE) {
-                resource->irq.trigger = TRIGGER_EDGE;
-            }
-            else {
-                resource->irq.trigger = TRIGGER_LEVEL;
-            }
-
-            if(acpi_resource->irq.polarity == UACPI_POLARITY_ACTIVE_HIGH) {
-                resource->irq.polarity = ACTIVE_HIGH;
-            }
-            else {
-                resource->irq.polarity = ACTIVE_LOW;
-            }
-
-            context->num_resources += 1;
-            return UACPI_ITERATION_DECISION_CONTINUE;
-        }
-
-        if(acpi_resource->type == UACPI_RESOURCE_TYPE_EXTENDED_IRQ && acpi_resource->extended_irq.num_irqs) {
-            resource->type = ISA_RESOURCE_IRQ;
-            resource->irq.line = acpi_resource->extended_irq.irqs[0];
-            resource->irq.gsi = 0;
-            resource->irq.irq_number = UINT_MAX;
-
-            if(acpi_resource->extended_irq.triggering == UACPI_TRIGGERING_EDGE) {
-                resource->irq.trigger = TRIGGER_EDGE;
-            }
-            else {
-                resource->irq.trigger = TRIGGER_LEVEL;
-            }
-
-            if(acpi_resource->extended_irq.polarity == UACPI_POLARITY_ACTIVE_HIGH) {
-                resource->irq.polarity = ACTIVE_HIGH;
-            }
-            else {
-                resource->irq.polarity = ACTIVE_LOW;
-            }
-
-            context->num_resources += 1;
-            return UACPI_ITERATION_DECISION_CONTINUE;
-        }
+    // A window is what a bridge passes on, not a register range of the device
+    if(context->num_resources == ACPI_MAX_ISA_RESOURCES
+        || (resource->type == FIRMWARE_RESOURCE_PORT && (resource->range.flags & FIRMWARE_RANGE_WINDOW))) {
+        return;
     }
 
-    return UACPI_ITERATION_DECISION_CONTINUE;
+    isa_resource_t* parsed = &context->resources[context->num_resources];
+
+    switch(resource->type) {
+        case FIRMWARE_RESOURCE_PORT:
+            parsed->type = ISA_RESOURCE_PMIO;
+            parsed->io.space = IO_SPACE_PORT;
+            parsed->io.base = resource->range.start;
+            parsed->io.length = resource->range.length;
+            break;
+
+        case FIRMWARE_RESOURCE_IRQ:
+            parsed->type = ISA_RESOURCE_IRQ;
+            parsed->irq.line = resource->irq.number;
+            parsed->irq.gsi = 0;
+            parsed->irq.trigger = resource->irq.trigger;
+            parsed->irq.polarity = resource->irq.polarity;
+            parsed->irq.irq_number = UINT_MAX;
+            break;
+
+        default:
+            return;
+    }
+
+    context->num_resources += 1;
 }
 
-static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_node* node, uacpi_u32 depth)
+static void add_device(const firmware_node_t* restrict node, const char* restrict id)
 {
-    uacpi_namespace_node_info* info;
-    uacpi_status status = uacpi_get_namespace_node_info(node, &info);
-
-    if(uacpi_unlikely_error(status)) {
-        return UACPI_ITERATION_DECISION_CONTINUE;
-    }
-
-    if(0 == (info->flags & UACPI_NS_NODE_INFO_HAS_HID)) {
-        uacpi_free_namespace_node_info(info);
-        return UACPI_ITERATION_DECISION_CONTINUE;
-    }
-
     isa_device_t* device = kmalloc(sizeof(isa_device_t));
 
     if(device == nullptr) {
-        uacpi_free_namespace_node_info(info);
-        return UACPI_ITERATION_DECISION_CONTINUE;
+        pr_warning("acpi_isa: out of memory");
+        return;
     }
 
-    device->name = kstrdup(info->hid.value);
+    device->name = kstrdup(id);
 
     if(device->name == nullptr) {
         pr_warning("acpi_isa: out of memory");
-
-        uacpi_free_namespace_node_info(info);
-
-        return UACPI_ITERATION_DECISION_CONTINUE;
+        kfree(device);
+        return;
     }
 
     parse_context_t context;
     context.num_resources = 0;
 
-    uacpi_for_each_device_resource(node, "_CRS", parse_resource, &context);
+    firmware_node_for_each_resource(node, &parse_resource, &context);
 
     isa_resource_t* resources = nullptr;
 
@@ -149,27 +91,34 @@ static uacpi_iteration_decision enumerate_device(void* ctxdata, uacpi_namespace_
     device->priv.driver = nullptr;
     device->priv.resources = resources;
     device->priv.num_resources = context.num_resources;
-    device->priv.acpi_node = node;
+    device->priv.node = *node;
     device->ctxdata = nullptr;
 
     pr_verbose("acpi_isa: found %s: num_resources=%u", device->name, context.num_resources);
 
     isa_device_add(device);
+}
 
-    uacpi_free_namespace_node_info(info);
+static void visit_node(const firmware_node_t* node, void* arg)
+{
+    char id[ACPI_ID_MAX];
 
-    return UACPI_ITERATION_DECISION_CONTINUE;
+    if(firmware_node_is_present(node) && 0 == firmware_node_get_id(node, id, sizeof(id))) {
+        add_device(node, id);
+    }
+
+    firmware_node_for_each_child(node, &visit_node, nullptr);
 }
 
 static void init_isa_acpi(void)
 {
-    uacpi_namespace_node* node = uacpi_namespace_get_predefined(UACPI_PREDEFINED_NAMESPACE_SB);
-    uacpi_status status = uacpi_namespace_for_each_child(node, &enumerate_device, nullptr, UACPI_OBJECT_DEVICE_BIT, UACPI_MAX_DEPTH_ANY,
-        nullptr);
+    firmware_node_t root;
 
-    if(uacpi_unlikely_error(status)) {
-        pr_verbose("isa_acpi: %s", uacpi_status_to_string(status));
+    if(firmware_root(&root) < 0) {
+        return;
     }
+
+    firmware_node_for_each_child(&root, &visit_node, nullptr);
 }
 
 initcall_bsp_bus(init_isa_acpi, INIT_LATE);
