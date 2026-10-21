@@ -1,5 +1,6 @@
 #include <vex/atomic.h>
 #include <vex/errno.h>
+#include <vex/fcntl.h>
 #include <vex/file.h>
 #include <vex/mount.h>
 #include <vex/path.h>
@@ -9,6 +10,8 @@
 #include <vex/thread.h>
 #include <vex/uaccess.h>
 #include <vex/vnode.h>
+
+#define FCNTL_SETTABLE_FLAGS (O_APPEND | O_NONBLOCK)
 
 static intptr_t read_file(file_t* restrict file, const uintptr_t* restrict args)
 {
@@ -154,6 +157,29 @@ static intptr_t fsync_file(file_t* restrict file, const uintptr_t* restrict args
     vnode_decref(node);
 
     return retval;
+}
+
+static intptr_t fcntl_file(file_t* restrict file, const uintptr_t* restrict args)
+{
+    unsigned command = args[1];
+    unsigned flags = atomic_load(&file->flags, ATOMIC_RELAXED);
+
+    if(command == F_GETFL) {
+        return flags;
+    }
+
+    if(command != F_SETFL) {
+        return -EINVAL;
+    }
+
+    // As in POSIX, the access mode and the creation flags stay as open left them
+    unsigned changed = args[2] & FCNTL_SETTABLE_FLAGS;
+
+    while(!atomic_cmpxchg_weak(&file->flags, &flags, (flags & ~FCNTL_SETTABLE_FLAGS) | changed, ATOMIC_RELAXED, ATOMIC_RELAXED)) {
+        // empty
+    }
+
+    return 0;
 }
 
 static intptr_t sys_openat(const uintptr_t* restrict args)
@@ -302,3 +328,10 @@ static intptr_t sys_fsync(const uintptr_t* restrict args)
 }
 
 define_syscall(sys_fsync, SYS_FSYNC);
+
+static intptr_t sys_fcntl(const uintptr_t* restrict args)
+{
+    return syscall_with_fd(args, &fcntl_file);
+}
+
+define_syscall(sys_fcntl, SYS_FCNTL);

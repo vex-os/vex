@@ -11,6 +11,9 @@
 #define O_EXCL     __k_O_EXCL
 #define O_NONBLOCK __k_O_NONBLOCK
 
+#define F_GETFL __k_F_GETFL
+#define F_SETFL __k_F_SETFL
+
 #define F_OK __k_F_OK
 #define X_OK __k_X_OK
 #define W_OK __k_W_OK

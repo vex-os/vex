@@ -493,6 +493,12 @@ int main(int argc, char** argv)
             syscall2(__k_SYS_TEST, (long)buf, n);
         }
 
+        // F_SETFL changes O_APPEND and O_NONBLOCK only, the access mode stays
+        printnumber(syscall3(__k_SYS_FCNTL, fd, __k_F_GETFL, 0) == __k_O_RDONLY);                    // should print 1
+        printnumber(syscall3(__k_SYS_FCNTL, fd, __k_F_SETFL, __k_O_NONBLOCK | __k_O_WRONLY));        // should print 0
+        printnumber(syscall3(__k_SYS_FCNTL, fd, __k_F_GETFL, 0) == (__k_O_RDONLY | __k_O_NONBLOCK)); // should print 1
+        printnumber(syscall3(__k_SYS_FCNTL, fd, 99, 0));                                             // should print -226 (EINVAL)
+
         syscall1(__k_SYS_CLOSE, fd);
     }
 

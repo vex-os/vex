@@ -62,6 +62,7 @@ typedef struct vnode_s vnode_t;
 #define SYS_FSTAT     __k_SYS_FSTAT
 #define SYS_FTRUNCATE __k_SYS_FTRUNCATE
 #define SYS_FSYNC     __k_SYS_FSYNC
+#define SYS_FCNTL     __k_SYS_FCNTL
 
 #define SYS_FSTATAT    __k_SYS_FSTATAT
 #define SYS_FCHMODAT   __k_SYS_FCHMODAT

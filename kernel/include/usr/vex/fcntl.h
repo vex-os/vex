@@ -12,6 +12,10 @@
 #define __k_O_EXCL     ((__k_mode_t)(0x0020))
 #define __k_O_NONBLOCK ((__k_mode_t)(0x0040))
 
+/* Numbered as in Linux, leaving 0 to 2 for F_DUPFD, F_GETFD and F_SETFD */
+#define __k_F_GETFL 3
+#define __k_F_SETFL 4
+
 #define __k_F_OK 0x0000
 #define __k_X_OK 0x0001
 #define __k_W_OK 0x0002
