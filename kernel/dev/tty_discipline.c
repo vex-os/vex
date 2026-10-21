@@ -246,7 +246,7 @@ static size_t expand(const termios_t* restrict termios, uint8_t byte, uint8_t* r
 static void output_or_drop(tty_device_t* restrict device, uint8_t byte)
 {
     // Echo only: the user sees less, but the input is kept
-    (void)tty_discipline_output(device, byte);
+    tty_discipline_output(device, byte);
 }
 
 static void echo(tty_device_t* restrict device, uint8_t byte)
@@ -408,11 +408,11 @@ static void erase_word(tty_device_t* restrict device, uint8_t byte)
     const tty_ring_t* input = &discipline->input;
 
     while(input->tail != discipline->line_end && isblank(tty_ring_at(input, input->tail - 1))) {
-        (void)erase_last(device);
+        erase_last(device);
     }
 
     while(input->tail != discipline->line_end && !isblank(tty_ring_at(input, input->tail - 1))) {
-        (void)erase_last(device);
+        erase_last(device);
     }
 
     if((termios->c_lflag & ECHO) && !erases_visibly(termios)) {

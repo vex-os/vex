@@ -878,7 +878,7 @@ static void ahci_handoff(pci_bar_t* restrict abar)
 
     // Firmware that needs longer sets BB within 25 ms and then gets 2 s
     if(busy) {
-        (void)bar_wait(abar, HBA_BOHC, HBA_BOHC_BOS, 0, AHCI_BIOS_BB_TIMEOUT_NS);
+        bar_wait(abar, HBA_BOHC, HBA_BOHC_BOS, 0, AHCI_BIOS_BB_TIMEOUT_NS);
     }
 
     if(io_read32(&abar->io, HBA_BOHC) & HBA_BOHC_BOS) {

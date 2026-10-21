@@ -364,7 +364,7 @@ static void __noreturn tty_worker(void* restrict arg)
 {
     for(;;) {
         event_t* wakeup = &worker_wakeup;
-        (void)event_await_blocking(&wakeup, 1);
+        event_await_blocking(&wakeup, 1);
 
         for(tty_device_t* device = worker_pop(); device; device = worker_pop()) {
             process_input(device);
@@ -1340,7 +1340,7 @@ size_t tty_transmit_take(tty_device_t* restrict device, void* restrict buffer, s
     }
 
     if(taken) {
-        (void)notify_output_locked(device);
+        notify_output_locked(device);
     }
 
     spinlock_release_intr(&device->priv.lock, intr_state);

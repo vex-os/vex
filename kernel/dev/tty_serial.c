@@ -237,7 +237,7 @@ static int tty_serial_unbind(serial_device_t* restrict device, bool force)
     serial_device_detach(device);
 
     // A hangup when forced; the terminal is freed once the last file of it closes
-    (void)tty_device_remove(&terminal->tty);
+    tty_device_remove(&terminal->tty);
     dev_unit_free(unit);
 
     return 0;

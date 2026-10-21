@@ -63,7 +63,7 @@ static void sleep_msec(uint32_t msec)
     event_t* events = &never;
 
     event_init(&never);
-    (void)event_await_timeout(&events, 1, msec * NSEC_PER_MSEC);
+    event_await_timeout(&events, 1, msec * NSEC_PER_MSEC);
     event_deinit(&never);
 }
 

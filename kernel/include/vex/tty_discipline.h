@@ -28,7 +28,7 @@ void tty_discipline_receive(tty_device_t* restrict device, uint8_t byte, unsigne
 
 /// Puts a byte written to the terminal through OPOST into the output
 /// @return Whether there was room; when there was none, nothing went in
-bool tty_discipline_output(tty_device_t* restrict device, uint8_t byte) __nodiscard;
+bool tty_discipline_output(tty_device_t* restrict device, uint8_t byte);
 
 /// @return How many bytes a read could take now, a line at most in canonical mode
 size_t tty_discipline_readable(const tty_device_t* restrict device) __nodiscard;
