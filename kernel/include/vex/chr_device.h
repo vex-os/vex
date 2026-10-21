@@ -78,6 +78,9 @@ void chr_device_incref(const chr_device_t* restrict device);
 void chr_device_decref(const chr_device_t* restrict device);
 
 int chr_device_open(const chr_device_t* restrict device, unsigned flags);
+
+/// Makes further opens fail with -EBUSY until the last close, as an O_EXCL open does
+void chr_device_set_exclusive(const chr_device_t* restrict device, bool exclusive);
 void chr_device_close(const chr_device_t* restrict device);
 
 const chr_device_t* chr_device_find(const char* restrict name) __nodiscard;

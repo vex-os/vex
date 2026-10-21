@@ -157,6 +157,15 @@ int chr_device_open(const chr_device_t* restrict device, unsigned flags)
     return retval;
 }
 
+void chr_device_set_exclusive(const chr_device_t* restrict device, bool exclusive)
+{
+    chr_device_t* mutable_device = (chr_device_t*)(device);
+
+    mutex_acquire(&mutable_device->priv.open_lock);
+    mutable_device->priv.exclusive = exclusive;
+    mutex_release(&mutable_device->priv.open_lock);
+}
+
 void chr_device_close(const chr_device_t* restrict device)
 {
     chr_device_t* mutable_device = (chr_device_t*)(device);
