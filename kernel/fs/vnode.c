@@ -869,7 +869,7 @@ int vnode_close(vnode_t* restrict node)
     return retval;
 }
 
-ssize_t vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset)
+ssize_t vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset, unsigned flags)
 {
     kassert(node);
 
@@ -884,7 +884,7 @@ ssize_t vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, o
         retval = -ENOSYS;
     }
     else {
-        retval = target->ops->read(target, buffer, size, offset);
+        retval = target->ops->read(target, buffer, size, offset, flags);
     }
 
     if(retval >= 0) {
@@ -896,7 +896,7 @@ ssize_t vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, o
     return retval;
 }
 
-ssize_t vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset)
+ssize_t vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset, unsigned flags)
 {
     kassert(node);
 
@@ -911,7 +911,7 @@ ssize_t vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t 
         retval = -ENOSYS;
     }
     else {
-        retval = target->ops->write(target, buffer, size, offset);
+        retval = target->ops->write(target, buffer, size, offset, flags);
     }
 
     vnode_decref(target);

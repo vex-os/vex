@@ -966,7 +966,7 @@ static int ext2_vnode_rename(vnode_t* olddir, const char* oldname, vnode_t* sour
     return retval;
 }
 
-static ssize_t ext2_vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset)
+static ssize_t ext2_vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset, unsigned flags)
 {
     ext2_vnode_context_t* ctx = node->ctxdata;
 
@@ -985,7 +985,7 @@ static ssize_t ext2_vnode_read(vnode_t* restrict node, void* restrict buffer, si
     return retval;
 }
 
-static ssize_t ext2_vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset)
+static ssize_t ext2_vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset, unsigned flags)
 {
     if(node->type == VNODE_DIRECTORY) {
         return -EISDIR;

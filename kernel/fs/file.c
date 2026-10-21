@@ -182,7 +182,7 @@ ssize_t file_read(file_t* restrict file, void* restrict buffer, size_t size)
         return -EBADF;
     }
 
-    result = vnode_read(file->node, buffer, size, file->offset);
+    result = vnode_read(file->node, buffer, size, file->offset, atomic_load(&file->flags, ATOMIC_RELAXED));
 
     if(result > 0) {
         file->offset += result;
@@ -224,7 +224,7 @@ ssize_t file_write(file_t* restrict file, const credentials_t* restrict credenti
         }
     }
 
-    ssize_t result = vnode_write(file->node, buffer, size, file->offset);
+    ssize_t result = vnode_write(file->node, buffer, size, file->offset, atomic_load(&file->flags, ATOMIC_RELAXED));
 
     if(result > 0) {
         file->offset += result;

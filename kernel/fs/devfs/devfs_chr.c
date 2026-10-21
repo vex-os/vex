@@ -40,18 +40,18 @@ static int devfs_chr_close(vnode_t* restrict node)
     return 0;
 }
 
-static ssize_t devfs_chr_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset)
+static ssize_t devfs_chr_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset, unsigned flags)
 {
     const devfs_chr_context_t* context = node->ctxdata;
 
-    return chr_device_read(context->device, offset, buffer, size);
+    return chr_device_read(context->device, offset, buffer, size, flags);
 }
 
-static ssize_t devfs_chr_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset)
+static ssize_t devfs_chr_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset, unsigned flags)
 {
     const devfs_chr_context_t* context = node->ctxdata;
 
-    return chr_device_write(context->device, offset, buffer, size);
+    return chr_device_write(context->device, offset, buffer, size, flags);
 }
 
 static int devfs_chr_ioctl(vnode_t* restrict node, unsigned request, uintptr_t argument)

@@ -22,8 +22,8 @@ struct chr_device_ops_s {
     /// @pre This is the last close, and the device wasn't removed while open
     void (*close)(const chr_device_t* restrict device);
 
-    ssize_t (*read)(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size);
-    ssize_t (*write)(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size);
+    ssize_t (*read)(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size, unsigned flags);
+    ssize_t (*write)(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size, unsigned flags);
     int (*ioctl)(const chr_device_t* restrict device, uint32_t request, uintptr_t argument);
 
     /// Checks a mapping of the device's memory before it is made
@@ -85,22 +85,24 @@ const chr_device_t* chr_device_find(const char* restrict name) __nodiscard;
 /// @pre The caller holds chr_event_lock, which keeps the device list still
 void chr_device_for_each(void (*callback)(const chr_device_t* restrict device, void* restrict arg), void* restrict arg);
 
-static __always_inline ssize_t chr_device_read(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size)
+static __always_inline ssize_t chr_device_read(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size,
+    unsigned flags)
 {
     if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE))
         return -ENODEV;
     if(device->ops->read == nullptr)
         return -ENOSYS;
-    return device->ops->read(device, offset, buffer, size);
+    return device->ops->read(device, offset, buffer, size, flags);
 }
 
-static __always_inline ssize_t chr_device_write(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size)
+static __always_inline ssize_t chr_device_write(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size,
+    unsigned flags)
 {
     if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE))
         return -ENODEV;
     if(device->ops->write == nullptr)
         return -ENOSYS;
-    return device->ops->write(device, offset, buffer, size);
+    return device->ops->write(device, offset, buffer, size, flags);
 }
 
 static __always_inline int chr_device_ioctl(const chr_device_t* restrict device, uint32_t request, uintptr_t argument)

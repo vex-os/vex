@@ -93,8 +93,8 @@ struct vnode_ops_s {
 
     int (*open)(vnode_t* restrict node, unsigned mode);
     int (*close)(vnode_t* restrict node);
-    ssize_t (*read)(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset);
-    ssize_t (*write)(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset);
+    ssize_t (*read)(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset, unsigned flags);
+    ssize_t (*write)(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset, unsigned flags);
     ssize_t (*readlink)(vnode_t* restrict node, char* restrict buf, size_t size);
     int (*ioctl)(vnode_t* restrict node, uint32_t request, uintptr_t argument);
     int (*stat)(vnode_t* restrict node, stat_t* restrict out);
@@ -177,8 +177,8 @@ int vnode_symlink(vnode_t* restrict node, const char* restrict name, const char*
     vnode_t** restrict out);
 int vnode_open(vnode_t* restrict node, unsigned mode);
 int vnode_close(vnode_t* restrict node);
-ssize_t vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset);
-ssize_t vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset);
+ssize_t vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset, unsigned flags);
+ssize_t vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset, unsigned flags);
 ssize_t vnode_readlink(vnode_t* restrict node, char* restrict buf, size_t size);
 int vnode_stat(vnode_t* restrict node, stat_t* restrict out);
 

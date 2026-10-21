@@ -1180,7 +1180,7 @@ static int fat_vnode_create(vnode_t* restrict node, const char* restrict name, u
     return retval;
 }
 
-static ssize_t fat_vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset)
+static ssize_t fat_vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset, unsigned flags)
 {
     mutex_acquire(fs_lock(node));
     ssize_t retval = read_locked(node, buffer, size, offset);
@@ -1188,7 +1188,7 @@ static ssize_t fat_vnode_read(vnode_t* restrict node, void* restrict buffer, siz
     return retval;
 }
 
-static ssize_t fat_vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset)
+static ssize_t fat_vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset, unsigned flags)
 {
     mutex_acquire(fs_lock(node));
     ssize_t retval = write_locked(node, buffer, size, offset);
