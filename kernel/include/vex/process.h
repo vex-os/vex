@@ -15,6 +15,10 @@ typedef struct vnode_s vnode_t;
 
 #define INIT_PID 1
 
+#define PROCESS_EXITING   0x01U
+#define PROCESS_ZOMBIE    0x02U // Every thread is reaped
+#define PROCESS_COLLECTED 0x04U // A waiter claimed the zombie
+
 typedef struct process_s process_t;
 
 struct process_s {
@@ -24,9 +28,7 @@ struct process_s {
 
     uint32_t refcount;
 
-    bool zombie;
-    bool collected;
-    bool exiting;
+    uint8_t flags; // PROCESS_*, only ever set, with atomic_fetch_or: the bits share a byte
     uint8_t exit_signal;
 
     spinlock_t lock;
@@ -44,8 +46,7 @@ struct process_s {
 
     process_t* hash_next;
 
-    event_t event;
-    event_t child_exited;
+    event_t child_exited; // Triggered under lock once a child is a zombie or init adopts one
 
     credentials_t* credentials;
     mutex_t credentials_lock;
@@ -64,6 +65,9 @@ struct process_s {
     uint32_t max_fds;
     file_t** fds;
 };
+
+/// Triggered once init's last thread is reaped; init never exits by design
+extern event_t init_exited;
 
 /// Threads take their ids from the same counter, so a tid never names another process
 pid_t process_alloc_id(void) __nodiscard;

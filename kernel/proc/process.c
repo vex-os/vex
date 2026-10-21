@@ -25,6 +25,8 @@ static process_t* proctable[PROCTABLE_BUCKETS];
 static spinlock_t proctable_lock = SPINLOCK_INIT; // Taken with interrupts disabled: the scheduler looks up parents
 static pid_t next_pid = INIT_PID;
 
+event_t init_exited;
+
 static __always_inline __nodiscard size_t pid_bucket(pid_t pid)
 {
     return pid % PROCTABLE_BUCKETS;
@@ -93,7 +95,11 @@ static void notify_parent(process_t* restrict process)
         return;
     }
 
-    event_trigger(&parent->child_exited, true);
+    // Under the lock waiters check their children under,
+    // as the zombie flag itself was set without it
+    bool intr_state = spinlock_acquire_intr(&parent->lock);
+    event_trigger(&parent->child_exited, false);
+    spinlock_release_intr(&parent->lock, intr_state);
 
     // After the event, so a handler's waitpid finds the zombie
     pending_signal_t* note = process->exit_note;
@@ -130,7 +136,7 @@ static void reparent_children(process_t* restrict process)
 
         // A zombie's own SIGCHLD went to this dying process, so init gets one for
         // it here; SIGCHLDs merge while pending, so the first zombie stands for all
-        if(note == nullptr && atomic_load_n(&it->zombie, ATOMIC_SEQ_CST)) {
+        if(note == nullptr && (atomic_load_n(&it->flags, ATOMIC_SEQ_CST) & PROCESS_ZOMBIE)) {
             note = process->adopt_note;
             process->adopt_note = nullptr;
             fill_exit_note(note, it);
@@ -159,7 +165,7 @@ static void reparent_children(process_t* restrict process)
 
     if(init) {
         if(note) {
-            event_trigger(&init->child_exited, true);
+            event_trigger(&init->child_exited, false);
             signal_send_node(init, note);
         }
 
@@ -193,7 +199,7 @@ static void release_files(process_t* restrict process)
 
 static void begin_exit(process_t* restrict process, int exit_code, int exit_signal)
 {
-    if(atomic_exchange(&process->exiting, true, ATOMIC_ACQ_REL)) {
+    if(atomic_fetch_or(&process->flags, PROCESS_EXITING, ATOMIC_ACQ_REL) & PROCESS_EXITING) {
         return;
     }
 
@@ -264,7 +270,6 @@ process_t* process_create(process_t* restrict parent)
     process->refcount = 1;
     process->lock = SPINLOCK_INIT;
     process->fd_lock = SPINLOCK_INIT;
-    event_init(&process->event);
     event_init(&process->child_exited);
     mutex_init(&process->credentials_lock);
 
@@ -276,6 +281,7 @@ process_t* process_create(process_t* restrict parent)
     else {
         process->credentials = &kernel_credentials;
         cred_incref(&kernel_credentials);
+        event_init(&init_exited); // Only init has no parent
         process->umask = S_IWGRP | S_IWOTH;
         process->cwd = nullptr;
     }
@@ -360,7 +366,6 @@ void process_decref(process_t* process)
         slab_free(process->exit_note);
         signal_actions_destroy(process->signal_actions);
         mutex_deinit(&process->credentials_lock);
-        event_deinit(&process->event);
         event_deinit(&process->child_exited);
         slab_free(process);
     }
@@ -408,7 +413,7 @@ int process_dethread(process_t* process, thread_t* thread)
 {
     bool intr_state = spinlock_acquire_intr(&process->lock);
 
-    if(atomic_load_n(&process->exiting, ATOMIC_ACQUIRE) || process->exec_thread) {
+    if((atomic_load_n(&process->flags, ATOMIC_ACQUIRE) & PROCESS_EXITING) || process->exec_thread) {
         spinlock_release_intr(&process->lock, intr_state);
         return -EINTR;
     }
@@ -433,7 +438,7 @@ int process_dethread(process_t* process, thread_t* thread)
 
     process->exec_thread = nullptr;
 
-    bool exiting = atomic_load_n(&process->exiting, ATOMIC_ACQUIRE);
+    bool exiting = atomic_load_n(&process->flags, ATOMIC_ACQUIRE) & PROCESS_EXITING;
 
     if(!exiting) {
         process->num_live_threads = 1;
@@ -505,8 +510,11 @@ void process_thread_reaped(process_t* process, thread_t* thread)
         vms_release(process->vmspace);
         process->vmspace = nullptr;
 
-        atomic_store_n(&process->zombie, true, ATOMIC_SEQ_CST);
-        event_trigger(&process->event, true);
+        atomic_fetch_or(&process->flags, PROCESS_ZOMBIE, ATOMIC_SEQ_CST);
+
+        if(process->pid == INIT_PID) {
+            event_trigger(&init_exited, true);
+        }
 
         notify_parent(process);
         reparent_children(process);
@@ -517,13 +525,13 @@ void process_thread_reaped(process_t* process, thread_t* thread)
 
 bool process_claim(process_t* process)
 {
-    bool expected = false;
-
-    if(!atomic_load_n(&process->zombie, ATOMIC_ACQUIRE)) {
+    if(0 == (atomic_load_n(&process->flags, ATOMIC_ACQUIRE) & PROCESS_ZOMBIE)) {
         return false;
     }
 
-    return atomic_cmpxchg(&process->collected, &expected, true, ATOMIC_ACQ_REL, ATOMIC_RELAXED);
+    uint8_t old_flags = atomic_fetch_or(&process->flags, PROCESS_COLLECTED, ATOMIC_ACQ_REL);
+
+    return 0 == (old_flags & PROCESS_COLLECTED);
 }
 
 void process_destroy(process_t* process)

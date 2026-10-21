@@ -270,15 +270,31 @@ static intptr_t collect_child(process_t* restrict target, uintptr_t wstatus)
     return retval;
 }
 
-static intptr_t wait_any_child(process_t* restrict caller, uintptr_t wstatus)
+static bool wait_matches(const process_t* restrict child, pid_t pid)
+{
+    return pid == -1 || child->pid == pid;
+}
+
+static intptr_t wait_child(process_t* restrict caller, pid_t pid, uintptr_t wstatus)
 {
     for(;;) {
         process_t* target = nullptr;
+        bool has_match = false;
 
         bool intr_state = spinlock_acquire_intr(&caller->lock);
-        bool has_children = caller->children;
 
         for(process_t* it = caller->children; it; it = it->sibling_next) {
+            // Another waiter has it, and it won't trigger child_exited again
+            if(atomic_load_n(&it->flags, ATOMIC_ACQUIRE) & PROCESS_COLLECTED) {
+                continue;
+            }
+
+            if(!wait_matches(it, pid)) {
+                continue;
+            }
+
+            has_match = true;
+
             if(process_claim(it)) {
                 process_incref(it);
                 target = it;
@@ -286,24 +302,24 @@ static intptr_t wait_any_child(process_t* restrict caller, uintptr_t wstatus)
             }
         }
 
-        spinlock_release_intr(&caller->lock, intr_state);
+        if(target == nullptr && has_match) {
+            event_t* child_exited = &caller->child_exited;
+            ssize_t result = event_await_interruptible_unlock(&child_exited, 1, &caller->lock, intr_state);
 
-        if(target) {
-            return collect_child(target, wstatus);
+            if(result < 0) {
+                return result;
+            }
+
+            continue;
         }
 
-        if(!has_children) {
+        spinlock_release_intr(&caller->lock, intr_state);
+
+        if(target == nullptr) {
             return -ECHILD;
         }
 
-        // A child that dies before this
-        // wait starts leaves the event pending
-        event_t* child_exited = &caller->child_exited;
-        ssize_t result = event_await_interruptible(&child_exited, 1);
-
-        if(result < 0) {
-            return result;
-        }
+        return collect_child(target, wstatus);
     }
 }
 
@@ -407,43 +423,11 @@ static intptr_t sys_waitpid(const uintptr_t* restrict args)
         return -ECHILD;
     }
 
-    if(pid == -1) {
-        return wait_any_child(caller, wstatus);
-    }
-
-    if(pid <= 0) {
+    if(pid <= 0 && pid != -1) {
         return -EINVAL; // Process groups don't exist yet
     }
 
-    process_t* target = process_locate(pid);
-
-    if(target == nullptr) {
-        return -ESRCH;
-    }
-
-    if(atomic_load_n(&target->ppid, ATOMIC_RELAXED) != caller->pid) {
-        process_decref(target);
-        return -ECHILD;
-    }
-
-    // The event fires once, when the last thread is reaped,
-    // so a process that is already a zombie has nothing to wait for
-    if(!atomic_load_n(&target->zombie, ATOMIC_ACQUIRE)) {
-        event_t* event = &target->event;
-        ssize_t result = event_await_interruptible(&event, 1);
-
-        if(result < 0) {
-            process_decref(target);
-            return result;
-        }
-    }
-
-    if(!process_claim(target)) {
-        process_decref(target);
-        return -ECHILD;
-    }
-
-    return collect_child(target, wstatus);
+    return wait_child(caller, pid, wstatus);
 }
 
 define_syscall(sys_waitpid, SYS_WAITPID);

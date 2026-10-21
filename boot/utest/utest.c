@@ -159,6 +159,18 @@ static void join(void)
     }
 }
 
+static volatile long waited_child;
+static volatile int waited_status;
+static volatile long waited_result;
+
+static void child_waiter(long arg)
+{
+    int wstatus = -1;
+    waited_result = syscall2(__k_SYS_WAITPID, waited_child, (long)&wstatus);
+    waited_status = wstatus;
+    syscall1(__k_SYS_THREAD_EXIT, 0);
+}
+
 #define PINGPONG_ROUNDS 1000
 
 static volatile unsigned int turn;
@@ -715,6 +727,37 @@ int main(int argc, char** argv)
     wstatus = -1;
     syscall2(__k_SYS_WAITPID, child, (long)&wstatus);
     printnumber(wstatus); // should print 0, a lone thread leaving is an exit with 0
+
+    // Two threads wait for different children; the first child to die must not use up the other's wakeup
+    long slow_child = syscall1(__k_SYS_FORK, 0);
+
+    if(slow_child == 0) {
+        for(int i = 0; i < 1000; ++i) {
+            syscall1(__k_SYS_YIELD, 0);
+        }
+
+        syscall1(__k_SYS_EXIT, 5);
+    }
+
+    long fast_child = syscall1(__k_SYS_FORK, 0);
+
+    if(fast_child == 0) {
+        syscall1(__k_SYS_EXIT, 3);
+    }
+
+    waited_child = fast_child;
+    spawn_joinable(&child_waiter, 0);
+
+    wstatus = -1;
+    printnumber(syscall2(__k_SYS_WAITPID, slow_child, (long)&wstatus) == slow_child); // should print 1
+    printnumber(wstatus);                                                             // should print 1280 (exit code 5)
+
+    join();
+    printnumber(waited_result == fast_child); // should print 1
+    printnumber(waited_status);               // should print 768 (exit code 3)
+
+    printnumber(syscall2(__k_SYS_WAITPID, slow_child, (long)&wstatus)); // should print -212 (ECHILD), collected already
+    printnumber(syscall2(__k_SYS_WAITPID, 1, (long)&wstatus));          // should print -212 (ECHILD), not a child
 
     return 1337;
 }

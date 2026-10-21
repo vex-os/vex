@@ -47,8 +47,7 @@ static void mount_root(void)
 
 static void __noreturn init_watchdog(void* restrict arg)
 {
-    process_t* process = arg;
-    event_t* event = &process->event;
+    event_t* event = &init_exited;
 
     event_await_blocking(&event, 1);
 
@@ -98,7 +97,7 @@ static void spawn_init(void)
     }
 
     thread_spawn_user(process, entry.address, entry.user_stack);
-    thread_spawn_kernel(&init_watchdog, process);
+    thread_spawn_kernel(&init_watchdog, nullptr);
 }
 
 void __noreturn kmain(void)

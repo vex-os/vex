@@ -419,7 +419,7 @@ static void attach_thread_user(process_t* restrict process, thread_t* restrict t
 
     // Seen under the lock that begin_exit and process_dethread walk
     // the threads under, so a thread added past that walk still exits
-    if(atomic_load_n(&process->exiting, ATOMIC_ACQUIRE) || process->exec_thread) {
+    if((atomic_load_n(&process->flags, ATOMIC_ACQUIRE) & PROCESS_EXITING) || process->exec_thread) {
         atomic_fetch_or(&thread->pending_work, THREAD_WORK_EXIT, ATOMIC_RELEASE);
     }
 
