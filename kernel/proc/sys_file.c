@@ -52,6 +52,12 @@ static intptr_t read_file(file_t* restrict file, const uintptr_t* restrict args)
         user_buf += num_read;
         total += num_read;
         remaining -= num_read;
+
+        // A device such as a tty hands out what it has at once,
+        // and asking it again would wait for more to come in
+        if((size_t)(num_read) < chunk || file->node->type == VNODE_CHAR_DEV) {
+            break;
+        }
     }
 
     return total;
@@ -97,6 +103,11 @@ static intptr_t write_file(file_t* restrict file, const uintptr_t* restrict args
         user_buf += num_written;
         total += num_written;
         remaining -= num_written;
+
+        // Only a non-blocking device takes less than it is given
+        if((size_t)(num_written) < chunk) {
+            break;
+        }
     }
 
     return total;
