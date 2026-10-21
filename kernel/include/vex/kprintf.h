@@ -45,6 +45,9 @@ void kprintf_seek_first(kp_cursor_t* restrict cursor);
 /// Points the cursor past the newest record, at the next one to be written
 void kprintf_seek_end(kp_cursor_t* restrict cursor);
 
+/// The sequence number the next record gets
+uint64_t kprintf_next_seq(void) __nodiscard;
+
 /// Copies the record under the cursor and moves the cursor past it
 /// @param text Holds at least KP_LINE_MAX bytes
 /// @retval false The cursor is past the newest record

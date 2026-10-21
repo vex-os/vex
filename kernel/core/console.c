@@ -68,6 +68,17 @@ static void flush_console(console_t* restrict cons)
     }
 }
 
+static void flush_all_locked(void)
+{
+    for(console_t* it = console_head; it; it = it->priv.next) {
+        if(it->ops->write == nullptr)
+            continue;
+        if(it->consflags & CONSF_RELEASED)
+            continue;
+        flush_console(it);
+    }
+}
+
 int console_add(console_t* restrict cons)
 {
     bool irq_state = spinlock_acquire_intr(&console_lock);
@@ -149,22 +160,33 @@ void console_flush(void)
 
     // A panic has stopped the other harts, so a
     // holder of the lock is either stopped or this hart
-    bool locked = !atomic_load_n(&panic_in_progress, ATOMIC_ACQUIRE);
-
-    if(locked) {
-        raw_spinlock_acquire(&console_lock);
+    if(atomic_load_n(&panic_in_progress, ATOMIC_ACQUIRE)) {
+        flush_all_locked();
+        restore_interrupts(irq_state);
+        return;
     }
 
-    for(console_t* it = console_head; it; it = it->priv.next) {
-        if(it->ops->write == nullptr)
-            continue;
-        if(it->consflags & CONSF_RELEASED)
-            continue;
-        flush_console(it);
-    }
+    for(;;) {
+        // Either the writer that holds the lock sees the record appended
+        // before this fence, or this hart takes the lock and writes it
+        atomic_thread_fence(ATOMIC_SEQ_CST);
 
-    if(locked) {
+        if(!raw_spinlock_try_acquire(&console_lock)) {
+            break;
+        }
+
+        uint64_t written = kprintf_next_seq();
+
+        flush_all_locked();
+
         raw_spinlock_release(&console_lock);
+
+        // Pairs with the fence above on the hart that failed to take the lock
+        atomic_thread_fence(ATOMIC_SEQ_CST);
+
+        if(kprintf_next_seq() == written) {
+            break;
+        }
     }
 
     restore_interrupts(irq_state);

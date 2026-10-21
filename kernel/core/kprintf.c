@@ -136,7 +136,7 @@ static void append_locked(unsigned level, unsigned flags, uint64_t time_ns, cons
     memcpy(&ring[offset + sizeof(record)], text, size);
 
     ring_head += padding + footprint;
-    next_seq += 1U;
+    atomic_store_n(&next_seq, next_seq + 1U, ATOMIC_RELEASE);
 }
 
 void kprintf(unsigned sv, const char* restrict fmt, ...)
@@ -209,6 +209,11 @@ void kprintf_seek_end(kp_cursor_t* restrict cursor)
 
     ring_unlock(locked);
     restore_interrupts(intr_state);
+}
+
+uint64_t kprintf_next_seq(void)
+{
+    return atomic_load_n(&next_seq, ATOMIC_ACQUIRE);
 }
 
 bool kprintf_read(kp_cursor_t* restrict cursor, kp_record_t* restrict record, char* restrict text)

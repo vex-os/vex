@@ -50,6 +50,8 @@ int console_add(console_t* restrict cons);
 int console_remove(console_t* restrict cons);
 
 /// Writes to every console the records it hasn't written yet
+/// @note Returns at once while another writer holds the consoles, on
+/// any hart or lower in this one's stack, as that writer writes them
 void console_flush(void);
 
 /// Hands the console's device over to its driver, on the device's first open
