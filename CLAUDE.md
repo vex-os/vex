@@ -66,13 +66,14 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
 - Top-level order in a translation unit:
   1. includes;
   2. forward declarations (other files' typedefs, `extern` asm/linker symbols);
-  3. constants (object-like `#define`s, anonymous `enum`s);
+  3. compile-time constants (object-like `#define`s, anonymous `enum`s);
   4. the file's own typedef block;
   5. type definitions;
-  6. static and global variables, in any order among themselves;
-  7. static functions;
-  8. public functions;
-  9. closers: `init_*` functions with their `initcall_*`, and `sys_*` handlers with their `define_syscall`, each macro right after its function.
+  6. read-only data that lands in `.rodata`, such as `static const char* const names[] = { … }`;
+  7. static and global variables, in any order among themselves;
+  8. static functions;
+  9. public functions;
+  10. closers: `init_*` functions with their `initcall_*`, and `sys_*` handlers with their `define_syscall`, each macro right after its function.
 
   Further details:
   - Static functions go in dependency order, callees first, so a static prototype is only needed for mutual recursion.
