@@ -38,6 +38,7 @@ static const uint8_t default_actions[NSIG] = {
     [SIGXFSZ - 1] = DEFAULT_CORE,
     [SIGWINCH - 1] = DEFAULT_IGNORE,
     [SIGSYS - 1] = DEFAULT_CORE,
+    [SIGINFO - 1] = DEFAULT_IGNORE,
 };
 
 static bool default_kills(int sig)

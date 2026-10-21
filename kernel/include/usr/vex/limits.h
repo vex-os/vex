@@ -9,4 +9,7 @@
 #define __k_NAME_MAX  255
 #define __k_NAME_SIZE 256
 
+#define __k_MAX_CANON 4096
+#define __k_MAX_INPUT 4096
+
 #endif /* USR_VEX_LIMITS_H */

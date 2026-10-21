@@ -7,3 +7,6 @@
 
 #define NAME_MAX  __k_NAME_MAX
 #define NAME_SIZE __k_NAME_SIZE
+
+#define MAX_CANON __k_MAX_CANON
+#define MAX_INPUT __k_MAX_INPUT

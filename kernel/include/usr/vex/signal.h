@@ -32,6 +32,7 @@
 #define __k_SIGPROF   26
 #define __k_SIGWINCH  27
 #define __k_SIGSYS    28
+#define __k_SIGINFO   29
 #define __k_SIGRTMIN  32
 #define __k_SIGRTMAX  64
 #define __k_NSIG      64

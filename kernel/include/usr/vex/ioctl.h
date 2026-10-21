@@ -25,4 +25,7 @@
 #define __k_IOCTL_GET_GROUP(request) (((__k_uint32_t)(request) >> 8) & 0xFF)
 #define __k_IOCTL_GET_CMD(request)   ((__k_uint32_t)(request) & 0xFF)
 
+/* Requests any kind of file may take */
+#define __k_FIONREAD __k_IOCTL_READ(sizeof(__k_int32_t), 'f', 0x01)
+
 #endif /* USR_VEX_IOCTL_H */
