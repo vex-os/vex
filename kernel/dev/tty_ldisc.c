@@ -1,3 +1,4 @@
+#include <vex/ctype.h>
 #include <vex/limits.h>
 #include <vex/signal.h>
 #include <vex/termios.h>
@@ -6,32 +7,18 @@
 #define TAB_WIDTH 8
 #define DELETE    0x7F
 #define BELL      0x07
+#define MARK      0xFF // PARMRK reads a byte with an error as \377 \0 and the byte, and a \377 received as \377 \377
 
 #define CONTROL_FLIP 0x40 // Turns a control byte into the letter echoed after ^, and back
 
-static bool is_control(uint8_t byte)
-{
-    return byte < 0x20 || byte == DELETE;
-}
-
-static bool is_upper(uint8_t byte)
-{
-    return byte >= 'A' && byte <= 'Z';
-}
-
-static bool is_lower(uint8_t byte)
-{
-    return byte >= 'a' && byte <= 'z';
-}
-
-static bool is_blank(uint8_t byte)
-{
-    return byte == ' ' || byte == '\t';
-}
+// IXOFF stops the sender when the input has less room than STOP_ROOM, a margin for
+// what the sender and the flip ring hold and lets it go on at START_ROOM
+#define STOP_ROOM  256U
+#define START_ROOM (TTY_RING_SIZE / 2)
 
 static bool is_utf8_continuation(uint8_t byte)
 {
-    return (byte & 0xC0) == 0x80;
+    return 0x80 == (byte & 0xC0);
 }
 
 static bool is_special(const termios_t* restrict termios, uint8_t byte, unsigned index)
@@ -40,7 +27,8 @@ static bool is_special(const termios_t* restrict termios, uint8_t byte, unsigned
     return special != _POSIX_VDISABLE && special == byte;
 }
 
-// XCASE stands a backslash and one of these for a character an uppercase-only terminal lacks
+// XCASE stands a backslash and one of these for
+// a character an uppercase-only terminal lacks
 static uint8_t xcase_escape(uint8_t byte)
 {
     switch(byte) {
@@ -77,8 +65,9 @@ static uint8_t xcase_unescape(uint8_t byte)
     }
 }
 
-// Fill bytes stand in for the delays; at 110 baud each one takes a tenth of a second.
-// A delay field over its lowest bit, such as CRDLY over CR1, is the delay's number
+// Fill bytes stand in for the delays; at 110 baud
+// each one takes a tenth of a second. A delay field
+// over its lowest bit, such as CRDLY over CR1, is the delay's number
 static unsigned delay_fills(uint32_t oflag, uint8_t byte)
 {
     switch(byte) {
@@ -107,7 +96,7 @@ static uint32_t next_tab_stop(uint32_t column)
 // Columns a byte of the line took when it was echoed
 static unsigned echo_width(const termios_t* restrict termios, uint8_t byte)
 {
-    if(is_control(byte)) {
+    if(iscntrl(byte)) {
         if(termios->c_lflag & ECHOCTL) {
             return 2;
         }
@@ -129,7 +118,7 @@ static size_t expand_printable(const termios_t* restrict termios, uint8_t byte, 
     if((termios->c_lflag & (XCASE | ICANON)) == (XCASE | ICANON)) {
         uint8_t escape = xcase_escape(byte);
 
-        if(is_upper(byte)) {
+        if(isupper(byte)) {
             out[length] = '\\';
             length += 1;
         }
@@ -140,14 +129,14 @@ static size_t expand_printable(const termios_t* restrict termios, uint8_t byte, 
         }
     }
 
-    if((termios->c_oflag & OLCUC) && is_lower(byte)) {
-        byte -= 'a' - 'A';
+    if(termios->c_oflag & OLCUC) {
+        byte = toupper(byte);
     }
 
     out[length] = byte;
     length += 1;
 
-    if(!is_control(byte) && !((termios->c_iflag & IUTF8) && is_utf8_continuation(byte))) {
+    if(!iscntrl(byte) && !((termios->c_iflag & IUTF8) && is_utf8_continuation(byte))) {
         *column += length;
     }
 
@@ -261,7 +250,7 @@ static void echo(tty_device_t* restrict device, uint8_t byte)
 {
     const termios_t* termios = &device->priv.termios;
 
-    if((termios->c_lflag & ECHOCTL) && is_control(byte) && byte != '\t' && byte != '\n') {
+    if((termios->c_lflag & ECHOCTL) && iscntrl(byte) && byte != '\t' && byte != '\n') {
         output_or_drop(device, '^');
         output_or_drop(device, byte ^ CONTROL_FLIP);
         return;
@@ -393,7 +382,7 @@ static bool erase_last(tty_device_t* restrict device)
 
 static bool erases_visibly(const termios_t* restrict termios)
 {
-    return 0 != (termios->c_lflag & (ECHOE | ECHOPRT));
+    return (bool)(termios->c_lflag & (ECHOE | ECHOPRT));
 }
 
 static void erase(tty_device_t* restrict device, uint8_t byte)
@@ -415,11 +404,11 @@ static void erase_word(tty_device_t* restrict device, uint8_t byte)
     const tty_ldisc_state_t* ldisc = &device->priv.ldisc;
     tty_ring_t* input = &device->priv.input;
 
-    while(input->tail != ldisc->line_end && is_blank(tty_ring_at(input, input->tail - 1))) {
+    while(input->tail != ldisc->line_end && isblank(tty_ring_at(input, input->tail - 1))) {
         (void)erase_last(device);
     }
 
-    while(input->tail != ldisc->line_end && !is_blank(tty_ring_at(input, input->tail - 1))) {
+    while(input->tail != ldisc->line_end && !isblank(tty_ring_at(input, input->tail - 1))) {
         (void)erase_last(device);
     }
 
@@ -474,25 +463,42 @@ static void reprint(tty_device_t* restrict device, uint8_t byte)
     }
 }
 
+// A canonical line keeps a byte free for the delimiter that ends it
+static bool input_fits(const tty_device_t* restrict device, uint32_t count)
+{
+    const tty_ldisc_state_t* ldisc = &device->priv.ldisc;
+    const tty_ring_t* input = &device->priv.input;
+
+    if(device->priv.termios.c_lflag & ICANON) {
+        return tty_ring_room(input) > count && input->tail - ldisc->line_end + count < MAX_CANON;
+    }
+
+    return tty_ring_room(input) >= count;
+}
+
+static void end_raw_data(tty_device_t* restrict device)
+{
+    if(0 == (device->priv.termios.c_lflag & ICANON)) {
+        device->priv.ldisc.line_end = device->priv.input.tail;
+    }
+}
+
 static void put_data(tty_device_t* restrict device, uint8_t byte)
 {
     const termios_t* termios = &device->priv.termios;
-    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
-    const tty_ring_t* input = &device->priv.input;
-    bool canonical = termios->c_lflag & ICANON;
+    uint32_t count = 1;
 
     close_hardcopy_erase(device);
 
-    // A canonical line keeps a byte free for the delimiter that ends it
-    if(canonical && (tty_ring_room(input) <= 1 || input->tail - ldisc->line_end >= MAX_CANON - 1)) {
-        if(termios->c_iflag & IMAXBEL) {
+    if((termios->c_iflag & (PARMRK | IGNPAR)) == PARMRK && byte == MARK) {
+        count = 2;
+    }
+
+    if(!input_fits(device, count)) {
+        if((termios->c_lflag & ICANON) && (termios->c_iflag & IMAXBEL)) {
             output_or_drop(device, BELL);
         }
 
-        return;
-    }
-
-    if(tty_ring_room(input) == 0) {
         return;
     }
 
@@ -500,11 +506,28 @@ static void put_data(tty_device_t* restrict device, uint8_t byte)
         echo(device, byte);
     }
 
-    store(device, byte, false);
-
-    if(!canonical) {
-        ldisc->line_end = input->tail;
+    for(uint32_t i = 0; i < count; ++i) {
+        store(device, byte, false);
     }
+
+    end_raw_data(device);
+}
+
+// A byte with an error reads as a NUL, or as a mark with PARMRK; neither is echoed
+static void put_error(tty_device_t* restrict device, uint8_t byte)
+{
+    if(0 == (device->priv.termios.c_iflag & PARMRK)) {
+        if(input_fits(device, 1)) {
+            store(device, 0, false);
+        }
+    }
+    else if(input_fits(device, 3)) {
+        store(device, MARK, false);
+        store(device, 0, false);
+        store(device, byte, false);
+    }
+
+    end_raw_data(device);
 }
 
 // A NUL delimiter is VEOF: no special character can be NUL, which is _POSIX_VDISABLE
@@ -625,8 +648,8 @@ static void receive_canonical(tty_device_t* restrict device, uint8_t byte)
 
         uint8_t unescaped = xcase_unescape(byte);
 
-        if(is_lower(byte)) {
-            byte -= 'a' - 'A';
+        if(islower(byte)) {
+            byte = toupper(byte);
         }
         else if(unescaped) {
             byte = unescaped;
@@ -719,8 +742,8 @@ static void receive_byte(tty_device_t* restrict device, uint8_t byte)
         byte = '\r';
     }
 
-    if((iflag & IUCLC) && is_upper(byte)) {
-        byte += 'a' - 'A';
+    if(iflag & IUCLC) {
+        byte = tolower(byte);
     }
 
     if(0 == (termios->c_lflag & ICANON)) {
@@ -729,6 +752,87 @@ static void receive_byte(tty_device_t* restrict device, uint8_t byte)
     }
 
     receive_canonical(device, byte);
+}
+
+// BRKINT flushes and sends SIGINT whether
+// ISIG is set or not, as POSIX has it
+static void receive_break(tty_device_t* restrict device)
+{
+    uint32_t iflag = device->priv.termios.c_iflag;
+
+    if(iflag & IGNBRK) {
+        return;
+    }
+
+    if(iflag & BRKINT) {
+        tty_ldisc_flush_input(device);
+        device->priv.output.head = device->priv.output.tail;
+        device->priv.ldisc.signals |= 1U << SIGINT;
+        return;
+    }
+
+    put_error(device, 0);
+}
+
+// A parity or framing error; without INPCK the byte goes in as it came
+static void receive_bad_byte(tty_device_t* restrict device, uint8_t byte)
+{
+    uint32_t iflag = device->priv.termios.c_iflag;
+
+    if(0 == (iflag & INPCK)) {
+        receive_byte(device, byte);
+        return;
+    }
+
+    if(0 == (iflag & IGNPAR)) {
+        put_error(device, byte);
+    }
+}
+
+static bool take_error_mark(tty_device_t* restrict device)
+{
+    bitmap_t* flip_errors = device->priv.flip_errors;
+    uint32_t position = device->priv.flip.head % TTY_RING_SIZE;
+
+    if(!bitmap_isset(flip_errors, position)) {
+        return false;
+    }
+
+    bitmap_clear(flip_errors, position);
+
+    return true;
+}
+
+static void send_flow_character(tty_device_t* restrict device, unsigned index)
+{
+    uint8_t special = device->priv.termios.c_cc[index];
+
+    if(special != _POSIX_VDISABLE) {
+        device->priv.xchar = special;
+    }
+}
+
+// A canonical input with no line done has no reader to make room, so
+// it isn't stopped; the line is cut off at MAX_CANON instead
+static void update_input_flow(tty_device_t* restrict device)
+{
+    const termios_t* termios = &device->priv.termios;
+    tty_ldisc_state_t* ldisc = &device->priv.ldisc;
+    uint32_t room = tty_ring_room(&device->priv.input);
+
+    if(ldisc->input_stopped) {
+        if(room >= START_ROOM || 0 == (termios->c_iflag & IXOFF)) {
+            ldisc->input_stopped = false;
+            send_flow_character(device, VSTART);
+        }
+
+        return;
+    }
+
+    if((termios->c_iflag & IXOFF) && room < STOP_ROOM && tty_ldisc_readable(device)) {
+        ldisc->input_stopped = true;
+        send_flow_character(device, VSTOP);
+    }
 }
 
 void tty_ldisc_flush_input(tty_device_t* restrict device)
@@ -742,6 +846,8 @@ void tty_ldisc_flush_input(tty_device_t* restrict device)
     ldisc->literal_next = false;
     ldisc->escaped = false;
     ldisc->hardcopy_erasing = false;
+
+    update_input_flow(device);
 }
 
 void tty_ldisc_receive(tty_device_t* restrict device)
@@ -749,8 +855,23 @@ void tty_ldisc_receive(tty_device_t* restrict device)
     tty_ring_t* flip = &device->priv.flip;
 
     while(tty_ring_used(flip)) {
-        receive_byte(device, tty_ring_take(flip));
+        if(!take_error_mark(device)) {
+            receive_byte(device, tty_ring_take(flip));
+            continue;
+        }
+
+        unsigned error = tty_ring_take(flip);
+        uint8_t byte = tty_ring_take(flip);
+
+        if(error == TTY_ERROR_BREAK) {
+            receive_break(device);
+        }
+        else {
+            receive_bad_byte(device, byte);
+        }
     }
+
+    update_input_flow(device);
 }
 
 bool tty_ldisc_output(tty_device_t* restrict device, uint8_t byte)
@@ -806,6 +927,8 @@ size_t tty_ldisc_read(tty_device_t* restrict device, uint8_t* restrict buffer, s
         }
     }
 
+    update_input_flow(device);
+
     return copied;
 }
 
@@ -818,4 +941,6 @@ void tty_ldisc_set_termios(tty_device_t* restrict device, const termios_t* restr
         ldisc->literal_next = false;
         ldisc->escaped = false;
     }
+
+    update_input_flow(device);
 }

@@ -76,7 +76,7 @@ static bool is_removed(const tty_device_t* restrict device)
     return atomic_load(&device->priv.removed, ATOMIC_ACQUIRE);
 }
 
-static void set_default_termios(termios_t* restrict termios)
+static void set_default_termios(termios_t* restrict termios, uint32_t speed)
 {
     memset(termios, 0, sizeof(*termios));
 
@@ -101,16 +101,29 @@ static void set_default_termios(termios_t* restrict termios)
     termios->c_cc[VTIME] = 0;
     termios->c_cc[VSTATUS] = CONTROL('T');
 
-    termios->c_ispeed = DEFAULT_SPEED;
-    termios->c_ospeed = DEFAULT_SPEED;
+    if(speed == 0) {
+        speed = DEFAULT_SPEED;
+    }
+
+    termios->c_ispeed = speed;
+    termios->c_ospeed = speed;
+}
+
+static void discard_flip_locked(tty_device_t* restrict device)
+{
+    tty_device_private_t* priv = &device->priv;
+
+    priv->flip.head = priv->flip.tail;
+    memset(priv->flip_errors, 0, sizeof(priv->flip_errors));
 }
 
 static void reset_rings_locked(tty_device_t* restrict device)
 {
     tty_device_private_t* priv = &device->priv;
 
-    priv->flip.head = priv->flip.tail;
+    discard_flip_locked(device);
     priv->output.head = priv->output.tail;
+    priv->xchar = 0;
 
     memset(&priv->ldisc, 0, sizeof(priv->ldisc));
     priv->ldisc.line_end = priv->input.tail;
@@ -128,17 +141,18 @@ static void notify_input_locked(tty_device_t* restrict device)
 static bool notify_output_locked(tty_device_t* restrict device)
 {
     const tty_ring_t* output = &device->priv.output;
+    bool pending = tty_ring_used(output) != 0;
 
     if(tty_ring_room(output) >= TTY_EXPANSION_MAX) {
         event_trigger(&device->priv.writable, false);
     }
 
-    if(tty_ring_used(output) == 0) {
+    if(!pending) {
         event_trigger(&device->priv.drained, false);
-        return false;
     }
 
-    return !device->priv.ldisc.output_stopped;
+    // A flow control character goes out even while the output is stopped
+    return device->priv.xchar || (pending && !device->priv.ldisc.output_stopped);
 }
 
 static void start_tx(tty_device_t* restrict device, bool transmit)
@@ -603,6 +617,7 @@ static int set_termios(tty_device_t* restrict device, uintptr_t argument, uint32
     mutex_acquire(&device->priv.write_lock);
 
     int retval = 0;
+    bool transmit = false; // Leaving IXOFF while the input is stopped sends VSTART
 
     if(request != TCSETS) {
         retval = wait_drained(device);
@@ -620,16 +635,19 @@ static int set_termios(tty_device_t* restrict device, uintptr_t argument, uint32
         tty_ldisc_set_termios(device, &old_termios);
 
         if(request == TCSETSF) {
-            device->priv.flip.head = device->priv.flip.tail;
+            discard_flip_locked(device);
             tty_ldisc_flush_input(device);
         }
 
         notify_input_locked(device);
+        transmit = notify_output_locked(device);
 
         spinlock_release_intr(&device->priv.lock, intr_state);
     }
 
     mutex_release(&device->priv.write_lock);
+
+    start_tx(device, transmit);
 
     return retval;
 }
@@ -682,7 +700,7 @@ static int flush_queues(tty_device_t* restrict device, uintptr_t argument)
     bool intr_state = spinlock_acquire_intr(&device->priv.lock);
 
     if(queue != TCOFLUSH) {
-        device->priv.flip.head = device->priv.flip.tail;
+        discard_flip_locked(device);
         tty_ldisc_flush_input(device);
     }
 
@@ -690,9 +708,12 @@ static int flush_queues(tty_device_t* restrict device, uintptr_t argument)
         device->priv.output.head = device->priv.output.tail;
     }
 
-    (void)notify_output_locked(device);
+    // Flushed input may let a stopped sender go on
+    bool transmit = notify_output_locked(device);
 
     spinlock_release_intr(&device->priv.lock, intr_state);
+
+    start_tx(device, transmit);
 
     return 0;
 }
@@ -707,7 +728,6 @@ static int control_flow(tty_device_t* restrict device, uintptr_t argument)
 
     bool intr_state = spinlock_acquire_intr(&device->priv.lock);
     const termios_t* termios = &device->priv.termios;
-    tty_ring_t* output = &device->priv.output;
     int retval = 0;
 
     if(action == TCOOFF) {
@@ -723,8 +743,8 @@ static int control_flow(tty_device_t* restrict device, uintptr_t argument)
             special = termios->c_cc[VSTOP];
         }
 
-        if(special != _POSIX_VDISABLE && tty_ring_room(output)) {
-            tty_ring_put(output, special);
+        if(special != _POSIX_VDISABLE) {
+            device->priv.xchar = special;
         }
     }
     else {
@@ -929,7 +949,12 @@ static ssize_t read_input(tty_device_t* restrict device, uint8_t* restrict buffe
         }
     }
 
+    // The room the read made may send VSTART
+    bool transmit = notify_output_locked(device);
+
     spinlock_release_intr(&device->priv.lock, intr_state);
+
+    start_tx(device, transmit);
 
     if(error) {
         return error;
@@ -1008,10 +1033,28 @@ static int tty_chr_open(const chr_device_t* restrict chr, unsigned flags)
 
     bool intr_state = spinlock_acquire_intr(&device->priv.lock);
     reset_rings_locked(device);
+    termios_t termios = device->priv.termios;
     spinlock_release_intr(&device->priv.lock, intr_state);
 
     if(device->ops->open) {
-        return device->ops->open(device);
+        int retval = device->ops->open(device);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
+    // No file is open yet to write or set termios meanwhile
+    if(device->ops->set_termios) {
+        int retval = device->ops->set_termios(device, &termios);
+
+        if(retval < 0 && device->ops->close) {
+            device->ops->close(device);
+        }
+
+        if(retval < 0) {
+            return retval;
+        }
     }
 
     return 0;
@@ -1126,7 +1169,7 @@ int tty_device_add(tty_device_t* restrict device, dev_unit_t* restrict unit, uns
     event_init(&priv->readable);
     event_init(&priv->writable);
     event_init(&priv->drained);
-    set_default_termios(&priv->termios);
+    set_default_termios(&priv->termios, device->initial_speed);
 
     device->chr.ops = &tty_chr_ops;
     device->chr.ctxdata = device;
@@ -1207,6 +1250,41 @@ void tty_receive(tty_device_t* restrict device, const void* restrict bytes, size
     }
 }
 
+void tty_receive_error(tty_device_t* restrict device, uint8_t byte, unsigned error)
+{
+    kassert(error >= TTY_ERROR_BREAK && error <= TTY_ERROR_OVERRUN);
+
+    tty_device_private_t* priv = &device->priv;
+    tty_ring_t* flip = &priv->flip;
+
+    bool intr_state = spinlock_acquire_intr(&priv->lock);
+
+    if(error == TTY_ERROR_OVERRUN) {
+        priv->lost += 1; // The hardware doesn't say how many it overran
+
+        if(tty_ring_room(flip)) {
+            tty_ring_put(flip, byte);
+        }
+        else {
+            priv->lost += 1;
+        }
+    }
+    else if(tty_ring_room(flip) >= 2) {
+        bitmap_set(priv->flip_errors, flip->tail % TTY_RING_SIZE);
+        tty_ring_put(flip, error);
+        tty_ring_put(flip, byte);
+    }
+    else {
+        priv->lost += 1;
+    }
+
+    spinlock_release_intr(&priv->lock, intr_state);
+
+    if(!is_removed(device)) {
+        queue_for_worker(device);
+    }
+}
+
 size_t tty_transmit_take(tty_device_t* restrict device, void* restrict buffer, size_t size)
 {
     uint8_t* out = buffer;
@@ -1214,6 +1292,12 @@ size_t tty_transmit_take(tty_device_t* restrict device, void* restrict buffer, s
     size_t taken = 0;
 
     bool intr_state = spinlock_acquire_intr(&device->priv.lock);
+
+    if(device->priv.xchar && size) {
+        out[0] = device->priv.xchar;
+        device->priv.xchar = 0;
+        taken = 1;
+    }
 
     if(!device->priv.ldisc.output_stopped) {
         while(taken < size && tty_ring_used(output)) {

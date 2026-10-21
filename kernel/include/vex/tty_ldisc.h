@@ -6,14 +6,15 @@
 
 #define TTY_EXPANSION_MAX 16 // What one byte of output may become: a tab as spaces, or \r\n with fill bytes
 
-// The calls between the tty core and its line discipline; the
-// tty core calls each with its device's lock held
+// The calls between the tty core and its line discipline; the tty core calls
+// each with its device's lock held, and starts the transmitter when one
+// left IXOFF's VSTOP or VSTART in priv.xchar
 
 /// Empties the input and drops the line being edited
 void tty_ldisc_flush_input(tty_device_t* restrict device);
 
-/// Runs what the flip ring holds through the line discipline: input editing, echo, and the
-/// signal characters, which it leaves in ldisc.signals for tty_worker to send
+/// Runs what the flip ring holds through the line discipline: line errors, input editing, echo,
+/// and the signal characters, which it leaves in ldisc.signals for tty_worker to send
 void tty_ldisc_receive(tty_device_t* restrict device);
 
 /// Puts a byte written to the terminal through OPOST into the output ring

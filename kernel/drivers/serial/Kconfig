@@ -4,5 +4,6 @@ config TTY_TEST
     help
       A terminal, tty0, and its line as a raw device, pty0:
       what pty0 is written goes in as typed, and reading it
-      gives what the terminal sent. For the userspace tests
-      until pseudo-terminals replace it
+      gives what the terminal sent, and an ioctl on pty0
+      receives a byte with a line error. For the userspace
+      tests until pseudo-terminals replace it

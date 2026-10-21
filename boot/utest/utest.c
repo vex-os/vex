@@ -436,8 +436,15 @@ static void __attribute__((noreturn)) finisher(long arg)
     __builtin_unreachable();
 }
 
+#define LINE_RECEIVE_ERROR __k_IOCTL_WRITE(sizeof(__k_int32_t), 't', 0x01) /* The test line's own, in tty_test.c */
+#define LINE_ERROR_BREAK   1
+#define LINE_ERROR_PARITY  2
+#define LINE_ERROR_OVERRUN 4
+#define LINE_FILL_SIZE     3900 /* Leaves the 4 KiB input ring less room than IXOFF's margin */
+
 static long tty_fd;
 static long line_fd;
+static char line_fill[LINE_FILL_SIZE];
 
 static int same_bytes(const char* left, const char* right, long length)
 {
@@ -457,13 +464,19 @@ static void line_send(const char* text)
     syscall3(__k_SYS_WRITE, line_fd, (long)text, ustrlen(text));
 }
 
+static void line_error(int error, int byte)
+{
+    __k_int32_t value = (error << 8) | byte;
+    syscall3(__k_SYS_IOCTL, line_fd, LINE_RECEIVE_ERROR, (long)&value);
+}
+
 /* Prints 1 when the next read gives exactly what is expected, and what came otherwise */
-static void expect_read(long fd, const char* expected)
+static void expect_bytes(long fd, const char* expected, long expected_length)
 {
     char buffer[128];
     long length = syscall3(__k_SYS_READ, fd, (long)buffer, sizeof(buffer));
 
-    if(length == (long)ustrlen(expected) && same_bytes(buffer, expected, length)) {
+    if(length == expected_length && same_bytes(buffer, expected, length)) {
         printnumber(1);
     }
     else if(length > 0) {
@@ -472,6 +485,11 @@ static void expect_read(long fd, const char* expected)
     else {
         printnumber(length);
     }
+}
+
+static void expect_read(long fd, const char* expected)
+{
+    expect_bytes(fd, expected, ustrlen(expected));
 }
 
 /* What the terminal sends may come in pieces, as tty_worker echoes before the kernel prints a status line */
@@ -516,6 +534,77 @@ static void tty_raw(int vmin, int vtime)
     termios.c_cc[__k_VMIN] = vmin;
     termios.c_cc[__k_VTIME] = vtime;
     syscall3(__k_SYS_IOCTL, tty_fd, __k_TCSETS, (long)&termios);
+}
+
+static void tty_set_iflag(__k_uint32_t iflag)
+{
+    struct __k_termios termios;
+
+    syscall3(__k_SYS_IOCTL, tty_fd, __k_TCGETS, (long)&termios);
+    termios.c_iflag = iflag;
+    syscall3(__k_SYS_IOCTL, tty_fd, __k_TCSETS, (long)&termios);
+}
+
+/* Before TIOCSCTTY, so that BRKINT's SIGINT has no foreground group to reach */
+static void test_tty_line(void)
+{
+    long total = 0;
+    long length = 1;
+    long i;
+
+    tty_raw(1, 0);
+
+    /* PARMRK marks a parity error and a break, and doubles a \377 that came intact */
+    tty_set_iflag(__k_INPCK | __k_PARMRK);
+    line_error(LINE_ERROR_PARITY, 'x');
+    expect_bytes(tty_fd, "\377\0x", 3); /* should print 1 */
+    line_send("\377");
+    expect_bytes(tty_fd, "\377\377", 2); /* should print 1 */
+    line_error(LINE_ERROR_BREAK, 0);
+    expect_bytes(tty_fd, "\377\0\0", 3); /* should print 1 */
+
+    /* Without PARMRK the error reads as a NUL, IGNPAR drops it, and without INPCK the byte stays */
+    tty_set_iflag(__k_INPCK);
+    line_error(LINE_ERROR_PARITY, 'x');
+    expect_bytes(tty_fd, "\0", 1); /* should print 1 */
+    tty_set_iflag(__k_INPCK | __k_IGNPAR);
+    line_error(LINE_ERROR_PARITY, 'x');
+    line_send("y");
+    expect_read(tty_fd, "y"); /* should print 1 */
+    tty_set_iflag(0);
+    line_error(LINE_ERROR_PARITY, 'z');
+    expect_read(tty_fd, "z"); /* should print 1 */
+    line_error(LINE_ERROR_OVERRUN, 'o');
+    expect_read(tty_fd, "o"); /* should print 1 */
+
+    /* BRKINT throws away what came before the break */
+    tty_set_iflag(__k_BRKINT);
+    line_send("abc");
+    line_error(LINE_ERROR_BREAK, 0);
+    line_drain();
+    line_send("q");
+    expect_read(tty_fd, "q"); /* should print 1 */
+
+    /* IXOFF sends VSTOP as the input fills, and VSTART once a read emptied it */
+    tty_set_iflag(__k_IXOFF);
+
+    for(i = 0; i < LINE_FILL_SIZE; ++i) {
+        line_fill[i] = 'a';
+    }
+
+    syscall3(__k_SYS_WRITE, line_fd, (long)line_fill, LINE_FILL_SIZE);
+    expect_line("\x13"); /* should print 1 */
+
+    while(total < LINE_FILL_SIZE && length > 0) {
+        length = syscall3(__k_SYS_READ, tty_fd, (long)line_fill, LINE_FILL_SIZE);
+
+        if(length > 0) {
+            total += length;
+        }
+    }
+
+    printnumber(total);  /* should print 3900 */
+    expect_line("\x11"); /* should print 1 */
 }
 
 static void test_tty(void)
@@ -583,6 +672,8 @@ static void test_tty(void)
     syscall3(__k_SYS_FCNTL, tty_fd, __k_F_SETFL, __k_O_NONBLOCK);
     printnumber(syscall3(__k_SYS_READ, tty_fd, (long)buffer, sizeof(buffer))); /* should print -206 (EAGAIN) */
     syscall3(__k_SYS_FCNTL, tty_fd, __k_F_SETFL, 0);
+
+    test_tty_line();
     syscall3(__k_SYS_IOCTL, tty_fd, __k_TCSETS, (long)&saved);
 
     syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCSWINSZ, (long)&winsize);
@@ -662,7 +753,7 @@ static void test_kplog(void)
     _Alignas(8) char buffer[1024];
     struct __k_kplog_record* record = (struct __k_kplog_record*)buffer;
     long fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kplog", __k_O_RDONLY, 0);
-    long length, small, nonblock, seek_bad, seek_end;
+    long length, nonblock, seek_bad, seek_end;
     long reads = 0;
     int found = 0;
 

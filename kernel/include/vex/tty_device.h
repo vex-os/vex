@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vex/bitmap.h>
 #include <vex/chr_device.h>
 #include <vex/compiler.h>
 #include <vex/event.h>
@@ -14,6 +15,11 @@ typedef struct process_group_s process_group_t;
 typedef struct session_s session_t;
 
 #define TTY_RING_SIZE PAGE_SIZE
+
+#define TTY_ERROR_BREAK   1U
+#define TTY_ERROR_PARITY  2U
+#define TTY_ERROR_FRAMING 3U
+#define TTY_ERROR_OVERRUN 4U // The hardware lost bytes before this one, which came intact
 
 typedef struct tty_ring_s tty_ring_t;
 typedef struct tty_ldisc_state_s tty_ldisc_state_t;
@@ -38,12 +44,14 @@ struct tty_ldisc_state_s {
     bool literal_next;                     // VLNEXT came, so the next byte is plain data
     bool escaped;                          // XCASE: a backslash came, so the next letter is a capital
     bool output_stopped;                   // VSTOP came while IXON was set
+    bool input_stopped;                    // IXOFF sent VSTOP, and VSTART follows once a reader made room
     bool hardcopy_erasing;                 // ECHOPRT: erased bytes are being echoed between \ and /
 };
 
 struct tty_device_ops_s {
     /// Sets the hardware up and starts taking input
     /// @pre The first open, and the device's console is released
+    /// @post The tty core follows a success with set_termios, so the line needn't be configured here
     int (*open)(tty_device_t* restrict device);
 
     /// @pre The last close
@@ -54,7 +62,8 @@ struct tty_device_ops_s {
     void (*start_tx)(tty_device_t* restrict device);
 
     /// Applies c_cflag and the speeds to the hardware
-    /// @pre The tty core serializes it with writes; nullptr when there is nothing to set
+    /// @pre The tty core serializes it with writes, and calls it right after open too
+    /// @note nullptr when there is nothing to set
     int (*set_termios)(tty_device_t* restrict device, const termios_t* restrict termios);
 
     /// Requests the tty core doesn't know, TCSENDBREAK among them
@@ -71,7 +80,9 @@ struct tty_device_private_s {
     tty_ring_t flip; // From the driver, for tty_worker
     tty_ring_t input;
     tty_ring_t output;
-    uint32_t lost; // Bytes the flip ring had no room for
+    uint8_t xchar; // VSTOP or VSTART to send ahead of the output; 0 for none, as that is _POSIX_VDISABLE
+    uint32_t lost; // Bytes the flip ring had no room for, and those the hardware overran
+    bitmap_t flip_errors[TTY_RING_SIZE / BITMAP_CHUNK_BITS]; // Set bits mark TTY_ERROR at that flip position if it's between head and tail
     tty_ldisc_state_t ldisc;
     event_t readable;
     event_t writable;
@@ -88,6 +99,7 @@ struct tty_device_s {
     chr_device_t chr; // Its ops and ctxdata belong to the tty core
     tty_device_private_t priv;
     const tty_device_ops_t* ops;
+    uint32_t initial_speed; // Of the line, in bits per second, until termios changes it; 0 for 38400
     void* ctxdata;
 };
 
@@ -102,6 +114,12 @@ int tty_device_remove(tty_device_t* restrict device);
 /// Hands bytes from the line to the tty core; what doesn't fit is lost and counted
 /// @note Any context, an interrupt handler among them
 void tty_receive(tty_device_t* restrict device, const void* restrict bytes, size_t count);
+
+/// Hands over a byte that came with a line error, for termios to drop, mark or turn into SIGINT
+/// @param byte What the hardware read; a break's is ignored
+/// @param error One of TTY_ERROR_*
+/// @note Any context, an interrupt handler among them
+void tty_receive_error(tty_device_t* restrict device, uint8_t byte, unsigned error);
 
 /// Takes bytes to send on the line
 /// @return How many bytes it took; zero when the output is empty or stopped

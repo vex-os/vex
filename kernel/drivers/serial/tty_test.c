@@ -4,12 +4,18 @@
 #include <vex/errno.h>
 #include <vex/event.h>
 #include <vex/initcall.h>
+#include <vex/ioctl.h>
 #include <vex/kprintf.h>
 #include <vex/string.h>
 #include <vex/tty_device.h>
+#include <vex/uaccess.h>
 
 // Long enough for tty_worker to echo what was just written to the line
 #define LINE_WAIT_NSEC UINT64_C(200000000)
+
+// The argument points to an int32_t: a TTY_ERROR_* in bits 15:8, the byte in 7:0;
+// only utest knows the number, so it isn't in the userspace headers
+#define LINE_RECEIVE_ERROR IOCTL_WRITE(sizeof(int32_t), 't', 0x01)
 
 static tty_device_t test_tty;
 static chr_device_t test_line;
@@ -54,9 +60,33 @@ static ssize_t test_line_write(const chr_device_t* restrict device, void* restri
     return size;
 }
 
+static int test_line_ioctl(const chr_device_t* restrict device, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
+{
+    int32_t value;
+
+    if(request != LINE_RECEIVE_ERROR) {
+        return -ENOTTY;
+    }
+
+    if(user_copyin(&value, argument, sizeof(value)) < 0) {
+        return -EFAULT;
+    }
+
+    unsigned error = (value >> 8) & 0xFF;
+
+    if(error < TTY_ERROR_BREAK || error > TTY_ERROR_OVERRUN) {
+        return -EINVAL;
+    }
+
+    tty_receive_error(&test_tty, value & 0xFF, error);
+
+    return 0;
+}
+
 static const chr_device_ops_t test_line_ops = {
     .read = &test_line_read,
     .write = &test_line_write,
+    .ioctl = &test_line_ioctl,
 };
 
 static void init_tty_test(void)

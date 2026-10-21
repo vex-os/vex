@@ -310,7 +310,7 @@ bool isprint(int codepoint)
         return false;
     }
 
-    return ctype[codepoint % CTYPE_SIZE].flags & (CT_CT | CT_WS);
+    return ctype[codepoint % CTYPE_SIZE].flags & (CT_GR | CT_WS);
 }
 
 bool ispunct(int codepoint)
