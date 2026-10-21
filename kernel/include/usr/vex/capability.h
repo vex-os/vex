@@ -17,6 +17,7 @@
 #define __k_CAP_SYS_ADMIN    21 /* Catch-all for administration, trusted.* extended attributes among it */
 #define __k_CAP_SYS_TIME     25 /* Step the realtime clock */
 #define __k_CAP_SETFCAP      31 /* Set file capabilities */
+#define __k_CAP_SYSLOG       34 /* Write to the kernel log */
 
 /* Vex-only capabilities start at 48 */
 

@@ -12,5 +12,9 @@
 #define KPLOG_VERBOSE  __k_KPLOG_VERBOSE
 
 #define KPLOG_TRUNCATED __k_KPLOG_TRUNCATED
+#define KPLOG_USER      __k_KPLOG_USER
+
+#define KPLOG_GETLEVEL __k_KPLOG_GETLEVEL
+#define KPLOG_SETLEVEL __k_KPLOG_SETLEVEL
 
 typedef struct __k_kplog_record kplog_record_t;

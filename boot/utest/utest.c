@@ -1,3 +1,4 @@
+#include <vex/capability.h>
 #include <vex/errno.h>
 #include <vex/fcntl.h>
 #include <vex/futex.h>
@@ -700,6 +701,82 @@ static void test_kplog(void)
     syscall1(__k_SYS_CLOSE, fd);
 }
 
+/* Reads records without blocking until one holds exactly data; 0 when none does */
+static const struct __k_kplog_record* kplog_find(long fd, char* buffer, long size, const char* data)
+{
+    const struct __k_kplog_record* record = (const struct __k_kplog_record*)buffer;
+    long length = ustrlen(data);
+
+    while(syscall3(__k_SYS_READ, fd, (long)buffer, size) > 0) {
+        if(record->size == length && same_bytes((const char*)(record + 1), data, length)) {
+            return record;
+        }
+    }
+
+    return 0;
+}
+
+static void test_kplog_write(void)
+{
+    _Alignas(8) char buffer[1024];
+    char too_long[600];
+    const struct __k_kplog_record* record;
+    __k_int32_t level = 0;
+    int wstatus = -1;
+    long child;
+    long reader = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kplog", __k_O_RDONLY | __k_O_NONBLOCK, 0);
+    long writer = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kplog", __k_O_WRONLY, 0);
+    long i;
+
+    for(i = 0; i < (long)sizeof(too_long); ++i) {
+        too_long[i] = 'x';
+    }
+
+    printnumber(reader >= 0 && writer >= 0); /* should print 1 */
+    syscall3(__k_SYS_SEEK, reader, 0, 2);
+
+    printnumber(syscall3(__k_SYS_WRITE, writer, (long)"user line\r\n", 11));        /* should print 11 */
+    printnumber(syscall3(__k_SYS_IOCTL, writer, __k_KPLOG_GETLEVEL, (long)&level)); /* should print 0 */
+    printnumber(level);                                                             /* should print 5 (NOTICE) */
+    level = __k_KPLOG_CRITICAL;
+    printnumber(syscall3(__k_SYS_IOCTL, writer, __k_KPLOG_SETLEVEL, (long)&level)); /* should print -226 (EINVAL) */
+    level = __k_KPLOG_WARNING;
+    printnumber(syscall3(__k_SYS_IOCTL, writer, __k_KPLOG_SETLEVEL, (long)&level)); /* should print 0 */
+    printnumber(syscall3(__k_SYS_WRITE, writer, (long)"warned\n", 7));              /* should print 7 */
+    printnumber(syscall3(__k_SYS_WRITE, writer, (long)"two\nlines", 9));            /* should print -226 (EINVAL) */
+    printnumber(syscall3(__k_SYS_WRITE, writer, (long)"nul\0byte", 8));             /* should print -226 (EINVAL) */
+    printnumber(syscall3(__k_SYS_WRITE, writer, (long)too_long, sizeof(too_long))); /* should print -226 (EINVAL) */
+    printnumber(syscall3(__k_SYS_WRITE, reader, (long)"read only", 9));             /* should print -208 (EBADF) */
+
+    record = kplog_find(reader, buffer, sizeof(buffer), "user line");
+    printnumber(record && record->level == __k_KPLOG_NOTICE && record->flags == __k_KPLOG_USER); /* should print 1 */
+
+    record = kplog_find(reader, buffer, sizeof(buffer), "warned");
+    printnumber(record && record->level == __k_KPLOG_WARNING && record->flags == __k_KPLOG_USER); /* should print 1 */
+
+    /* A child without CAP_SYSLOG still reads, and its open for writing exits with the error */
+    child = syscall1(__k_SYS_FORK, 0);
+
+    if(child == 0) {
+        struct __k_caps caps;
+        long denied, allowed;
+
+        syscall1(__k_SYS_CAPGET, (long)&caps);
+        caps.effective &= ~__k_CAP_TO_MASK(__k_CAP_SYSLOG);
+        syscall1(__k_SYS_CAPSET, (long)&caps);
+
+        denied = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kplog", __k_O_WRONLY, 0);
+        allowed = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kplog", __k_O_RDONLY, 0);
+        syscall1(__k_SYS_EXIT, allowed >= 0 ? -denied : 0);
+    }
+
+    syscall2(__k_SYS_WAITPID, child, (long)&wstatus);
+    printnumber(wstatus >> 8); /* should print 263 & 255 = 7 (EPERM) */
+
+    syscall1(__k_SYS_CLOSE, writer);
+    syscall1(__k_SYS_CLOSE, reader);
+}
+
 int main(int argc, char** argv)
 {
     if(argc > 2 && same_string(argv[1], "exec-child")) {
@@ -1113,6 +1190,7 @@ int main(int argc, char** argv)
 
     test_tty();
     test_kplog();
+    test_kplog_write();
 
     return 1337;
 }

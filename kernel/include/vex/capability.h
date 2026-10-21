@@ -12,6 +12,7 @@
 #define CAP_SYS_ADMIN    __k_CAP_SYS_ADMIN
 #define CAP_SYS_TIME     __k_CAP_SYS_TIME
 #define CAP_SETFCAP      __k_CAP_SETFCAP
+#define CAP_SYSLOG       __k_CAP_SYSLOG
 #define CAP_MOUNT        __k_CAP_MOUNT
 
 #define CAP_TO_MASK(cap) __k_CAP_TO_MASK(cap)

@@ -31,6 +31,11 @@ extern event_t kprintf_appended; // Triggered from a scheduler tick once records
 void kprintf(unsigned sv, const char* restrict fmt, ...) __printflike(2, 3);
 void kvprintf(unsigned sv, const char* restrict fmt, va_list ap) __printflike(2, 0);
 
+/// Appends the text as one record, unformatted
+/// @pre size is at most KP_LINE_MAX, and the text holds no line breaks
+/// @param flags The KPLOG_* flags of the record
+void kputs(unsigned sv, unsigned flags, const char* restrict text, size_t size);
+
 /// Points the cursor at the oldest record the ring holds
 void kprintf_seek_first(kp_cursor_t* restrict cursor);
 

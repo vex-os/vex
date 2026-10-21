@@ -145,6 +145,26 @@ static void append_locked(unsigned level, unsigned flags, uint64_t time_ns, cons
     atomic_store_n(&next_seq, next_seq + 1U, ATOMIC_RELEASE);
 }
 
+static uint64_t record_time_ns(bool locked)
+{
+    if(locked) {
+        return clock_source_now_ns();
+    }
+
+    return clock_source_peek_ns();
+}
+
+static void append_done(bool locked, bool intr_state)
+{
+    ring_unlock(locked);
+
+    event_trigger_deferred(&appended_deferral);
+
+    console_flush();
+
+    restore_interrupts(intr_state);
+}
+
 void kprintf(unsigned sv, const char* restrict fmt, ...)
 {
     va_list ap;
@@ -157,15 +177,7 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 {
     bool intr_state = disable_interrupts();
     bool locked = ring_lock();
-
-    uint64_t timestamp;
-
-    if(locked) {
-        timestamp = clock_source_now_ns();
-    }
-    else {
-        timestamp = clock_source_peek_ns();
-    }
+    uint64_t timestamp = record_time_ns(locked);
 
     unsigned flags = 0U;
     int length = vsnprintf(line, sizeof(line), fmt, ap);
@@ -186,13 +198,19 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 
     append_locked(sv, flags, timestamp, line, size);
 
-    ring_unlock(locked);
+    append_done(locked, intr_state);
+}
 
-    event_trigger_deferred(&appended_deferral);
+void kputs(unsigned sv, unsigned flags, const char* restrict text, size_t size)
+{
+    kassert(size <= KP_LINE_MAX);
 
-    console_flush();
+    bool intr_state = disable_interrupts();
+    bool locked = ring_lock();
 
-    restore_interrupts(intr_state);
+    append_locked(sv, flags, record_time_ns(locked), text, size);
+
+    append_done(locked, intr_state);
 }
 
 void kprintf_seek_first(kp_cursor_t* restrict cursor)
