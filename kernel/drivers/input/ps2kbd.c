@@ -5,23 +5,23 @@
 #include <vex/kprintf.h>
 #include <vex/string.h>
 
-static void i8042_wait_write(pmio_region_t* restrict region)
+static void i8042_wait_write(io_region_t* restrict region)
 {
     unsigned long i;
 
     for(i = 0; i < 65536; ++i) {
-        if(0 == (pmio_read8(region, 0) & 0x02)) {
+        if(0 == (io_read8(region, 0) & 0x02)) {
             return;
         }
     }
 }
 
-static void i8042_wait_read(pmio_region_t* restrict region)
+static void i8042_wait_read(io_region_t* restrict region)
 {
     unsigned long i;
 
     for(i = 0; i < 65536; ++i) {
-        if(pmio_read8(region, 0) & 0x01) {
+        if(io_read8(region, 0) & 0x01) {
             return;
         }
     }
@@ -38,11 +38,11 @@ static void ps2kbd_irq(unsigned number, const hart_context_t* restrict ctx, void
         return;
     }
 
-    if(0 == (pmio_read8(&cmd_res->pmio, 0) & 0x01)) {
+    if(0 == (io_read8(&cmd_res->io, 0) & 0x01)) {
         return;
     }
 
-    uint8_t scancode = pmio_read8(&data_res->pmio, 0);
+    uint8_t scancode = io_read8(&data_res->io, 0);
 
     if(scancode & 0x80) {
         pr_verbose("ps2kbd: key up   scancode=0x%02X", (unsigned)(scancode & 0x7F));
@@ -65,28 +65,28 @@ static int ps2kbd_probe(isa_device_t* restrict device)
         return -ENODEV;
     }
 
-    i8042_wait_write(&cmd_res->pmio);
-    pmio_write8(&cmd_res->pmio, 0, 0x20);
+    i8042_wait_write(&cmd_res->io);
+    io_write8(&cmd_res->io, 0, 0x20);
 
-    i8042_wait_read(&cmd_res->pmio);
-    uint8_t command_byte = pmio_read8(&data_res->pmio, 0);
+    i8042_wait_read(&cmd_res->io);
+    uint8_t command_byte = io_read8(&data_res->io, 0);
     command_byte |= 0x01;
     command_byte &= ~0x10U;
 
-    i8042_wait_write(&cmd_res->pmio);
-    pmio_write8(&cmd_res->pmio, 0, 0x60);
+    i8042_wait_write(&cmd_res->io);
+    io_write8(&cmd_res->io, 0, 0x60);
 
-    i8042_wait_write(&cmd_res->pmio);
-    pmio_write8(&data_res->pmio, 0, command_byte);
+    i8042_wait_write(&cmd_res->io);
+    io_write8(&data_res->io, 0, command_byte);
 
-    while(pmio_read8(&cmd_res->pmio, 0) & 0x01) {
-        pmio_read8(&data_res->pmio, 0);
+    while(io_read8(&cmd_res->io, 0) & 0x01) {
+        io_read8(&data_res->io, 0);
     }
 
-    i8042_wait_write(&cmd_res->pmio);
-    pmio_write8(&data_res->pmio, 0, 0xF4);
-    i8042_wait_read(&cmd_res->pmio);
-    pmio_read8(&data_res->pmio, 0);
+    i8042_wait_write(&cmd_res->io);
+    io_write8(&data_res->io, 0, 0xF4);
+    i8042_wait_read(&cmd_res->io);
+    io_read8(&data_res->io, 0);
 
     int retval = isa_request_irq(device, 0, &ps2kbd_irq, device);
 

@@ -177,7 +177,7 @@ static pci_bar_t* map_bar(pci_device_t* restrict device, unsigned bar_index, uns
     pci_bar_t* bar = &device->priv.bars[bar_index];
 
     if(device->priv.bars_mapped & (1U << bar_index)) {
-        if(bar->type == PCI_BAR_TYPE_PMIO) {
+        if(bar->io.space == IO_SPACE_PORT) {
             return memory_only ? nullptr : bar;
         }
 
@@ -199,12 +199,11 @@ static pci_bar_t* map_bar(pci_device_t* restrict device, unsigned bar_index, uns
     }
 
     if(raw & PCI_BAR_IO) {
-        bar->type = PCI_BAR_TYPE_PMIO;
+        bar->io.space = IO_SPACE_PORT;
+        bar->io.base = raw & PCI_BAR_ADDR_MASK_IO;
+        bar->io.length = length;
         bar->phys = 0;
         bar->vprot = VPROT_NONE;
-        bar->pmio.base = raw & PCI_BAR_ADDR_MASK_IO;
-        bar->pmio.length = length;
-        pmio_region_setup(&bar->pmio);
     }
     else {
         uintptr_t phys = bar_address(device, bar_index);
@@ -214,14 +213,11 @@ static pci_bar_t* map_bar(pci_device_t* restrict device, unsigned bar_index, uns
             return nullptr;
         }
 
-        bar->type = PCI_BAR_TYPE_MMIO;
+        bar->io.space = IO_SPACE_MEMORY;
+        bar->io.base = (uintptr_t)(virt);
+        bar->io.length = length;
         bar->phys = phys;
         bar->vprot = vprot;
-        bar->mmio.virt8 = (volatile uint8_t*)(virt);
-        bar->mmio.virt16 = (volatile uint16_t*)(virt);
-        bar->mmio.virt32 = (volatile uint32_t*)(virt);
-        bar->mmio.virt64 = (volatile uint64_t*)(virt);
-        bar->mmio.length = length;
     }
 
     device->priv.bars_mapped |= 1U << bar_index;
@@ -413,167 +409,11 @@ void pci_bar_unmap(pci_device_t* restrict device, unsigned bar_index)
     if(device->priv.bars_mapped & (1U << bar_index)) {
         pci_bar_t* bar = &device->priv.bars[bar_index];
 
-        if(bar->type == PCI_BAR_TYPE_MMIO) {
-            mmio_unmap(bar->mmio.virt8);
+        if(bar->io.space == IO_SPACE_MEMORY) {
+            mmio_unmap((volatile void*)(bar->io.base));
         }
 
         device->priv.bars_mapped &= ~(1U << bar_index);
-    }
-}
-
-uint8_t pci_bar_read8(pci_bar_t* restrict bar, uintptr_t offset)
-{
-    if(bar->type == PCI_BAR_TYPE_PMIO)
-        return pmio_read8(&bar->pmio, offset);
-    return bar->mmio.virt8[offset];
-}
-
-uint16_t pci_bar_read16(pci_bar_t* restrict bar, uintptr_t offset)
-{
-    if(bar->type == PCI_BAR_TYPE_PMIO)
-        return pmio_read16(&bar->pmio, offset);
-    return bar->mmio.virt16[offset / 2];
-}
-
-uint32_t pci_bar_read32(pci_bar_t* restrict bar, uintptr_t offset)
-{
-    if(bar->type == PCI_BAR_TYPE_PMIO)
-        return pmio_read32(&bar->pmio, offset);
-    return bar->mmio.virt32[offset / 4];
-}
-
-uint64_t pci_bar_read64(pci_bar_t* restrict bar, uintptr_t offset)
-{
-    kassert(bar->type == PCI_BAR_TYPE_MMIO);
-    return bar->mmio.virt64[offset / 8];
-}
-
-void pci_bar_read8s(pci_bar_t* restrict bar, uintptr_t offset, uint8_t* restrict data, size_t count)
-{
-    if(bar->type == PCI_BAR_TYPE_PMIO) {
-        pmio_read8s(&bar->pmio, offset, data, count);
-    }
-    else {
-        for(size_t i = 0; i < count; ++i) {
-            data[i] = bar->mmio.virt8[offset + i];
-        }
-    }
-}
-
-void pci_bar_read16s(pci_bar_t* restrict bar, uintptr_t offset, uint16_t* restrict data, size_t count)
-{
-    if(bar->type == PCI_BAR_TYPE_PMIO) {
-        pmio_read16s(&bar->pmio, offset, data, count);
-    }
-    else {
-        for(size_t i = 0; i < count; ++i) {
-            data[i] = bar->mmio.virt16[(offset / 2) + i];
-        }
-    }
-}
-
-void pci_bar_read32s(pci_bar_t* restrict bar, uintptr_t offset, uint32_t* restrict data, size_t count)
-{
-    if(bar->type == PCI_BAR_TYPE_PMIO) {
-        pmio_read32s(&bar->pmio, offset, data, count);
-    }
-    else {
-        for(size_t i = 0; i < count; ++i) {
-            data[i] = bar->mmio.virt32[(offset / 4) + i];
-        }
-    }
-}
-
-void pci_bar_read64s(pci_bar_t* restrict bar, uintptr_t offset, uint64_t* restrict data, size_t count)
-{
-    kassert(bar->type == PCI_BAR_TYPE_MMIO);
-
-    for(size_t i = 0; i < count; ++i) {
-        data[i] = bar->mmio.virt64[(offset / 8) + i];
-    }
-}
-
-void pci_bar_write8(pci_bar_t* restrict bar, uintptr_t offset, uint8_t value)
-{
-    if(bar->type == PCI_BAR_TYPE_PMIO) {
-        pmio_write8(&bar->pmio, offset, value);
-    }
-    else {
-        bar->mmio.virt8[offset] = value;
-    }
-}
-
-void pci_bar_write16(pci_bar_t* restrict bar, uintptr_t offset, uint16_t value)
-{
-    if(bar->type == PCI_BAR_TYPE_PMIO) {
-        pmio_write16(&bar->pmio, offset, value);
-    }
-    else {
-        bar->mmio.virt16[offset / 2] = value;
-    }
-}
-
-void pci_bar_write32(pci_bar_t* restrict bar, uintptr_t offset, uint32_t value)
-{
-    if(bar->type == PCI_BAR_TYPE_PMIO) {
-        pmio_write32(&bar->pmio, offset, value);
-    }
-    else {
-        bar->mmio.virt32[offset / 4] = value;
-    }
-}
-
-void pci_bar_write64(pci_bar_t* restrict bar, uintptr_t offset, uint64_t value)
-{
-    kassert(bar->type == PCI_BAR_TYPE_MMIO);
-
-    bar->mmio.virt64[offset / 8] = value;
-}
-
-void pci_bar_write8s(pci_bar_t* restrict bar, uintptr_t offset, const uint8_t* restrict data, size_t count)
-{
-    if(bar->type == PCI_BAR_TYPE_PMIO) {
-        pmio_write8s(&bar->pmio, offset, data, count);
-    }
-    else {
-        for(size_t i = 0; i < count; ++i) {
-            bar->mmio.virt8[offset + i] = data[i];
-        }
-    }
-}
-
-void pci_bar_write16s(pci_bar_t* restrict bar, uintptr_t offset, const uint16_t* restrict data, size_t count)
-{
-    ;
-
-    if(bar->type == PCI_BAR_TYPE_PMIO) {
-        pmio_write16s(&bar->pmio, offset, data, count);
-    }
-    else {
-        for(size_t i = 0; i < count; ++i) {
-            bar->mmio.virt16[(offset / 2) + i] = data[i];
-        }
-    }
-}
-
-void pci_bar_write32s(pci_bar_t* restrict bar, uintptr_t offset, const uint32_t* restrict data, size_t count)
-{
-    if(bar->type == PCI_BAR_TYPE_PMIO) {
-        pmio_write32s(&bar->pmio, offset, data, count);
-    }
-    else {
-        for(size_t i = 0; i < count; ++i) {
-            bar->mmio.virt32[(offset / 4) + i] = data[i];
-        }
-    }
-}
-
-void pci_bar_write64s(pci_bar_t* restrict bar, uintptr_t offset, const uint64_t* restrict data, size_t count)
-{
-    kassert(bar->type == PCI_BAR_TYPE_MMIO);
-
-    for(size_t i = 0; i < count; ++i) {
-        bar->mmio.virt64[(offset / 8) + i] = data[i];
     }
 }
 

@@ -1,5 +1,5 @@
 #include <arch/amd64.idt.h>
-#include <arch/amd64.pmio.h>
+#include <arch/io.h>
 #include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>

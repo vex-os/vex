@@ -1,4 +1,4 @@
-#include <arch/amd64.pmio.h>
+#include <arch/io.h>
 #include <arch/hart.h>
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>

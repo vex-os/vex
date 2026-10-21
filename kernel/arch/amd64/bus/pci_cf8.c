@@ -1,4 +1,4 @@
-#include <arch/amd64.pmio.h>
+#include <arch/io.h>
 #include <vex/initcall.h>
 #include <vex/pci.h>
 #include <vex/spinlock.h>

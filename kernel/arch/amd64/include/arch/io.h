@@ -1,6 +1,7 @@
 #pragma once
 
-#include <vex/pmio.h>
+#include <vex/compiler.h>
+#include <vex/types.h>
 
 static __always_inline uint8_t port_read8(uintptr_t offset)
 {

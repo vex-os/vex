@@ -1,9 +1,8 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/io.h>
 #include <vex/irq.h>
-#include <vex/mmio.h>
-#include <vex/pmio.h>
 #include <vex/types.h>
 
 enum {
@@ -37,8 +36,7 @@ struct isa_resource_irq_s {
 struct isa_resource_s {
     unsigned type;
     union {
-        mmio_region_t mmio;
-        pmio_region_t pmio;
+        io_region_t io;
         isa_resource_dma_t dma;
         isa_resource_irq_t irq;
     };

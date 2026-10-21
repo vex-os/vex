@@ -1,4 +1,4 @@
-#include <arch/amd64.pmio.h>
+#include <arch/io.h>
 #include <vex/console.h>
 #include <vex/initcall.h>
 

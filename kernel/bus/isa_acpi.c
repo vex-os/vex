@@ -28,18 +28,18 @@ static uacpi_iteration_decision parse_resource(void* ctxdata, uacpi_resource* ac
 
         if(acpi_resource->type == UACPI_RESOURCE_TYPE_IO) {
             resource->type = ISA_RESOURCE_PMIO;
-            resource->pmio.base = acpi_resource->io.minimum;
-            resource->pmio.length = acpi_resource->io.length;
-            pmio_region_setup(&resource->pmio);
+            resource->io.space = IO_SPACE_PORT;
+            resource->io.base = acpi_resource->io.minimum;
+            resource->io.length = acpi_resource->io.length;
             context->num_resources += 1;
             return UACPI_ITERATION_DECISION_CONTINUE;
         }
 
         if(acpi_resource->type == UACPI_RESOURCE_TYPE_FIXED_IO) {
             resource->type = ISA_RESOURCE_PMIO;
-            resource->pmio.base = acpi_resource->fixed_io.address;
-            resource->pmio.length = acpi_resource->fixed_io.length;
-            pmio_region_setup(&resource->pmio);
+            resource->io.space = IO_SPACE_PORT;
+            resource->io.base = acpi_resource->fixed_io.address;
+            resource->io.length = acpi_resource->fixed_io.length;
             context->num_resources += 1;
             return UACPI_ITERATION_DECISION_CONTINUE;
         }

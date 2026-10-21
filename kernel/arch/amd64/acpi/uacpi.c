@@ -1,4 +1,4 @@
-#include <arch/amd64.pmio.h>
+#include <arch/io.h>
 #include <limine.h>
 #include <uacpi/kernel_api.h>
 #include <vex/hart.h>

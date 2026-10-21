@@ -64,12 +64,12 @@ static_assert(sizeof(bochsfb_t) <= SLAB_MAX_SIZE);
 
 static uint16_t dispi_read(pci_bar_t* restrict mmio, unsigned index)
 {
-    return pci_bar_read16(mmio, MMIO_DISPI + index * 2);
+    return io_read16(&mmio->io, MMIO_DISPI + index * 2);
 }
 
 static void dispi_write(pci_bar_t* restrict mmio, unsigned index, uint16_t value)
 {
-    pci_bar_write16(mmio, MMIO_DISPI + index * 2, value);
+    io_write16(&mmio->io, MMIO_DISPI + index * 2, value);
 }
 
 static void set_channel(vexfb_channel_t* restrict channel, uint32_t bit_offset, uint32_t bit_length)
@@ -137,12 +137,12 @@ static int bochsfb_get_palette(const fb_device_t* restrict device, uint32_t firs
     bochsfb_t* bochsfb = device->ctxdata;
     bool intr_state = spinlock_acquire_intr(&bochsfb->dac_lock);
 
-    pci_bar_write8(bochsfb->mmio, VGA_DAC_READ_INDEX, first);
+    io_write8(&bochsfb->mmio->io, VGA_DAC_READ_INDEX, first);
 
     for(uint32_t i = 0; i < count; ++i) {
-        uint32_t red = dac_to_rgb(bochsfb->dac_bits, pci_bar_read8(bochsfb->mmio, VGA_DAC_DATA));
-        uint32_t green = dac_to_rgb(bochsfb->dac_bits, pci_bar_read8(bochsfb->mmio, VGA_DAC_DATA));
-        uint32_t blue = dac_to_rgb(bochsfb->dac_bits, pci_bar_read8(bochsfb->mmio, VGA_DAC_DATA));
+        uint32_t red = dac_to_rgb(bochsfb->dac_bits, io_read8(&bochsfb->mmio->io, VGA_DAC_DATA));
+        uint32_t green = dac_to_rgb(bochsfb->dac_bits, io_read8(&bochsfb->mmio->io, VGA_DAC_DATA));
+        uint32_t blue = dac_to_rgb(bochsfb->dac_bits, io_read8(&bochsfb->mmio->io, VGA_DAC_DATA));
         colors[i] = (red << 16) | (green << 8) | blue;
     }
 
@@ -157,12 +157,12 @@ static int bochsfb_set_palette(const fb_device_t* restrict device, uint32_t firs
     unsigned shift = 8 - bochsfb->dac_bits;
     bool intr_state = spinlock_acquire_intr(&bochsfb->dac_lock);
 
-    pci_bar_write8(bochsfb->mmio, VGA_DAC_WRITE_INDEX, first);
+    io_write8(&bochsfb->mmio->io, VGA_DAC_WRITE_INDEX, first);
 
     for(uint32_t i = 0; i < count; ++i) {
-        pci_bar_write8(bochsfb->mmio, VGA_DAC_DATA, ((colors[i] >> 16) & 0xFF) >> shift);
-        pci_bar_write8(bochsfb->mmio, VGA_DAC_DATA, ((colors[i] >> 8) & 0xFF) >> shift);
-        pci_bar_write8(bochsfb->mmio, VGA_DAC_DATA, (colors[i] & 0xFF) >> shift);
+        io_write8(&bochsfb->mmio->io, VGA_DAC_DATA, ((colors[i] >> 16) & 0xFF) >> shift);
+        io_write8(&bochsfb->mmio->io, VGA_DAC_DATA, ((colors[i] >> 8) & 0xFF) >> shift);
+        io_write8(&bochsfb->mmio->io, VGA_DAC_DATA, (colors[i] & 0xFF) >> shift);
     }
 
     spinlock_release_intr(&bochsfb->dac_lock, intr_state);
@@ -183,7 +183,7 @@ static bool mode_supported(const bochsfb_t* restrict bochsfb, const vexfb_mode_t
         return false;
     }
 
-    return (uint64_t)(mode->width) * (mode->bpp / 8) * mode->height <= bochsfb->vram->mmio.length;
+    return (uint64_t)(mode->width) * (mode->bpp / 8) * mode->height <= bochsfb->vram->io.length;
 }
 
 // Nothing but register accesses, as a panic calls this too
@@ -211,13 +211,13 @@ static int bochsfb_set_mode(fb_device_t* restrict device, const vexfb_mode_t* re
     vexfb_info_t info;
     uint64_t offset;
 
-    if(!describe(mmio, &info, &offset) || offset + info.size > bochsfb->vram->mmio.length) {
+    if(!describe(mmio, &info, &offset) || offset + info.size > bochsfb->vram->io.length) {
         return -EIO;
     }
 
     device->info = info;
     device->phys = bochsfb->vram->phys + offset;
-    device->virt = (uint8_t*)(bochsfb->vram->mmio.virt8) + offset;
+    device->virt = (uint8_t*)(bochsfb->vram->io.base) + offset;
 
     return 0;
 }
@@ -296,7 +296,7 @@ static size_t collect_modes(bochsfb_t* restrict bochsfb, const vexfb_info_t* res
     uint8_t block[EDID_BLOCK_SIZE];
     vexfb_mode_t found[MAX_MODES];
 
-    pci_bar_read8s(bochsfb->mmio, MMIO_EDID, block, sizeof(block));
+    io_copy_from(&bochsfb->mmio->io, MMIO_EDID, block, sizeof(block));
 
     size_t found_count = fb_edid_parse_modes(block, found, MAX_MODES);
     size_t count = 0;
@@ -326,7 +326,7 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
 
     // UNDONE: old QEMU std-vga has no MMIO BAR
     // and only takes DISPI through ports 0x1CE/0x1CF
-    if(mmio == nullptr || mmio->type != PCI_BAR_TYPE_MMIO) {
+    if(mmio == nullptr || mmio->io.space != IO_SPACE_MEMORY) {
         pr_verbose("bochsfb: no register BAR");
         unmap_bars(pci_dev);
         return -ENODEV;
@@ -352,7 +352,7 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
 
     pci_bar_t* vram = pci_bar_map_vprot(pci_dev, BAR_VRAM, VPROT_RW | VPROT_CACHE_WC);
 
-    if(vram == nullptr || offset + info.size > vram->mmio.length) {
+    if(vram == nullptr || offset + info.size > vram->io.length) {
         pr_warning("bochsfb: the mode doesn't fit the video memory");
         unmap_bars(pci_dev);
         return -ENODEV;
@@ -386,14 +386,14 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
     device->info = info;
     device->phys = vram->phys + offset;
     device->cache = VPROT_CACHE_WC;
-    device->virt = (uint8_t*)(vram->mmio.virt8) + offset;
+    device->virt = (uint8_t*)(vram->io.base) + offset;
     device->modes = bochsfb->modes;
     device->mode_count = collect_modes(bochsfb, &info);
     device->ctxdata = bochsfb;
 
     // NOTE: after a successful claim the
     // screen is ours even if the add below fails
-    if(fb_boot_claim(vram->phys, vram->mmio.length) < 0) {
+    if(fb_boot_claim(vram->phys, vram->io.length) < 0) {
         pr_warning("bochsfb: boot framebuffers are already added, one may share the memory");
     }
 
@@ -408,7 +408,7 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
     pci_dev->ctxdata = bochsfb;
 
     pr_inform("bochsfb: %s: DISPI 0x%04X, %zu KiB of video memory, up to %ux%u, %u modes listed", device->chr.name, dispi_id,
-        (size_t)(vram->mmio.length / 1024), bochsfb->max_width, bochsfb->max_height, device->mode_count);
+        (size_t)(vram->io.length / 1024), bochsfb->max_width, bochsfb->max_height, device->mode_count);
 
     return 0;
 }

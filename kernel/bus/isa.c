@@ -8,7 +8,6 @@
 #include <vex/isa.h>
 #include <vex/limits.h>
 #include <vex/panic.h>
-#include <vex/pmio.h>
 #include <vex/string.h>
 
 #define ISA_IRQ_COUNT 16
