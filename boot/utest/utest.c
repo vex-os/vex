@@ -5,6 +5,7 @@
 #include <vex/signal.h>
 #include <vex/stat.h>
 #include <vex/syscall.h>
+#include <vex/termios.h>
 #include <vex/time.h>
 #include <vex/utsname.h>
 
@@ -433,6 +434,200 @@ static void __attribute__((noreturn)) finisher(long arg)
     __builtin_unreachable();
 }
 
+static long tty_fd;
+static long line_fd;
+
+static int same_bytes(const char* left, const char* right, long length)
+{
+    long i;
+
+    for(i = 0; i < length; ++i) {
+        if(left[i] != right[i]) {
+            return 0;
+        }
+    }
+
+    return 1;
+}
+
+static void line_send(const char* text)
+{
+    syscall3(__k_SYS_WRITE, line_fd, (long)text, ustrlen(text));
+}
+
+/* Prints 1 when the next read gives exactly what is expected, and what came otherwise */
+static void expect_read(long fd, const char* expected)
+{
+    char buffer[128];
+    long length = syscall3(__k_SYS_READ, fd, (long)buffer, sizeof(buffer));
+
+    if(length == (long)ustrlen(expected) && same_bytes(buffer, expected, length)) {
+        printnumber(1);
+    }
+    else if(length > 0) {
+        syscall2(__k_SYS_TEST, (long)buffer, length);
+    }
+    else {
+        printnumber(length);
+    }
+}
+
+/* What the terminal sends may come in pieces, as tty_worker echoes before the kernel prints a status line */
+static void expect_line(const char* expected)
+{
+    char buffer[128];
+    long expected_length = ustrlen(expected);
+    long length = 0;
+    long piece = 1;
+
+    while(length < expected_length && piece > 0) {
+        piece = syscall3(__k_SYS_READ, line_fd, (long)(buffer + length), sizeof(buffer) - length);
+
+        if(piece > 0) {
+            length += piece;
+        }
+    }
+
+    if(length == expected_length && same_bytes(buffer, expected, length)) {
+        printnumber(1);
+    }
+    else {
+        syscall2(__k_SYS_TEST, (long)buffer, length);
+    }
+}
+
+static void line_drain(void)
+{
+    char buffer[128];
+
+    while(syscall3(__k_SYS_READ, line_fd, (long)buffer, sizeof(buffer)) > 0) {
+        /* empty */
+    }
+}
+
+static void tty_raw(int vmin, int vtime)
+{
+    struct __k_termios termios;
+
+    syscall3(__k_SYS_IOCTL, tty_fd, __k_TCGETS, (long)&termios);
+    termios.c_lflag &= ~(__k_ICANON | __k_ECHO);
+    termios.c_cc[__k_VMIN] = vmin;
+    termios.c_cc[__k_VTIME] = vtime;
+    syscall3(__k_SYS_IOCTL, tty_fd, __k_TCSETS, (long)&termios);
+}
+
+static void test_tty(void)
+{
+    struct __k_termios saved;
+    char buffer[64];
+    __k_int32_t value = 0;
+    __k_pid_t pgid;
+    struct __k_winsize winsize = { 24, 80, 0, 0 };
+    struct __k_winsize winsize_back;
+    long child;
+    int wstatus;
+
+    syscall3(__k_SYS_MKDIRAT, __k_AT_FDCWD, (long)"/dev", 0755);
+    printnumber(syscall6(__k_SYS_MOUNT, 0, (long)"/dev", (long)"devfs", 0, 0, 0)); /* should print 0 */
+
+    tty_fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/tty0", __k_O_RDWR, 0);
+    line_fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/pty0", __k_O_RDWR, 0);
+    printnumber(tty_fd >= 0 && line_fd >= 0); /* should print 1 */
+
+    syscall3(__k_SYS_IOCTL, tty_fd, __k_TCGETS, (long)&saved);
+    printnumber(saved.c_cc[__k_VMIN] == 1 && (saved.c_lflag & __k_ICANON)); /* should print 1 */
+
+    /* DEL erases with ECHOE, and ONLCR echoes the newline as \r\n */
+    line_send("ab\x7f"
+              "c\n");
+    expect_line("ab\b \bc\r\n"); /* should print 1 */
+    expect_read(tty_fd, "ac\n"); /* should print 1 */
+
+    syscall3(__k_SYS_WRITE, tty_fd, (long)"x\ny", 3);
+    expect_line("x\r\ny"); /* should print 1 */
+
+    /* ^U kills the line and ^W the last word */
+    line_send("abc\x15"
+              "d\n");
+    line_drain();
+    expect_read(tty_fd, "d\n"); /* should print 1 */
+    line_send("foo bar\x17"
+              "x\n");
+    line_drain();
+    expect_read(tty_fd, "foo x\n"); /* should print 1 */
+
+    /* ^D on a line hands it out, and on an empty one reads as end of file */
+    line_send("ab\x04");
+    line_drain();
+    expect_read(tty_fd, "ab"); /* should print 1 */
+    line_send("\x04");
+    line_drain();
+    printnumber(syscall3(__k_SYS_READ, tty_fd, (long)buffer, sizeof(buffer))); /* should print 0 */
+
+    /* A line is readable once it ends */
+    line_send("hi\n");
+    line_drain();
+    syscall3(__k_SYS_IOCTL, tty_fd, __k_FIONREAD, (long)&value);
+    printnumber(value);          /* should print 3 */
+    expect_read(tty_fd, "hi\n"); /* should print 1 */
+
+    /* VMIN 0 and VTIME 2 give up after 0.2 s, VMIN 3 waits for three bytes */
+    tty_raw(0, 2);
+    printnumber(syscall3(__k_SYS_READ, tty_fd, (long)buffer, sizeof(buffer))); /* should print 0 */
+    tty_raw(3, 0);
+    line_send("xyz");
+    expect_read(tty_fd, "xyz"); /* should print 1 */
+
+    syscall3(__k_SYS_FCNTL, tty_fd, __k_F_SETFL, __k_O_NONBLOCK);
+    printnumber(syscall3(__k_SYS_READ, tty_fd, (long)buffer, sizeof(buffer))); /* should print -206 (EAGAIN) */
+    syscall3(__k_SYS_FCNTL, tty_fd, __k_F_SETFL, 0);
+    syscall3(__k_SYS_IOCTL, tty_fd, __k_TCSETS, (long)&saved);
+
+    syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCSWINSZ, (long)&winsize);
+    syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCGWINSZ, (long)&winsize_back);
+    printnumber(winsize_back.ws_row == 24 && winsize_back.ws_col == 80); /* should print 1 */
+
+    /* Init leads session 1, so the terminal can become its controlling one */
+    printnumber(syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCGPGRP, (long)&pgid)); /* should print -259 (ENOTTY) */
+    value = 0;
+    printnumber(syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCSCTTY, (long)&value)); /* should print 0 */
+    syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCGPGRP, (long)&pgid);
+    printnumber(pgid); /* should print 1 */
+    syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCGSID, (long)&pgid);
+    printnumber(pgid); /* should print 1 */
+
+    /* ^C goes to the foreground group, a job in a group of its own */
+    child = syscall1(__k_SYS_FORK, 0);
+
+    if(child == 0) {
+        for(;;) {
+            syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 0, 0, 0);
+        }
+    }
+
+    syscall2(__k_SYS_SETPGID, child, child);
+    pgid = child;
+    printnumber(syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCSPGRP, (long)&pgid)); /* should print 0 */
+    line_send("\x03");
+    wstatus = -1;
+    syscall2(__k_SYS_WAITPID, child, (long)&wstatus);
+    printnumber(wstatus); /* should print 2 (SIGINT) */
+    expect_line("^C");    /* should print 1 */
+
+    pgid = 1;
+    printnumber(syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCSPGRP, (long)&pgid)); /* should print 0 */
+
+    /* ^T has the kernel print the foreground group, init ignores the SIGINFO */
+    line_send("\x14");
+    expect_line("^Tprocess group 1: 1 (running)\r\n"); /* should print 1 */
+
+    printnumber(syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCNOTTY, 0));           /* should print 0 */
+    printnumber(syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCGPGRP, (long)&pgid)); /* should print -259 (ENOTTY) */
+
+    syscall1(__k_SYS_CLOSE, tty_fd);
+    syscall1(__k_SYS_CLOSE, line_fd);
+}
+
 int main(int argc, char** argv)
 {
     if(argc > 2 && same_string(argv[1], "exec-child")) {
@@ -843,6 +1038,8 @@ int main(int argc, char** argv)
     wstatus = -1;
     printnumber(syscall2(__k_SYS_WAITPID, 0, (long)&wstatus) == child); // should print 1
     printnumber(wstatus);                                               // should print 1024 (exit code 4)
+
+    test_tty();
 
     return 1337;
 }

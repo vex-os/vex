@@ -9,3 +9,7 @@ endmenu
 menu "Input"
 source "kernel/drivers/input/Kconfig"
 endmenu
+
+menu "Serial"
+source "kernel/drivers/serial/Kconfig"
+endmenu
