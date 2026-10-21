@@ -55,7 +55,8 @@ static int name_device(blk_device_t* restrict device, const dev_name_t* restrict
 int blk_device_add_root(blk_device_t* restrict device, dev_unit_t* restrict unit, unsigned index)
 {
     dev_name_t name = {};
-    name.unit = unit;
+    name.prefix = unit->prefix;
+    name.unit = unit->number;
     name.index = index;
     name.partition = DEV_NAME_NONE;
 

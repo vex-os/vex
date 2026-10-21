@@ -10,8 +10,6 @@
 #include <vex/sprintf.h>
 #include <vex/string.h>
 
-#define MAX_UNIT 0xFFF // What the unit field of a dev_t holds
-
 static_assert(sizeof(dev_unit_t) <= SLAB_MAX_SIZE);
 
 static spinlock_t dev_units_lock = SPINLOCK_INIT;
@@ -78,6 +76,34 @@ static void link_unit_locked(dev_prefix_t* restrict prefix, dev_unit_t* restrict
     }
 }
 
+int dev_prefix_claim(dev_prefix_t* restrict prefix)
+{
+    int retval = 0;
+
+    spinlock_acquire(&dev_units_lock);
+
+    if(prefix->claimed || prefix->units) {
+        retval = -EEXIST;
+    }
+    else {
+        prefix->claimed = true;
+    }
+
+    spinlock_release(&dev_units_lock);
+
+    return retval;
+}
+
+void dev_prefix_release(dev_prefix_t* restrict prefix)
+{
+    spinlock_acquire(&dev_units_lock);
+
+    kassert(prefix->claimed);
+    prefix->claimed = false;
+
+    spinlock_release(&dev_units_lock);
+}
+
 int dev_unit_alloc(dev_prefix_t* restrict prefix, dev_unit_t** restrict unit)
 {
     dev_unit_t* created = slab_alloc(sizeof(dev_unit_t));
@@ -88,6 +114,12 @@ int dev_unit_alloc(dev_prefix_t* restrict prefix, dev_unit_t** restrict unit)
 
     spinlock_acquire(&dev_units_lock);
 
+    if(prefix->claimed) {
+        spinlock_release(&dev_units_lock);
+        slab_free(created);
+        return -EEXIST;
+    }
+
     unsigned number = 0;
     dev_unit_t* prev = nullptr;
 
@@ -96,7 +128,7 @@ int dev_unit_alloc(dev_prefix_t* restrict prefix, dev_unit_t** restrict unit)
         number += 1;
     }
 
-    if(number > MAX_UNIT) {
+    if(number >= DEV_NO_UNIT) {
         spinlock_release(&dev_units_lock);
         slab_free(created);
         return -ENOSPC;
@@ -113,7 +145,7 @@ int dev_unit_alloc(dev_prefix_t* restrict prefix, dev_unit_t** restrict unit)
 
 int dev_unit_claim(dev_prefix_t* restrict prefix, unsigned number, dev_unit_t** restrict unit)
 {
-    if(number > MAX_UNIT) {
+    if(number >= DEV_NO_UNIT) {
         return -ERANGE;
     }
 
@@ -124,6 +156,12 @@ int dev_unit_claim(dev_prefix_t* restrict prefix, unsigned number, dev_unit_t** 
     }
 
     spinlock_acquire(&dev_units_lock);
+
+    if(prefix->claimed) {
+        spinlock_release(&dev_units_lock);
+        slab_free(created);
+        return -EEXIST;
+    }
 
     dev_unit_t* prev = nullptr;
 
@@ -168,7 +206,12 @@ void dev_unit_free(dev_unit_t* restrict unit)
 
 int dev_name_format(const dev_name_t* restrict name, char* restrict buffer, size_t size)
 {
+    kassert(name->unit != DEV_NAME_NONE || name->index == DEV_NAME_NONE);
     kassert(name->index != DEV_NAME_NONE || name->partition == DEV_NAME_NONE);
+
+    if(name->unit != DEV_NAME_NONE && name->unit >= DEV_NO_UNIT) {
+        return -ERANGE;
+    }
 
     if(name->index != DEV_NAME_NONE && name->index >= DEV_NO_INDEX) {
         return -ERANGE;
@@ -178,16 +221,20 @@ int dev_name_format(const dev_name_t* restrict name, char* restrict buffer, size
         return -ERANGE;
     }
 
+    const char* prefix = name->prefix->string;
     int length;
 
-    if(name->index == DEV_NAME_NONE) {
-        length = snprintf(buffer, size, "%s%u", name->unit->prefix->string, name->unit->number);
+    if(name->unit == DEV_NAME_NONE) {
+        length = snprintf(buffer, size, "%s", prefix);
+    }
+    else if(name->index == DEV_NAME_NONE) {
+        length = snprintf(buffer, size, "%s%u", prefix, name->unit);
     }
     else if(name->partition == DEV_NAME_NONE) {
-        length = snprintf(buffer, size, "%s%un%u", name->unit->prefix->string, name->unit->number, name->index);
+        length = snprintf(buffer, size, "%s%un%u", prefix, name->unit, name->index);
     }
     else {
-        length = snprintf(buffer, size, "%s%un%up%u", name->unit->prefix->string, name->unit->number, name->index, name->partition);
+        length = snprintf(buffer, size, "%s%un%up%u", prefix, name->unit, name->index, name->partition);
     }
 
     if(length < 0 || (size_t)(length) >= size) {
@@ -199,9 +246,10 @@ int dev_name_format(const dev_name_t* restrict name, char* restrict buffer, size
 
 dev_t dev_name_to_dev(const dev_name_t* restrict name)
 {
+    unsigned unit = name->unit == DEV_NAME_NONE ? DEV_NO_UNIT : name->unit;
     unsigned index = name->index == DEV_NAME_NONE ? DEV_NO_INDEX : name->index;
     unsigned partition = name->partition == DEV_NAME_NONE ? DEV_NO_PARTITION : name->partition;
-    return DEV_SET(name->unit->prefix->hash, name->unit->number, index, partition);
+    return DEV_SET(name->prefix->hash, unit, index, partition);
 }
 
 static void init_dev_prefixes(void)

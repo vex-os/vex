@@ -77,7 +77,8 @@ static int set_dev(vfs_t* restrict fs, const blk_device_t* restrict device)
     }
 
     dev_name_t name = {};
-    name.unit = fs->unit;
+    name.prefix = fs->unit->prefix;
+    name.unit = fs->unit->number;
     name.index = DEV_NAME_NONE;
     name.partition = DEV_NAME_NONE;
 

@@ -45,23 +45,42 @@ static int chr_device_register_internal(chr_device_t* restrict device)
     return 0;
 }
 
-int chr_device_add(chr_device_t* restrict device, dev_unit_t* restrict unit, unsigned index)
+static int add_named(chr_device_t* restrict device, const dev_name_t* restrict name)
 {
-    dev_name_t name = {};
-    name.unit = unit;
-    name.index = index;
-    name.partition = DEV_NAME_NONE;
-
-    int retval = dev_name_format(&name, device->name, sizeof(device->name));
+    int retval = dev_name_format(name, device->name, sizeof(device->name));
 
     if(retval < 0) {
         return retval;
     }
 
-    device->priv.name = name;
-    device->priv.dev = dev_name_to_dev(&name);
+    device->priv.name = *name;
+    device->priv.dev = dev_name_to_dev(name);
 
     return chr_device_register_internal(device);
+}
+
+int chr_device_add(chr_device_t* restrict device, dev_unit_t* restrict unit, unsigned index)
+{
+    dev_name_t name = {};
+    name.prefix = unit->prefix;
+    name.unit = unit->number;
+    name.index = index;
+    name.partition = DEV_NAME_NONE;
+
+    return add_named(device, &name);
+}
+
+int chr_device_add_unitless(chr_device_t* restrict device, dev_prefix_t* restrict prefix)
+{
+    kassert(prefix->claimed);
+
+    dev_name_t name = {};
+    name.prefix = prefix;
+    name.unit = DEV_NAME_NONE;
+    name.index = DEV_NAME_NONE;
+    name.partition = DEV_NAME_NONE;
+
+    return add_named(device, &name);
 }
 
 int chr_device_remove(chr_device_t* restrict device)

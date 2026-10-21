@@ -3,6 +3,7 @@
 
 #include <vex/types.h>
 
+#define __k_DEV_NO_UNIT      ((__k_uint32_t)(0xFFF))
 #define __k_DEV_NO_INDEX     ((__k_uint32_t)(0xFFF))
 #define __k_DEV_NO_PARTITION ((__k_uint32_t)(0xFF))
 

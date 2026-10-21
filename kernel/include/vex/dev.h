@@ -2,6 +2,7 @@
 
 #include <usr/vex/dev.h>
 
+#define DEV_NO_UNIT      __k_DEV_NO_UNIT
 #define DEV_NO_INDEX     __k_DEV_NO_INDEX
 #define DEV_NO_PARTITION __k_DEV_NO_PARTITION
 

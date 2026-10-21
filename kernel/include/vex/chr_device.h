@@ -80,6 +80,10 @@ struct chr_device_s {
 /// @param index The n of the name, such as the card's port; DEV_NAME_NONE for a device that is its unit's only one
 int chr_device_add(chr_device_t* restrict device, dev_unit_t* restrict unit, unsigned index);
 
+/// Names the device with the prefix alone, for a device the system has only one of
+/// @pre The caller holds the prefix through dev_prefix_claim, until the device is removed
+int chr_device_add_unitless(chr_device_t* restrict device, dev_prefix_t* restrict prefix);
+
 /// Drops the registry's reference; holders of others keep the structure
 /// @pre The driver fails its own calls with -ENODEV and has woken those that sleep, as a call
 /// that passed the chr layer's check may still reach it
