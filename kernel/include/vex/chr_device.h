@@ -22,9 +22,27 @@ struct chr_device_ops_s {
     /// @pre This is the last close, and the device wasn't removed while open
     void (*close)(const chr_device_t* restrict device);
 
-    ssize_t (*read)(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size, unsigned flags);
-    ssize_t (*write)(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size, unsigned flags);
-    int (*ioctl)(const chr_device_t* restrict device, uint32_t request, uintptr_t argument);
+    /// Sets up the state of one open file, which the
+    /// other calls on that file get as file_ctxdata
+    /// @pre On the first open, open has run before it
+    int (*open_file)(const chr_device_t* restrict device, unsigned flags, void** restrict file_ctxdata);
+
+    /// @note Runs even on a device removed while open, as the file's
+    /// state is freed here; on the last close, close runs after it
+    void (*close_file)(const chr_device_t* restrict device, void* restrict file_ctxdata);
+
+    ssize_t (*read)(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset, void* restrict buffer, size_t size,
+        unsigned flags);
+    ssize_t (*write)(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
+        size_t size, unsigned flags);
+
+    /// Moves the file's offset by the device's own rules, for devices whose offset isn't a byte position
+    /// @param position The file's offset now
+    /// @return The new offset
+    /// @note nullptr leaves the offset to the VFS
+    off_t (*seek)(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t position, off_t offset, int origin);
+
+    int (*ioctl)(const chr_device_t* restrict device, void* restrict file_ctxdata, uint32_t request, uintptr_t argument);
 
     /// Checks a mapping of the device's memory before it is made
     /// @pre offset and length are page aligned
@@ -77,44 +95,57 @@ void chr_device_revoke_mappings(const chr_device_t* restrict device);
 void chr_device_incref(const chr_device_t* restrict device);
 void chr_device_decref(const chr_device_t* restrict device);
 
-int chr_device_open(const chr_device_t* restrict device, unsigned flags);
+/// @param file_ctxdata Gets what the driver's open_file made, if it has one
+int chr_device_open(const chr_device_t* restrict device, unsigned flags, void** restrict file_ctxdata);
 
 /// Makes further opens fail with -EBUSY until the last close, as an O_EXCL open does
 void chr_device_set_exclusive(const chr_device_t* restrict device, bool exclusive);
-void chr_device_close(const chr_device_t* restrict device);
+void chr_device_close(const chr_device_t* restrict device, void* restrict file_ctxdata);
 
 const chr_device_t* chr_device_find(const char* restrict name) __nodiscard;
 
 /// @pre The caller holds chr_event_lock, which keeps the device list still
 void chr_device_for_each(void (*callback)(const chr_device_t* restrict device, void* restrict arg), void* restrict arg);
 
-static __always_inline ssize_t chr_device_read(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size,
-    unsigned flags)
+static __always_inline ssize_t chr_device_read(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset,
+    void* restrict buffer, size_t size, unsigned flags)
 {
     if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE))
         return -ENODEV;
     if(device->ops->read == nullptr)
         return -ENOSYS;
-    return device->ops->read(device, offset, buffer, size, flags);
+    return device->ops->read(device, file_ctxdata, offset, buffer, size, flags);
 }
 
-static __always_inline ssize_t chr_device_write(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size,
-    unsigned flags)
+static __always_inline ssize_t chr_device_write(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset,
+    const void* restrict buffer, size_t size, unsigned flags)
 {
     if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE))
         return -ENODEV;
     if(device->ops->write == nullptr)
         return -ENOSYS;
-    return device->ops->write(device, offset, buffer, size, flags);
+    return device->ops->write(device, file_ctxdata, offset, buffer, size, flags);
 }
 
-static __always_inline int chr_device_ioctl(const chr_device_t* restrict device, uint32_t request, uintptr_t argument)
+/// @retval -ENOSYS The device leaves the offset to the VFS
+static __always_inline off_t chr_device_seek(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t position, off_t offset,
+    int origin)
+{
+    if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE))
+        return -ENODEV;
+    if(device->ops->seek == nullptr)
+        return -ENOSYS;
+    return device->ops->seek(device, file_ctxdata, position, offset, origin);
+}
+
+static __always_inline int chr_device_ioctl(const chr_device_t* restrict device, void* restrict file_ctxdata, uint32_t request,
+    uintptr_t argument)
 {
     if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE))
         return -ENODEV;
     if(device->ops->ioctl == nullptr)
         return -ENOTTY;
-    return device->ops->ioctl(device, request, argument);
+    return device->ops->ioctl(device, file_ctxdata, request, argument);
 }
 
 static __always_inline int chr_device_mmap(const chr_device_t* restrict device, off_t offset, size_t length)

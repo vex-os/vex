@@ -173,7 +173,7 @@ static intptr_t fsync_file(file_t* restrict file, const uintptr_t* restrict args
 static intptr_t fcntl_file(file_t* restrict file, const uintptr_t* restrict args)
 {
     unsigned command = args[1];
-    unsigned flags = atomic_load(&file->flags, ATOMIC_RELAXED);
+    unsigned flags = file_flags(file);
 
     if(command == F_GETFL) {
         return flags;

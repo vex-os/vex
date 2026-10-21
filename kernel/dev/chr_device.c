@@ -123,26 +123,36 @@ void chr_device_decref(const chr_device_t* restrict device)
     }
 }
 
-int chr_device_open(const chr_device_t* restrict device, unsigned flags)
+int chr_device_open(const chr_device_t* restrict device, unsigned flags, void** restrict file_ctxdata)
 {
     chr_device_t* mutable_device = (chr_device_t*)(device);
     int retval = 0;
 
     mutex_acquire(&mutable_device->priv.open_lock);
 
+    bool first = device->priv.open_count == 0;
+
     if(atomic_load(&device->priv.removed, ATOMIC_ACQUIRE)) {
         retval = -ENODEV;
     }
-    else if(device->priv.exclusive || (device->priv.open_count > 0 && (flags & O_EXCL))) {
+    else if(device->priv.exclusive || (!first && (flags & O_EXCL))) {
         retval = -EBUSY;
     }
-    else if(device->priv.open_count == 0) {
+    else if(first) {
         if(device->console) {
             console_release(device->console);
         }
 
         if(device->ops->open) {
             retval = device->ops->open(device, flags);
+        }
+    }
+
+    if(retval >= 0 && device->ops->open_file) {
+        retval = device->ops->open_file(device, flags, file_ctxdata);
+
+        if(retval < 0 && first && device->ops->close) {
+            device->ops->close(device);
         }
     }
 
@@ -166,11 +176,15 @@ void chr_device_set_exclusive(const chr_device_t* restrict device, bool exclusiv
     mutex_release(&mutable_device->priv.open_lock);
 }
 
-void chr_device_close(const chr_device_t* restrict device)
+void chr_device_close(const chr_device_t* restrict device, void* restrict file_ctxdata)
 {
     chr_device_t* mutable_device = (chr_device_t*)(device);
 
     mutex_acquire(&mutable_device->priv.open_lock);
+
+    if(device->ops->close_file) {
+        device->ops->close_file(device, file_ctxdata);
+    }
 
     kassert(device->priv.open_count > 0);
     mutable_device->priv.open_count -= 1;

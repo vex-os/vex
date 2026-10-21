@@ -1,6 +1,7 @@
 #include <vex/chr_device.h>
 #include <vex/chr_event.h>
 #include <vex/errno.h>
+#include <vex/file.h>
 #include <vex/slab.h>
 #include <vex/stat.h>
 #include <vex/string.h>
@@ -24,41 +25,48 @@ static void devfs_chr_release(vnode_t* restrict node)
     slab_free(context);
 }
 
-static int devfs_chr_open(vnode_t* restrict node, unsigned mode)
+static int devfs_chr_open(vnode_t* restrict node, file_t* restrict file)
 {
     const devfs_chr_context_t* context = node->ctxdata;
 
-    return chr_device_open(context->device, mode);
+    return chr_device_open(context->device, file->flags, &file->ctxdata);
 }
 
-static int devfs_chr_close(vnode_t* restrict node)
+static int devfs_chr_close(vnode_t* restrict node, file_t* restrict file)
 {
     const devfs_chr_context_t* context = node->ctxdata;
 
-    chr_device_close(context->device);
+    chr_device_close(context->device, file->ctxdata);
 
     return 0;
 }
 
-static ssize_t devfs_chr_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset, unsigned flags)
+static ssize_t devfs_chr_read(vnode_t* restrict node, file_t* restrict file, void* restrict buffer, size_t size, off_t offset)
 {
     const devfs_chr_context_t* context = node->ctxdata;
 
-    return chr_device_read(context->device, offset, buffer, size, flags);
+    return chr_device_read(context->device, file->ctxdata, offset, buffer, size, file_flags(file));
 }
 
-static ssize_t devfs_chr_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset, unsigned flags)
+static ssize_t devfs_chr_write(vnode_t* restrict node, file_t* restrict file, const void* restrict buffer, size_t size, off_t offset)
 {
     const devfs_chr_context_t* context = node->ctxdata;
 
-    return chr_device_write(context->device, offset, buffer, size, flags);
+    return chr_device_write(context->device, file->ctxdata, offset, buffer, size, file_flags(file));
 }
 
-static int devfs_chr_ioctl(vnode_t* restrict node, unsigned request, uintptr_t argument)
+static off_t devfs_chr_seek(vnode_t* restrict node, file_t* restrict file, off_t offset, int origin)
 {
     const devfs_chr_context_t* context = node->ctxdata;
 
-    return chr_device_ioctl(context->device, request, argument);
+    return chr_device_seek(context->device, file->ctxdata, file->offset, offset, origin);
+}
+
+static int devfs_chr_ioctl(vnode_t* restrict node, file_t* restrict file, unsigned request, uintptr_t argument)
+{
+    const devfs_chr_context_t* context = node->ctxdata;
+
+    return chr_device_ioctl(context->device, file->ctxdata, request, argument);
 }
 
 static int devfs_chr_mmap(vnode_t* restrict node, off_t offset, size_t length)
@@ -92,6 +100,7 @@ static const vnode_ops_t devfs_chr_ops = {
     .release = &devfs_chr_release,
     .read = &devfs_chr_read,
     .write = &devfs_chr_write,
+    .seek = &devfs_chr_seek,
     .ioctl = &devfs_chr_ioctl,
     .stat = &devfs_chr_stat,
     .open = &devfs_chr_open,

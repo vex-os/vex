@@ -24,7 +24,8 @@ static const tty_device_ops_t test_tty_ops = {
     .start_tx = &test_tty_start_tx,
 };
 
-static ssize_t test_line_read(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size, unsigned flags)
+static ssize_t test_line_read(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset, void* restrict buffer,
+    size_t size, unsigned flags)
 {
     uint64_t deadline = clock_source_now_ns() + LINE_WAIT_NSEC;
 
@@ -46,7 +47,8 @@ static ssize_t test_line_read(const chr_device_t* restrict device, off_t offset,
     }
 }
 
-static ssize_t test_line_write(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size, unsigned flags)
+static ssize_t test_line_write(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
+    size_t size, unsigned flags)
 {
     tty_receive(&test_tty, buffer, size);
     return size;

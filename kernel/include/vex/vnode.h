@@ -11,6 +11,7 @@
 #include <vex/types.h>
 #include <vex/xattr.h>
 
+typedef struct file_s file_t;
 typedef struct pmap_s pmap_t;
 typedef struct vcache_entry_s vcache_entry_t;
 typedef struct blk_device_s blk_device_t;
@@ -91,12 +92,22 @@ struct vnode_ops_s {
     int (*symlink)(vnode_t* restrict node, const char* restrict name, const char* restrict target,
         const credentials_t* restrict credentials, vnode_t** restrict out);
 
-    int (*open)(vnode_t* restrict node, unsigned mode);
-    int (*close)(vnode_t* restrict node);
-    ssize_t (*read)(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset, unsigned flags);
-    ssize_t (*write)(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset, unsigned flags);
+    /// @pre file has its node, flags and offset set, and a nullptr ctxdata
+    /// @note Runs for each open; file->ctxdata is the node's to set,
+    /// and close gets the file once its last reference is gone
+    int (*open)(vnode_t* restrict node, file_t* restrict file);
+
+    int (*close)(vnode_t* restrict node, file_t* restrict file);
+    ssize_t (*read)(vnode_t* restrict node, file_t* restrict file, void* restrict buffer, size_t size, off_t offset);
+    ssize_t (*write)(vnode_t* restrict node, file_t* restrict file, const void* restrict buffer, size_t size, off_t offset);
+
+    /// Moves the file's offset by the node's own rules, for files whose offset isn't a byte position
+    /// @return The new offset
+    /// @retval -ENOSYS The VFS moves the offset as a byte position
+    off_t (*seek)(vnode_t* restrict node, file_t* restrict file, off_t offset, int origin);
+
     ssize_t (*readlink)(vnode_t* restrict node, char* restrict buf, size_t size);
-    int (*ioctl)(vnode_t* restrict node, uint32_t request, uintptr_t argument);
+    int (*ioctl)(vnode_t* restrict node, file_t* restrict file, uint32_t request, uintptr_t argument);
     int (*stat)(vnode_t* restrict node, stat_t* restrict out);
     int (*fsync)(vnode_t* restrict node);
 
@@ -175,10 +186,11 @@ int vnode_rename(vnode_t* olddir, const char* oldname, vnode_t* newdir, const ch
 int vnode_link(vnode_t* restrict node, const char* restrict name, vnode_t* restrict target);
 int vnode_symlink(vnode_t* restrict node, const char* restrict name, const char* restrict target, const credentials_t* restrict credentials,
     vnode_t** restrict out);
-int vnode_open(vnode_t* restrict node, unsigned mode);
-int vnode_close(vnode_t* restrict node);
-ssize_t vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset, unsigned flags);
-ssize_t vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset, unsigned flags);
+int vnode_open(vnode_t* restrict node, file_t* restrict file);
+int vnode_close(vnode_t* restrict node, file_t* restrict file);
+ssize_t vnode_read(vnode_t* restrict node, file_t* restrict file, void* restrict buffer, size_t size, off_t offset);
+ssize_t vnode_write(vnode_t* restrict node, file_t* restrict file, const void* restrict buffer, size_t size, off_t offset);
+off_t vnode_seek(vnode_t* restrict node, file_t* restrict file, off_t offset, int origin);
 ssize_t vnode_readlink(vnode_t* restrict node, char* restrict buf, size_t size);
 int vnode_stat(vnode_t* restrict node, stat_t* restrict out);
 
@@ -192,7 +204,7 @@ int vnode_utimes(vnode_t* restrict node, const credentials_t* restrict credentia
 int vnode_may_delete(vnode_t* restrict dir, const char* restrict name, const credentials_t* restrict credentials) __nodiscard;
 int vnode_access(vnode_t* restrict node, const credentials_t* restrict credentials, unsigned mask) __nodiscard;
 int vnode_remove_privs(vnode_t* restrict node, const credentials_t* restrict credentials) __nodiscard;
-int vnode_ioctl(vnode_t* restrict node, uint32_t request, uintptr_t argument);
+int vnode_ioctl(vnode_t* restrict node, file_t* restrict file, uint32_t request, uintptr_t argument);
 int vnode_fsync(vnode_t* restrict node);
 int vnode_fault(vnode_t* restrict node, off_t offset, pmap_t* restrict pmap, uintptr_t virt, unsigned vprot);
 int vnode_mmap(vnode_t* restrict node, off_t offset, size_t length);

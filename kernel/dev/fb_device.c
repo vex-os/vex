@@ -376,7 +376,8 @@ static void leave(const fb_device_t* restrict fb)
     atomic_fetch_sub(&mutable_fb->priv.in_flight, 1, ATOMIC_RELEASE);
 }
 
-static ssize_t fb_chr_read(const chr_device_t* restrict device, off_t offset, void* restrict buffer, size_t size, unsigned flags)
+static ssize_t fb_chr_read(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset, void* restrict buffer,
+    size_t size, unsigned flags)
 {
     const fb_device_t* fb = fb_of(device);
 
@@ -390,7 +391,8 @@ static ssize_t fb_chr_read(const chr_device_t* restrict device, off_t offset, vo
     return retval;
 }
 
-static ssize_t fb_chr_write(const chr_device_t* restrict device, off_t offset, const void* restrict buffer, size_t size, unsigned flags)
+static ssize_t fb_chr_write(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
+    size_t size, unsigned flags)
 {
     const fb_device_t* fb = fb_of(device);
 
@@ -404,7 +406,7 @@ static ssize_t fb_chr_write(const chr_device_t* restrict device, off_t offset, c
     return retval;
 }
 
-static int fb_chr_ioctl(const chr_device_t* restrict device, uint32_t request, uintptr_t argument)
+static int fb_chr_ioctl(const chr_device_t* restrict device, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
 {
     const fb_device_t* fb = fb_of(device);
 

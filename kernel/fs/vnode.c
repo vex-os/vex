@@ -823,7 +823,7 @@ int vnode_symlink(vnode_t* restrict node, const char* restrict name, const char*
     return retval;
 }
 
-int vnode_open(vnode_t* restrict node, unsigned mode)
+int vnode_open(vnode_t* restrict node, file_t* restrict file)
 {
     kassert(node);
 
@@ -838,7 +838,7 @@ int vnode_open(vnode_t* restrict node, unsigned mode)
         retval = -ENOSYS;
     }
     else {
-        retval = target->ops->open(target, mode);
+        retval = target->ops->open(target, file);
     }
 
     vnode_decref(target);
@@ -846,7 +846,7 @@ int vnode_open(vnode_t* restrict node, unsigned mode)
     return retval;
 }
 
-int vnode_close(vnode_t* restrict node)
+int vnode_close(vnode_t* restrict node, file_t* restrict file)
 {
     kassert(node);
 
@@ -861,7 +861,7 @@ int vnode_close(vnode_t* restrict node)
         retval = -ENOSYS;
     }
     else {
-        retval = target->ops->close(target);
+        retval = target->ops->close(target, file);
     }
 
     vnode_decref(target);
@@ -869,7 +869,7 @@ int vnode_close(vnode_t* restrict node)
     return retval;
 }
 
-ssize_t vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset, unsigned flags)
+ssize_t vnode_read(vnode_t* restrict node, file_t* restrict file, void* restrict buffer, size_t size, off_t offset)
 {
     kassert(node);
 
@@ -884,7 +884,7 @@ ssize_t vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, o
         retval = -ENOSYS;
     }
     else {
-        retval = target->ops->read(target, buffer, size, offset, flags);
+        retval = target->ops->read(target, file, buffer, size, offset);
     }
 
     if(retval >= 0) {
@@ -896,7 +896,7 @@ ssize_t vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, o
     return retval;
 }
 
-ssize_t vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset, unsigned flags)
+ssize_t vnode_write(vnode_t* restrict node, file_t* restrict file, const void* restrict buffer, size_t size, off_t offset)
 {
     kassert(node);
 
@@ -911,7 +911,30 @@ ssize_t vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t 
         retval = -ENOSYS;
     }
     else {
-        retval = target->ops->write(target, buffer, size, offset, flags);
+        retval = target->ops->write(target, file, buffer, size, offset);
+    }
+
+    vnode_decref(target);
+
+    return retval;
+}
+
+off_t vnode_seek(vnode_t* restrict node, file_t* restrict file, off_t offset, int origin)
+{
+    kassert(node);
+
+    vnode_t* target;
+    off_t retval = vfs_cross_mount(node, &target);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(target->ops->seek == nullptr) {
+        retval = -ENOSYS;
+    }
+    else {
+        retval = target->ops->seek(target, file, offset, origin);
     }
 
     vnode_decref(target);
@@ -1299,7 +1322,7 @@ ssize_t vnode_readlink(vnode_t* restrict node, char* restrict buf, size_t size)
     return node->ops->readlink(node, buf, size);
 }
 
-int vnode_ioctl(vnode_t* restrict node, uint32_t request, uintptr_t argument)
+int vnode_ioctl(vnode_t* restrict node, file_t* restrict file, uint32_t request, uintptr_t argument)
 {
     kassert(node);
 
@@ -1314,7 +1337,7 @@ int vnode_ioctl(vnode_t* restrict node, uint32_t request, uintptr_t argument)
         retval = -ENOSYS;
     }
     else {
-        retval = target->ops->ioctl(target, request, argument);
+        retval = target->ops->ioctl(target, file, request, argument);
     }
 
     vnode_decref(target);

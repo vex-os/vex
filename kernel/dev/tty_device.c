@@ -1026,7 +1026,8 @@ static void tty_chr_close(const chr_device_t* restrict chr)
     }
 }
 
-static ssize_t tty_chr_read(const chr_device_t* restrict chr, off_t offset, void* restrict buffer, size_t size, unsigned flags)
+static ssize_t tty_chr_read(const chr_device_t* restrict chr, void* restrict file_ctxdata, off_t offset, void* restrict buffer, size_t size,
+    unsigned flags)
 {
     tty_device_t* device = tty_of(chr);
 
@@ -1045,7 +1046,8 @@ static ssize_t tty_chr_read(const chr_device_t* restrict chr, off_t offset, void
     return retval;
 }
 
-static ssize_t tty_chr_write(const chr_device_t* restrict chr, off_t offset, const void* restrict buffer, size_t size, unsigned flags)
+static ssize_t tty_chr_write(const chr_device_t* restrict chr, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
+    size_t size, unsigned flags)
 {
     tty_device_t* device = tty_of(chr);
 
@@ -1060,7 +1062,7 @@ static ssize_t tty_chr_write(const chr_device_t* restrict chr, off_t offset, con
     return retval;
 }
 
-static int tty_chr_ioctl(const chr_device_t* restrict chr, uint32_t request, uintptr_t argument)
+static int tty_chr_ioctl(const chr_device_t* restrict chr, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
 {
     tty_device_t* device = tty_of(chr);
 

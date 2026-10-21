@@ -871,7 +871,7 @@ static int echfs_vnode_rename(vnode_t* olddir, const char* oldname, vnode_t* sou
     return retval;
 }
 
-static ssize_t echfs_vnode_read(vnode_t* restrict node, void* restrict buffer, size_t size, off_t offset, unsigned flags)
+static ssize_t echfs_vnode_read(vnode_t* restrict node, file_t* restrict file, void* restrict buffer, size_t size, off_t offset)
 {
     mutex_acquire(fs_lock(node));
     ssize_t retval = read_locked(node, buffer, size, offset);
@@ -879,7 +879,7 @@ static ssize_t echfs_vnode_read(vnode_t* restrict node, void* restrict buffer, s
     return retval;
 }
 
-static ssize_t echfs_vnode_write(vnode_t* restrict node, const void* restrict buffer, size_t size, off_t offset, unsigned flags)
+static ssize_t echfs_vnode_write(vnode_t* restrict node, file_t* restrict file, const void* restrict buffer, size_t size, off_t offset)
 {
     mutex_acquire(fs_lock(node));
     ssize_t retval = write_locked(node, buffer, size, offset);

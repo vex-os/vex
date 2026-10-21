@@ -38,9 +38,24 @@ int file_open_node(vnode_t* restrict node, unsigned flags, const credentials_t* 
         return -EROFS;
     }
 
-    int retval = vnode_open(node, flags);
+    file_t* file = slab_alloc(sizeof(file_t));
+
+    if(file == nullptr) {
+        vnode_decref(node);
+        return -ENOMEM;
+    }
+
+    file->node = node;
+    file->flags = flags;
+    file->offset = 0;
+    file->ctxdata = nullptr;
+
+    atomic_store(&file->refcount, 1, ATOMIC_RELAXED);
+
+    int retval = vnode_open(node, file);
 
     if(retval < 0 && retval != -ENOSYS) {
+        slab_free(file);
         vnode_decref(node);
         return retval;
     }
@@ -56,25 +71,12 @@ int file_open_node(vnode_t* restrict node, unsigned flags, const credentials_t* 
         }
 
         if(retval < 0) {
-            vnode_close(node);
+            vnode_close(node, file);
+            slab_free(file);
             vnode_decref(node);
             return retval;
         }
     }
-
-    file_t* file = slab_alloc(sizeof(file_t));
-
-    if(file == nullptr) {
-        vnode_close(node);
-        vnode_decref(node);
-        return -ENOMEM;
-    }
-
-    file->node = node;
-    file->flags = flags;
-    file->offset = 0;
-
-    atomic_store(&file->refcount, 1, ATOMIC_RELAXED);
 
     *out = file;
 
@@ -164,7 +166,7 @@ void file_close(file_t* restrict file)
     }
 
     if(1 == atomic_fetch_sub(&file->refcount, 1, ATOMIC_ACQ_REL)) {
-        vnode_close(file->node);
+        vnode_close(file->node, file);
         vnode_decref(file->node);
         slab_free(file);
     }
@@ -182,7 +184,7 @@ ssize_t file_read(file_t* restrict file, void* restrict buffer, size_t size)
         return -EBADF;
     }
 
-    result = vnode_read(file->node, buffer, size, file->offset, atomic_load(&file->flags, ATOMIC_RELAXED));
+    result = vnode_read(file->node, file, buffer, size, file->offset);
 
     if(result > 0) {
         file->offset += result;
@@ -224,7 +226,7 @@ ssize_t file_write(file_t* restrict file, const credentials_t* restrict credenti
         }
     }
 
-    ssize_t result = vnode_write(file->node, buffer, size, file->offset, atomic_load(&file->flags, ATOMIC_RELAXED));
+    ssize_t result = vnode_write(file->node, file, buffer, size, file->offset);
 
     if(result > 0) {
         file->offset += result;
@@ -259,6 +261,17 @@ int file_seek(file_t* restrict file, off_t offset, int origin)
 {
     if(file == nullptr) {
         return -EINVAL;
+    }
+
+    off_t moved = vnode_seek(file->node, file, offset, origin);
+
+    if(moved >= 0) {
+        file->offset = moved;
+        return 0;
+    }
+
+    if(moved != -ENOSYS) {
+        return (int)(moved);
     }
 
     off_t new_offset;
@@ -298,5 +311,5 @@ int file_ioctl(file_t* restrict file, uint32_t request, uintptr_t argument)
 {
     if(file == nullptr)
         return -EINVAL;
-    return vnode_ioctl(file->node, request, argument);
+    return vnode_ioctl(file->node, file, request, argument);
 }
