@@ -5,23 +5,67 @@
 #include <vex/kprintf.h>
 #include <vex/panic.h>
 #include <vex/spinlock.h>
+#include <vex/sprintf.h>
 #include <vex/string.h>
+
+#define TIMESTAMP_MAX   24U // Fits "[%5ju.%04ju] " for any uint64_t of nanoseconds
+#define OUTPUT_LINE_MAX (TIMESTAMP_MAX + KP_LINE_MAX + 2U)
 
 static spinlock_t console_lock = SPINLOCK_INIT;
 static console_t* console_head = nullptr;
 
-static void recall_history(console_t* restrict cons)
+// Under console_lock; a panic overwrites them
+// but the write they were for is never finished
+static char record_text[KP_LINE_MAX];
+static char output_line[OUTPUT_LINE_MAX];
+
+static unsigned console_loglevel(const console_t* restrict cons)
 {
-    const char* kptr;
-    size_t ksz;
+    if(cons->consflags & CONSF_LOGLEVEL) {
+        return cons->loglevel;
+    }
 
-    kptr = &kp_buffer[kp_writepos];
-    ksz = strnlen(kptr, KP_BUFSIZE - kp_writepos);
-    cons->ops->write(cons, kptr, ksz);
+    return loglevel;
+}
 
-    kptr = &kp_buffer[0];
-    ksz = strnlen(kptr, kp_writepos);
-    cons->ops->write(cons, kptr, ksz);
+static size_t format_record(const kp_record_t* restrict record)
+{
+    uint64_t seconds = record->time_ns / UINT64_C(1000000000);
+    uint64_t fraction = (record->time_ns / UINT64_C(100000)) % UINT64_C(10000);
+    int length = snprintf(output_line, TIMESTAMP_MAX, "[%5ju.%04ju] ", (uintmax_t)(seconds), (uintmax_t)(fraction));
+    size_t size = (size_t)(length);
+
+    memcpy(&output_line[size], record_text, record->size);
+    size += record->size;
+
+    output_line[size] = '\r';
+    output_line[size + 1U] = '\n';
+
+    return size + 2U;
+}
+
+static void write_dropped(console_t* restrict cons, uint64_t count)
+{
+    int length = snprintf(output_line, sizeof(output_line), "** %ju messages dropped **\r\n", (uintmax_t)(count));
+    cons->ops->write(cons, output_line, (size_t)(length));
+}
+
+static void flush_console(console_t* restrict cons)
+{
+    uint64_t expected = cons->priv.cursor.seq;
+    kp_record_t record;
+
+    while(kprintf_read(&cons->priv.cursor, &record, record_text)) {
+        if(record.seq != expected) {
+            write_dropped(cons, record.seq - expected);
+        }
+
+        expected = record.seq + 1U;
+
+        if(record.level <= console_loglevel(cons)) {
+            cons->ops->write(cons, output_line, format_record(&record));
+        }
+    }
 }
 
 int console_add(console_t* restrict cons)
@@ -45,14 +89,19 @@ int console_add(console_t* restrict cons)
 
     irq_state = spinlock_acquire_intr(&console_lock);
 
-    if(cons->ops->write && (cons->consflags & CONSF_RECALL)) {
-        recall_history(cons);
+    if(cons->consflags & CONSF_RECALL) {
+        kprintf_seek_first(&cons->priv.cursor);
+    }
+    else {
+        kprintf_seek_end(&cons->priv.cursor);
     }
 
     cons->priv.next = console_head;
     console_head = cons;
 
     spinlock_release_intr(&console_lock, irq_state);
+
+    console_flush();
 
     return 0;
 }
@@ -94,11 +143,12 @@ int console_remove(console_t* restrict cons)
     return -EINVAL;
 }
 
-void console_write(const void* restrict data, size_t size)
+void console_flush(void)
 {
     bool irq_state = disable_interrupts();
 
-    // A panic has stopped the other harts, so a holder of the lock is either stopped or this hart
+    // A panic has stopped the other harts, so a
+    // holder of the lock is either stopped or this hart
     bool locked = !atomic_load_n(&panic_in_progress, ATOMIC_ACQUIRE);
 
     if(locked) {
@@ -110,7 +160,7 @@ void console_write(const void* restrict data, size_t size)
             continue;
         if(it->consflags & CONSF_RELEASED)
             continue;
-        it->ops->write(it, data, size);
+        flush_console(it);
     }
 
     if(locked) {
@@ -145,8 +195,13 @@ void console_takeover_all(void)
 
         it->consflags &= ~CONSF_RELEASED;
 
-        if(it->ops->write && (it->consflags & CONSF_RECALL)) {
-            recall_history(it);
+        if(it->consflags & CONSF_RECALL) {
+            kprintf_seek_first(&it->priv.cursor);
+        }
+        else {
+            kprintf_seek_end(&it->priv.cursor);
         }
     }
+
+    console_flush();
 }

@@ -1,10 +1,11 @@
 config KPRINTF_BUFSIZE
     int "Kernel log buffer size (bytes)"
-    range 256 1048576
-    default 4096
+    range 2048 1048576
+    default 65536
     help
-      Ring buffer of recent kernel messages, replayed to
-      consoles that register or unblank later
+      Ring buffer of recent kernel messages at every level,
+      replayed to consoles that register or take their
+      device back later; a multiple of 8
 
 comment "Consoles"
 

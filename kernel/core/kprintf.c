@@ -3,11 +3,11 @@
 #include <vex/clocksrc.h>
 #include <vex/cmdline.h>
 #include <vex/console.h>
-#include <vex/format.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 #include <vex/panic.h>
 #include <vex/spinlock.h>
+#include <vex/sprintf.h>
 #include <vex/string.h>
 #include <vex/strings.h>
 
@@ -15,39 +15,128 @@
 #define KP_DEFAULT_LOGLEVEL KP_INFORM
 #endif
 
-#define LF 0x0A
-#define CR 0x0D
+#define RECORD_ALIGN 8U
+#define PADDING_SIZE UINT16_MAX // The size of a record that only fills the end of the ring
 
-#define STAGEBUF_SIZE 32
+static_assert(KP_LINE_MAX < PADDING_SIZE);
+static_assert(0 == sizeof(kp_record_t) % RECORD_ALIGN);
+static_assert(0 == KP_BUFSIZE % RECORD_ALIGN, "CONFIG_KPRINTF_BUFSIZE must be a multiple of 8");
 
-typedef struct stagebuf_s stagebuf_t;
+// The padding in front of a record at the end of the ring is shorter than the record
+static_assert(KP_BUFSIZE >= 2U * (sizeof(kp_record_t) + KP_LINE_MAX), "CONFIG_KPRINTF_BUFSIZE can't hold the longest record");
 
-struct stagebuf_s {
-    char data[STAGEBUF_SIZE];
-    size_t size;
-    int last;
-};
-
-size_t kp_writepos = 0;
-char kp_buffer[KP_BUFSIZE];
 unsigned loglevel = KP_DEFAULT_LOGLEVEL;
 
 static spinlock_t kprintf_lock = SPINLOCK_INIT;
 
-static void kprintf_format_func(int chr, void* restrict arg)
-{
-    stagebuf_t* stage = arg;
-    stage->last = chr;
-    stage->data[stage->size++] = chr;
+// Records lie back to back between the tail and the head, and the positions only grow;
+// the head moves only once a record is whole, so a panic never reads one half written
+static unsigned char ring[KP_BUFSIZE] __aligned(RECORD_ALIGN);
+static uint64_t ring_head = 0U;
+static uint64_t ring_tail = 0U;
+static uint64_t first_seq = 0U;
+static uint64_t next_seq = 0U;
 
-    if(stage->size >= STAGEBUF_SIZE) {
-        console_write(stage->data, STAGEBUF_SIZE);
-        memset(stage->data, 0, STAGEBUF_SIZE);
-        stage->size = 0;
+// Under kprintf_lock; a panic overwrites it
+// but the message it held is never finished
+static char line[KP_LINE_MAX + 1U];
+
+// A panic has stopped the other harts, so a
+// holder of the lock is either stopped or this hart
+static bool ring_lock(void)
+{
+    if(atomic_load_n(&panic_in_progress, ATOMIC_ACQUIRE)) {
+        return false;
     }
 
-    kp_buffer[kp_writepos++] = chr;
-    kp_writepos %= KP_BUFSIZE;
+    raw_spinlock_acquire(&kprintf_lock);
+
+    return true;
+}
+
+static void ring_unlock(bool locked)
+{
+    if(locked) {
+        raw_spinlock_release(&kprintf_lock);
+    }
+}
+
+static size_t record_footprint(size_t text_size)
+{
+    size_t size = sizeof(kp_record_t) + text_size;
+    return (size + RECORD_ALIGN - 1U) & ~(size_t)(RECORD_ALIGN - 1U);
+}
+
+// The position of the record at position, past
+// the padding that may end the ring in front of it
+static uint64_t skip_padding(uint64_t position)
+{
+    size_t offset = position % KP_BUFSIZE;
+    size_t remaining = KP_BUFSIZE - offset;
+
+    if(remaining < sizeof(kp_record_t)) {
+        return position + remaining;
+    }
+
+    kp_record_t record;
+    memcpy(&record, &ring[offset], sizeof(record));
+
+    if(record.size == PADDING_SIZE) {
+        return position + remaining;
+    }
+
+    return position;
+}
+
+// The ring keeps no padding behind its last record,
+// so dropping every record leaves the tail at the head
+static void drop_oldest_locked(void)
+{
+    kassert(first_seq < next_seq);
+
+    ring_tail = skip_padding(ring_tail);
+
+    kp_record_t record;
+    memcpy(&record, &ring[ring_tail % KP_BUFSIZE], sizeof(record));
+
+    ring_tail += record_footprint(record.size);
+    first_seq += 1U;
+}
+
+static void append_locked(unsigned level, unsigned flags, uint64_t time_ns, const char* restrict text, size_t size)
+{
+    size_t footprint = record_footprint(size);
+    size_t offset = ring_head % KP_BUFSIZE;
+    size_t padding = 0U;
+
+    if(KP_BUFSIZE - offset < footprint) {
+        padding = KP_BUFSIZE - offset;
+    }
+
+    while(KP_BUFSIZE - (ring_head - ring_tail) < padding + footprint) {
+        drop_oldest_locked();
+    }
+
+    if(padding >= sizeof(kp_record_t)) {
+        kp_record_t marker = {};
+        marker.size = PADDING_SIZE;
+        memcpy(&ring[offset], &marker, sizeof(marker));
+    }
+
+    offset = (ring_head + padding) % KP_BUFSIZE;
+
+    kp_record_t record = {};
+    record.seq = next_seq;
+    record.time_ns = time_ns;
+    record.size = (uint16_t)(size);
+    record.level = (uint8_t)(level);
+    record.flags = (uint8_t)(flags);
+
+    memcpy(&ring[offset], &record, sizeof(record));
+    memcpy(&ring[offset + sizeof(record)], text, size);
+
+    ring_head += padding + footprint;
+    next_seq += 1U;
 }
 
 void kprintf(unsigned sv, const char* restrict fmt, ...)
@@ -60,48 +149,97 @@ void kprintf(unsigned sv, const char* restrict fmt, ...)
 
 void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 {
-    stagebuf_t st = {};
-
     bool intr_state = disable_interrupts();
+    bool locked = ring_lock();
 
-    // A panic has stopped the other harts, so a holder of the lock is either stopped or this hart
-    bool locked = !atomic_load_n(&panic_in_progress, ATOMIC_ACQUIRE);
-
-    if(locked) {
-        raw_spinlock_acquire(&kprintf_lock);
-    }
-
-    if(sv <= loglevel) {
-        uint64_t timestamp;
-
-        if(locked) {
-            timestamp = clock_source_now_ns();
-        }
-        else {
-            timestamp = clock_source_peek_ns();
-        }
-
-        uint64_t timestamp_s = timestamp / UINT64_C(1000000000);
-        uint64_t timestamp_msx = (timestamp / UINT64_C(100000)) % UINT64_C(10000);
-
-        format(&kprintf_format_func, &st, "[%5ju.%04ju] ", (uintmax_t)timestamp_s, (uintmax_t)timestamp_msx);
-        vformat(&kprintf_format_func, &st, fmt, ap);
-
-        if(st.last != LF) {
-            kprintf_format_func(CR, &st);
-            kprintf_format_func(LF, &st);
-        }
-    }
-
-    if(st.size) {
-        console_write(st.data, st.size);
-    }
+    uint64_t timestamp;
 
     if(locked) {
-        raw_spinlock_release(&kprintf_lock);
+        timestamp = clock_source_now_ns();
     }
+    else {
+        timestamp = clock_source_peek_ns();
+    }
+
+    unsigned flags = 0U;
+    int length = vsnprintf(line, sizeof(line), fmt, ap);
+    size_t size = 0U;
+
+    if(length > 0) {
+        size = (size_t)(length);
+    }
+
+    if(size > KP_LINE_MAX) {
+        size = KP_LINE_MAX;
+        flags |= KP_RECORD_TRUNCATED;
+    }
+
+    while(size && (line[size - 1U] == '\n' || line[size - 1U] == '\r')) {
+        size -= 1U;
+    }
+
+    append_locked(sv, flags, timestamp, line, size);
+
+    ring_unlock(locked);
+
+    console_flush();
 
     restore_interrupts(intr_state);
+}
+
+void kprintf_seek_first(kp_cursor_t* restrict cursor)
+{
+    bool intr_state = disable_interrupts();
+    bool locked = ring_lock();
+
+    cursor->seq = first_seq;
+    cursor->position = ring_tail;
+
+    ring_unlock(locked);
+    restore_interrupts(intr_state);
+}
+
+void kprintf_seek_end(kp_cursor_t* restrict cursor)
+{
+    bool intr_state = disable_interrupts();
+    bool locked = ring_lock();
+
+    cursor->seq = next_seq;
+    cursor->position = ring_head;
+
+    ring_unlock(locked);
+    restore_interrupts(intr_state);
+}
+
+bool kprintf_read(kp_cursor_t* restrict cursor, kp_record_t* restrict record, char* restrict text)
+{
+    bool intr_state = disable_interrupts();
+    bool locked = ring_lock();
+
+    if(cursor->seq < first_seq) {
+        cursor->seq = first_seq;
+        cursor->position = ring_tail;
+    }
+
+    bool found = cursor->seq < next_seq;
+
+    if(found) {
+        uint64_t position = skip_padding(cursor->position);
+        size_t offset = position % KP_BUFSIZE;
+
+        memcpy(record, &ring[offset], sizeof(*record));
+        memcpy(text, &ring[offset + sizeof(*record)], record->size);
+
+        kassert(record->seq == cursor->seq);
+
+        cursor->seq = record->seq + 1U;
+        cursor->position = position + record_footprint(record->size);
+    }
+
+    ring_unlock(locked);
+    restore_interrupts(intr_state);
+
+    return found;
 }
 
 static void init_kprintf(void)

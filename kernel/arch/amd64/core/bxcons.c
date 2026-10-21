@@ -18,7 +18,8 @@ static const console_ops_t bxcons_ops = {
 static console_t bxcons_driver = {
     .ops = &bxcons_ops,
     .name = "bxcons",
-    .consflags = CONSF_RECALL,
+    .consflags = CONSF_RECALL | CONSF_LOGLEVEL,
+    .loglevel = KP_VERBOSE,
 };
 
 static void arch_init_bxcons(void)

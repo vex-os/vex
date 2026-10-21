@@ -1,10 +1,12 @@
 #pragma once
 
 #include <vex/compiler.h>
+#include <vex/kprintf.h>
 #include <vex/types.h>
 
 #define CONSF_NONE     0x0000U
 #define CONSF_RECALL   0x0001U // Replay the kprintf history when added and when taking the device back
+#define CONSF_LOGLEVEL 0x0002U // Filter by the console's own loglevel instead of the global one
 #define CONSF_RELEASED 0x1000U // The device belongs to its driver and won't receive write calls
 
 typedef struct console_s console_t;
@@ -16,6 +18,7 @@ typedef struct console_private_s console_private_t;
 struct console_ops_s {
     void (*init)(console_t* restrict cons);
 
+    /// Writes one line of output, ended with CR LF
     /// @pre Calls are serialized by the console core
     /// @note Takes no lock, as a panic in the middle of a write writes again
     void (*write)(console_t* restrict cons, const void* restrict data, size_t size);
@@ -31,6 +34,7 @@ struct console_ops_s {
 
 struct console_private_s {
     console_t* next;
+    kp_cursor_t cursor; // The next record to write
 };
 
 struct console_s {
@@ -38,12 +42,15 @@ struct console_s {
     const console_ops_t* ops;
     const char* name;
     unsigned consflags;
+    unsigned loglevel; // With CONSF_LOGLEVEL
     void* ctxdata;
 };
 
 int console_add(console_t* restrict cons);
 int console_remove(console_t* restrict cons);
-void console_write(const void* restrict data, size_t size);
+
+/// Writes to every console the records it hasn't written yet
+void console_flush(void);
 
 /// Hands the console's device over to its driver, on the device's first open
 void console_release(console_t* restrict cons);
