@@ -7,17 +7,18 @@
  * defined in Linux, so that any file operations
  * done there transfer to Vex without issues */
 
-#define __k_CAP_CHOWN        0
-#define __k_CAP_DAC_OVERRIDE 1 /* Bypass file permission checks */
-#define __k_CAP_FOWNER       3 /* Act as the owner of any file */
-#define __k_CAP_FSETID       4 /* Keep setuid and setgid bits a change would clear */
-#define __k_CAP_KILL         5 /* Signal any process */
-#define __k_CAP_SETGID       6
-#define __k_CAP_SETUID       7
-#define __k_CAP_SYS_ADMIN    21 /* Catch-all for administration, trusted.* extended attributes among it */
-#define __k_CAP_SYS_TIME     25 /* Step the realtime clock */
-#define __k_CAP_SETFCAP      31 /* Set file capabilities */
-#define __k_CAP_SYSLOG       34 /* Write to the kernel log */
+#define __k_CAP_CHOWN          0
+#define __k_CAP_DAC_OVERRIDE   1 /* Bypass file permission checks */
+#define __k_CAP_FOWNER         3 /* Act as the owner of any file */
+#define __k_CAP_FSETID         4 /* Keep setuid and setgid bits a change would clear */
+#define __k_CAP_KILL           5 /* Signal any process */
+#define __k_CAP_SETGID         6
+#define __k_CAP_SETUID         7
+#define __k_CAP_SYS_ADMIN      21 /* Catch-all for administration, trusted.* extended attributes among it */
+#define __k_CAP_SYS_TIME       25 /* Step the realtime clock */
+#define __k_CAP_SYS_TTY_CONFIG 26 /* Configure serial ports and what they are bound to */
+#define __k_CAP_SETFCAP        31 /* Set file capabilities */
+#define __k_CAP_SYSLOG         34 /* Write to the kernel log */
 
 /* Vex-only capabilities start at 48 */
 

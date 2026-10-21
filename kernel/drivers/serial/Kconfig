@@ -1,9 +1,9 @@
-config TTY_TEST
-    bool "Test terminal pair"
+config SERIAL_TEST
+    bool "Test serial port"
     default y
     help
-      A terminal, tty0, and its line as a raw device, pty0:
-      what pty0 is written goes in as typed, and reading it
-      gives what the terminal sent, and an ioctl on pty0
-      receives a byte with a line error. For the userspace
-      tests until pseudo-terminals replace it
+      A serial port, serial0, and its far end as a raw device,
+      serialtest: what serialtest is written comes in on the
+      port, reading it gives what the port sent, and an ioctl
+      on it receives a byte with a line error. For the
+      userspace tests of serial ports and terminals

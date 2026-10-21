@@ -104,6 +104,14 @@ int chr_device_open(const chr_device_t* restrict device, unsigned flags, void** 
 
 /// Makes further opens fail with -EBUSY until the last close, as an O_EXCL open does
 void chr_device_set_exclusive(const chr_device_t* restrict device, bool exclusive);
+
+/// @return Whether an O_EXCL open or TIOCEXCL keeps others from opening the device
+bool chr_device_is_exclusive(const chr_device_t* restrict device) __nodiscard;
+
+/// Makes further opens fail with -EBUSY, unless the device is open
+/// @retval -EBUSY The device is open
+/// @note For a device about to be removed, so that no open reaches its driver meanwhile
+int chr_device_refuse_opens(const chr_device_t* restrict device);
 void chr_device_close(const chr_device_t* restrict device, void* restrict file_ctxdata);
 
 const chr_device_t* chr_device_find(const char* restrict name) __nodiscard;

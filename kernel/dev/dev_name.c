@@ -42,6 +42,14 @@ dev_prefix_t dev_prefix_pty = {
     .string = "pty",
 };
 
+dev_prefix_t dev_prefix_serial = {
+    .string = "serial",
+};
+
+dev_prefix_t dev_prefix_serialtest = {
+    .string = "serialtest",
+};
+
 dev_prefix_t dev_prefix_fbd = {
     .string = "fbd",
 };
@@ -58,6 +66,8 @@ static dev_prefix_t* const dev_prefixes[] = {
     &dev_prefix_virtio,
     &dev_prefix_tty,
     &dev_prefix_pty,
+    &dev_prefix_serial,
+    &dev_prefix_serialtest,
     &dev_prefix_fbd,
     &dev_prefix_kplog,
 };

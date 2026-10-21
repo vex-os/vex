@@ -195,6 +195,36 @@ void chr_device_set_exclusive(const chr_device_t* restrict device, bool exclusiv
     mutex_release(&mutable_device->priv.open_lock);
 }
 
+bool chr_device_is_exclusive(const chr_device_t* restrict device)
+{
+    chr_device_t* mutable_device = (chr_device_t*)(device);
+
+    mutex_acquire(&mutable_device->priv.open_lock);
+    bool exclusive = device->priv.exclusive;
+    mutex_release(&mutable_device->priv.open_lock);
+
+    return exclusive;
+}
+
+int chr_device_refuse_opens(const chr_device_t* restrict device)
+{
+    chr_device_t* mutable_device = (chr_device_t*)(device);
+    int retval = 0;
+
+    mutex_acquire(&mutable_device->priv.open_lock);
+
+    if(device->priv.open_count) {
+        retval = -EBUSY;
+    }
+    else {
+        mutable_device->priv.exclusive = true;
+    }
+
+    mutex_release(&mutable_device->priv.open_lock);
+
+    return retval;
+}
+
 void chr_device_close(const chr_device_t* restrict device, void* restrict file_ctxdata)
 {
     chr_device_t* mutable_device = (chr_device_t*)(device);

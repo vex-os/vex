@@ -11,8 +11,10 @@ kernel_sources += files(
     'fb_device.c',
     'fb_edid.c',
     'kplog.c',
+    'serial_device.c',
     'tty_device.c',
     'tty_discipline.c',
+    'tty_serial.c',
 )
 
 if kconfig.get('CONFIG_PTABLE_GPT', 'n') == 'y'

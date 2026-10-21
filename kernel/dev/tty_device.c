@@ -1221,9 +1221,14 @@ int tty_device_remove(tty_device_t* restrict device)
 {
     atomic_store(&device->priv.removed, true, ATOMIC_SEQ_CST);
 
+    // The registry's reference may be the
+    // last one, and the device is still needed below
+    chr_device_incref(&device->chr);
+
     int retval = chr_device_remove(&device->chr);
 
     if(retval < 0) {
+        chr_device_decref(&device->chr);
         return retval;
     }
 
@@ -1250,6 +1255,7 @@ int tty_device_remove(tty_device_t* restrict device)
     process_group_lock_release();
 
     drop_detached(&drop);
+    chr_device_decref(&device->chr);
 
     return 0;
 }

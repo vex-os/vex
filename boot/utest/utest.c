@@ -4,6 +4,7 @@
 #include <vex/futex.h>
 #include <vex/kplog.h>
 #include <vex/mman.h>
+#include <vex/serial.h>
 #include <vex/signal.h>
 #include <vex/stat.h>
 #include <vex/syscall.h>
@@ -436,7 +437,7 @@ static void __attribute__((noreturn)) finisher(long arg)
     __builtin_unreachable();
 }
 
-#define LINE_RECEIVE_ERROR __k_IOCTL_WRITE(sizeof(__k_int32_t), 't', 0x01) /* The test line's own, in tty_test.c */
+#define LINE_RECEIVE_ERROR __k_IOCTL_WRITE(sizeof(__k_int32_t), 't', 0x01) /* The far end's own, in serial_test.c */
 #define LINE_ERROR_BREAK   1
 #define LINE_ERROR_PARITY  2
 #define LINE_ERROR_OVERRUN 4
@@ -444,6 +445,7 @@ static void __attribute__((noreturn)) finisher(long arg)
 
 static long tty_fd;
 static long line_fd;
+static long serial_fd;
 static char line_fill[LINE_FILL_SIZE];
 
 static int same_bytes(const char* left, const char* right, long length)
@@ -607,6 +609,82 @@ static void test_tty_line(void)
     expect_line("\x11"); /* should print 1 */
 }
 
+/* Answers the AT command an exchange sends, as a modem would */
+static void __attribute__((noreturn)) modem_answerer(long arg)
+{
+    char buffer[16];
+    long length = 0;
+    long rounds = 0;
+    long piece;
+
+    while(length < 3 && rounds < 10) {
+        piece = syscall3(__k_SYS_READ, line_fd, (long)(buffer + length), sizeof(buffer) - length);
+
+        if(piece > 0) {
+            length += piece;
+        }
+
+        rounds += 1;
+    }
+
+    if(length == 3 && same_bytes(buffer, "AT\r", 3)) {
+        line_send("OK\r\n");
+    }
+
+    syscall1(__k_SYS_THREAD_EXIT, 0);
+    __builtin_unreachable();
+}
+
+/* Leaves serial0 bound to a terminal, and serial_fd its controlling file */
+static void test_serial(void)
+{
+    struct __k_serial_info info;
+    struct __k_serial_line line;
+    struct __k_serial_exchange exchange;
+    struct __k_serial_binding binding = {};
+    char answer[16];
+    long viewer;
+
+    viewer = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/serial0", __k_O_RDONLY, 0);
+    printnumber(viewer >= 0); /* should print 1 */
+    syscall3(__k_SYS_IOCTL, viewer, __k_SERIAL_GET_INFO, (long)&info);
+    syscall2(__k_SYS_TEST, (long)info.driver, ustrlen(info.driver)); /* should print serial_test */
+    syscall3(__k_SYS_IOCTL, viewer, __k_SERIAL_GET_LINE, (long)&line);
+    printnumber(line.speed); /* should print 38400 */
+
+    /* Only a file that keeps everyone else out changes the port */
+    line.speed = 115200;
+    printnumber(syscall3(__k_SYS_IOCTL, viewer, __k_SERIAL_SET_LINE, (long)&line));                     /* should print -263 (EPERM) */
+    printnumber(syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/serial0", __k_O_RDWR | __k_O_EXCL, 0)); /* should print -210 (EBUSY) */
+    syscall1(__k_SYS_CLOSE, viewer);
+
+    serial_fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/serial0", __k_O_RDWR | __k_O_EXCL, 0);
+    printnumber(serial_fd >= 0);                                                                   /* should print 1 */
+    printnumber(syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/serial0", __k_O_RDONLY, 0));    /* should print -210 (EBUSY) */
+    printnumber(syscall3(__k_SYS_IOCTL, serial_fd, __k_SERIAL_SET_LINE, (long)&line));             /* should print 0 */
+
+    /* An unbound port talks to what is on the line, here a modem that answers OK */
+    exchange.send = (long)"AT\r";
+    exchange.send_size = 3;
+    exchange.receive = (long)answer;
+    exchange.receive_size = sizeof(answer);
+    exchange.timeout_msec = 2000;
+    exchange.terminator = '\n';
+    spawn_joinable(&modem_answerer, 0);
+    printnumber(syscall3(__k_SYS_IOCTL, serial_fd, __k_SERIAL_EXCHANGE, (long)&exchange)); /* should print 0 */
+    join();
+    printnumber(exchange.receive_size == 4 && same_bytes(answer, "OK\r\n", 4)); /* should print 1 */
+
+    binding.consumer[0] = 't';
+    binding.consumer[1] = 't';
+    binding.consumer[2] = 'y';
+    binding.index = __k_SERIAL_ANY_INDEX;
+    printnumber(syscall3(__k_SYS_IOCTL, serial_fd, __k_SERIAL_BIND, (long)&binding));              /* should print 0 */
+    syscall2(__k_SYS_TEST, (long)binding.object, ustrlen(binding.object));                        /* should print tty0 */
+    printnumber(syscall3(__k_SYS_IOCTL, serial_fd, __k_SERIAL_BIND, (long)&binding));              /* should print -210 (EBUSY) */
+    printnumber(syscall3(__k_SYS_IOCTL, serial_fd, __k_SERIAL_EXCHANGE, (long)&exchange));         /* should print -210 (EBUSY) */
+}
+
 static void test_tty(void)
 {
     struct __k_termios saved;
@@ -621,8 +699,9 @@ static void test_tty(void)
     syscall3(__k_SYS_MKDIRAT, __k_AT_FDCWD, (long)"/dev", 0755);
     printnumber(syscall6(__k_SYS_MOUNT, 0, (long)"/dev", (long)"devfs", 0, 0, 0)); /* should print 0 */
 
+    line_fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/serialtest", __k_O_RDWR, 0);
+    test_serial();
     tty_fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/tty0", __k_O_RDWR, 0);
-    line_fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/pty0", __k_O_RDWR, 0);
     printnumber(tty_fd >= 0 && line_fd >= 0); /* should print 1 */
 
     syscall3(__k_SYS_IOCTL, tty_fd, __k_TCGETS, (long)&saved);
@@ -717,7 +796,13 @@ static void test_tty(void)
     printnumber(syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCNOTTY, 0));           /* should print 0 */
     printnumber(syscall3(__k_SYS_IOCTL, tty_fd, __k_TIOCGPGRP, (long)&pgid)); /* should print -259 (ENOTTY) */
 
+    /* The terminal goes away with the binding, but not while it is open */
+    printnumber(syscall3(__k_SYS_IOCTL, serial_fd, __k_SERIAL_UNBIND, 0)); /* should print -210 (EBUSY) */
     syscall1(__k_SYS_CLOSE, tty_fd);
+    printnumber(syscall3(__k_SYS_IOCTL, serial_fd, __k_SERIAL_UNBIND, 0));                   /* should print 0 */
+    printnumber(syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/tty0", __k_O_RDWR, 0)); /* should print -243 (ENOENT) */
+    syscall1(__k_SYS_CLOSE, serial_fd);
+    syscall1(__k_SYS_CLOSE, line_fd);
     syscall1(__k_SYS_CLOSE, line_fd);
 }
 

@@ -38,6 +38,8 @@ extern dev_prefix_t dev_prefix_nvme;
 extern dev_prefix_t dev_prefix_virtio;
 extern dev_prefix_t dev_prefix_tty;
 extern dev_prefix_t dev_prefix_pty;
+extern dev_prefix_t dev_prefix_serial;
+extern dev_prefix_t dev_prefix_serialtest;
 extern dev_prefix_t dev_prefix_fbd;
 extern dev_prefix_t dev_prefix_kplog;
 
