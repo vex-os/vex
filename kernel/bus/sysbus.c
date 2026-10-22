@@ -1,7 +1,6 @@
 #include <vex/device.h>
 #include <vex/errno.h>
 #include <vex/fwnode.h>
-#include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/mutex.h>
@@ -26,19 +25,18 @@ static void device_bind(sysbus_device_t* restrict device, sysbus_driver_t* restr
     }
 }
 
-static void add_device(device_t* restrict root, const fwnode_t* restrict node, const char* restrict id)
+void sysbus_device_add(device_t* restrict device)
 {
-    char name[DEVICE_NAME_MAX];
+    char id[SYSBUS_ID_MAX];
 
-    if(fwnode_get_name(node, name, sizeof(name)) < 0) {
+    if(fwnode_get_id(&device->fwnode, id, sizeof(id)) < 0) {
         return;
     }
 
     sysbus_device_t* sysbus_device = kmalloc(sizeof(sysbus_device_t));
     char* id_copy = kstrdup(id);
-    device_t* device = nullptr;
 
-    if(sysbus_device == nullptr || id_copy == nullptr || device_add(root, node, name, &device) < 0) {
+    if(sysbus_device == nullptr || id_copy == nullptr) {
         pr_warning("sysbus: out of memory");
         kfree(id_copy);
         kfree(sysbus_device);
@@ -53,29 +51,16 @@ static void add_device(device_t* restrict root, const fwnode_t* restrict node, c
     sysbus_device->priv.device = device;
     sysbus_device->ctxdata = nullptr;
 
+    mutex_acquire(&sysbus_mutex);
+
     *device_tail = sysbus_device;
     device_tail = &sysbus_device->priv.next;
 
     for(sysbus_driver_t* it = driver_head; it; it = it->priv.next) {
         device_bind(sysbus_device, it);
     }
-}
 
-// A node another bus claimed is that bus's to describe, with all below it
-static void visit_node(const fwnode_t* node, void* arg)
-{
-    device_t* root = arg;
-    char id[SYSBUS_ID_MAX];
-
-    if(fwnode_is_claimed(node)) {
-        return;
-    }
-
-    if(fwnode_is_present(node) && 0 == fwnode_get_id(node, id, sizeof(id))) {
-        add_device(root, node, id);
-    }
-
-    fwnode_for_each_child(node, &visit_node, root);
+    mutex_release(&sysbus_mutex);
 }
 
 int sysbus_driver_add(sysbus_driver_t* restrict driver)
@@ -157,23 +142,3 @@ void sysbus_release_irq(sysbus_device_t* restrict device, unsigned index)
 {
     device_release_irq(device->priv.device, index);
 }
-
-static void init_sysbus(void)
-{
-    device_t* root = device_get_root();
-
-    if(root == nullptr) {
-        pr_warning("sysbus: out of memory");
-        return;
-    }
-
-    if(root->fwnode.ops) {
-        mutex_acquire(&sysbus_mutex);
-        fwnode_for_each_child(&root->fwnode, &visit_node, root);
-        mutex_release(&sysbus_mutex);
-    }
-
-    device_decref(root);
-}
-
-initcall_bsp_bus(init_sysbus, INIT_LAST);

@@ -1,6 +1,7 @@
 #include <vex/atomic.h>
 #include <vex/device.h>
 #include <vex/errno.h>
+#include <vex/initcall.h>
 #include <vex/intctl.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
@@ -9,6 +10,7 @@
 #include <vex/sprintf.h>
 #include <vex/string.h>
 #include <vex/strings.h>
+#include <vex/sysbus.h>
 #include <vex/vprot.h>
 
 #define DEVICE_RESOURCE_MAX 16
@@ -133,6 +135,59 @@ static size_t write_path(const device_t* restrict device, char* restrict buffer,
     else {
         return length + snprintf(buffer + offset, size - offset, "/%s", device->name);
     }
+}
+
+static void place_firmware_child(const fwnode_t* child, void* arg)
+{
+    device_t* parent = arg;
+
+    if(!fwnode_is_present(child)) {
+        return;
+    }
+
+    if(parent->bus_ops && parent->bus_ops->place_child) {
+        int retval = parent->bus_ops->place_child(parent, child);
+
+        if(retval != -ENOENT) {
+            return;
+        }
+    }
+
+    char name[DEVICE_NAME_MAX];
+
+    if(fwnode_get_name(child, name, sizeof(name)) < 0) {
+        return;
+    }
+
+    device_t* device = nullptr;
+
+    if(device_add(parent, child, name, &device) < 0) {
+        pr_warning("device: out of memory");
+        return;
+    }
+
+    sysbus_device_add(device);
+    device_decref(device);
+}
+
+// The caller's reference to the previous child keeps it in the list
+static device_t* next_child(device_t* restrict parent, device_t* restrict prev)
+{
+    mutex_acquire(&tree_mutex);
+
+    device_t* child = parent->priv.children;
+
+    if(prev) {
+        child = prev->priv.next;
+    }
+
+    if(child) {
+        device_incref(child);
+    }
+
+    mutex_release(&tree_mutex);
+
+    return child;
 }
 
 static int fw_get_resource(device_t* restrict device, bool want_irq, unsigned index, fwnode_resource_t* restrict resource)
@@ -269,6 +324,23 @@ int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const
     *device = child;
 
     return 0;
+}
+
+void device_enumerate(device_t* restrict device)
+{
+    if(device->fwnode.ops) {
+        fwnode_for_each_child(&device->fwnode, &place_firmware_child, device);
+    }
+
+    device_t* child = next_child(device, nullptr);
+
+    while(child) {
+        device_enumerate(child);
+
+        device_t* next = next_child(device, child);
+        device_decref(child);
+        child = next;
+    }
 }
 
 void device_incref(device_t* restrict device)
@@ -427,3 +499,18 @@ void device_release_irq(device_t* restrict device, unsigned index)
         kfree(entry);
     }
 }
+
+static void init_device_tree(void)
+{
+    device_t* root = device_get_root();
+
+    if(root == nullptr) {
+        pr_warning("device: out of memory");
+        return;
+    }
+
+    device_enumerate(root);
+    device_decref(root);
+}
+
+initcall_bsp_bus(init_device_tree, INIT_LAST);

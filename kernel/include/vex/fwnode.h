@@ -92,12 +92,6 @@ struct fwnode_s {
 /// @retval -ENODEV The system has no firmware tables to describe its devices
 int fwnode_root(fwnode_t* restrict root);
 
-/// Marks the node as a device of a bus, so the system bus leaves it and all below it alone
-/// @retval -EBUSY Another bus has it
-int fwnode_claim(const fwnode_t* restrict node);
-
-bool fwnode_is_claimed(const fwnode_t* restrict node) __nodiscard;
-
 static __always_inline bool fwnode_is_present(const fwnode_t* restrict node)
 {
     return node->ops->is_present(node);

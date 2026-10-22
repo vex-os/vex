@@ -1,6 +1,5 @@
 kernel_sources += files(
     'device.c',
-    'fwnode.c',
     'sysbus.c',
 )
 

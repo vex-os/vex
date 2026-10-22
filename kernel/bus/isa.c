@@ -110,33 +110,33 @@ static void add_device(isa_bus_t* restrict bus, const fwnode_t* restrict node, c
     }
 }
 
-static void visit_child(const fwnode_t* child, void* arg)
+static int isa_place_child(device_t* restrict bridge, const fwnode_t* restrict child)
 {
-    isa_bus_t* bus = arg;
+    isa_bus_t* bus = bridge->ctxdata;
     char id[ISA_ID_MAX];
 
-    if(!fwnode_is_present(child)) {
-        return;
-    }
-
     if(fwnode_get_id(child, id, sizeof(id)) < 0) {
-        return;
+        return -ENOENT;
     }
 
-    if(fwnode_claim(child) < 0) {
-        return;
-    }
-
+    mutex_acquire(&isa_mutex);
     add_device(bus, child, id);
+    mutex_release(&isa_mutex);
+
+    return 0;
 }
+
+static const device_bus_ops_t isa_bus_ops = {
+    .place_child = &isa_place_child,
+};
 
 // UNDONE: a bridge the firmware doesn't describe, such
 // as one on a card, needs its devices found through ISA PnP
 static int bridge_probe(pci_device_t* restrict bridge, const pci_driver_id_t* restrict id)
 {
-    fwnode_t node;
+    device_t* device = bridge->priv.device;
 
-    if(pci_get_companion(bridge, &node) < 0) {
+    if(device->fwnode.ops == nullptr) {
         return -ENODEV;
     }
 
@@ -148,10 +148,8 @@ static int bridge_probe(pci_device_t* restrict bridge, const pci_driver_id_t* re
 
     bus->bridge = bridge;
     bridge->ctxdata = bus;
-
-    mutex_acquire(&isa_mutex);
-    fwnode_for_each_child(&node, &visit_child, bus);
-    mutex_release(&isa_mutex);
+    device->ctxdata = bus;
+    device->bus_ops = &isa_bus_ops;
 
     return 0;
 }

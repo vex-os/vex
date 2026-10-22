@@ -1,9 +1,10 @@
 #include <uacpi/uacpi.h>
-#include <vex/fwnode.h>
+#include <vex/device.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
 #include <vex/pci.h>
 #include <vex/string.h>
+#include <vex/sysbus.h>
 
 static const char* const host_bridge_ids[] = {
     "PNP0A03",
@@ -23,38 +24,32 @@ static unsigned evaluate_number(const fwnode_t* restrict node, const char* restr
     return value;
 }
 
-static void add_host_bridge(const fwnode_t* restrict node)
+static int host_bridge_probe(sysbus_device_t* restrict sysbus_device)
 {
-    unsigned segment = evaluate_number(node, "_SEG");
-    unsigned bus = evaluate_number(node, "_BBN");
-    int retval = pci_root_add(node, segment, bus);
+    device_t* device = sysbus_device->priv.device;
+    unsigned segment = evaluate_number(&device->fwnode, "_SEG");
+    unsigned bus = evaluate_number(&device->fwnode, "_BBN");
+    int retval = pci_root_attach(device, segment, bus);
 
     if(retval < 0) {
         pr_warning("acpi: host bridge %04X:%02X: %s", segment, bus, strerror(retval));
     }
+
+    return retval;
 }
 
-static void visit_node(const fwnode_t* node, void* arg)
-{
-    if(!fwnode_matches(node, host_bridge_ids)) {
-        fwnode_for_each_child(node, &visit_node, nullptr);
-        return;
-    }
+static const sysbus_driver_ops_t host_bridge_ops = {
+    .probe = &host_bridge_probe,
+};
 
-    if(fwnode_is_present(node)) {
-        add_host_bridge(node);
-    }
-}
+static sysbus_driver_t host_bridge_driver = {
+    .ops = &host_bridge_ops,
+    .ids = host_bridge_ids,
+};
 
 static void init_pci_root(void)
 {
-    fwnode_t root;
-
-    if(fwnode_root(&root) < 0) {
-        return;
-    }
-
-    fwnode_for_each_child(&root, &visit_node, nullptr);
+    sysbus_driver_add(&host_bridge_driver);
 }
 
 initcall_bsp_bus(init_pci_root, INIT_LATE);

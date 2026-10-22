@@ -20,8 +20,8 @@ struct sysbus_device_private_s {
     device_t* device;
 };
 
-// A device the firmware describes on no bus of
-// its own, with registers the CPU reaches directly
+// A firmware child of a node, which the node's bus
+// can't place, on any level of the tree
 struct sysbus_device_s {
     sysbus_device_private_t priv;
     const char* name; // The node's first id
@@ -42,6 +42,10 @@ struct sysbus_driver_s {
     const sysbus_driver_ops_t* ops;
     const char* const* ids; // Ends with nullptr; matched as fwnode_matches does
 };
+
+/// Binds the drivers that match a new firmware child to it
+/// @pre device_enumerate calls it, once for each node it makes from a firmware child
+void sysbus_device_add(device_t* restrict device);
 
 int sysbus_driver_add(sysbus_driver_t* restrict driver);
 int sysbus_driver_remove(sysbus_driver_t* restrict driver);

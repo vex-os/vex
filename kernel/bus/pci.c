@@ -408,7 +408,21 @@ static int pci_get_irq(device_t* restrict bus, device_t* restrict child, unsigne
     return 0;
 }
 
+// A child with a function address was merged with its function in the
+// scan, or stands for an empty slot that a rescan finds the function for
+static int pci_place_child(device_t* restrict bus, const fwnode_t* restrict child)
+{
+    uint64_t address;
+
+    if(fwnode_get_address(child, &address) < 0) {
+        return -ENOENT;
+    }
+
+    return 0;
+}
+
 static const device_bus_ops_t host_bus_ops = {
+    .place_child = &pci_place_child,
     .get_range = &pci_get_range,
     .get_irq = &pci_get_irq,
     .translate_range = &host_translate_range,
@@ -416,6 +430,7 @@ static const device_bus_ops_t host_bus_ops = {
 
 // A bridge passes ranges on unchanged, within the windows it is set up with
 static const device_bus_ops_t bridge_bus_ops = {
+    .place_child = &pci_place_child,
     .get_range = &pci_get_range,
     .get_irq = &pci_get_irq,
 };
@@ -647,7 +662,7 @@ pci_config_t* pci_config_find(unsigned segment, unsigned bus)
     return nullptr;
 }
 
-int pci_root_add(const fwnode_t* restrict node, unsigned segment, unsigned bus)
+int pci_root_attach(device_t* restrict host, unsigned segment, unsigned bus)
 {
     pci_config_t* config = pci_config_find(segment, bus);
 
@@ -655,43 +670,22 @@ int pci_root_add(const fwnode_t* restrict node, unsigned segment, unsigned bus)
         return -ENODEV;
     }
 
-    char name[DEVICE_NAME_MAX];
-
-    if(fwnode_get_name(node, name, sizeof(name)) < 0) {
-        snprintf(name, sizeof(name), "pci:%04x:%02x", segment, bus);
-    }
-
-    int retval = fwnode_claim(node);
-
-    if(retval < 0) {
-        return retval;
-    }
-
     pci_root_t* root = kmalloc(sizeof(pci_root_t));
-    device_t* tree_root = device_get_root();
-    device_t* host = nullptr;
 
-    if(root == nullptr || tree_root == nullptr || device_add(tree_root, node, name, &host) < 0) {
-        if(tree_root) {
-            device_decref(tree_root);
-        }
-
-        kfree(root);
+    if(root == nullptr) {
         return -ENOMEM;
     }
-
-    device_decref(tree_root);
 
     root->segment = segment;
     root->num_windows = 0;
 
-    fwnode_for_each_resource(node, &collect_window, root);
+    fwnode_for_each_resource(&host->fwnode, &collect_window, root);
 
     host->ctxdata = root;
     host->bus_ops = &host_bus_ops;
 
     mutex_acquire(&pci_mutex);
-    retval = add_bus(root, nullptr, config, host, bus);
+    int retval = add_bus(root, nullptr, config, host, bus);
     mutex_release(&pci_mutex);
 
     return retval;
@@ -752,19 +746,6 @@ int pci_driver_remove(pci_driver_t* restrict driver)
     }
 
     mutex_release(&pci_mutex);
-
-    return 0;
-}
-
-int pci_get_companion(const pci_device_t* restrict device, fwnode_t* restrict node)
-{
-    const fwnode_t* companion = &device->priv.device->fwnode;
-
-    if(companion->ops == nullptr) {
-        return -ENOENT;
-    }
-
-    *node = *companion;
 
     return 0;
 }

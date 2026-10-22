@@ -215,17 +215,14 @@ int pci_config_add(pci_config_t* restrict config);
 /// @return The way to reach the bus, which stays for good, or nullptr when there is none
 pci_config_t* pci_config_find(unsigned segment, unsigned bus) __nodiscard;
 
-/// Scans the hierarchy below a host bridge, with the windows and interrupt routes the node gives it
+/// Makes a node of the tree a host bridge and scans the hierarchy below it,
+/// with the windows and interrupt routes the node's firmware node gives it
 /// @retval -ENODEV No way reaches the configuration space of the root bus
-/// @retval -EBUSY Another bus has the node
-int pci_root_add(const fwnode_t* restrict node, unsigned segment, unsigned bus);
+/// @retval -ENOMEM Out of memory
+int pci_root_attach(device_t* restrict host, unsigned segment, unsigned bus);
 
 int pci_driver_add(pci_driver_t* restrict driver);
 int pci_driver_remove(pci_driver_t* restrict driver);
-
-/// Gets the firmware's node for the device
-/// @retval -ENOENT The firmware doesn't describe the device
-int pci_get_companion(const pci_device_t* restrict device, fwnode_t* restrict node);
 
 uint8_t pci_cfg_read8(pci_device_t* restrict device, uintptr_t offset);
 uint16_t pci_cfg_read16(pci_device_t* restrict device, uintptr_t offset);

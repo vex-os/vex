@@ -17,6 +17,11 @@ typedef struct device_s device_t;
 // What a node does for its children; a missing op, or a missing table,
 // falls back to what the firmware describes and passes ranges on as they are
 struct device_bus_ops_s {
+    /// Places a present firmware child of the bus on the bus
+    /// @retval 0 The bus placed the child, or knows it as one of its own that isn't there
+    /// @retval -ENOENT The bus can't place the child, so it becomes a firmware child of the node
+    int (*place_child)(device_t* restrict bus, const fwnode_t* restrict child);
+
     /// Gets a register range of a child, as an address on this bus
     /// @param index Counts the child's port and memory ranges together, in the bus's order
     /// @retval -ENODEV The child has no such range
@@ -64,6 +69,12 @@ device_t* device_get_root(void) __nodiscard;
 /// @param device Gets a new reference to the node, beside the one the tree holds
 /// @retval -ENOMEM Out of memory
 int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, device_t** restrict device);
+
+/// Places the firmware children of the node and of every node below it, the firmware children
+/// the node's bus can't place becoming nodes of their own named by the firmware
+/// @pre A driver has had its chance to bind to each node before its own children are placed
+/// @note Places the children of a node only once, as nothing takes them out of the tree yet
+void device_enumerate(device_t* restrict device);
 
 void device_incref(device_t* restrict device);
 
