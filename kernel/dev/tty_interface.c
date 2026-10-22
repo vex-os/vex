@@ -1214,6 +1214,7 @@ int tty_interface_add(tty_interface_t* restrict interface, dev_unit_t* restrict 
     set_default_termios(&priv->termios, interface->initial_speed);
 
     interface->char_interface.ops = &tty_char_ops;
+    interface->char_interface.device = nullptr;
     interface->char_interface.ctxdata = interface;
 
     retval = char_interface_add(&interface->char_interface, unit, index);

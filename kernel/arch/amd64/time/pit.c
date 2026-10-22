@@ -293,7 +293,13 @@ static void arch_init_pit_node(void)
     char name[DEVICE_NAME_MAX];
     device_t* device;
 
-    if(fwnode_get_name(&fwnode, name, sizeof(name)) < 0 || device_add(root, &fwnode, name, &device) < 0) {
+    if(fwnode_get_name(&fwnode, name, sizeof(name)) < 0) {
+        pr_warning("pit: out of memory");
+        device_decref(root);
+        return;
+    }
+
+    if(device_add(root, &fwnode, name, nullptr, &device) < 0) {
         pr_warning("pit: out of memory");
         device_decref(root);
         return;

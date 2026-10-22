@@ -483,7 +483,8 @@ static const serial_interface_ops_t uart16550_ops = {
     .poll_reset = &uart16550_poll_reset,
 };
 
-uart16550_t* uart16550_create(const io_region_t* restrict io, unsigned reg_shift, uint32_t clock, const char* restrict name)
+uart16550_t* uart16550_create(device_t* restrict device, const io_region_t* restrict io, unsigned reg_shift, uint32_t clock,
+    const char* restrict name)
 {
     uart16550_t* port = kmalloc(sizeof(uart16550_t));
 
@@ -499,6 +500,7 @@ uart16550_t* uart16550_create(const io_region_t* restrict io, unsigned reg_shift
     port->fifo_size = 1;
     port->lock = SPINLOCK_INIT;
     port->serial.ctxdata = port;
+    port->serial.char_interface.device = device;
 
     if(name) {
         kstrncpy(port->firmware_id, name, sizeof(port->firmware_id) - 1);

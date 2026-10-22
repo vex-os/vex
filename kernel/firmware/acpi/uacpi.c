@@ -249,7 +249,7 @@ static uacpi_status add_irq_node(acpi_irq_trampoline_t* restrict trampoline)
     int retval = fwnode_get_name(&fwnode, name, sizeof(name));
 
     if(retval == 0) {
-        retval = device_add(root, &fwnode, name, &device);
+        retval = device_add(root, &fwnode, name, nullptr, &device);
     }
 
     device_decref(root);

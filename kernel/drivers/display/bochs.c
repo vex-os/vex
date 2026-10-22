@@ -399,6 +399,7 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
     interface->modes = bochsfb->modes;
     interface->mode_count = collect_modes(bochsfb, &info);
     interface->ctxdata = bochsfb;
+    interface->char_interface.device = node;
 
     // NOTE: after a successful claim the
     // screen is ours even if the add below fails

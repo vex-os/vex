@@ -63,7 +63,7 @@ static int isa_place_child(device_t* restrict bridge, const fwnode_t* restrict c
 
     device_t* device = nullptr;
 
-    if(device_add(bridge, child, name, &device) < 0) {
+    if(device_add(bridge, child, name, nullptr, &device) < 0) {
         pr_warning("isa: out of memory");
         return 0;
     }

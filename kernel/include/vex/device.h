@@ -59,6 +59,7 @@ struct device_s {
     void* bus_data; // The parent bus's own data about the node
     const driver_t* driver;
     void* ctxdata; // Of what drives the node
+    uint64_t id;   // Never given to another node
     char name[DEVICE_NAME_MAX];
 };
 
@@ -69,9 +70,11 @@ device_t* device_get_root(void) __nodiscard;
 /// Adds a node below a parent, with the firmware's description of it
 /// @param fwnode nullptr when the firmware doesn't describe the node
 /// @param name The last component of the node's path, such as pci:0000:00:1f.0 or acpi:SIO
+/// @param bus_data What the parent bus keeps about the node, or nullptr. It is set before /dev/devctl tells of the node
 /// @param device Gets a new reference to the node, beside the one the tree holds
 /// @retval -ENOMEM Out of memory
-int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, device_t** restrict device);
+int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, void* restrict bus_data,
+    device_t** restrict device);
 
 /// Adds a node that a driver already drives
 /// @note For hardware that starts before the tree, such as an interrupt controller

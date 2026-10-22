@@ -68,14 +68,14 @@ static void free_ports(uart16550_t* const* restrict ports, size_t count)
     }
 }
 
-static int create_ports(const io_region_t* restrict bar, uart16550_t** restrict ports, size_t count)
+static int create_ports(device_t* restrict device, const io_region_t* restrict bar, uart16550_t** restrict ports, size_t count)
 {
     for(size_t i = 0; i < count; ++i) {
         io_region_t io = *bar;
         io.base += i * PORT_STRIDE;
         io.length = PORT_STRIDE;
 
-        ports[i] = uart16550_create(&io, 0, UART16550_CLOCK, nullptr);
+        ports[i] = uart16550_create(device, &io, 0, UART16550_CLOCK, nullptr);
 
         if(ports[i] == nullptr) {
             free_ports(ports, i);
@@ -136,7 +136,7 @@ static int uart16550_pci_attach(device_t* restrict device, const driver_match_t*
     }
 
     uart16550_t* ports[PORTS_MAX];
-    retval = create_ports(&bar, ports, count);
+    retval = create_ports(device, &bar, ports, count);
 
     if(retval < 0) {
         return retval;

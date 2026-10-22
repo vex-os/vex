@@ -186,6 +186,7 @@ struct ahci_pci_context_s {
     uint32_t atapi_mask;
     uint32_t ata_mask;
     unsigned refcount;
+    device_t* device;
 };
 
 static __always_inline uint32_t port_read(ahci_port_t* restrict port, uint32_t offset)
@@ -695,6 +696,7 @@ static int ahci_port_register_ata(ahci_pci_context_t* restrict context, unsigned
     interface->sector_count = 0;
     interface->sector_size = 0;
     interface->flags = 0;
+    interface->device = context->device;
     interface->ctxdata = port;
 
     set_limits(context, interface);
@@ -726,6 +728,7 @@ static int ahci_port_register_atapi(ahci_pci_context_t* restrict context, unsign
     atapi->ops = &ahci_atapi_ops;
     atapi->flags = 0;
     atapi->base.ctxdata = port;
+    atapi->base.device = context->device;
     atapi->base.sector_count = 0;
     atapi->base.sector_size = 0;
     atapi->base.flags = 0;
@@ -906,6 +909,7 @@ static int ahci_attach(device_t* restrict device, const driver_match_t* restrict
     context->ata_unit = nullptr;
     context->atapi_unit = nullptr;
     context->refcount = 1;
+    context->device = device;
 
     device->ctxdata = context;
 

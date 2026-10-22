@@ -22,7 +22,8 @@
 
 /* Vex-only capabilities start at 48 */
 
-#define __k_CAP_MOUNT 48
+#define __k_CAP_MOUNT  48
+#define __k_CAP_DEVICE 49 /* Rescan, unbind and eject devices through /dev/devctl */
 
 #define __k_CAP_TO_MASK(cap) ((__k_uint64_t)(1) << (cap))
 

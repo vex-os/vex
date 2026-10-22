@@ -6,6 +6,8 @@
 #include <vex/spinlock.h>
 #include <vex/types.h>
 
+typedef struct device_s device_t;
+
 #define UART16550_CLOCK  1843200 // Of the PC's COM ports, in Hz; the baud generator divides it by 16
 #define UART16550_ID_MAX 16
 
@@ -27,9 +29,11 @@ struct uart16550_s {
 };
 
 /// Allocates a port on registers the bus glue mapped, with its interrupts off
+/// @param device The node of the port, which its serial device names as its hardware
 /// @param name What the firmware calls the device, or nullptr; the port keeps a copy
 /// @return nullptr when out of memory
-uart16550_t* uart16550_create(const io_region_t* restrict io, unsigned reg_shift, uint32_t clock, const char* restrict name);
+uart16550_t* uart16550_create(device_t* restrict device, const io_region_t* restrict io, unsigned reg_shift, uint32_t clock,
+    const char* restrict name);
 
 /// Checks that a 16550 answers, takes the line the firmware left it on and makes the serial port
 /// @pre The bus glue's interrupt handler is attached, as a consumer may start the port up at once

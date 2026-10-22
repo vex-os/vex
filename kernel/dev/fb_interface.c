@@ -503,6 +503,7 @@ void fb_boot_add(fb_interface_t* restrict interface)
     kassert(!boot_added);
 
     interface->char_interface.console = nullptr;
+    interface->char_interface.device = nullptr;
     interface->priv.boot_next = nullptr;
 
     if(!console_tried) {

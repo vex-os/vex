@@ -2,6 +2,7 @@
 #include <vex/block_event.h>
 #include <vex/block_interface.h>
 #include <vex/dev_name.h>
+#include <vex/devctl.h>
 #include <vex/kmalloc.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -32,6 +33,10 @@ static int block_interface_register_internal(block_interface_t* restrict interfa
     spinlock_release(&block_interfaces_lock);
 
     block_event_notify(BLOCK_EVENT_INTERFACE_ADDED, interface);
+
+    if(interface->device) {
+        devctl_interface_added(interface->device, "block", interface->name);
+    }
 
     block_event_unlock();
 
@@ -73,6 +78,7 @@ int block_interface_add_part(block_interface_t* restrict interface, const block_
 {
     dev_name_t name = root->priv.name;
     name.partition = partition;
+    interface->device = root->device;
 
     int retval = name_device(interface, &name);
 
@@ -115,6 +121,10 @@ int block_interface_remove(block_interface_t* restrict interface)
     }
 
     block_event_notify(BLOCK_EVENT_INTERFACE_REMOVED, interface);
+
+    if(interface->device) {
+        devctl_interface_removed(interface->device, interface->name);
+    }
 
     block_event_unlock();
 

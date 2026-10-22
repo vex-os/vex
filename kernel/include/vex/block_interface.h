@@ -11,6 +11,8 @@ enum {
     BLOCK_REQ_FLUSH,
 };
 
+typedef struct device_s device_t;
+
 #define BLOCK_FLAG_PRESENT   0x0001 // Media is present and ready
 #define BLOCK_FLAG_PARTITION 0x0002
 #define BLOCK_FLAG_HIDDEN    0x0004 // Device is not added to devfs
@@ -65,6 +67,7 @@ struct block_interface_s {
     uintptr_t dma_limit; // Highest physical address a segment may reach
     uintptr_t dma_align; // A mask: segment addresses and lengths have these bits clear
     unsigned flags;
+    device_t* device; // The node of the hardware, set before the add; a partition takes the one of its disk
     void* ctxdata;
 };
 

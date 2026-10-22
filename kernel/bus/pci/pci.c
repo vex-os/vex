@@ -1,4 +1,5 @@
 #include <vex/assert.h>
+#include <vex/devctl.h>
 #include <vex/device.h>
 #include <vex/device_bus.h>
 #include <vex/driver.h>
@@ -323,6 +324,15 @@ static void pci_disable_irq(device_t* restrict bus, device_t* restrict child, un
     pci_write_config16(function, PCI_CFG_COMMAND, command | PCI_CMD_INT_DISABLE);
 }
 
+static void pci_describe_child(device_t* restrict bus, device_t* restrict child, devctl_line_t* restrict line)
+{
+    const pci_function_t* function = child->bus_data;
+
+    devctl_put(line, "vendor", "%04x", function->vendor_id);
+    devctl_put(line, "device", "%04x", function->device_id);
+    devctl_put(line, "class", "%02x%02x", function->class_id, function->subclass_id);
+}
+
 // The driver released the function. Bus mastering stays off until the next driver turns it on
 static void pci_release_child(device_t* restrict bus, device_t* restrict child)
 {
@@ -363,6 +373,7 @@ static const bus_ops_t host_bus_ops = {
     .place_child = &pci_place_child,
     .rescan = &pci_host_rescan,
     .match = &pci_match,
+    .describe_child = &pci_describe_child,
     .attach_irq = &pci_attach_irq,
     .enable_irq = &pci_enable_irq,
     .disable_irq = &pci_disable_irq,
@@ -387,6 +398,7 @@ static const bus_ops_t bridge_bus_ops = {
     .place_child = &pci_place_child,
     .rescan = &pci_bridge_rescan,
     .match = &pci_match,
+    .describe_child = &pci_describe_child,
     .attach_irq = &pci_attach_irq,
     .enable_irq = &pci_enable_irq,
     .disable_irq = &pci_disable_irq,
@@ -456,19 +468,14 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
     bool has_companion = find_companion(bus, address, &companion);
 
     pci_function_t* function = kmalloc(sizeof(pci_function_t));
-    device_t* device = nullptr;
 
-    if(function == nullptr || device_add(bus->device, has_companion ? &companion : nullptr, name, &device) < 0) {
+    if(function == nullptr) {
         pr_warning("pci: out of memory");
-        kfree(function);
         return;
     }
 
-    device->bus_data = function;
-
     function->priv.bus = bus;
     function->priv.config_space = bus->config_space;
-    function->priv.device = device;
     function->priv.secondary = nullptr;
     function->priv.settled = false;
     function->address = *address;
@@ -480,6 +487,16 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
     uint8_t header_type = pci_read_config8(function, PCI_CFG_HEADER_TYPE) & PCI_HDR_TYPE_MASK;
 
     function->priv.is_bridge = header_type == PCI_HDR_TYPE_BRIDGE;
+
+    device_t* device;
+
+    if(device_add(bus->device, has_companion ? &companion : nullptr, name, function, &device) < 0) {
+        pr_warning("pci: out of memory");
+        kfree(function);
+        return;
+    }
+
+    function->priv.device = device;
 
     log_device(function);
 

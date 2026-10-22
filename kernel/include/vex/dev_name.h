@@ -42,6 +42,7 @@ extern dev_prefix_t dev_prefix_serial;
 extern dev_prefix_t dev_prefix_serialtest;
 extern dev_prefix_t dev_prefix_fbd;
 extern dev_prefix_t dev_prefix_kplog;
+extern dev_prefix_t dev_prefix_devctl;
 
 /// Takes the prefix alone as the name of one device
 /// @retval -EEXIST Another device has the prefix, or a unit under it was taken

@@ -36,7 +36,7 @@ static int uart16550_fw_attach(device_t* restrict device, const driver_match_t* 
         id[0] = 0;
     }
 
-    uart16550_t* port = uart16550_create(&io, 0, UART16550_CLOCK, id[0] ? id : nullptr);
+    uart16550_t* port = uart16550_create(device, &io, 0, UART16550_CLOCK, id[0] ? id : nullptr);
 
     if(port == nullptr) {
         return -ENOMEM;

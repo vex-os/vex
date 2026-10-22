@@ -58,6 +58,10 @@ dev_prefix_t dev_prefix_kplog = {
     .string = "kplog",
 };
 
+dev_prefix_t dev_prefix_devctl = {
+    .string = "devctl",
+};
+
 static dev_prefix_t* const dev_prefixes[] = {
     &dev_prefix_anon,
     &dev_prefix_ata,
@@ -70,6 +74,7 @@ static dev_prefix_t* const dev_prefixes[] = {
     &dev_prefix_serialtest,
     &dev_prefix_fbd,
     &dev_prefix_kplog,
+    &dev_prefix_devctl,
 };
 
 static void link_unit_locked(dev_prefix_t* restrict prefix, dev_unit_t* restrict unit, dev_unit_t* restrict prev, unsigned number)

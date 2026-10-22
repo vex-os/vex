@@ -8,6 +8,7 @@
 #include <vex/types.h>
 
 typedef struct console_s console_t;
+typedef struct device_s device_t;
 
 typedef struct char_interface_s char_interface_t;
 typedef struct char_interface_ops_s char_interface_ops_t;
@@ -74,6 +75,7 @@ struct char_interface_s {
     const char_interface_ops_t* ops;
     char name[64];
     console_t* console; // Writes to the device until its first open; may be nullptr
+    device_t* device;   // The node of the hardware, set before the add; nullptr for a device that isn't hardware
     void* ctxdata;
 };
 

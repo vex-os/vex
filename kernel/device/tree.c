@@ -19,6 +19,7 @@ struct resource_list_s {
 
 mutex_t device_tree_mutex = MUTEX_INIT;
 static device_t* root = nullptr;
+static uint64_t next_id = 1; // The root is 0, which /dev/devctl gives as the parent of its children
 
 // A window is what a node passes on to its children, not registers of its own
 static void collect_resource(const fwnode_resource_t* resource, void* arg)
@@ -104,6 +105,7 @@ static device_t* allocate(device_t* restrict parent, const fwnode_t* restrict fw
     atomic_store(&device->priv.refcount, 1, ATOMIC_RELAXED);
 
     device->parent = parent;
+    device->id = parent ? atomic_fetch_add(&next_id, 1, ATOMIC_RELAXED) : 0;
     device->bus_ops = nullptr;
     device->bus_data = nullptr;
     device->driver = nullptr;
@@ -130,6 +132,44 @@ static size_t write_path(const device_t* restrict device, char* restrict buffer,
     else {
         return length + snprintf(buffer + offset, size - offset, "/%s", device->name);
     }
+}
+
+static int add_node(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, void* restrict bus_data,
+    bool unplaced, device_t** restrict device)
+{
+    device_t* child = allocate(parent, fwnode, name);
+
+    if(child == nullptr) {
+        return -ENOMEM;
+    }
+
+    child->bus_data = bus_data;
+    child->priv.unplaced = unplaced;
+
+    device_incref(parent);
+    device_incref(child);
+
+    mutex_acquire(&device_tree_mutex);
+
+    device_t** tail = &parent->priv.children;
+
+    while(*tail) {
+        tail = &(*tail)->priv.next;
+    }
+
+    *tail = child;
+
+    mutex_release(&device_tree_mutex);
+
+    char path[DEVICE_PATH_MAX];
+    device_get_path(child, path, sizeof(path));
+    pr_verbose("device: added %s", path);
+
+    devctl_node_added(child);
+
+    *device = child;
+
+    return 0;
 }
 
 static device_t* find_child_by_fwnode(device_t* restrict parent, const fwnode_t* restrict fwnode)
@@ -174,12 +214,11 @@ static void place_firmware_child(device_t* restrict parent, const fwnode_t* rest
 
     device_t* device = nullptr;
 
-    if(device_add(parent, child, name, &device) < 0) {
+    if(add_node(parent, child, name, nullptr, true, &device) < 0) {
         pr_warning("device: out of memory");
         return;
     }
 
-    device->priv.unplaced = true;
     device_decref(device);
 }
 
@@ -295,36 +334,10 @@ device_t* device_get_root(void)
     return root;
 }
 
-int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, device_t** restrict device)
+int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, void* restrict bus_data,
+    device_t** restrict device)
 {
-    device_t* child = allocate(parent, fwnode, name);
-
-    if(child == nullptr) {
-        return -ENOMEM;
-    }
-
-    device_incref(parent);
-    device_incref(child);
-
-    mutex_acquire(&device_tree_mutex);
-
-    device_t** tail = &parent->priv.children;
-
-    while(*tail) {
-        tail = &(*tail)->priv.next;
-    }
-
-    *tail = child;
-
-    mutex_release(&device_tree_mutex);
-
-    char path[DEVICE_PATH_MAX];
-    device_get_path(child, path, sizeof(path));
-    pr_verbose("device: added %s", path);
-
-    *device = child;
-
-    return 0;
+    return add_node(parent, fwnode, name, bus_data, false, device);
 }
 
 void device_set_gone(device_t* restrict device)
