@@ -72,6 +72,16 @@ device_t* device_get_root(void) __nodiscard;
 /// @retval -ENOMEM Out of memory
 int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, device_t** restrict device);
 
+/// Adds a node that a driver already drives, for hardware brought up before the tree, such as interrupt controllers
+/// @pre Called before the stage that binds the tree, as device_worker doesn't run yet
+/// @param fwnode nullptr when the firmware doesn't describe the node
+/// @param name The last component of the node's path, such as ioapic:0
+/// @param ctxdata What the driver keeps, which stays the caller's if the call fails
+/// @param device Gets a new reference to the node, beside the one the tree holds
+/// @retval -ENOMEM Out of memory
+int device_add_bound(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, const driver_t* restrict driver,
+    void* restrict ctxdata, device_t** restrict device);
+
 /// Queues the node to be bound to the driver with the highest score if it has none, to have its
 /// firmware children placed if they aren't, and the same for every node below
 /// @note Any context; device_worker does the work
@@ -124,6 +134,11 @@ int device_map_io(device_t* restrict device, unsigned index, io_region_t* restri
 int device_map_io_vprot(device_t* restrict device, unsigned index, unsigned vprot, io_region_t* restrict region);
 
 void device_unmap_io(device_t* restrict device, io_region_t* restrict region);
+
+/// Hands the framework a mapping made before the tree, which it then unmaps as one from device_map_io
+/// @pre A memory region comes from mmio_map
+/// @retval -ENOMEM Out of memory; the mapping stays the caller's
+int device_adopt_io(device_t* restrict device, const io_region_t* restrict region);
 
 /// Gets where the CPU sees a memory range of the device, without mapping it, as for mapping it to userspace
 /// @param index Counts the device's port and memory ranges together, in its bus's order

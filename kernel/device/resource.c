@@ -245,6 +245,24 @@ int device_map_io_vprot(device_t* restrict device, unsigned index, unsigned vpro
     return 0;
 }
 
+int device_adopt_io(device_t* restrict device, const io_region_t* restrict region)
+{
+    device_mapping_t* mapping = kmalloc(sizeof(device_mapping_t));
+
+    if(mapping == nullptr) {
+        return -ENOMEM;
+    }
+
+    mapping->region = *region;
+
+    mutex_acquire(&device_tree_mutex);
+    mapping->next = device->priv.mappings;
+    device->priv.mappings = mapping;
+    mutex_release(&device_tree_mutex);
+
+    return 0;
+}
+
 int device_get_io_address(device_t* restrict device, unsigned index, uint64_t* restrict address)
 {
     fwnode_resource_t range;

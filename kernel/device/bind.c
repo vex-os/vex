@@ -371,6 +371,29 @@ void device_queue_request(device_t* restrict device, unsigned request)
     }
 }
 
+int device_add_bound(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, const driver_t* restrict driver,
+    void* restrict ctxdata, device_t** restrict device)
+{
+    kassert(is_complete(driver));
+
+    int retval = device_add(parent, fwnode, name, device);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    device_t* added = *device;
+    added->driver = driver;
+    added->ctxdata = ctxdata;
+    added->priv.state = DEVICE_BOUND;
+
+    char path[DEVICE_PATH_MAX];
+    device_get_path(added, path, sizeof(path));
+    pr_verbose("device: %s bound to %s", path, driver->name);
+
+    return 0;
+}
+
 void device_rescan(device_t* restrict device)
 {
     device_queue_request(device, DEVICE_REQUEST_RESCAN);
