@@ -1,6 +1,8 @@
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
 #include <vex/clocksrc.h>
+#include <vex/device.h>
+#include <vex/driver.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
@@ -40,11 +42,93 @@ static const clock_source_ops_t hpet_ops = {
     .read = &hpet_read,
 };
 
+static const driver_match_t hpet_matches[] = {
+    DRIVER_MATCH_FIRMWARE("PNP0103"),
+    DRIVER_MATCH_END(),
+};
+
 static clock_source_t hpet_clock_source = {
     .ops = &hpet_ops,
     .name = "hpet",
     .rating = 200,
 };
+
+static uint64_t hpet_address = 0; // Where the counting HPET is, or zero while none counts
+
+static int hpet_probe(device_t* restrict device, const driver_match_t* restrict match)
+{
+    return DRIVER_SCORE_DEFAULT;
+}
+
+// The node of the HPET that counts since before the tree, which takes over its
+// registers; another HPET, or one the timer stage gave up on, stays unbound
+static int hpet_attach(device_t* restrict device, const driver_match_t* restrict match)
+{
+    uint64_t address;
+
+    if(hpet_address == 0 || device_get_io_address(device, 0, &address) < 0 || address != hpet_address) {
+        return -ENODEV;
+    }
+
+    io_region_t region = {};
+    region.space = IO_SPACE_MEMORY;
+    region.base = (uintptr_t)(hpet_clock_source.ctxdata);
+    region.length = HPET_MMIO_SIZE;
+
+    int retval = device_adopt_io(device, &region);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    device->ctxdata = &hpet_clock_source;
+
+    return 0;
+}
+
+// UNDONE: switch to another clock source first
+// once removing the active one keeps the time going
+static int hpet_offline(device_t* restrict device)
+{
+    if(clock_source_active() == &hpet_clock_source) {
+        pr_warning("hpet: %s is the active clock source", device->name);
+        return -EBUSY;
+    }
+
+    return 0;
+}
+
+static void hpet_online(device_t* restrict device)
+{
+    // empty
+}
+
+static void hpet_detach(device_t* restrict device)
+{
+    clock_source_remove(&hpet_clock_source);
+}
+
+// The framework has unmapped the registers by now
+static void hpet_release(device_t* restrict device)
+{
+    if(device->ctxdata == nullptr) {
+        return;
+    }
+
+    hpet_clock_source.ctxdata = nullptr;
+    hpet_address = 0;
+}
+
+static const driver_ops_t hpet_driver_ops = {
+    .probe = &hpet_probe,
+    .attach = &hpet_attach,
+    .offline = &hpet_offline,
+    .online = &hpet_online,
+    .detach = &hpet_detach,
+    .release = &hpet_release,
+};
+
+define_driver(hpet, &hpet_driver_ops, hpet_matches);
 
 static void arch_init_hpet(void)
 {
@@ -61,8 +145,7 @@ static void arch_init_hpet(void)
                 panic("hpet: failed to map registers");
             }
 
-            hpet_clock_source.ctxdata = (void*)(mmio); // hpet_read_reg adds volatile back
-
+            uint64_t address = hpet->address.address;
             uacpi_table_unref(&table);
 
             uint64_t hpet_caps = hpet_read_reg(mmio, HPET_REG_CAPS);
@@ -70,15 +153,24 @@ static void arch_init_hpet(void)
 
             if(hpet_period_fsec == 0 || hpet_period_fsec > HPET_PERIOD_MAX) {
                 pr_verbose("hpet: invalid counter period %llu fs", (unsigned long long)(hpet_period_fsec));
+                mmio_unmap(mmio);
                 return;
             }
+
+            hpet_clock_source.ctxdata = (void*)(mmio); // hpet_read_reg adds volatile back
+            hpet_address = address;
 
             uint32_t hpet_config_reg = hpet_read_reg(mmio, HPET_REG_CONFIG);
             hpet_config_reg |= HPET_CONFIG_ENABLE;
 
             hpet_write_reg(mmio, HPET_REG_CONFIG, hpet_config_reg);
 
-            hpet_clock_source.mask = (hpet_caps & HPET_CAPS_COUNT_64BIT) ? CLOCK_SOURCE_MASK_64 : CLOCK_SOURCE_MASK_32;
+            if(hpet_caps & HPET_CAPS_COUNT_64BIT) {
+                hpet_clock_source.mask = CLOCK_SOURCE_MASK_64;
+            }
+            else {
+                hpet_clock_source.mask = CLOCK_SOURCE_MASK_32;
+            }
 
             clock_source_add_raw(&hpet_clock_source, UINT64_C(1), UINT64_C(1000000000000000) / hpet_period_fsec);
         }
