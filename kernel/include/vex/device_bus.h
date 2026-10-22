@@ -3,10 +3,12 @@
 #include <vex/compiler.h>
 #include <vex/fwnode.h>
 #include <vex/io.h>
+#include <vex/irq.h>
 #include <vex/types.h>
 
 typedef struct device_s device_t;
 typedef struct driver_match_s driver_match_t;
+typedef struct interrupt_action_s interrupt_action_t;
 
 typedef struct bus_ops_s bus_ops_t;
 
@@ -36,6 +38,14 @@ struct bus_ops_s {
     /// @param index Counts the child's interrupts, in the bus's order
     /// @retval -ENODEV The child has no such interrupt, or nothing routes it
     int (*get_irq)(device_t* restrict bus, device_t* restrict child, unsigned index, fwnode_irq_t* restrict irq);
+
+    /// Routes an interrupt of a child without an interrupt controller, as PCI does with MSI
+    /// @param index As device_request_irq counts it
+    /// @retval -ENOENT The bus doesn't route this interrupt. get_irq gives it instead
+    /// @retval -ENOMEM Out of memory, or no vector is free
+    /// @note Detaching the action releases the interrupt. enable_irq and disable_irq don't apply to it
+    int (*attach_irq)(device_t* restrict bus, device_t* restrict child, unsigned index, irq_handler_t handler, void* restrict ctxdata,
+        interrupt_action_t** restrict action);
 
     /// Lets an interrupt of a child through once a handler is attached to it, as PCI does by clearing Interrupt Disable
     /// @param index As device_request_irq counts it

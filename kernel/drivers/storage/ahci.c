@@ -967,11 +967,7 @@ static int ahci_attach(device_t* restrict device, const driver_match_t* restrict
         return -ENODEV;
     }
 
-    retval = pci_request_msi(function, &ahci_irq, context);
-
-    if(retval == -ENODEV) {
-        retval = device_request_irq(device, 0, &ahci_irq, context);
-    }
+    retval = device_request_irq(device, 0, &ahci_irq, context);
 
     if(retval == -EAGAIN) {
         return retval;

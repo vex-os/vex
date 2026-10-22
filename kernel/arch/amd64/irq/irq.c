@@ -216,6 +216,12 @@ extern void amd64_irq_FF(void);
 
 void __used amd64_irq_handler(hart_context_t* restrict ctx, uint64_t idt_vector)
 {
+    // Intel SDM 3A, 11.9: a spurious interrupt
+    // isn't in service, so an EOI would end another one
+    if(idt_vector == LAPIC_SPURIOUS_VECTOR) {
+        return;
+    }
+
     lapic_write(LAPIC_REG_EOI, UINT32_C(0));
 
     irq_dispatch(idt_vector - ARCH_IRQ_BASE, ctx);

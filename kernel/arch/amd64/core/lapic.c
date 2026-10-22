@@ -14,8 +14,7 @@
 #define MSR_APIC_BASE_PHYSMASK UINT64_C(0x0000000FFFFFF000)
 #define MSR_APIC_BASE_ENABLE   UINT64_C(0x0000000000000800)
 
-#define LAPIC_SVR_ENABLE      UINT32_C(0x00000100)
-#define LAPIC_SPURIOUS_VECTOR UINT32_C(0x000000FF)
+#define LAPIC_SVR_ENABLE UINT32_C(0x00000100)
 
 static volatile uint32_t* lapic_mmio = nullptr; // Shared by every hart, so no node hands it to the framework
 

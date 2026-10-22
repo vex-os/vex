@@ -157,6 +157,7 @@ int device_adopt_io(device_t* restrict device, const io_region_t* restrict regio
 int device_get_io_address(device_t* restrict device, unsigned index, uint64_t* restrict address);
 
 /// Routes an interrupt of the device to a handler. The GSI is shared when the bus allows it
+/// @note A bus can route the interrupt without an interrupt controller. PCI uses MSI in place of INTx
 /// @note The framework releases the interrupt when the driver releases the device
 /// @pre Called from the attach of the node's driver
 /// @param index Counts the device's interrupts, in its bus's order
@@ -164,7 +165,7 @@ int device_get_io_address(device_t* restrict device, unsigned index, uint64_t* r
 /// @retval -EDEADLK The interrupt controller relies on the node
 /// @retval -ENODEV The device has no such interrupt, or no interrupt controller has its GSI
 /// @retval -EBUSY The interrupt is already requested, or its GSI is taken by a handler that doesn't share it
-/// @retval -ENOMEM Out of memory
+/// @retval -ENOMEM Out of memory, or no interrupt vector is free
 /// @note Makes the driver rely on the controller's node, so the node is unbound only after the device
 int device_request_irq(device_t* restrict device, unsigned index, irq_handler_t handler, void* restrict ctxdata);
 

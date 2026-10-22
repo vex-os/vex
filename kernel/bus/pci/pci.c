@@ -1,13 +1,11 @@
-#include <arch/irq.h>
-#include <arch/msi.h>
 #include <vex/assert.h>
 #include <vex/device.h>
 #include <vex/device_bus.h>
 #include <vex/driver.h>
 #include <vex/errno.h>
+#include <vex/intctl.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
-#include <vex/limits.h>
 #include <vex/mmio.h>
 #include <vex/mutex.h>
 #include <vex/page.h>
@@ -239,23 +237,73 @@ static bool pci_match(device_t* restrict bus, device_t* restrict child, const dr
     return false;
 }
 
-// The driver has let go, so the function stops decoding and mastering until the next one turns that on
-static void release_msi(pci_function_t* restrict function)
+static void msi_write(void* restrict source, uint64_t address, uint32_t data)
 {
-    if(function->priv.irq_number == UINT_MAX) {
-        return;
-    }
-
+    pci_function_t* function = source;
     uint8_t cap = pci_get_cap(function, PCI_CAP_MSI);
+    uint16_t control = pci_read_config16(function, cap + PCI_MSI_CONTROL);
 
-    if(cap) {
-        uint16_t control = pci_read_config16(function, cap + PCI_MSI_CONTROL);
-        pci_write_config16(function, cap + PCI_MSI_CONTROL, control & ~(uint16_t)(PCI_MSI_CONTROL_ENABLE));
+    pci_write_config16(function, cap + PCI_MSI_CONTROL, control & ~(uint16_t)(PCI_MSI_CONTROL_MME));
+    pci_write_config32(function, cap + PCI_MSI_ADDRESS_LO, (uint32_t)(address));
+
+    uintptr_t mask_offset = cap + PCI_MSI_MASK_32;
+
+    if(control & PCI_MSI_CONTROL_64BIT) {
+        pci_write_config32(function, cap + PCI_MSI_ADDRESS_HI, (uint32_t)(address >> 32));
+        pci_write_config16(function, cap + PCI_MSI_DATA_64, (uint16_t)(data));
+        mask_offset = cap + PCI_MSI_MASK_64;
+    }
+    else {
+        pci_write_config16(function, cap + PCI_MSI_DATA_32, (uint16_t)(data));
     }
 
-    irq_handler_remove(function->priv.irq_number);
+    if(control & PCI_MSI_CONTROL_PVM) {
+        pci_write_config32(function, mask_offset, pci_read_config32(function, mask_offset) & ~UINT32_C(1));
+    }
 
-    function->priv.irq_number = UINT_MAX;
+    uint16_t command = pci_read_config16(function, PCI_CFG_COMMAND);
+    pci_write_config16(function, PCI_CFG_COMMAND, command | PCI_CMD_INT_DISABLE);
+}
+
+static void msi_set_enable(pci_function_t* restrict function, bool enable)
+{
+    uint8_t cap = pci_get_cap(function, PCI_CAP_MSI);
+    uint16_t control = pci_read_config16(function, cap + PCI_MSI_CONTROL) & ~(uint16_t)(PCI_MSI_CONTROL_ENABLE);
+
+    if(enable) {
+        control |= PCI_MSI_CONTROL_ENABLE;
+    }
+
+    pci_write_config16(function, cap + PCI_MSI_CONTROL, control);
+}
+
+static void msi_mask(void* restrict source)
+{
+    msi_set_enable(source, false);
+}
+
+static void msi_unmask(void* restrict source)
+{
+    msi_set_enable(source, true);
+}
+
+static const interrupt_message_ops_t msi_ops = {
+    .write = &msi_write,
+    .mask = &msi_mask,
+    .unmask = &msi_unmask,
+};
+
+// A function with MSI gets it in place of its INTx pin
+static int pci_attach_irq(device_t* restrict bus, device_t* restrict child, unsigned index, irq_handler_t handler, void* restrict ctxdata,
+    interrupt_action_t** restrict action)
+{
+    pci_function_t* function = child->bus_data;
+
+    if(index || pci_get_cap(function, PCI_CAP_MSI) == 0) {
+        return -ENOENT;
+    }
+
+    return interrupt_attach_message(&msi_ops, function, handler, ctxdata, action);
 }
 
 // PCI Local Bus 3.0, 6.2.2: Interrupt Disable masks the function's INTx pin, and MSI masks it as well
@@ -275,11 +323,11 @@ static void pci_disable_irq(device_t* restrict bus, device_t* restrict child, un
     pci_write_config16(function, PCI_CFG_COMMAND, command | PCI_CMD_INT_DISABLE);
 }
 
+// The driver released the function. Bus mastering stays off until the next driver turns it on
 static void pci_release_child(device_t* restrict bus, device_t* restrict child)
 {
     pci_function_t* function = child->bus_data;
 
-    release_msi(function);
     pci_disable_busmaster(function);
 }
 
@@ -315,6 +363,7 @@ static const bus_ops_t host_bus_ops = {
     .place_child = &pci_place_child,
     .rescan = &pci_host_rescan,
     .match = &pci_match,
+    .attach_irq = &pci_attach_irq,
     .enable_irq = &pci_enable_irq,
     .disable_irq = &pci_disable_irq,
     .release_child = &pci_release_child,
@@ -338,6 +387,7 @@ static const bus_ops_t bridge_bus_ops = {
     .place_child = &pci_place_child,
     .rescan = &pci_bridge_rescan,
     .match = &pci_match,
+    .attach_irq = &pci_attach_irq,
     .enable_irq = &pci_enable_irq,
     .disable_irq = &pci_disable_irq,
     .release_child = &pci_release_child,
@@ -419,7 +469,6 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
     function->priv.bus = bus;
     function->priv.config_space = bus->config_space;
     function->priv.device = device;
-    function->priv.irq_number = UINT_MAX;
     function->priv.secondary = nullptr;
     function->address = *address;
     function->vendor_id = pci_read_config16(function, PCI_CFG_VENDOR_ID);
@@ -510,49 +559,6 @@ static void scan_bus(pci_bus_t* restrict bus)
     for(unsigned slot = 0; slot < PCI_DEVICE_MAX; slot += 1) {
         scan_slot(bus, slot);
     }
-}
-
-static int request_msi(pci_function_t* restrict function, uint8_t cap, irq_handler_t handler, void* restrict ctxdata)
-{
-    unsigned irq_number = irq_handler_add(UINT_MAX, handler, ctxdata);
-
-    if(irq_number == UINT_MAX) {
-        return -ENOMEM;
-    }
-
-    function->priv.irq_number = irq_number;
-
-    uint64_t address;
-    uint32_t data;
-    arch_msi_compose(irq_number + ARCH_IRQ_BASE, &address, &data);
-
-    uint16_t control = pci_read_config16(function, cap + PCI_MSI_CONTROL);
-    control &= ~(uint16_t)(PCI_MSI_CONTROL_ENABLE | PCI_MSI_CONTROL_MME);
-
-    pci_write_config16(function, cap + PCI_MSI_CONTROL, control);
-    pci_write_config32(function, cap + PCI_MSI_ADDRESS_LO, (uint32_t)(address));
-
-    uintptr_t mask_offset = cap + PCI_MSI_MASK_32;
-
-    if(control & PCI_MSI_CONTROL_64BIT) {
-        pci_write_config32(function, cap + PCI_MSI_ADDRESS_HI, (uint32_t)(address >> 32));
-        pci_write_config16(function, cap + PCI_MSI_DATA_64, (uint16_t)(data));
-        mask_offset = cap + PCI_MSI_MASK_64;
-    }
-    else {
-        pci_write_config16(function, cap + PCI_MSI_DATA_32, (uint16_t)(data));
-    }
-
-    if(control & PCI_MSI_CONTROL_PVM) {
-        pci_write_config32(function, mask_offset, pci_read_config32(function, mask_offset) & ~UINT32_C(1));
-    }
-
-    uint16_t cmd = pci_read_config16(function, PCI_CFG_COMMAND);
-    pci_write_config16(function, PCI_CFG_COMMAND, cmd | PCI_CMD_INT_DISABLE);
-
-    pci_write_config16(function, cap + PCI_MSI_CONTROL, control | PCI_MSI_CONTROL_ENABLE);
-
-    return 0;
 }
 
 int pci_root_attach(device_t* restrict host, unsigned segment, unsigned bus)
@@ -671,19 +677,4 @@ void pci_disable_busmaster(pci_function_t* restrict function)
     uint16_t cmd = pci_read_config16(function, PCI_CFG_COMMAND);
 
     pci_write_config16(function, PCI_CFG_COMMAND, cmd & ~(uint16_t)(PCI_CMD_BUS_MASTER));
-}
-
-int pci_request_msi(pci_function_t* restrict function, irq_handler_t handler, void* restrict ctxdata)
-{
-    if(function->priv.irq_number != UINT_MAX) {
-        return -EBUSY;
-    }
-
-    uint8_t cap = pci_get_cap(function, PCI_CAP_MSI);
-
-    if(cap == 0) {
-        return -ENODEV;
-    }
-
-    return request_msi(function, cap, handler, ctxdata);
 }

@@ -10,6 +10,7 @@ struct device_irq_s {
     device_irq_t* next;
     unsigned index;
     interrupt_action_t* action;
+    bool by_bus; // The bus's attach_irq routed it. enable_irq and disable_irq don't apply
 };
 
 struct device_mapping_s {
@@ -111,7 +112,7 @@ static int use_controller(device_t* restrict device, uint32_t gsi)
     return device_use(device, controller->device);
 }
 
-static int attach_irq(const fwnode_irq_t* restrict irq, irq_handler_t handler, void* restrict ctxdata, interrupt_action_t** restrict action)
+static int attach_gsi(const fwnode_irq_t* restrict irq, irq_handler_t handler, void* restrict ctxdata, interrupt_action_t** restrict action)
 {
     unsigned trigger;
     unsigned polarity;
@@ -123,6 +124,39 @@ static int attach_irq(const fwnode_irq_t* restrict irq, irq_handler_t handler, v
     }
 
     return interrupt_attach(gsi, trigger, polarity, flags, handler, ctxdata, action);
+}
+
+static int attach_by_bus(device_t* restrict device, unsigned index, irq_handler_t handler, void* restrict ctxdata,
+    interrupt_action_t** restrict action)
+{
+    device_t* bus = device_bus_of(device);
+
+    if(bus == nullptr || bus->bus_ops->attach_irq == nullptr) {
+        return -ENOENT;
+    }
+
+    return bus->bus_ops->attach_irq(bus, device, index, handler, ctxdata, action);
+}
+
+static int attach_by_controller(device_t* restrict device, unsigned index, irq_handler_t handler, void* restrict ctxdata,
+    interrupt_action_t** restrict action)
+{
+    fwnode_irq_t irq;
+    int retval = get_irq(device, index, &irq);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    unsigned trigger;
+    unsigned polarity;
+    retval = use_controller(device, gsi_of(&irq, &trigger, &polarity));
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    return attach_gsi(&irq, handler, ctxdata, action);
 }
 
 static void enable_irq(device_t* restrict device, unsigned index)
@@ -189,7 +223,11 @@ void device_release_resources(device_t* restrict device)
 
     while(irqs) {
         device_irq_t* next = irqs->next;
-        disable_irq(device, irqs->index);
+
+        if(!irqs->by_bus) {
+            disable_irq(device, irqs->index);
+        }
+
         interrupt_detach(irqs->action);
         kfree(irqs);
         irqs = next;
@@ -340,21 +378,6 @@ void device_unmap_io(device_t* restrict device, io_region_t* restrict region)
 
 int device_request_irq(device_t* restrict device, unsigned index, irq_handler_t handler, void* restrict ctxdata)
 {
-    fwnode_irq_t irq;
-    int retval = get_irq(device, index, &irq);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    unsigned trigger;
-    unsigned polarity;
-    retval = use_controller(device, gsi_of(&irq, &trigger, &polarity));
-
-    if(retval < 0) {
-        return retval;
-    }
-
     device_irq_t* entry = kmalloc(sizeof(device_irq_t));
 
     if(entry == nullptr) {
@@ -362,26 +385,36 @@ int device_request_irq(device_t* restrict device, unsigned index, irq_handler_t 
     }
 
     mutex_acquire(&device_tree_mutex);
+    bool taken = *find_irq_nolock(device, index);
+    mutex_release(&device_tree_mutex);
 
-    if(*find_irq_nolock(device, index)) {
-        mutex_release(&device_tree_mutex);
+    if(taken) {
         kfree(entry);
         return -EBUSY;
     }
 
-    retval = attach_irq(&irq, handler, ctxdata, &entry->action);
+    int retval = attach_by_bus(device, index, handler, ctxdata, &entry->action);
+    entry->by_bus = retval != -ENOENT;
+
+    if(retval == -ENOENT) {
+        retval = attach_by_controller(device, index, handler, ctxdata, &entry->action);
+    }
 
     if(retval < 0) {
-        mutex_release(&device_tree_mutex);
         kfree(entry);
         return retval;
     }
 
     entry->index = index;
+
+    mutex_acquire(&device_tree_mutex);
+
     entry->next = device->priv.irqs;
     device->priv.irqs = entry;
 
-    enable_irq(device, index);
+    if(!entry->by_bus) {
+        enable_irq(device, index);
+    }
 
     mutex_release(&device_tree_mutex);
 
@@ -402,7 +435,10 @@ void device_release_irq(device_t* restrict device, unsigned index)
     mutex_release(&device_tree_mutex);
 
     if(entry) {
-        disable_irq(device, index);
+        if(!entry->by_bus) {
+            disable_irq(device, index);
+        }
+
         interrupt_detach(entry->action);
         kfree(entry);
     }

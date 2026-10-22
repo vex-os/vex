@@ -3,6 +3,7 @@
 #include <vex/device.h>
 #include <vex/driver.h>
 #include <vex/errno.h>
+#include <vex/hart.h>
 #include <vex/initcall.h>
 #include <vex/intctl.h>
 #include <vex/kmalloc.h>
@@ -134,14 +135,14 @@ static void ioapic_unmask(interrupt_controller_t* restrict controller, uint32_t 
     ioapic_set_rte(data, irq, entry);
 }
 
-static void ioapic_route(interrupt_controller_t* restrict controller, uint32_t gsi, uint8_t vector, uint32_t hart, unsigned trigger,
-    unsigned polarity)
+static void ioapic_route(interrupt_controller_t* restrict controller, uint32_t gsi, uint8_t vector, const hart_local_t* restrict hart,
+    unsigned trigger, unsigned polarity)
 {
     ioapic_data_t* data = controller->ctxdata;
 
     rte_entry_t entry = {};
     entry.vector = vector;
-    entry.dest = hart;
+    entry.dest = hart->arch.lapic_id;
     entry.level = (trigger == TRIGGER_LEVEL);
     entry.active_low = (polarity == ACTIVE_LOW);
     entry.masked = 1;

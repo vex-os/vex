@@ -142,11 +142,7 @@ static int uart16550_pci_attach(device_t* restrict device, const driver_match_t*
         return retval;
     }
 
-    retval = pci_request_msi(function, &uart16550_pci_irq, card);
-
-    if(retval == -ENODEV) {
-        retval = device_request_irq(device, 0, &uart16550_pci_irq, card);
-    }
+    retval = device_request_irq(device, 0, &uart16550_pci_irq, card);
 
     if(retval < 0) {
         free_ports(ports, count);

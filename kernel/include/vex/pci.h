@@ -137,7 +137,6 @@ struct pci_function_private_s {
     pci_bus_t* bus;
     pci_config_space_t* config_space;
     device_t* device;     // Its fwnode is the companion
-    unsigned irq_number;  // Of MSI, UINT_MAX without
     pci_bus_t* secondary; // The bus behind a bridge, nullptr on other functions
     pci_bar_t bars[PCI_BAR_MAX];
 };
@@ -176,10 +175,3 @@ uint8_t pci_get_cap(pci_function_t* restrict function, uint8_t cap_id) __nodisca
 
 void pci_enable_busmaster(pci_function_t* restrict function);
 void pci_disable_busmaster(pci_function_t* restrict function);
-
-/// Routes the function's MSI to a handler; the bus takes it back when the driver releases the function
-/// @note Without MSI, the driver takes the INTx pin through device_request_irq instead
-/// @retval -ENODEV The function has no MSI
-/// @retval -EBUSY MSI is already requested
-/// @retval -ENOMEM No interrupt vector is free
-int pci_request_msi(pci_function_t* restrict function, irq_handler_t handler, void* restrict ctxdata);

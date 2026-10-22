@@ -27,6 +27,8 @@ typedef struct hart_local_s hart_local_t;
 #define LAPIC_IPI_EXCEPT_ME UINT32_C(0x000C4000)
 #define LAPIC_IPI_NMI       UINT32_C(0x00004400)
 
+#define LAPIC_SPURIOUS_VECTOR 0xFF // Above ARCH_IRQ_MAX, so no handler gets it
+
 uint32_t lapic_read(uint32_t reg);
 void lapic_write(uint32_t reg, uint32_t value);
 void lapic_ipi(uint32_t target, uint32_t mode, uint8_t vector);
