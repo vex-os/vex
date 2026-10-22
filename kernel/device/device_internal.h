@@ -27,8 +27,10 @@ device_t* device_next_child(device_t* parent, device_t* prev) __nodiscard;
 
 device_t* device_find_by_fwnode(const fwnode_t* restrict fwnode) __nodiscard;
 
-/// Adds a node for each present child of the node's firmware node that its bus doesn't place
-void device_place_firmware_children(device_t* restrict device);
+/// Adds a node for each present child of the node's firmware node that isn't in the tree yet,
+/// and removes the children the firmware says are no longer there
+/// @pre Called on device_worker
+void device_sync_firmware_children(device_t* restrict device);
 
 /// @note Any context; device_worker does the work
 void device_queue_request(device_t* restrict device, unsigned request);

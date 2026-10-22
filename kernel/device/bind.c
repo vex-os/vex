@@ -139,6 +139,7 @@ static void bind(device_t* restrict device)
         pr_warning("device: %s: %s failed to attach: %s", path, best.driver->name, strerror(retval));
         device_stop_waiting(device);
         device->priv.state = DEVICE_PRESENT;
+        device->priv.attach_failed = true;
         return;
     }
 
@@ -155,15 +156,17 @@ static void rescan_node(device_t* device)
         return;
     }
 
-    if(device->driver == nullptr && device->priv.state != DEVICE_WAITING) {
+    if(device->driver == nullptr && device->priv.state != DEVICE_WAITING && !device->priv.attach_failed) {
         bind(device);
     }
 
-    if(!device->priv.fw_children_placed && device->fwnode.ops) {
-        device_place_firmware_children(device);
+    if(device->bus_ops && device->bus_ops->rescan) {
+        device->bus_ops->rescan(device);
     }
 
-    device->priv.fw_children_placed = true;
+    if(device->fwnode.ops) {
+        device_sync_firmware_children(device);
+    }
 
     device_t* child = device_next_child(device, nullptr);
 
@@ -184,8 +187,6 @@ static void remove_children(device_t* device)
         remove_node(child);
         device_decref(child);
     }
-
-    device->priv.fw_children_placed = false;
 }
 
 static void unbind_node(device_t* device);
@@ -224,6 +225,7 @@ static void unbind_node(device_t* device)
     remove_children(device);
 
     device->priv.offline = false;
+    device->priv.attach_failed = false;
 
     const driver_t* driver = device->driver;
 

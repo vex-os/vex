@@ -18,6 +18,12 @@ struct bus_ops_s {
     /// @retval -ENOENT The bus can't place the child, so it becomes a firmware child of the node
     int (*place_child)(device_t* restrict bus, const fwnode_t* restrict child);
 
+    /// Looks for the children the bus finds on its own, adding new ones and removing those that went away
+    /// @pre Called on device_worker
+    /// @note A child the bus has rescan for is the bus's to judge, whatever its firmware node says;
+    /// a lost one goes through device_set_gone and device_remove
+    void (*rescan)(device_t* restrict bus);
+
     /// @return Whether a child matches an entry of a driver's table that is of the bus's own kinds
     bool (*match)(device_t* restrict bus, device_t* restrict child, const driver_match_t* restrict match);
 

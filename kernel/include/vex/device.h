@@ -42,11 +42,11 @@ struct device_private_s {
     device_t* worker_next;      // In the queue of device_worker, which holds a reference meanwhile
     unsigned pending;           // What the node is queued for, under the queue's lock
     unsigned refcount;
-    device_state_t state;    // Changed by device_worker alone
-    bool unplaced;           // Placed by the firmware rather than by the parent's bus, which ignores it
-    bool fw_children_placed; // Until the node is unbound, which takes its children away
-    bool gone;               // The hardware went away without warning
-    bool offline;            // The driver agreed to let go, until it is detached or brought back online
+    device_state_t state; // Changed by device_worker alone
+    bool unplaced;        // Placed by the firmware rather than by the parent's bus, which ignores it
+    bool gone;            // The hardware went away without warning
+    bool offline;         // The driver agreed to let go, until it is detached or brought back online
+    bool attach_failed;   // Until the node is unbound, so that rescans don't try the same driver again
 };
 
 // A node of the device tree: one piece of hardware wherever it sits, with the
@@ -88,7 +88,8 @@ int device_add_bound(device_t* restrict parent, const fwnode_t* restrict fwnode,
 /// @note Any context; device_worker does the work
 void device_rescan(device_t* restrict device);
 
-/// Queues the node to have its children removed and its driver detached; it stays in the tree
+/// Queues the node to have its children removed and its driver detached; it stays in the tree,
+/// and the next rescan probes it again, even after an attach that failed
 /// @note Any context; device_worker does the work, and does none of it when a driver refuses to go offline
 void device_unbind(device_t* restrict device);
 

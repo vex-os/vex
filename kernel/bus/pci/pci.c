@@ -382,8 +382,16 @@ static void pci_remove_child(device_t* restrict bus, device_t* restrict child)
     child->bus_data = nullptr;
 }
 
+static void pci_host_rescan(device_t* restrict host)
+{
+    pci_root_t* root = host->ctxdata;
+
+    scan_bus(root->bus);
+}
+
 static const bus_ops_t host_bus_ops = {
     .place_child = &pci_place_child,
+    .rescan = &pci_host_rescan,
     .match = &pci_match,
     .enable_irq = &pci_enable_irq,
     .disable_irq = &pci_disable_irq,
@@ -394,9 +402,19 @@ static const bus_ops_t host_bus_ops = {
     .translate_range = &host_translate_range,
 };
 
+static void pci_bridge_rescan(device_t* restrict bridge)
+{
+    pci_function_t* function = bridge->bus_data;
+
+    if(function->priv.secondary) {
+        scan_bus(function->priv.secondary);
+    }
+}
+
 // A bridge passes ranges on unchanged, within the windows it is set up with
 static const bus_ops_t bridge_bus_ops = {
     .place_child = &pci_place_child,
+    .rescan = &pci_bridge_rescan,
     .match = &pci_match,
     .enable_irq = &pci_enable_irq,
     .disable_irq = &pci_disable_irq,
@@ -503,6 +521,36 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
     }
 }
 
+static pci_function_t* find_function(const pci_bus_t* restrict bus, unsigned slot, unsigned number)
+{
+    for(pci_function_t* function = bus->functions; function; function = function->priv.next) {
+        if(function->address.device == slot && function->address.function == number) {
+            return function;
+        }
+    }
+
+    return nullptr;
+}
+
+static bool is_same_function(pci_function_t* restrict function)
+{
+    return pci_read_config16(function, PCI_CFG_VENDOR_ID) == function->vendor_id
+        && pci_read_config16(function, PCI_CFG_DEVICE_ID) == function->device_id;
+}
+
+// A card swapped for another between two scans is lost and found again, so its
+// old node goes first and the bus is scanned once more for the new one
+static void lose_function(pci_function_t* restrict function)
+{
+    device_t* device = function->priv.device;
+    device_t* bus = function->priv.bus->device;
+
+    device_set_gone(device);
+    device_remove(device);
+    device_rescan(bus);
+}
+
+// PCI Local Bus 3.0, 6.2.1: a slot without function 0 is empty, whatever its other functions read
 static void scan_slot(pci_bus_t* restrict bus, unsigned slot)
 {
     pci_address_t address = {};
@@ -510,17 +558,23 @@ static void scan_slot(pci_bus_t* restrict bus, unsigned slot)
     address.bus = bus->number;
     address.device = slot;
 
-    if(pci_config_space_read16(bus->config_space, &address, PCI_CFG_VENDOR_ID) == 0xFFFF) {
-        return;
+    unsigned num_functions = 0;
+
+    if(pci_config_space_read16(bus->config_space, &address, PCI_CFG_VENDOR_ID) != 0xFFFF) {
+        unsigned header = pci_config_space_read8(bus->config_space, &address, PCI_CFG_HEADER_TYPE);
+        num_functions = (header & PCI_HDR_MULTIFUNC) ? PCI_FUNCTION_MAX : 1;
     }
 
-    unsigned header = pci_config_space_read8(bus->config_space, &address, PCI_CFG_HEADER_TYPE);
-    unsigned num_functions = (header & PCI_HDR_MULTIFUNC) ? PCI_FUNCTION_MAX : 1;
+    for(unsigned number = 0; number < PCI_FUNCTION_MAX; number += 1) {
+        address.function = number;
 
-    for(unsigned function = 0; function < num_functions; function += 1) {
-        address.function = function;
+        pci_function_t* known = find_function(bus, slot, number);
+        bool present = number < num_functions && pci_config_space_read16(bus->config_space, &address, PCI_CFG_VENDOR_ID) != 0xFFFF;
 
-        if(pci_config_space_read16(bus->config_space, &address, PCI_CFG_VENDOR_ID) != 0xFFFF) {
+        if(known && !(present && is_same_function(known))) {
+            lose_function(known);
+        }
+        else if(present && known == nullptr) {
             add_function(bus, &address);
         }
     }

@@ -98,9 +98,9 @@ static device_t* allocate(device_t* restrict parent, const fwnode_t* restrict fw
     device->priv.pending = 0;
     device->priv.state = DEVICE_PRESENT;
     device->priv.unplaced = false;
-    device->priv.fw_children_placed = false;
     device->priv.gone = false;
     device->priv.offline = false;
+    device->priv.attach_failed = false;
     atomic_store(&device->priv.refcount, 1, ATOMIC_RELAXED);
 
     device->parent = parent;
@@ -132,14 +132,32 @@ static size_t write_path(const device_t* restrict device, char* restrict buffer,
     }
 }
 
-static void place_firmware_child(const fwnode_t* child, void* arg)
+static device_t* find_child_by_fwnode(device_t* restrict parent, const fwnode_t* restrict fwnode)
 {
-    device_t* parent = arg;
+    mutex_acquire(&device_tree_mutex);
 
-    if(!fwnode_is_present(child)) {
-        return;
+    device_t* child = parent->priv.children;
+
+    while(child && (child->fwnode.ops == nullptr || !fwnode_is_same(&child->fwnode, fwnode))) {
+        child = child->priv.next;
     }
 
+    if(child) {
+        device_incref(child);
+    }
+
+    mutex_release(&device_tree_mutex);
+
+    return child;
+}
+
+static bool firmware_judges(const device_t* restrict parent, const device_t* restrict child)
+{
+    return child->priv.unplaced || parent->bus_ops == nullptr || parent->bus_ops->rescan == nullptr;
+}
+
+static void place_firmware_child(device_t* restrict parent, const fwnode_t* restrict child)
+{
     if(parent->bus_ops && parent->bus_ops->place_child) {
         int retval = parent->bus_ops->place_child(parent, child);
 
@@ -162,6 +180,28 @@ static void place_firmware_child(const fwnode_t* child, void* arg)
     }
 
     device->priv.unplaced = true;
+    device_decref(device);
+}
+
+static void sync_firmware_child(const fwnode_t* child, void* arg)
+{
+    device_t* parent = arg;
+    device_t* device = find_child_by_fwnode(parent, child);
+    bool present = fwnode_is_present(child);
+
+    if(device == nullptr) {
+        if(present) {
+            place_firmware_child(parent, child);
+        }
+
+        return;
+    }
+
+    if(!present && firmware_judges(parent, device)) {
+        device_set_gone(device);
+        device_remove(device);
+    }
+
     device_decref(device);
 }
 
@@ -226,9 +266,9 @@ device_t* device_find_by_fwnode(const fwnode_t* restrict fwnode)
     return device;
 }
 
-void device_place_firmware_children(device_t* restrict device)
+void device_sync_firmware_children(device_t* restrict device)
 {
-    fwnode_for_each_child(&device->fwnode, &place_firmware_child, device);
+    fwnode_for_each_child(&device->fwnode, &sync_firmware_child, device);
 }
 
 device_t* device_get_root(void)
