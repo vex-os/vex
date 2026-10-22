@@ -411,7 +411,8 @@ void pci_read_bars(pci_function_t* restrict function)
         pci_bar_t* bar = &function->priv.bars[i];
         *bar = (pci_bar_t) {};
 
-        if(i >= num_bars) {
+        // The bus gives a compatibility channel its ISA addresses, and its BARs stay as they are
+        if(i >= num_bars || pci_ide_is_compat(function, i / PCI_IDE_BARS_PER_CHANNEL)) {
             continue;
         }
 

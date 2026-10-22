@@ -5,3 +5,12 @@ config AHCI
     help
       SATA disks and ATAPI drives behind an AHCI host
       bus adapter, the usual controller on PCI(e) machines
+
+config PATA
+    bool "Parallel ATA (IDE) controllers"
+    depends on PCI
+    default y
+    help
+      ATA disks and ATAPI drives on the channels of a PCI IDE
+      controller, in compatibility or native mode, and on IDE
+      channels that the firmware or fixed= describes

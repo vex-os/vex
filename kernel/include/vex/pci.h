@@ -105,6 +105,13 @@ typedef struct pci_config_space_s pci_config_space_t;
 #define PCI_MSI_CONTROL_64BIT  0x0080 // 64 Bit Address Capable
 #define PCI_MSI_CONTROL_PVM    0x0100 // Per-Vector Masking Capable
 
+#define PCI_CLASS_STORAGE 0x01
+#define PCI_SUBCLASS_IDE  0x01
+
+#define PCI_IDE_CHANNELS          2
+#define PCI_IDE_BARS_PER_CHANNEL  2                            // The command block, then the control block
+#define PCI_IDE_PROG_IF_NATIVE(c) (UINT8_C(0x01) << ((c) * 2)) // PCI IDE Controller 1.0, 2.1: clear for compatibility mode
+
 #define PCI_BAR_MAX        6
 #define PCI_BRIDGE_BAR_MAX 2 // A bridge's header has bus numbers and windows where the others go on
 
@@ -150,6 +157,7 @@ struct pci_function_s {
     unsigned device_id;
     unsigned class_id;
     unsigned subclass_id;
+    unsigned prog_if;
 };
 
 /// Makes a node of the tree a host bridge and scans the hierarchy below it,
@@ -177,3 +185,15 @@ uint8_t pci_get_cap(pci_function_t* restrict function, uint8_t cap_id) __nodisca
 
 void pci_enable_busmaster(pci_function_t* restrict function);
 void pci_disable_busmaster(pci_function_t* restrict function);
+
+/// @return false for a function that isn't an IDE controller, and for a channel above PCI_IDE_CHANNELS
+/// @note A channel in compatibility mode decodes the ISA addresses of its number and not its BARs
+static __always_inline __nodiscard bool pci_ide_is_compat(const pci_function_t* restrict function, unsigned channel)
+{
+    bool compat = true;
+    compat = compat && function->class_id == PCI_CLASS_STORAGE;
+    compat = compat && function->subclass_id == PCI_SUBCLASS_IDE;
+    compat = compat && channel < PCI_IDE_CHANNELS;
+    compat = compat && 0 == (function->prog_if & PCI_IDE_PROG_IF_NATIVE(channel));
+    return compat;
+}

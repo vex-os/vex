@@ -483,6 +483,7 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
     function->device_id = pci_read_config16(function, PCI_CFG_DEVICE_ID);
     function->class_id = pci_read_config8(function, PCI_CFG_CLASS);
     function->subclass_id = pci_read_config8(function, PCI_CFG_SUBCLASS);
+    function->prog_if = pci_read_config8(function, PCI_CFG_PROG_IF);
 
     uint8_t header_type = pci_read_config8(function, PCI_CFG_HEADER_TYPE) & PCI_HDR_TYPE_MASK;
 

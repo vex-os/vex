@@ -155,6 +155,16 @@ void device_unmap_io(device_t* restrict device, io_region_t* restrict region);
 /// @retval -ENOMEM Out of memory; the mapping stays the caller's
 int device_adopt_io(device_t* restrict device, const io_region_t* restrict region);
 
+/// Gets a register range of the device as an address on its bus, as a bus that makes children of its own describes them
+/// @param index Counts the device's port and memory ranges together, in its bus's order
+/// @retval -ENODEV The device has no such range
+int device_get_range(device_t* restrict device, unsigned index, fwnode_resource_t* restrict range);
+
+/// Gets an interrupt of the device as the interrupt controllers see it, or as an ISA IRQ. Does not route it
+/// @param index Counts the device's interrupts, in its bus's order
+/// @retval -ENODEV The device has no such interrupt, or nothing routes it
+int device_get_irq(device_t* restrict device, unsigned index, fwnode_irq_t* restrict irq);
+
 /// Gets the address at which the CPU sees a memory range of the device. Does not map the range
 /// @param index Counts the device's port and memory ranges together, in its bus's order
 /// @retval -ENODEV The device has no such range

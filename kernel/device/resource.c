@@ -325,6 +325,16 @@ int device_adopt_io(device_t* restrict device, const io_region_t* restrict regio
     return 0;
 }
 
+int device_get_range(device_t* restrict device, unsigned index, fwnode_resource_t* restrict range)
+{
+    return get_range(device, index, range);
+}
+
+int device_get_irq(device_t* restrict device, unsigned index, fwnode_irq_t* restrict irq)
+{
+    return get_irq(device, index, irq);
+}
+
 int device_get_io_address(device_t* restrict device, unsigned index, uint64_t* restrict address)
 {
     fwnode_resource_t range;
