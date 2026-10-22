@@ -125,6 +125,7 @@ static void put_pixel(unsigned char* fb, unsigned int x, unsigned int y, unsigne
 
 int main(void)
 {
+    syscall3(__k_SYS_MKDIRAT, __k_AT_FDCWD, (long)"/dev", 0755);
     printnumber(syscall6(__k_SYS_MOUNT, 0, (long)"/dev", (long)"devfs", 0, 0, 0)); // should print 0
 
     long fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/fbd0", __k_O_RDWR, 0);
