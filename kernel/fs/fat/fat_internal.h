@@ -7,7 +7,7 @@
 #include <vex/time.h>
 #include <vex/types.h>
 
-typedef struct block_device_s block_device_t;
+typedef struct block_interface_s block_interface_t;
 typedef struct vnode_s vnode_t;
 typedef struct vnode_ops_s vnode_ops_t;
 
@@ -168,7 +168,7 @@ struct fat_dirent_s {
 
 struct fat_vfs_context_s {
     mutex_t lock; // Serializes changes to the table and directories, and the file cache calls for files
-    const block_device_t* device;
+    const block_interface_t* volume;
     fat_extparams_t extparams;
     unsigned filesystem_type;
 

@@ -1,4 +1,4 @@
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
 #include <vex/kprintf.h>
@@ -616,7 +616,7 @@ int ext2_bmap(vnode_t* restrict node, uint64_t sector, bool create, fcache_exten
     }
 
     if(!data_block_valid(fs_ctx, block)) {
-        pr_warning("ext2: %s: inode %u maps a block outside the filesystem", fs_ctx->device->name, (uint32_t)(node->ino));
+        pr_warning("ext2: %s: inode %u maps a block outside the filesystem", fs_ctx->volume->name, (uint32_t)(node->ino));
         return -EIO;
     }
 

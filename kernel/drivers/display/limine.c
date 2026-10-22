@@ -1,5 +1,5 @@
 #include <limine.h>
-#include <vex/fb_device.h>
+#include <vex/fb_interface.h>
 #include <vex/hhdm.h>
 #include <vex/initcall.h>
 #include <vex/kprintf.h>
@@ -14,7 +14,7 @@ static volatile __used __section(".limine_requests") struct limine_framebuffer_r
     .revision = 0,
 };
 
-static_assert(sizeof(fb_device_t) <= SLAB_MAX_SIZE);
+static_assert(sizeof(fb_interface_t) <= SLAB_MAX_SIZE);
 
 static bool describe(const struct limine_framebuffer* restrict fb, vexfb_info_t* restrict info)
 {
@@ -43,47 +43,47 @@ static bool describe(const struct limine_framebuffer* restrict fb, vexfb_info_t*
     return true;
 }
 
-static void liminefb_release(const fb_device_t* restrict device)
+static void liminefb_release(const fb_interface_t* restrict interface)
 {
-    mmio_unmap(device->virt);
-    slab_free((void*)(device));
+    mmio_unmap(interface->virt);
+    slab_free((void*)(interface));
 }
 
-static const fb_device_ops_t liminefb_ops = {
+static const fb_interface_ops_t liminefb_ops = {
     .release = &liminefb_release,
 };
 
-static fb_device_t* liminefb_create(const struct limine_framebuffer* restrict fb)
+static fb_interface_t* liminefb_create(const struct limine_framebuffer* restrict fb)
 {
-    fb_device_t* device = slab_alloc(sizeof(fb_device_t));
+    fb_interface_t* interface = slab_alloc(sizeof(fb_interface_t));
 
-    if(device == nullptr) {
+    if(interface == nullptr) {
         pr_warning("liminefb: out of memory");
         return nullptr;
     }
 
-    memset(device, 0, sizeof(fb_device_t));
+    memset(interface, 0, sizeof(fb_interface_t));
 
-    device->ops = &liminefb_ops;
+    interface->ops = &liminefb_ops;
 
-    if(!describe(fb, &device->info)) {
-        slab_free(device);
+    if(!describe(fb, &interface->info)) {
+        slab_free(interface);
         return nullptr;
     }
 
     // Limine hands out an HHDM address
     // but Vex only maps usable blocks there
-    device->phys = virt_to_phys(fb->address);
-    device->cache = VPROT_CACHE_WC;
-    device->virt = mmio_map(device->phys, device->info.size, VPROT_RW | device->cache);
+    interface->phys = virt_to_phys(fb->address);
+    interface->cache = VPROT_CACHE_WC;
+    interface->virt = mmio_map(interface->phys, interface->info.size, VPROT_RW | interface->cache);
 
-    if(device->virt == nullptr) {
+    if(interface->virt == nullptr) {
         pr_warning("liminefb: failed to map a framebuffer");
-        slab_free(device);
+        slab_free(interface);
         return nullptr;
     }
 
-    return device;
+    return interface;
 }
 
 static void init_liminefb(void)
@@ -93,10 +93,10 @@ static void init_liminefb(void)
     }
 
     for(size_t i = 0; i < fb_request.response->framebuffer_count; ++i) {
-        fb_device_t* device = liminefb_create(fb_request.response->framebuffers[i]);
+        fb_interface_t* interface = liminefb_create(fb_request.response->framebuffers[i]);
 
-        if(device) {
-            fb_boot_add(device);
+        if(interface) {
+            fb_boot_add(interface);
         }
     }
 }

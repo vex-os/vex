@@ -6,7 +6,7 @@
 #include <vex/types.h>
 
 typedef struct cmdline_s cmdline_t;
-typedef struct block_device_s block_device_t;
+typedef struct block_interface_s block_interface_t;
 typedef struct dev_unit_s dev_unit_t;
 typedef struct vnode_s vnode_t;
 
@@ -19,12 +19,12 @@ struct vfs_ops_s {
     /// Checks the device for this filesystem, for mounts that name no type
     /// @param fs nullptr, as nothing is mounted yet
     /// @retval 0 The device holds this filesystem
-    int (*probe)(vfs_t* restrict fs, const block_device_t* restrict device);
+    int (*probe)(vfs_t* restrict fs, const block_interface_t* restrict volume);
 
     /// Sets root, holding a reference to it until unmount, and ctxdata and readonly
     /// @pre fs->device is set, and nullptr for a filesystem without one
     /// @post On failure nothing of the filesystem is left behind
-    int (*mount)(vfs_t* restrict fs, const block_device_t* restrict device, const cmdline_t* restrict params);
+    int (*mount)(vfs_t* restrict fs, const block_interface_t* restrict volume, const cmdline_t* restrict params);
 
     int (*statvfs)(vfs_t* restrict fs, statvfs_t* restrict out);
 
@@ -43,9 +43,9 @@ struct vfs_s {
     const vfs_ops_t* ops;
     vnode_t* mountpoint;
     vnode_t* root;
-    const block_device_t* device; // Referenced for as long as the filesystem is mounted
-    dev_unit_t* unit;             // Under dev_prefix_anon, for a filesystem without a device
-    dev_t dev;                    // The st_dev of its files
+    const block_interface_t* volume; // Referenced for as long as the filesystem is mounted
+    dev_unit_t* unit;                // Under dev_prefix_anon, for a filesystem without a device
+    dev_t dev;                       // The st_dev of its files
     void* ctxdata;
     bool readonly;    // Set by the driver while mounting
     bool unmounting;  // Under mounts_lock; turns away operations crossing into the filesystem
@@ -65,7 +65,7 @@ struct vfs_driver_s {
 int vfs_driver_add(vfs_driver_t* restrict driver);
 int vfs_driver_remove(vfs_driver_t* restrict driver);
 
-int vfs_mount(const char* restrict type, const char* restrict path, const block_device_t* restrict device, const char* restrict params);
+int vfs_mount(const char* restrict type, const char* restrict path, const block_interface_t* restrict volume, const char* restrict params);
 int vfs_unmount(const char* restrict path);
 
 int vfs_sync_fs(vfs_t* restrict fs);

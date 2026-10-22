@@ -1,6 +1,6 @@
 #include <limine.h>
 #include <vex/binfmt.h>
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/cmdline.h>
 #include <vex/event.h>
 #include <vex/file.h>
@@ -28,16 +28,16 @@ static void mount_root(void)
         unreachable();
     }
 
-    const block_device_t* device = block_device_find(device_name);
+    const block_interface_t* interface = block_interface_find(device_name);
 
-    if(device == nullptr) {
+    if(interface == nullptr) {
         panic("kmain: %s not a block device", device_name);
         unreachable();
     }
 
-    int retval = vfs_mount(nullptr, "/", device, nullptr);
+    int retval = vfs_mount(nullptr, "/", interface, nullptr);
 
-    block_device_decref(device);
+    block_interface_decref(interface);
 
     if(retval < 0) {
         panic("kmain: %s: mount failed: %s", device_name, strerror(retval));

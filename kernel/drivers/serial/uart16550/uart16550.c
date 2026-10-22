@@ -1,6 +1,6 @@
 #include <vex/errno.h>
 #include <vex/kmalloc.h>
-#include <vex/serial_device.h>
+#include <vex/serial_interface.h>
 #include <vex/string.h>
 #include <vex/strings.h>
 
@@ -92,9 +92,9 @@ static void write_reg(const uart16550_t* restrict port, unsigned reg, uint8_t va
     io_write8(&port->io, reg << port->reg_shift, value);
 }
 
-static uart16550_t* port_of(const serial_device_t* restrict device)
+static uart16550_t* port_of(const serial_interface_t* restrict interface)
 {
-    return device->ctxdata;
+    return interface->ctxdata;
 }
 
 static unsigned parity_of(uint8_t lcr)
@@ -297,9 +297,9 @@ static bool service(uart16550_t* restrict port)
     return true;
 }
 
-static int uart16550_startup(serial_device_t* restrict device)
+static int uart16550_startup(serial_interface_t* restrict interface)
 {
-    uart16550_t* port = port_of(device);
+    uart16550_t* port = port_of(interface);
     bool intr_state = spinlock_acquire_intr(&port->lock);
 
     if(port->fifo_size > 1) {
@@ -324,9 +324,9 @@ static int uart16550_startup(serial_device_t* restrict device)
     return 0;
 }
 
-static void uart16550_shutdown(serial_device_t* restrict device)
+static void uart16550_shutdown(serial_interface_t* restrict interface)
 {
-    uart16550_t* port = port_of(device);
+    uart16550_t* port = port_of(interface);
     bool intr_state = spinlock_acquire_intr(&port->lock);
 
     port->ier = 0;
@@ -340,9 +340,9 @@ static void uart16550_shutdown(serial_device_t* restrict device)
 
 // The transmitter interrupts as IER_ETBEI goes from clear to set while THR is
 // empty, so it is cleared first even when set, as an interrupt may be used up
-static void uart16550_start_tx(serial_device_t* restrict device)
+static void uart16550_start_tx(serial_interface_t* restrict interface)
 {
-    uart16550_t* port = port_of(device);
+    uart16550_t* port = port_of(interface);
     bool intr_state = spinlock_acquire_intr(&port->lock);
 
     if(port->ier) {
@@ -355,9 +355,9 @@ static void uart16550_start_tx(serial_device_t* restrict device)
     spinlock_release_intr(&port->lock, intr_state);
 }
 
-static int uart16550_set_line(serial_device_t* restrict device, const serial_line_t* restrict line)
+static int uart16550_set_line(serial_interface_t* restrict interface, const serial_line_t* restrict line)
 {
-    uart16550_t* port = port_of(device);
+    uart16550_t* port = port_of(interface);
     bool intr_state = spinlock_acquire_intr(&port->lock);
     int retval = write_line(port, line);
     spinlock_release_intr(&port->lock, intr_state);
@@ -365,9 +365,9 @@ static int uart16550_set_line(serial_device_t* restrict device, const serial_lin
     return retval;
 }
 
-static void uart16550_set_modem(serial_device_t* restrict device, uint32_t lines)
+static void uart16550_set_modem(serial_interface_t* restrict interface, uint32_t lines)
 {
-    uart16550_t* port = port_of(device);
+    uart16550_t* port = port_of(interface);
     bool intr_state = spinlock_acquire_intr(&port->lock);
 
     port->mcr &= ~(MCR_DTR | MCR_RTS);
@@ -385,9 +385,9 @@ static void uart16550_set_modem(serial_device_t* restrict device, uint32_t lines
     spinlock_release_intr(&port->lock, intr_state);
 }
 
-static uint32_t uart16550_get_modem(serial_device_t* restrict device)
+static uint32_t uart16550_get_modem(serial_interface_t* restrict interface)
 {
-    uart16550_t* port = port_of(device);
+    uart16550_t* port = port_of(interface);
     bool intr_state = spinlock_acquire_intr(&port->lock);
     uint8_t msr = read_reg(port, UART_MSR);
     uint8_t mcr = port->mcr;
@@ -404,9 +404,9 @@ static uint32_t uart16550_get_modem(serial_device_t* restrict device)
     return lines;
 }
 
-static void uart16550_set_break(serial_device_t* restrict device, bool on)
+static void uart16550_set_break(serial_interface_t* restrict interface, bool on)
 {
-    uart16550_t* port = port_of(device);
+    uart16550_t* port = port_of(interface);
     bool intr_state = spinlock_acquire_intr(&port->lock);
 
     if(on) {
@@ -421,9 +421,9 @@ static void uart16550_set_break(serial_device_t* restrict device, bool on)
     spinlock_release_intr(&port->lock, intr_state);
 }
 
-static void uart16550_release(const serial_device_t* restrict device)
+static void uart16550_release(const serial_interface_t* restrict interface)
 {
-    kfree(port_of(device));
+    kfree(port_of(interface));
 }
 
 static void wait_transmitter(const uart16550_t* restrict port, uint8_t bits)
@@ -435,9 +435,9 @@ static void wait_transmitter(const uart16550_t* restrict port, uint8_t bits)
     }
 }
 
-static void uart16550_poll_write(serial_device_t* restrict device, const void* restrict data, size_t size)
+static void uart16550_poll_write(serial_interface_t* restrict interface, const void* restrict data, size_t size)
 {
-    uart16550_t* port = port_of(device);
+    uart16550_t* port = port_of(interface);
     const uint8_t* bytes = data;
 
     for(size_t i = 0; i < size; ++i) {
@@ -446,14 +446,14 @@ static void uart16550_poll_write(serial_device_t* restrict device, const void* r
     }
 }
 
-static void uart16550_poll_drain(serial_device_t* restrict device)
+static void uart16550_poll_drain(serial_interface_t* restrict interface)
 {
-    wait_transmitter(port_of(device), LSR_THRE | LSR_TEMT);
+    wait_transmitter(port_of(interface), LSR_THRE | LSR_TEMT);
 }
 
-static void uart16550_poll_reset(serial_device_t* restrict device, const serial_line_t* restrict line)
+static void uart16550_poll_reset(serial_interface_t* restrict interface, const serial_line_t* restrict line)
 {
-    uart16550_t* port = port_of(device);
+    uart16550_t* port = port_of(interface);
 
     port->ier = 0;
     write_reg(port, UART_IER, port->ier);
@@ -469,7 +469,7 @@ static void uart16550_poll_reset(serial_device_t* restrict device, const serial_
     }
 }
 
-static const serial_device_ops_t uart16550_ops = {
+static const serial_interface_ops_t uart16550_ops = {
     .startup = &uart16550_startup,
     .shutdown = &uart16550_shutdown,
     .start_tx = &uart16550_start_tx,
@@ -524,7 +524,7 @@ int uart16550_add(uart16550_t* restrict port)
 
     port->fifo_size = detect_fifo(port);
 
-    serial_device_t* serial = &port->serial;
+    serial_interface_t* serial = &port->serial;
     serial->ops = &uart16550_ops;
     serial->driver = "uart16550";
     serial->max_speed = port->clock / 16;
@@ -542,7 +542,7 @@ int uart16550_add(uart16550_t* restrict port)
         write_line(port, &line);
     }
 
-    int retval = serial_device_add(serial);
+    int retval = serial_interface_add(serial);
 
     if(retval < 0) {
         return retval;
@@ -555,14 +555,14 @@ int uart16550_add(uart16550_t* restrict port)
 
 void uart16550_remove(uart16550_t* restrict port)
 {
-    char_device_incref(&port->serial.chr);
-    serial_device_remove(&port->serial);
+    char_interface_incref(&port->serial.char_interface);
+    serial_interface_remove(&port->serial);
 }
 
 void uart16550_free(uart16550_t* restrict port)
 {
     if(port->added) {
-        char_device_decref(&port->serial.chr);
+        char_interface_decref(&port->serial.char_interface);
         return;
     }
 

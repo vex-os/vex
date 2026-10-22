@@ -1,6 +1,6 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/errno.h>
 #include <vex/event.h>
 #include <vex/fcache.h>
@@ -222,14 +222,14 @@ static void remove_page(fcache_t* restrict cache, pframe_t* restrict pframe)
     }
 }
 
-static bool sector_size_valid(const block_device_t* restrict device)
+static bool sector_size_valid(const block_interface_t* restrict volume)
 {
-    return device->sector_size && device->sector_size <= PAGE_SIZE && 0 == (PAGE_SIZE % device->sector_size);
+    return volume->sector_size && volume->sector_size <= PAGE_SIZE && 0 == (PAGE_SIZE % volume->sector_size);
 }
 
 static unsigned sector_span(vnode_t* restrict node, size_t in_page, size_t length)
 {
-    size_t sector_size = node->fs->device->sector_size;
+    size_t sector_size = node->fs->volume->sector_size;
     size_t first = in_page / sector_size;
     size_t last = (in_page + length - 1) / sector_size;
 
@@ -238,8 +238,8 @@ static unsigned sector_span(vnode_t* restrict node, size_t in_page, size_t lengt
 
 static int fill_page(vnode_t* restrict node, fcache_bmap_t bmap, pframe_t* restrict pframe, off_t size)
 {
-    const block_device_t* device = node->fs->device;
-    size_t sector_size = device->sector_size;
+    const block_interface_t* volume = node->fs->volume;
+    size_t sector_size = volume->sector_size;
     uint8_t* data = page_data(pframe);
 
     size_t valid = valid_bytes(pframe->index, size);
@@ -267,7 +267,7 @@ static int fill_page(vnode_t* restrict node, fcache_bmap_t bmap, pframe_t* restr
         }
 
         if(extent.mapped) {
-            retval = block_read(device, extent.lba, count, data + i * sector_size);
+            retval = block_read(volume, extent.lba, count, data + i * sector_size);
 
             if(retval < 0) {
                 return retval;
@@ -287,7 +287,7 @@ static int fill_page(vnode_t* restrict node, fcache_bmap_t bmap, pframe_t* restr
 
 static int allocate_span(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t pos, size_t length)
 {
-    size_t sector_size = node->fs->device->sector_size;
+    size_t sector_size = node->fs->volume->sector_size;
     uint64_t sector = pos / sector_size;
     uint64_t end = (pos + length + sector_size - 1) / sector_size;
 
@@ -311,7 +311,7 @@ static int allocate_span(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t po
 
 static int write_run(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t sector, size_t count, const uint8_t* restrict data)
 {
-    const block_device_t* device = node->fs->device;
+    const block_interface_t* volume = node->fs->volume;
 
     while(count > 0) {
         fcache_extent_t extent;
@@ -334,7 +334,7 @@ static int write_run(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t sector
         // A hole stays a hole; the sectors
         // written to were allocated by fcache_write
         if(extent.mapped) {
-            retval = block_write(device, extent.lba, chunk, data);
+            retval = block_write(volume, extent.lba, chunk, data);
 
             if(retval < 0) {
                 return retval;
@@ -343,7 +343,7 @@ static int write_run(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t sector
 
         sector += chunk;
         count -= chunk;
-        data += chunk * device->sector_size;
+        data += chunk * volume->sector_size;
     }
 
     return 0;
@@ -351,7 +351,7 @@ static int write_run(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t sector
 
 static int write_page(vnode_t* restrict node, fcache_bmap_t bmap, pframe_t* restrict pframe, off_t size)
 {
-    size_t sector_size = node->fs->device->sector_size;
+    size_t sector_size = node->fs->volume->sector_size;
     const uint8_t* data = page_data(pframe);
     unsigned dirty = pframe->flags >> PFRAME_DIRTY_SHIFT;
 
@@ -456,14 +456,14 @@ static void __noreturn writeback_thread(void* restrict arg)
 
 static int dev_bmap(vnode_t* restrict node, uint64_t sector, bool create, fcache_extent_t* restrict out)
 {
-    const block_device_t* device = node->fs->device;
+    const block_interface_t* volume = node->fs->volume;
 
-    if(sector >= device->sector_count) {
+    if(sector >= volume->sector_count) {
         return -EIO;
     }
 
     out->lba = sector;
-    out->count = device->sector_count - sector;
+    out->count = volume->sector_count - sector;
     out->mapped = true;
 
     return 0;
@@ -471,8 +471,8 @@ static int dev_bmap(vnode_t* restrict node, uint64_t sector, bool create, fcache
 
 static off_t dev_size(const vnode_t* restrict node)
 {
-    const block_device_t* device = node->fs->device;
-    return device->sector_count * device->sector_size;
+    const block_interface_t* volume = node->fs->volume;
+    return volume->sector_count * volume->sector_size;
 }
 
 static int dev_fsync(vnode_t* restrict node)
@@ -521,7 +521,7 @@ ssize_t fcache_read(vnode_t* restrict node, fcache_bmap_t bmap, void* restrict b
         return -EINVAL;
     }
 
-    if(!sector_size_valid(node->fs->device)) {
+    if(!sector_size_valid(node->fs->volume)) {
         return -EINVAL;
     }
 
@@ -587,7 +587,7 @@ ssize_t fcache_write(vnode_t* restrict node, fcache_bmap_t bmap, const void* res
         return -EINVAL;
     }
 
-    if(!sector_size_valid(node->fs->device)) {
+    if(!sector_size_valid(node->fs->volume)) {
         return -EINVAL;
     }
 
@@ -674,7 +674,7 @@ int fcache_fault(vnode_t* restrict node, fcache_bmap_t bmap, off_t offset, off_t
 {
     kassert(0 == page_offset(offset));
 
-    if(!sector_size_valid(node->fs->device)) {
+    if(!sector_size_valid(node->fs->volume)) {
         return -EINVAL;
     }
 

@@ -1,6 +1,6 @@
 #include <vex/assert.h>
 #include <vex/bitmap.h>
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/ctype.h>
 #include <vex/dirent.h>
 #include <vex/endian.h>
@@ -851,7 +851,7 @@ static int fat_bmap(vnode_t* restrict node, uint64_t sector, bool create, fcache
     fat_vnode_context_t* context = node->ctxdata;
     fat_vfs_context_t* fs = context->fs_ctx;
 
-    if(fs->sector_size != fs->device->sector_size) {
+    if(fs->sector_size != fs->volume->sector_size) {
         return -EIO;
     }
 

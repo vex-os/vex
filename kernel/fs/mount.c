@@ -1,6 +1,6 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/cmdline.h>
 #include <vex/dev_name.h>
 #include <vex/fcache.h>
@@ -48,12 +48,12 @@ static vfs_driver_t* find_driver(const char* restrict name)
     return nullptr;
 }
 
-static vfs_driver_t* deduce_driver(const block_device_t* restrict device)
+static vfs_driver_t* deduce_driver(const block_interface_t* restrict volume)
 {
     vfs_driver_t* it;
 
     for(it = drivers_head; it; it = it->priv.next) {
-        if(it->ops->probe && it->ops->probe(nullptr, device) == 0) {
+        if(it->ops->probe && it->ops->probe(nullptr, volume) == 0) {
             return it;
         }
     }
@@ -61,12 +61,12 @@ static vfs_driver_t* deduce_driver(const block_device_t* restrict device)
     return nullptr;
 }
 
-static int set_dev(vfs_t* restrict fs, const block_device_t* restrict device)
+static int set_dev(vfs_t* restrict fs, const block_interface_t* restrict volume)
 {
     fs->unit = nullptr;
 
-    if(device) {
-        fs->dev = device->priv.dev;
+    if(volume) {
+        fs->dev = volume->priv.dev;
         return 0;
     }
 
@@ -96,7 +96,7 @@ static void free_fs(vfs_t* restrict fs)
     slab_free(fs);
 }
 
-static int mount_locked(const char* restrict type, const char* restrict path, const block_device_t* restrict device,
+static int mount_locked(const char* restrict type, const char* restrict path, const block_interface_t* restrict volume,
     const char* restrict params)
 {
     if(path == nullptr) {
@@ -108,7 +108,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
     vfs_driver_t* driver;
 
     if(type == nullptr) {
-        driver = deduce_driver(device);
+        driver = deduce_driver(volume);
     }
     else {
         driver = find_driver(type);
@@ -143,7 +143,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
     fs->ops = driver->ops;
     fs->readonly = false;
 
-    int retval = set_dev(fs, device);
+    int retval = set_dev(fs, volume);
 
     if(retval < 0) {
         if(cmdl.buffer)
@@ -154,17 +154,17 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
 
     // The driver reads its metadata
     // through the file cache while mounting
-    fs->device = device;
+    fs->volume = volume;
 
-    retval = driver->ops->mount(fs, device, &cmdl);
+    retval = driver->ops->mount(fs, volume, &cmdl);
 
     const char* device_name;
 
-    if(device == nullptr) {
+    if(volume == nullptr) {
         device_name = "null";
     }
     else {
-        device_name = device->name;
+        device_name = volume->name;
     }
 
     if(retval == 0) {
@@ -245,8 +245,8 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
 
     spinlock_release(&mounts_lock);
 
-    if(device) {
-        block_device_incref(device);
+    if(volume) {
+        block_interface_incref(volume);
     }
 
     return 0;
@@ -308,10 +308,10 @@ int vfs_driver_remove(vfs_driver_t* restrict driver)
     return -ENOENT;
 }
 
-int vfs_mount(const char* restrict type, const char* restrict path, const block_device_t* restrict device, const char* restrict params)
+int vfs_mount(const char* restrict type, const char* restrict path, const block_interface_t* restrict volume, const char* restrict params)
 {
     mutex_acquire(&mounts_mutex);
-    int retval = mount_locked(type, path, device, params);
+    int retval = mount_locked(type, path, volume, params);
     mutex_release(&mounts_mutex);
     return retval;
 }
@@ -399,8 +399,8 @@ int vfs_unmount(const char* restrict path)
     vcache_evict(fs);
     fs->ops->unmount(fs);
 
-    if(fs->device) {
-        block_device_decref(fs->device);
+    if(fs->volume) {
+        block_interface_decref(fs->volume);
     }
 
     free_fs(fs);

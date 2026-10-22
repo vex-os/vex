@@ -1,5 +1,5 @@
-#include <vex/block_device.h>
 #include <vex/block_event.h>
+#include <vex/block_interface.h>
 #include <vex/errno.h>
 #include <vex/hrsize.h>
 #include <vex/kmalloc.h>
@@ -19,54 +19,54 @@ static unsigned events_depth = 0;
 static event_handler_t* handlers_head = nullptr;
 
 #ifdef CONFIG_TRACE_BLK_EVENTS
-static void block_event_log(unsigned event, const block_device_t* restrict device)
+static void block_event_log(unsigned event, const block_interface_t* restrict interface)
 {
     char hrsize_buffer[256];
 
     switch(event) {
-        case BLOCK_EVENT_DEVICE_ADDED:
-            pr_verbose("block_event: device added: %s", device->name);
+        case BLOCK_EVENT_INTERFACE_ADDED:
+            pr_verbose("block_event: device added: %s", interface->name);
             break;
 
-        case BLOCK_EVENT_DEVICE_REMOVED:
-            pr_verbose("block_event: device removed: %s", device->name);
+        case BLOCK_EVENT_INTERFACE_REMOVED:
+            pr_verbose("block_event: device removed: %s", interface->name);
             break;
 
         case BLOCK_EVENT_MEDIA_CONNECTED:
-            format_size_iec(hrsize_buffer, sizeof(hrsize_buffer), device->sector_count * device->sector_size);
-            pr_verbose("block_event: media connected: %s: %s [%zux%zu]", device->name, hrsize_buffer, device->sector_count,
-                device->sector_size);
+            format_size_iec(hrsize_buffer, sizeof(hrsize_buffer), interface->sector_count * interface->sector_size);
+            pr_verbose("block_event: media connected: %s: %s [%zux%zu]", interface->name, hrsize_buffer, interface->sector_count,
+                interface->sector_size);
             break;
 
         case BLOCK_EVENT_MEDIA_DISCONNECTED:
-            pr_verbose("block_event: media disconnected: %s", device->name);
+            pr_verbose("block_event: media disconnected: %s", interface->name);
             break;
 
         case BLOCK_EVENT_PARTITION_ADDED:
-            format_size_iec(hrsize_buffer, sizeof(hrsize_buffer), device->sector_count * device->sector_size);
-            pr_verbose("block_event: partition added: %s: %s [%zux%zu]", device->name, hrsize_buffer, device->sector_count,
-                device->sector_size);
+            format_size_iec(hrsize_buffer, sizeof(hrsize_buffer), interface->sector_count * interface->sector_size);
+            pr_verbose("block_event: partition added: %s: %s [%zux%zu]", interface->name, hrsize_buffer, interface->sector_count,
+                interface->sector_size);
             break;
 
         case BLOCK_EVENT_PARTITION_REMOVED:
-            pr_verbose("block_event: partition removed: %s", device->name);
+            pr_verbose("block_event: partition removed: %s", interface->name);
             break;
     }
 }
 #endif
 
-static void replay_device(const block_device_t* restrict device, void* restrict arg)
+static void replay_device(const block_interface_t* restrict interface, void* restrict arg)
 {
     const event_handler_t* entry = arg;
 
-    entry->handler(BLOCK_EVENT_DEVICE_ADDED, device, entry->ctxdata);
+    entry->handler(BLOCK_EVENT_INTERFACE_ADDED, interface, entry->ctxdata);
 
-    if(device->flags & BLOCK_FLAG_PRESENT) {
-        if(device->flags & BLOCK_FLAG_PARTITION) {
-            entry->handler(BLOCK_EVENT_PARTITION_ADDED, device, entry->ctxdata);
+    if(interface->flags & BLOCK_FLAG_PRESENT) {
+        if(interface->flags & BLOCK_FLAG_PARTITION) {
+            entry->handler(BLOCK_EVENT_PARTITION_ADDED, interface, entry->ctxdata);
         }
         else {
-            entry->handler(BLOCK_EVENT_MEDIA_CONNECTED, device, entry->ctxdata);
+            entry->handler(BLOCK_EVENT_MEDIA_CONNECTED, interface, entry->ctxdata);
         }
     }
 }
@@ -119,7 +119,7 @@ int block_event_subscribe(block_event_handler_t handler, void* restrict ctxdata)
     entry->next = handlers_head;
     handlers_head = entry;
 
-    block_device_for_each(&replay_device, entry);
+    block_interface_for_each(&replay_device, entry);
 
     mutex_release(&events_mutex);
 
@@ -150,16 +150,16 @@ int block_event_unsubscribe(block_event_handler_t handler, void* restrict ctxdat
     return -ENOENT;
 }
 
-void block_event_notify(unsigned event, const block_device_t* restrict device)
+void block_event_notify(unsigned event, const block_interface_t* restrict interface)
 {
 #ifdef CONFIG_TRACE_BLK_EVENTS
-    block_event_log(event, device);
+    block_event_log(event, interface);
 #endif
 
     block_event_lock();
 
     for(event_handler_t* it = handlers_head; it; it = it->next) {
-        it->handler(event, device, it->ctxdata);
+        it->handler(event, interface, it->ctxdata);
     }
 
     block_event_unlock();

@@ -1,4 +1,4 @@
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
 #include <vex/kprintf.h>
@@ -88,7 +88,7 @@ static int read_record(vnode_t* restrict dir, uint64_t offset, ext2_dir_entry_t*
     valid = valid && *rec_len <= fs_ctx->block_size - in_block;
 
     if(!valid) {
-        pr_warning("ext2: %s: inode %u has a broken directory record at %zu", fs_ctx->device->name, (uint32_t)(dir->ino), (size_t)(offset));
+        pr_warning("ext2: %s: inode %u has a broken directory record at %zu", fs_ctx->volume->name, (uint32_t)(dir->ino), (size_t)(offset));
         return -EIO;
     }
 

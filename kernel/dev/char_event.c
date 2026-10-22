@@ -1,5 +1,5 @@
-#include <vex/char_device.h>
 #include <vex/char_event.h>
+#include <vex/char_interface.h>
 #include <vex/errno.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
@@ -18,24 +18,24 @@ static unsigned events_depth = 0;
 static event_handler_t* handlers_head = nullptr;
 
 #ifdef CONFIG_TRACE_CHR_EVENTS
-static void log_char_event(unsigned event, const char_device_t* restrict device)
+static void log_char_event(unsigned event, const char_interface_t* restrict interface)
 {
     switch(event) {
-        case CHAR_EVENT_DEVICE_ADDED:
-            pr_verbose("char_event: device added: %s", device->name);
+        case CHAR_EVENT_INTERFACE_ADDED:
+            pr_verbose("char_event: device added: %s", interface->name);
             break;
 
-        case CHAR_EVENT_DEVICE_REMOVED:
-            pr_verbose("char_event: device removed: %s", device->name);
+        case CHAR_EVENT_INTERFACE_REMOVED:
+            pr_verbose("char_event: device removed: %s", interface->name);
             break;
     }
 }
 #endif
 
-static void replay_device(const char_device_t* restrict device, void* restrict arg)
+static void replay_device(const char_interface_t* restrict interface, void* restrict arg)
 {
     const event_handler_t* entry = arg;
-    entry->handler(CHAR_EVENT_DEVICE_ADDED, device, entry->ctxdata);
+    entry->handler(CHAR_EVENT_INTERFACE_ADDED, interface, entry->ctxdata);
 }
 
 void char_event_lock(void)
@@ -86,7 +86,7 @@ int char_event_subscribe(char_event_handler_t handler, void* restrict ctxdata)
     entry->next = handlers_head;
     handlers_head = entry;
 
-    char_device_for_each(&replay_device, entry);
+    char_interface_for_each(&replay_device, entry);
 
     mutex_release(&events_mutex);
 
@@ -117,16 +117,16 @@ int char_event_unsubscribe(char_event_handler_t handler, void* restrict ctxdata)
     return -ENOENT;
 }
 
-void char_event_notify(unsigned event, const char_device_t* restrict device)
+void char_event_notify(unsigned event, const char_interface_t* restrict interface)
 {
 #ifdef CONFIG_TRACE_CHR_EVENTS
-    log_char_event(event, device);
+    log_char_event(event, interface);
 #endif
 
     char_event_lock();
 
     for(event_handler_t* it = handlers_head; it; it = it->next) {
-        it->handler(event, device, it->ctxdata);
+        it->handler(event, interface, it->ctxdata);
     }
 
     char_event_unlock();

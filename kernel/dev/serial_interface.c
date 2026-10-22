@@ -10,7 +10,7 @@
 #include <vex/errno.h>
 #include <vex/event.h>
 #include <vex/kprintf.h>
-#include <vex/serial_device.h>
+#include <vex/serial_interface.h>
 #include <vex/stdlib.h>
 #include <vex/string.h>
 #include <vex/strings.h>
@@ -44,14 +44,14 @@ struct exchange_s {
 static spinlock_t consumers_lock = SPINLOCK_INIT;
 static serial_consumer_t* consumers_head = nullptr;
 
-static serial_device_t* serial_of(const char_device_t* restrict chr)
+static serial_interface_t* serial_of(const char_interface_t* restrict chr)
 {
     return chr->ctxdata;
 }
 
-static bool is_removed(const serial_device_t* restrict device)
+static bool is_removed(const serial_interface_t* restrict interface)
 {
-    return atomic_load(&device->priv.removed, ATOMIC_ACQUIRE);
+    return atomic_load(&interface->priv.removed, ATOMIC_ACQUIRE);
 }
 
 static bool is_terminated(const char* restrict buffer, size_t size)
@@ -69,11 +69,11 @@ static void sleep_msec(uint32_t msec)
     event_deinit(&never);
 }
 
-static void set_dispatch(serial_device_t* restrict device, const serial_consumer_t* restrict consumer)
+static void set_dispatch(serial_interface_t* restrict interface, const serial_consumer_t* restrict consumer)
 {
-    bool intr_state = spinlock_acquire_intr(&device->priv.dispatch_lock);
-    device->priv.consumer = consumer;
-    spinlock_release_intr(&device->priv.dispatch_lock, intr_state);
+    bool intr_state = spinlock_acquire_intr(&interface->priv.dispatch_lock);
+    interface->priv.consumer = consumer;
+    spinlock_release_intr(&interface->priv.dispatch_lock, intr_state);
 }
 
 static bool line_is_valid(const serial_line_t* restrict line)
@@ -87,76 +87,76 @@ static bool line_is_valid(const serial_line_t* restrict line)
     return result;
 }
 
-static int startup_locked(serial_device_t* restrict device)
+static int startup_locked(serial_interface_t* restrict interface)
 {
-    if(device->priv.started) {
+    if(interface->priv.started) {
         return 0;
     }
 
-    if(device->ops->startup) {
-        int retval = device->ops->startup(device);
+    if(interface->ops->startup) {
+        int retval = interface->ops->startup(interface);
 
         if(retval < 0) {
             return retval;
         }
     }
 
-    device->priv.started = true;
+    interface->priv.started = true;
 
     return 0;
 }
 
-static void shutdown_locked(serial_device_t* restrict device)
+static void shutdown_locked(serial_interface_t* restrict interface)
 {
-    if(!device->priv.started) {
+    if(!interface->priv.started) {
         return;
     }
 
-    if(device->ops->shutdown) {
-        device->ops->shutdown(device);
+    if(interface->ops->shutdown) {
+        interface->ops->shutdown(interface);
     }
 
-    device->priv.started = false;
+    interface->priv.started = false;
 }
 
-static int set_line_locked(serial_device_t* restrict device, const serial_line_t* restrict line)
+static int set_line_locked(serial_interface_t* restrict interface, const serial_line_t* restrict line)
 {
-    if(!line_is_valid(line) || line->speed > device->max_speed) {
+    if(!line_is_valid(line) || line->speed > interface->max_speed) {
         return -EINVAL;
     }
 
-    int retval = device->ops->set_line(device, line);
+    int retval = interface->ops->set_line(interface, line);
 
     if(retval == 0) {
-        device->line = *line;
+        interface->line = *line;
     }
 
     return retval;
 }
 
-static void set_modem_locked(serial_device_t* restrict device, uint32_t raise, uint32_t lower)
+static void set_modem_locked(serial_interface_t* restrict interface, uint32_t raise, uint32_t lower)
 {
-    uint32_t outputs = device->modem_lines & (SERIAL_MODEM_DTR | SERIAL_MODEM_RTS);
+    uint32_t outputs = interface->modem_lines & (SERIAL_MODEM_DTR | SERIAL_MODEM_RTS);
 
-    device->priv.modem = ((device->priv.modem & ~lower) | raise) & outputs;
+    interface->priv.modem = ((interface->priv.modem & ~lower) | raise) & outputs;
 
-    if(device->ops->set_modem) {
-        device->ops->set_modem(device, device->priv.modem);
+    if(interface->ops->set_modem) {
+        interface->ops->set_modem(interface, interface->priv.modem);
     }
 }
 
-static uint32_t get_modem_locked(serial_device_t* restrict device)
+static uint32_t get_modem_locked(serial_interface_t* restrict interface)
 {
-    if(device->ops->get_modem) {
-        return device->ops->get_modem(device);
+    if(interface->ops->get_modem) {
+        return interface->ops->get_modem(interface);
     }
 
-    return device->priv.modem;
+    return interface->priv.modem;
 }
 
-static int send_break_locked(serial_device_t* restrict device, uint32_t msec)
+static int send_break_locked(serial_interface_t* restrict interface, uint32_t msec)
 {
-    if(device->ops->set_break == nullptr) {
+    if(interface->ops->set_break == nullptr) {
         return -EINVAL;
     }
 
@@ -164,9 +164,9 @@ static int send_break_locked(serial_device_t* restrict device, uint32_t msec)
         msec = BREAK_DEFAULT_MSEC;
     }
 
-    device->ops->set_break(device, true);
+    interface->ops->set_break(interface, true);
     sleep_msec(msec);
-    device->ops->set_break(device, false);
+    interface->ops->set_break(interface, false);
 
     return 0;
 }
@@ -186,13 +186,13 @@ static const serial_consumer_t* find_consumer(const char* restrict name)
     return consumer;
 }
 
-static int bind_locked(serial_device_t* restrict device, serial_binding_t* restrict binding)
+static int bind_locked(serial_interface_t* restrict interface, serial_binding_t* restrict binding)
 {
-    if(is_removed(device)) {
+    if(is_removed(interface)) {
         return -ENODEV;
     }
 
-    if(device->priv.consumer || device->priv.unbinding) {
+    if(interface->priv.consumer || interface->priv.unbinding) {
         return -EBUSY;
     }
 
@@ -202,68 +202,69 @@ static int bind_locked(serial_device_t* restrict device, serial_binding_t* restr
         return -ENOENT;
     }
 
-    int retval = consumer->bind(device, binding->options, &binding->index, binding->object, sizeof(binding->object));
+    int retval = consumer->bind(interface, binding->options, &binding->index, binding->object, sizeof(binding->object));
 
     if(retval < 0) {
         return retval;
     }
 
-    set_dispatch(device, consumer);
-    device->priv.binding = *binding;
+    set_dispatch(interface, consumer);
+    interface->priv.binding = *binding;
 
     return 0;
 }
 
 // The consumer's unbind runs without the lock
 // as the last calls of what it takes away may need it
-static int unbind(serial_device_t* restrict device, bool force)
+static int unbind(serial_interface_t* restrict interface, bool force)
 {
     const serial_consumer_t* consumer = nullptr;
     int retval = 0;
 
-    mutex_acquire(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
 
-    if(device->priv.unbinding) {
+    if(interface->priv.unbinding) {
         retval = -EBUSY;
     }
-    else if(device->priv.binding.consumer[0] == 0) {
+    else if(interface->priv.binding.consumer[0] == 0) {
         retval = -ENXIO;
     }
     else {
-        consumer = device->priv.consumer;
-        device->priv.unbinding = true;
+        consumer = interface->priv.consumer;
+        interface->priv.unbinding = true;
     }
 
-    mutex_release(&device->priv.lock);
+    mutex_release(&interface->priv.lock);
 
     if(consumer == nullptr) {
         return retval;
     }
 
-    retval = consumer->unbind(device, force);
+    retval = consumer->unbind(interface, force);
 
-    mutex_acquire(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
 
-    device->priv.unbinding = false;
+    interface->priv.unbinding = false;
 
     if(retval == 0) {
-        set_dispatch(device, nullptr);
-        memset(&device->priv.binding, 0, sizeof(device->priv.binding));
-        device->consumer_data = nullptr;
-        shutdown_locked(device);
+        set_dispatch(interface, nullptr);
+        memset(&interface->priv.binding, 0, sizeof(interface->priv.binding));
+        interface->consumer_data = nullptr;
+        shutdown_locked(interface);
     }
 
-    mutex_release(&device->priv.lock);
+    mutex_release(&interface->priv.lock);
 
     return retval;
 }
 
-static void bind_from_cmdline_item(serial_device_t* restrict device, const char* restrict item, size_t length)
+static void bind_from_cmdline_item(serial_interface_t* restrict interface, const char* restrict item, size_t length)
 {
     const char* colon = memchr(item, ':', length);
     size_t port_length = colon - item;
 
-    if(colon == nullptr || port_length != strlen(device->chr.name) || strncmp(item, device->chr.name, port_length)) {
+    if(colon == nullptr || port_length != strlen(interface->char_interface.name)
+        || strncmp(item, interface->char_interface.name, port_length)) {
         return;
     }
 
@@ -279,7 +280,7 @@ static void bind_from_cmdline_item(serial_device_t* restrict device, const char*
     binding.index = SERIAL_ANY_INDEX;
 
     if(letters == 0 || letters >= sizeof(binding.consumer)) {
-        pr_warning("serial: %s: bad serial.bind= consumer", device->chr.name);
+        pr_warning("serial: %s: bad serial.bind= consumer", interface->char_interface.name);
         return;
     }
 
@@ -289,21 +290,21 @@ static void bind_from_cmdline_item(serial_device_t* restrict device, const char*
         binding.index = strtol(&name[letters], nullptr, 10);
     }
 
-    mutex_acquire(&device->priv.lock);
-    int retval = bind_locked(device, &binding);
-    mutex_release(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
+    int retval = bind_locked(interface, &binding);
+    mutex_release(&interface->priv.lock);
 
     if(retval < 0) {
-        pr_warning("serial: %s: binding %s: %s", device->chr.name, binding.consumer, strerror(retval));
+        pr_warning("serial: %s: binding %s: %s", interface->char_interface.name, binding.consumer, strerror(retval));
         return;
     }
 
-    pr_inform("serial: %s bound to %s", device->chr.name, binding.object);
+    pr_inform("serial: %s bound to %s", interface->char_interface.name, binding.object);
 }
 
 // serial.bind=serial0:tty0,serial1:tty binds by the port's
 // name; an index after the consumer's name is the one to give
-static void bind_from_cmdline(serial_device_t* restrict device)
+static void bind_from_cmdline(serial_interface_t* restrict interface)
 {
     const char* list = cmdline_argument(&sys_cmdline, "serial.bind");
 
@@ -311,12 +312,12 @@ static void bind_from_cmdline(serial_device_t* restrict device)
         const char* comma = strchr(list, ',');
 
         if(comma == nullptr) {
-            bind_from_cmdline_item(device, list, strlen(list));
+            bind_from_cmdline_item(interface, list, strlen(list));
 
             list = nullptr;
         }
         else {
-            bind_from_cmdline_item(device, list, (size_t)(comma - list));
+            bind_from_cmdline_item(interface, list, (size_t)(comma - list));
 
             list = comma + 1;
         }
@@ -334,18 +335,18 @@ static void take_answer(exchange_t* restrict exchange, uint8_t byte)
     }
 }
 
-static void exchange_receive(serial_device_t* restrict device, const uint8_t* restrict bytes, size_t count)
+static void exchange_receive(serial_interface_t* restrict interface, const uint8_t* restrict bytes, size_t count)
 {
-    exchange_t* exchange = device->consumer_data;
+    exchange_t* exchange = interface->consumer_data;
 
     for(size_t i = 0; i < count && !exchange->done; ++i) {
         take_answer(exchange, bytes[i]);
     }
 }
 
-static void exchange_receive_error(serial_device_t* restrict device, uint8_t byte, unsigned error)
+static void exchange_receive_error(serial_interface_t* restrict interface, uint8_t byte, unsigned error)
 {
-    exchange_t* exchange = device->consumer_data;
+    exchange_t* exchange = interface->consumer_data;
 
     if(error != SERIAL_ERROR_BREAK && !exchange->done) {
         take_answer(exchange, byte);
@@ -353,9 +354,9 @@ static void exchange_receive_error(serial_device_t* restrict device, uint8_t byt
 }
 
 // An exchange that reads nothing back is done once its bytes are taken
-static size_t exchange_transmit_take(serial_device_t* restrict device, void* restrict buffer, size_t size)
+static size_t exchange_transmit_take(serial_interface_t* restrict interface, void* restrict buffer, size_t size)
 {
-    exchange_t* exchange = device->consumer_data;
+    exchange_t* exchange = interface->consumer_data;
     size_t count = exchange->send_size - exchange->sent;
 
     if(count > size) {
@@ -382,14 +383,14 @@ static const serial_consumer_t exchange_consumer = {
     .transmit_take = &exchange_transmit_take,
 };
 
-static int wait_exchanged(serial_device_t* restrict device, exchange_t* restrict exchange, uint32_t timeout_msec)
+static int wait_exchanged(serial_interface_t* restrict interface, exchange_t* restrict exchange, uint32_t timeout_msec)
 {
     uint64_t deadline = clock_source_now_ns() + timeout_msec * NSEC_PER_MSEC;
     int retval = 0;
 
-    bool intr_state = spinlock_acquire_intr(&device->priv.dispatch_lock);
+    bool intr_state = spinlock_acquire_intr(&interface->priv.dispatch_lock);
 
-    while(!exchange->done && !is_removed(device)) {
+    while(!exchange->done && !is_removed(interface)) {
         uint64_t now = clock_source_now_ns();
 
         if(now >= deadline) {
@@ -397,9 +398,9 @@ static int wait_exchanged(serial_device_t* restrict device, exchange_t* restrict
         }
 
         event_t* finished = &exchange->finished;
-        ssize_t result = event_await_unlock(&finished, 1, &device->priv.dispatch_lock, intr_state, deadline - now);
+        ssize_t result = event_await_unlock(&finished, 1, &interface->priv.dispatch_lock, intr_state, deadline - now);
 
-        intr_state = spinlock_acquire_intr(&device->priv.dispatch_lock);
+        intr_state = spinlock_acquire_intr(&interface->priv.dispatch_lock);
 
         if(result == -ETIMEDOUT) {
             break;
@@ -419,49 +420,49 @@ static int wait_exchanged(serial_device_t* restrict device, exchange_t* restrict
         }
     }
 
-    device->priv.consumer = nullptr;
+    interface->priv.consumer = nullptr;
 
-    spinlock_release_intr(&device->priv.dispatch_lock, intr_state);
+    spinlock_release_intr(&interface->priv.dispatch_lock, intr_state);
 
     return retval;
 }
 
-static int run_exchange_locked(serial_device_t* restrict device, exchange_t* restrict exchange, uint32_t timeout_msec)
+static int run_exchange_locked(serial_interface_t* restrict interface, exchange_t* restrict exchange, uint32_t timeout_msec)
 {
-    if(is_removed(device)) {
+    if(is_removed(interface)) {
         return -ENODEV;
     }
 
-    if(device->priv.consumer || device->priv.unbinding) {
+    if(interface->priv.consumer || interface->priv.unbinding) {
         return -EBUSY;
     }
 
-    bool was_started = device->priv.started;
-    int retval = startup_locked(device);
+    bool was_started = interface->priv.started;
+    int retval = startup_locked(interface);
 
     if(retval < 0) {
         return retval;
     }
 
-    device->consumer_data = exchange;
-    set_dispatch(device, &exchange_consumer);
+    interface->consumer_data = exchange;
+    set_dispatch(interface, &exchange_consumer);
 
     if(exchange->send_size) {
-        device->ops->start_tx(device);
+        interface->ops->start_tx(interface);
     }
 
-    retval = wait_exchanged(device, exchange, timeout_msec);
+    retval = wait_exchanged(interface, exchange, timeout_msec);
 
-    device->consumer_data = nullptr;
+    interface->consumer_data = nullptr;
 
     if(!was_started) {
-        shutdown_locked(device);
+        shutdown_locked(interface);
     }
 
     return retval;
 }
 
-static int exchange_bytes(serial_device_t* restrict device, uintptr_t argument)
+static int exchange_bytes(serial_interface_t* restrict interface, uintptr_t argument)
 {
     serial_exchange_t request;
     uint8_t send[SERIAL_EXCHANGE_MAX];
@@ -495,9 +496,9 @@ static int exchange_bytes(serial_device_t* restrict device, uintptr_t argument)
     exchange.terminator = request.terminator;
     event_init(&exchange.finished);
 
-    mutex_acquire(&device->priv.lock);
-    int retval = run_exchange_locked(device, &exchange, request.timeout_msec);
-    mutex_release(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
+    int retval = run_exchange_locked(interface, &exchange, request.timeout_msec);
+    mutex_release(&interface->priv.lock);
 
     event_deinit(&exchange.finished);
 
@@ -518,19 +519,19 @@ static int exchange_bytes(serial_device_t* restrict device, uintptr_t argument)
     return 0;
 }
 
-static int get_info(serial_device_t* restrict device, uintptr_t argument)
+static int get_info(serial_interface_t* restrict interface, uintptr_t argument)
 {
     serial_info_t info = {};
 
     // The structure starts zeroed, so a string as long as its field stays terminated
-    kstrncpy(info.driver, device->driver, sizeof(info.driver) - 1);
+    kstrncpy(info.driver, interface->driver, sizeof(info.driver) - 1);
 
-    if(device->firmware_id) {
-        kstrncpy(info.firmware_id, device->firmware_id, sizeof(info.firmware_id) - 1);
+    if(interface->firmware_id) {
+        kstrncpy(info.firmware_id, interface->firmware_id, sizeof(info.firmware_id) - 1);
     }
 
-    info.max_speed = device->max_speed;
-    info.modem_lines = device->modem_lines;
+    info.max_speed = interface->max_speed;
+    info.modem_lines = interface->modem_lines;
 
     if(user_copyout(argument, &info, sizeof(info)) < 0) {
         return -EFAULT;
@@ -539,11 +540,11 @@ static int get_info(serial_device_t* restrict device, uintptr_t argument)
     return 0;
 }
 
-static int get_line(serial_device_t* restrict device, uintptr_t argument)
+static int get_line(serial_interface_t* restrict interface, uintptr_t argument)
 {
-    mutex_acquire(&device->priv.lock);
-    serial_line_t line = device->line;
-    mutex_release(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
+    serial_line_t line = interface->line;
+    mutex_release(&interface->priv.lock);
 
     if(user_copyout(argument, &line, sizeof(line)) < 0) {
         return -EFAULT;
@@ -552,7 +553,7 @@ static int get_line(serial_device_t* restrict device, uintptr_t argument)
     return 0;
 }
 
-static int set_line(serial_device_t* restrict device, uintptr_t argument)
+static int set_line(serial_interface_t* restrict interface, uintptr_t argument)
 {
     serial_line_t line;
 
@@ -560,14 +561,14 @@ static int set_line(serial_device_t* restrict device, uintptr_t argument)
         return -EFAULT;
     }
 
-    return serial_device_set_line(device, &line);
+    return serial_interface_set_line(interface, &line);
 }
 
-static int get_modem(serial_device_t* restrict device, uintptr_t argument)
+static int get_modem(serial_interface_t* restrict interface, uintptr_t argument)
 {
-    mutex_acquire(&device->priv.lock);
-    uint32_t lines = get_modem_locked(device);
-    mutex_release(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
+    uint32_t lines = get_modem_locked(interface);
+    mutex_release(&interface->priv.lock);
 
     if(user_copyout(argument, &lines, sizeof(lines)) < 0) {
         return -EFAULT;
@@ -576,7 +577,7 @@ static int get_modem(serial_device_t* restrict device, uintptr_t argument)
     return 0;
 }
 
-static int set_modem(serial_device_t* restrict device, uintptr_t argument)
+static int set_modem(serial_interface_t* restrict interface, uintptr_t argument)
 {
     serial_modem_t modem;
 
@@ -584,12 +585,12 @@ static int set_modem(serial_device_t* restrict device, uintptr_t argument)
         return -EFAULT;
     }
 
-    serial_device_set_modem(device, modem.raise, modem.lower);
+    serial_interface_set_modem(interface, modem.raise, modem.lower);
 
     return 0;
 }
 
-static int send_break(serial_device_t* restrict device, uintptr_t argument)
+static int send_break(serial_interface_t* restrict interface, uintptr_t argument)
 {
     int32_t msec;
 
@@ -601,10 +602,10 @@ static int send_break(serial_device_t* restrict device, uintptr_t argument)
         return -EINVAL;
     }
 
-    return serial_device_send_break(device, msec);
+    return serial_interface_send_break(interface, msec);
 }
 
-static int bind(serial_device_t* restrict device, uintptr_t argument)
+static int bind(serial_interface_t* restrict interface, uintptr_t argument)
 {
     serial_binding_t binding;
 
@@ -626,9 +627,9 @@ static int bind(serial_device_t* restrict device, uintptr_t argument)
 
     memset(binding.object, 0, sizeof(binding.object));
 
-    mutex_acquire(&device->priv.lock);
-    int retval = bind_locked(device, &binding);
-    mutex_release(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
+    int retval = bind_locked(interface, &binding);
+    mutex_release(&interface->priv.lock);
 
     if(retval == 0) {
         if(user_copyout(argument, &binding, sizeof(binding)) < 0) {
@@ -639,11 +640,11 @@ static int bind(serial_device_t* restrict device, uintptr_t argument)
     return retval;
 }
 
-static int get_binding(serial_device_t* restrict device, uintptr_t argument)
+static int get_binding(serial_interface_t* restrict interface, uintptr_t argument)
 {
-    mutex_acquire(&device->priv.lock);
-    serial_binding_t binding = device->priv.binding;
-    mutex_release(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
+    serial_binding_t binding = interface->priv.binding;
+    mutex_release(&interface->priv.lock);
 
     if(user_copyout(argument, &binding, sizeof(binding)) < 0) {
         return -EFAULT;
@@ -670,94 +671,94 @@ static bool changes_port(uint32_t request)
 
 // Only the file that keeps everyone else out may change the port, so that a sequence
 // of requests, such as dialing a modem and binding it, isn't mixed with another's
-static bool may_change(const serial_device_t* restrict device)
+static bool may_change(const serial_interface_t* restrict interface)
 {
     thread_t* thread = this_thread();
 
-    return char_device_is_exclusive(&device->chr) && cred_capable(thread->credentials, CAP_SYS_TTY_CONFIG);
+    return char_interface_is_exclusive(&interface->char_interface) && cred_capable(thread->credentials, CAP_SYS_TTY_CONFIG);
 }
 
-static int serial_char_ioctl(const char_device_t* restrict chr, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
+static int serial_char_ioctl(const char_interface_t* restrict chr, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
 {
-    serial_device_t* device = serial_of(chr);
+    serial_interface_t* interface = serial_of(chr);
 
-    if(changes_port(request) && !may_change(device)) {
+    if(changes_port(request) && !may_change(interface)) {
         return -EPERM;
     }
 
     switch(request) {
         case SERIAL_GET_INFO:
-            return get_info(device, argument);
+            return get_info(interface, argument);
 
         case SERIAL_GET_LINE:
-            return get_line(device, argument);
+            return get_line(interface, argument);
 
         case SERIAL_SET_LINE:
-            return set_line(device, argument);
+            return set_line(interface, argument);
 
         case SERIAL_GET_MODEM:
-            return get_modem(device, argument);
+            return get_modem(interface, argument);
 
         case SERIAL_SET_MODEM:
-            return set_modem(device, argument);
+            return set_modem(interface, argument);
 
         case SERIAL_BREAK:
-            return send_break(device, argument);
+            return send_break(interface, argument);
 
         case SERIAL_EXCHANGE:
-            return exchange_bytes(device, argument);
+            return exchange_bytes(interface, argument);
 
         case SERIAL_BIND:
-            return bind(device, argument);
+            return bind(interface, argument);
 
         case SERIAL_UNBIND:
-            return unbind(device, false);
+            return unbind(interface, false);
 
         case SERIAL_GET_BINDING:
-            return get_binding(device, argument);
+            return get_binding(interface, argument);
 
         default:
             return -ENOTTY;
     }
 }
 
-static void serial_char_release(const char_device_t* restrict chr)
+static void serial_char_release(const char_interface_t* restrict chr)
 {
-    serial_device_t* device = serial_of(chr);
+    serial_interface_t* interface = serial_of(chr);
 
-    mutex_deinit(&device->priv.lock);
+    mutex_deinit(&interface->priv.lock);
 
-    if(device->ops->release) {
-        device->ops->release(device);
+    if(interface->ops->release) {
+        interface->ops->release(interface);
     }
 }
 
-static const char_device_ops_t serial_char_ops = {
+static const char_interface_ops_t serial_char_ops = {
     .ioctl = &serial_char_ioctl,
     .release = &serial_char_release,
 };
 
-static serial_device_t* console_port(const console_t* restrict cons)
+static serial_interface_t* console_port(const console_t* restrict cons)
 {
     return cons->ctxdata;
 }
 
 static void serial_console_write(console_t* restrict cons, const void* restrict data, size_t size)
 {
-    serial_device_t* device = console_port(cons);
-    device->ops->poll_write(device, data, size);
+    serial_interface_t* interface = console_port(cons);
+    interface->ops->poll_write(interface, data, size);
 }
 
 static void serial_console_release(console_t* restrict cons)
 {
-    serial_device_t* device = console_port(cons);
-    device->ops->poll_drain(device);
+    serial_interface_t* interface = console_port(cons);
+    interface->ops->poll_drain(interface);
 }
 
 static bool serial_console_takeover(console_t* restrict cons)
 {
-    serial_device_t* device = console_port(cons);
-    device->ops->poll_reset(device, &device->priv.console_line);
+    serial_interface_t* interface = console_port(cons);
+    interface->ops->poll_reset(interface, &interface->priv.console_line);
 
     return true;
 }
@@ -808,16 +809,16 @@ static bool parse_console_line(const char* restrict options, serial_line_t* rest
 
 // The console is added once the port has its name, but the
 // port's first open, which may come first, already releases it
-static void prepare_console(serial_device_t* restrict device, const char* restrict name)
+static void prepare_console(serial_interface_t* restrict interface, const char* restrict name)
 {
     char options[CONSOLE_OPTIONS_MAX];
-    serial_line_t line = device->line;
+    serial_line_t line = interface->line;
 
     if(console_lookup(name, options, sizeof(options)) != CONSOLE_LISTED) {
         return;
     }
 
-    if(device->ops->poll_write == nullptr) {
+    if(interface->ops->poll_write == nullptr) {
         pr_warning("serial: %s can't be a console", name);
         return;
     }
@@ -826,40 +827,40 @@ static void prepare_console(serial_device_t* restrict device, const char* restri
         pr_warning("serial: %s: bad console line %s", name, options);
     }
     else if(options[0]) {
-        mutex_acquire(&device->priv.lock);
-        int retval = set_line_locked(device, &line);
-        mutex_release(&device->priv.lock);
+        mutex_acquire(&interface->priv.lock);
+        int retval = set_line_locked(interface, &line);
+        mutex_release(&interface->priv.lock);
 
         if(retval < 0) {
             pr_warning("serial: %s: can't run the console at %s", name, options);
         }
     }
 
-    device->priv.console_line = device->line;
+    interface->priv.console_line = interface->line;
 
-    console_t* cons = &device->priv.console;
+    console_t* cons = &interface->priv.console;
     cons->ops = &serial_console_ops;
-    cons->name = device->chr.name;
+    cons->name = interface->char_interface.name;
     cons->consflags = CONSF_RECALL;
-    cons->ctxdata = device;
+    cons->ctxdata = interface;
 
-    device->chr.console = cons;
+    interface->char_interface.console = cons;
 }
 
-int serial_device_add(serial_device_t* restrict device)
+int serial_interface_add(serial_interface_t* restrict interface)
 {
-    serial_device_private_t* priv = &device->priv;
+    serial_interface_private_t* priv = &interface->priv;
 
     memset(priv, 0, sizeof(*priv));
     mutex_init(&priv->lock);
     priv->dispatch_lock = SPINLOCK_INIT;
 
-    if(device->line.speed == 0) {
-        device->line.speed = SERIAL_DEFAULT_SPEED;
-        device->line.data_bits = 8;
-        device->line.stop_bits = 1;
-        device->line.parity = SERIAL_PARITY_NONE;
-        device->line.flow = 0;
+    if(interface->line.speed == 0) {
+        interface->line.speed = SERIAL_DEFAULT_SPEED;
+        interface->line.data_bits = 8;
+        interface->line.stop_bits = 1;
+        interface->line.parity = SERIAL_PARITY_NONE;
+        interface->line.flow = 0;
     }
 
     int retval = dev_unit_alloc(&dev_prefix_serial, &priv->unit);
@@ -869,24 +870,24 @@ int serial_device_add(serial_device_t* restrict device)
         return retval;
     }
 
-    device->consumer_data = nullptr;
-    device->chr.ops = &serial_char_ops;
-    device->chr.ctxdata = device;
+    interface->consumer_data = nullptr;
+    interface->char_interface.ops = &serial_char_ops;
+    interface->char_interface.ctxdata = interface;
 
-    char name[sizeof(device->chr.name)];
+    char name[sizeof(interface->char_interface.name)];
     dev_name_t dev_name = {};
     dev_name.prefix = priv->unit->prefix;
     dev_name.unit = priv->unit->number;
     dev_name.index = DEV_NAME_NONE;
     dev_name.partition = DEV_NAME_NONE;
 
-    device->chr.console = nullptr;
+    interface->char_interface.console = nullptr;
 
     if(0 == dev_name_format(&dev_name, name, sizeof(name))) {
-        prepare_console(device, name);
+        prepare_console(interface, name);
     }
 
-    retval = char_device_add(&device->chr, priv->unit, DEV_NAME_NONE);
+    retval = char_interface_add(&interface->char_interface, priv->unit, DEV_NAME_NONE);
 
     if(retval < 0) {
         dev_unit_free(priv->unit);
@@ -894,45 +895,45 @@ int serial_device_add(serial_device_t* restrict device)
         return retval;
     }
 
-    if(device->chr.console) {
-        console_add(device->chr.console);
+    if(interface->char_interface.console) {
+        console_add(interface->char_interface.console);
     }
 
-    bind_from_cmdline(device);
+    bind_from_cmdline(interface);
 
     return 0;
 }
 
-int serial_device_remove(serial_device_t* restrict device)
+int serial_interface_remove(serial_interface_t* restrict interface)
 {
-    if(device->chr.console) {
-        console_remove(device->chr.console);
+    if(interface->char_interface.console) {
+        console_remove(interface->char_interface.console);
     }
 
-    atomic_store(&device->priv.removed, true, ATOMIC_SEQ_CST);
+    atomic_store(&interface->priv.removed, true, ATOMIC_SEQ_CST);
 
-    bool intr_state = spinlock_acquire_intr(&device->priv.dispatch_lock);
+    bool intr_state = spinlock_acquire_intr(&interface->priv.dispatch_lock);
 
-    if(device->priv.consumer == &exchange_consumer) {
-        exchange_t* exchange = device->consumer_data;
+    if(interface->priv.consumer == &exchange_consumer) {
+        exchange_t* exchange = interface->consumer_data;
         event_trigger(&exchange->finished, false);
     }
 
-    spinlock_release_intr(&device->priv.dispatch_lock, intr_state);
+    spinlock_release_intr(&interface->priv.dispatch_lock, intr_state);
 
     // With force, only an unbind already running makes it wait
-    while(-EBUSY == unbind(device, true)) {
+    while(-EBUSY == unbind(interface, true)) {
         sleep_msec(REMOVE_RETRY_MSEC);
     }
 
     // Waits out the calls into the driver, which see removed from now on
-    mutex_acquire(&device->priv.lock);
-    shutdown_locked(device);
-    mutex_release(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
+    shutdown_locked(interface);
+    mutex_release(&interface->priv.lock);
 
     // The registry's reference may be the last one, so release may come during the removal
-    dev_unit_t* unit = device->priv.unit;
-    int retval = char_device_remove(&device->chr);
+    dev_unit_t* unit = interface->priv.unit;
+    int retval = char_interface_remove(&interface->char_interface);
 
     if(retval < 0) {
         return retval;
@@ -951,134 +952,134 @@ void serial_consumer_register(serial_consumer_t* restrict consumer)
     spinlock_release(&consumers_lock);
 }
 
-void serial_receive(serial_device_t* restrict device, const void* restrict bytes, size_t count)
+void serial_receive(serial_interface_t* restrict interface, const void* restrict bytes, size_t count)
 {
-    bool intr_state = spinlock_acquire_intr(&device->priv.dispatch_lock);
-    const serial_consumer_t* consumer = device->priv.consumer;
+    bool intr_state = spinlock_acquire_intr(&interface->priv.dispatch_lock);
+    const serial_consumer_t* consumer = interface->priv.consumer;
 
     if(consumer) {
-        consumer->receive(device, bytes, count);
+        consumer->receive(interface, bytes, count);
     }
     else {
-        device->priv.lost += count;
+        interface->priv.lost += count;
     }
 
-    spinlock_release_intr(&device->priv.dispatch_lock, intr_state);
+    spinlock_release_intr(&interface->priv.dispatch_lock, intr_state);
 }
 
-void serial_receive_error(serial_device_t* restrict device, uint8_t byte, unsigned error)
+void serial_receive_error(serial_interface_t* restrict interface, uint8_t byte, unsigned error)
 {
     kassert(error >= SERIAL_ERROR_BREAK && error <= SERIAL_ERROR_OVERRUN);
 
-    bool intr_state = spinlock_acquire_intr(&device->priv.dispatch_lock);
-    const serial_consumer_t* consumer = device->priv.consumer;
+    bool intr_state = spinlock_acquire_intr(&interface->priv.dispatch_lock);
+    const serial_consumer_t* consumer = interface->priv.consumer;
 
     if(consumer) {
-        consumer->receive_error(device, byte, error);
+        consumer->receive_error(interface, byte, error);
     }
     else {
-        device->priv.lost += 1;
+        interface->priv.lost += 1;
     }
 
-    spinlock_release_intr(&device->priv.dispatch_lock, intr_state);
+    spinlock_release_intr(&interface->priv.dispatch_lock, intr_state);
 }
 
-size_t serial_transmit_take(serial_device_t* restrict device, void* restrict buffer, size_t size)
+size_t serial_transmit_take(serial_interface_t* restrict interface, void* restrict buffer, size_t size)
 {
     size_t taken = 0;
 
-    bool intr_state = spinlock_acquire_intr(&device->priv.dispatch_lock);
-    const serial_consumer_t* consumer = device->priv.consumer;
+    bool intr_state = spinlock_acquire_intr(&interface->priv.dispatch_lock);
+    const serial_consumer_t* consumer = interface->priv.consumer;
 
     if(consumer && size) {
-        taken = consumer->transmit_take(device, buffer, size);
+        taken = consumer->transmit_take(interface, buffer, size);
     }
 
-    spinlock_release_intr(&device->priv.dispatch_lock, intr_state);
+    spinlock_release_intr(&interface->priv.dispatch_lock, intr_state);
 
     return taken;
 }
 
-void serial_device_detach(serial_device_t* restrict device)
+void serial_interface_detach(serial_interface_t* restrict interface)
 {
-    set_dispatch(device, nullptr);
+    set_dispatch(interface, nullptr);
 }
 
 // The port is the consumer's from now on, and the console writes to it only in a panic
-int serial_device_startup(serial_device_t* restrict device)
+int serial_interface_startup(serial_interface_t* restrict interface)
 {
     int retval = -ENODEV;
 
-    if(device->chr.console) {
-        console_release(device->chr.console);
+    if(interface->char_interface.console) {
+        console_release(interface->char_interface.console);
     }
 
-    mutex_acquire(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
 
-    if(!is_removed(device)) {
-        retval = startup_locked(device);
+    if(!is_removed(interface)) {
+        retval = startup_locked(interface);
     }
 
-    mutex_release(&device->priv.lock);
+    mutex_release(&interface->priv.lock);
 
     return retval;
 }
 
-void serial_device_shutdown(serial_device_t* restrict device)
+void serial_interface_shutdown(serial_interface_t* restrict interface)
 {
-    mutex_acquire(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
 
-    if(!is_removed(device)) {
-        shutdown_locked(device);
+    if(!is_removed(interface)) {
+        shutdown_locked(interface);
     }
 
-    mutex_release(&device->priv.lock);
+    mutex_release(&interface->priv.lock);
 }
 
-int serial_device_set_line(serial_device_t* restrict device, const serial_line_t* restrict line)
+int serial_interface_set_line(serial_interface_t* restrict interface, const serial_line_t* restrict line)
 {
     int retval = -ENODEV;
 
-    mutex_acquire(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
 
-    if(!is_removed(device)) {
-        retval = set_line_locked(device, line);
+    if(!is_removed(interface)) {
+        retval = set_line_locked(interface, line);
     }
 
-    mutex_release(&device->priv.lock);
+    mutex_release(&interface->priv.lock);
 
     return retval;
 }
 
-void serial_device_set_modem(serial_device_t* restrict device, uint32_t raise, uint32_t lower)
+void serial_interface_set_modem(serial_interface_t* restrict interface, uint32_t raise, uint32_t lower)
 {
-    mutex_acquire(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
 
-    if(!is_removed(device)) {
-        set_modem_locked(device, raise, lower);
+    if(!is_removed(interface)) {
+        set_modem_locked(interface, raise, lower);
     }
 
-    mutex_release(&device->priv.lock);
+    mutex_release(&interface->priv.lock);
 }
 
-int serial_device_send_break(serial_device_t* restrict device, uint32_t msec)
+int serial_interface_send_break(serial_interface_t* restrict interface, uint32_t msec)
 {
     int retval = -ENODEV;
 
-    mutex_acquire(&device->priv.lock);
+    mutex_acquire(&interface->priv.lock);
 
-    if(!is_removed(device)) {
-        retval = send_break_locked(device, msec);
+    if(!is_removed(interface)) {
+        retval = send_break_locked(interface, msec);
     }
 
-    mutex_release(&device->priv.lock);
+    mutex_release(&interface->priv.lock);
 
     return retval;
 }
 
-void serial_device_start_tx(serial_device_t* restrict device)
+void serial_interface_start_tx(serial_interface_t* restrict interface)
 {
-    if(!is_removed(device)) {
-        device->ops->start_tx(device);
+    if(!is_removed(interface)) {
+        interface->ops->start_tx(interface);
     }
 }

@@ -1,4 +1,4 @@
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
 #include <vex/kprintf.h>
@@ -138,7 +138,7 @@ static void commit_counts(ext2_vfs_context_t* restrict context, uint32_t group)
     }
 
     if(retval < 0) {
-        pr_warning("ext2: %s: failed to update the free counts of group %u", context->device->name, group);
+        pr_warning("ext2: %s: failed to update the free counts of group %u", context->volume->name, group);
     }
 }
 
@@ -195,7 +195,7 @@ uint32_t ext2_block_alloc(ext2_vfs_context_t* restrict context, uint32_t goal)
         int retval = bitmap_take(context, le32toh(desc->bg_block_bitmap), 0, start, group_blocks(context, group), &bit);
 
         if(retval < 0) {
-            pr_warning("ext2: %s: no block taken from group %u: %s", context->device->name, group, strerror(retval));
+            pr_warning("ext2: %s: no block taken from group %u: %s", context->volume->name, group, strerror(retval));
             continue;
         }
 
@@ -214,7 +214,7 @@ void ext2_block_free(ext2_vfs_context_t* restrict context, uint32_t block)
     ext2_superblock_t* super = &context->super;
 
     if(block < context->first_data_block || block >= le32toh(super->s_blocks_count)) {
-        pr_warning("ext2: %s: freeing block %u outside the filesystem", context->device->name, block);
+        pr_warning("ext2: %s: freeing block %u outside the filesystem", context->volume->name, block);
         return;
     }
 
@@ -225,7 +225,7 @@ void ext2_block_free(ext2_vfs_context_t* restrict context, uint32_t block)
     int retval = bitmap_put(context, le32toh(desc->bg_block_bitmap), bit);
 
     if(retval < 0) {
-        pr_warning("ext2: %s: failed to free block %u: %s", context->device->name, block, strerror(retval));
+        pr_warning("ext2: %s: failed to free block %u: %s", context->volume->name, block, strerror(retval));
         return;
     }
 
@@ -273,7 +273,7 @@ uint32_t ext2_inode_alloc(ext2_vfs_context_t* restrict context, uint32_t parent_
         int retval = bitmap_take(context, le32toh(desc->bg_inode_bitmap), first, first, context->inodes_per_group, &bit);
 
         if(retval < 0) {
-            pr_warning("ext2: %s: no inode taken from group %u: %s", context->device->name, group, strerror(retval));
+            pr_warning("ext2: %s: no inode taken from group %u: %s", context->volume->name, group, strerror(retval));
             continue;
         }
 
@@ -289,7 +289,7 @@ uint32_t ext2_inode_alloc(ext2_vfs_context_t* restrict context, uint32_t parent_
         commit_counts(context, group);
 
         if(ext2_inode_clear(context, ino) < 0) {
-            pr_warning("ext2: %s: failed to clear inode %u", context->device->name, ino);
+            pr_warning("ext2: %s: failed to clear inode %u", context->volume->name, ino);
         }
 
         return ino;
@@ -303,7 +303,7 @@ void ext2_inode_free(ext2_vfs_context_t* restrict context, uint32_t ino, bool di
     ext2_superblock_t* super = &context->super;
 
     if(ino < context->first_ino || ino > le32toh(super->s_inodes_count)) {
-        pr_warning("ext2: %s: freeing reserved or invalid inode %u", context->device->name, ino);
+        pr_warning("ext2: %s: freeing reserved or invalid inode %u", context->volume->name, ino);
         return;
     }
 
@@ -314,7 +314,7 @@ void ext2_inode_free(ext2_vfs_context_t* restrict context, uint32_t ino, bool di
     int retval = bitmap_put(context, le32toh(desc->bg_inode_bitmap), bit);
 
     if(retval < 0) {
-        pr_warning("ext2: %s: failed to free inode %u: %s", context->device->name, ino, strerror(retval));
+        pr_warning("ext2: %s: failed to free inode %u: %s", context->volume->name, ino, strerror(retval));
         return;
     }
 

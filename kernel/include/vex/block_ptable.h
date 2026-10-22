@@ -3,7 +3,7 @@
 #include <vex/compiler.h>
 #include <vex/types.h>
 
-typedef struct block_device_s block_device_t;
+typedef struct block_interface_s block_interface_t;
 
 typedef struct block_partition_table_info_s block_partition_table_info_t;
 typedef struct block_partition_table_ops_s block_partition_table_ops_t;
@@ -19,8 +19,8 @@ struct block_partition_table_info_s {
 };
 
 struct block_partition_table_ops_s {
-    int (*detect)(const block_device_t* restrict device, void** restrict ptdata);
-    int (*read_table)(const block_device_t* restrict device, void* restrict ptdata, unsigned index,
+    int (*detect)(const block_interface_t* restrict interface, void** restrict ptdata);
+    int (*read_table)(const block_interface_t* restrict interface, void* restrict ptdata, unsigned index,
         block_partition_table_info_t* restrict out);
     void (*release)(void* restrict ptdata);
 };
@@ -37,4 +37,4 @@ struct block_partition_table_s {
 
 int block_partition_table_add(block_partition_table_t* restrict ptable);
 int block_partition_table_remove(block_partition_table_t* restrict ptable);
-int rescan_partitions(const block_device_t* restrict device);
+int rescan_partitions(const block_interface_t* restrict interface);

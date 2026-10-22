@@ -4,7 +4,7 @@
 #include <vex/types.h>
 
 typedef struct process_s process_t;
-typedef struct tty_device_s tty_device_t;
+typedef struct tty_interface_s tty_interface_t;
 
 typedef struct session_s session_t;
 typedef struct process_group_s process_group_t;
@@ -12,7 +12,7 @@ typedef struct process_group_s process_group_t;
 struct session_s {
     pid_t sid;
     uint32_t refcount;
-    tty_device_t* tty; // The controlling terminal, under process_group_lock; holds a reference to its chr device
+    tty_interface_t* tty; // The controlling terminal, under process_group_lock; holds a reference to its chr device
 };
 
 struct process_group_s {

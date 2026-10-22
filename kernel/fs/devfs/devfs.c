@@ -1,7 +1,7 @@
-#include <vex/block_device.h>
 #include <vex/block_event.h>
-#include <vex/char_device.h>
+#include <vex/block_interface.h>
 #include <vex/char_event.h>
+#include <vex/char_interface.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/mount.h>
@@ -46,7 +46,7 @@ static int devfs_unmount(vfs_t* restrict fs)
     return 0;
 }
 
-static int devfs_mount(vfs_t* restrict fs, const block_device_t* restrict device, const cmdline_t* restrict params)
+static int devfs_mount(vfs_t* restrict fs, const block_interface_t* restrict interface, const cmdline_t* restrict params)
 {
     devfs_state_t* state = slab_alloc(sizeof(devfs_state_t));
 

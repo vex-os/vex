@@ -1,5 +1,5 @@
 #include <vex/block_atapi.h>
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/errno.h>
 #include <vex/string.h>
 
@@ -19,7 +19,7 @@ static void setup_rw_cdb(atapi_cdb_t cdb, uint8_t command, uintptr_t lba, size_t
     cdb[8] = count & 0xFF;
 }
 
-static int check_request(const atapi_device_t* restrict atapi, const block_request_t* restrict req, size_t count)
+static int check_request(const atapi_interface_t* restrict atapi, const block_request_t* restrict req, size_t count)
 {
     if(count > UINT16_MAX) {
         return -EINVAL;
@@ -32,10 +32,10 @@ static int check_request(const atapi_device_t* restrict atapi, const block_reque
     return 0;
 }
 
-static void atapi_submit(const block_device_t* restrict device, block_request_t* restrict req)
+static void atapi_submit(const block_interface_t* restrict interface, block_request_t* restrict req)
 {
-    const atapi_device_t* atapi = ATAPI_DEVICE_FROM_BLK(device);
-    size_t count = req->length / device->sector_size;
+    const atapi_interface_t* atapi = ATAPI_INTERFACE_FROM_BLOCK(interface);
+    size_t count = req->length / interface->sector_size;
     int retval = check_request(atapi, req, count);
     atapi_cdb_t cdb;
 
@@ -63,28 +63,28 @@ static void atapi_submit(const block_device_t* restrict device, block_request_t*
     atapi->ops->submit_packet(atapi, cdb, req);
 }
 
-static void atapi_release(const block_device_t* restrict device)
+static void atapi_release(const block_interface_t* restrict interface)
 {
-    const atapi_device_t* atapi = ATAPI_DEVICE_FROM_BLK(device);
+    const atapi_interface_t* atapi = ATAPI_INTERFACE_FROM_BLOCK(interface);
 
     if(atapi->ops->release) {
         atapi->ops->release(atapi);
     }
 }
 
-static const block_device_ops_t atapi_block_device_ops = {
+static const block_interface_ops_t atapi_block_interface_ops = {
     .submit = &atapi_submit,
     .release = &atapi_release,
 };
 
-int atapi_device_add(atapi_device_t* restrict device, dev_unit_t* restrict unit, unsigned index)
+int atapi_interface_add(atapi_interface_t* restrict interface, dev_unit_t* restrict unit, unsigned index)
 {
-    device->base.ops = &atapi_block_device_ops;
+    interface->base.ops = &atapi_block_interface_ops;
 
-    return block_device_add_root(&device->base, unit, index);
+    return block_interface_add_root(&interface->base, unit, index);
 }
 
-void atapi_device_remove(atapi_device_t* restrict device)
+void atapi_interface_remove(atapi_interface_t* restrict interface)
 {
-    block_device_remove(&device->base);
+    block_interface_remove(&interface->base);
 }

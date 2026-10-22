@@ -2,8 +2,8 @@
 #include <vex/atomic.h>
 #include <vex/block_ata.h>
 #include <vex/block_atapi.h>
-#include <vex/block_device.h>
 #include <vex/block_event.h>
+#include <vex/block_interface.h>
 #include <vex/clocksrc.h>
 #include <vex/delay.h>
 #include <vex/dev_name.h>
@@ -178,8 +178,8 @@ struct ahci_pci_context_s {
     io_region_t abar;
     uintptr_t dma_limit;
     bool irq;
-    block_device_t devices[32];
-    atapi_device_t atapi_devices[32];
+    block_interface_t interfaces[32];
+    atapi_interface_t atapi_interfaces[32];
     ahci_port_t ports[32];
     dev_unit_t* atapi_unit;
     dev_unit_t* ata_unit;
@@ -239,15 +239,15 @@ static void free_units(ahci_pci_context_t* restrict context)
     }
 }
 
-static void ahci_block_release(const block_device_t* restrict device)
+static void ahci_block_release(const block_interface_t* restrict interface)
 {
-    const ahci_port_t* port = device->ctxdata;
+    const ahci_port_t* port = interface->ctxdata;
     context_decref(port->context);
 }
 
-static void ahci_atapi_release(const atapi_device_t* restrict device)
+static void ahci_atapi_release(const atapi_interface_t* restrict interface)
 {
-    const ahci_port_t* port = device->base.ctxdata;
+    const ahci_port_t* port = interface->base.ctxdata;
     context_decref(port->context);
 }
 
@@ -546,9 +546,9 @@ static void finish(block_request_t* restrict req, int status)
     req->done(req);
 }
 
-static void ahci_atapi_submit(const atapi_device_t* restrict device, const atapi_cdb_t cdb, block_request_t* restrict req)
+static void ahci_atapi_submit(const atapi_interface_t* restrict interface, const atapi_cdb_t cdb, block_request_t* restrict req)
 {
-    ahci_port_t* port = device->base.ctxdata;
+    ahci_port_t* port = interface->base.ctxdata;
 
     if(!port_acquire(port)) {
         finish(req, -ENODEV);
@@ -564,15 +564,15 @@ static void ahci_atapi_submit(const atapi_device_t* restrict device, const atapi
     finish(req, retval);
 }
 
-static const atapi_device_ops_t ahci_atapi_ops = {
+static const atapi_interface_ops_t ahci_atapi_ops = {
     .submit_packet = &ahci_atapi_submit,
     .release = &ahci_atapi_release,
 };
 
-static void ahci_submit(const block_device_t* restrict device, block_request_t* restrict req)
+static void ahci_submit(const block_interface_t* restrict interface, block_request_t* restrict req)
 {
-    ahci_port_t* port = device->ctxdata;
-    uint16_t count = (uint16_t)(req->length / device->sector_size);
+    ahci_port_t* port = interface->ctxdata;
+    uint16_t count = (uint16_t)(req->length / interface->sector_size);
 
     if(!port_acquire(port)) {
         finish(req, -ENODEV);
@@ -663,17 +663,17 @@ static void ahci_port_teardown(ahci_port_t* restrict port)
     mutex_release(&port->lock);
 }
 
-static const block_device_ops_t ahci_block_device_ops = {
+static const block_interface_ops_t ahci_block_interface_ops = {
     .submit = &ahci_submit,
     .release = &ahci_block_release,
 };
 
-static void set_limits(const ahci_pci_context_t* restrict context, block_device_t* restrict device)
+static void set_limits(const ahci_pci_context_t* restrict context, block_interface_t* restrict interface)
 {
-    device->max_transfer = AHCI_MAX_TRANSFER;
-    device->max_segments = AHCI_MAX_PRDT;
-    device->dma_limit = context->dma_limit;
-    device->dma_align = 1; // PRDT DBA and DBC both have to be even
+    interface->max_transfer = AHCI_MAX_TRANSFER;
+    interface->max_segments = AHCI_MAX_PRDT;
+    interface->dma_limit = context->dma_limit;
+    interface->dma_align = 1; // PRDT DBA and DBC both have to be even
 }
 
 static int ahci_port_register_ata(ahci_pci_context_t* restrict context, unsigned port_num)
@@ -686,20 +686,20 @@ static int ahci_port_register_ata(ahci_pci_context_t* restrict context, unsigned
         }
     }
 
-    block_device_t* device = &context->devices[port_num];
+    block_interface_t* interface = &context->interfaces[port_num];
     ahci_port_t* port = &context->ports[port_num];
 
     port->context = context;
 
-    device->ops = &ahci_block_device_ops;
-    device->sector_count = 0;
-    device->sector_size = 0;
-    device->flags = 0;
-    device->ctxdata = port;
+    interface->ops = &ahci_block_interface_ops;
+    interface->sector_count = 0;
+    interface->sector_size = 0;
+    interface->flags = 0;
+    interface->ctxdata = port;
 
-    set_limits(context, device);
+    set_limits(context, interface);
 
-    int retval = block_device_add_root(device, context->ata_unit, port_num + 1);
+    int retval = block_interface_add_root(interface, context->ata_unit, port_num + 1);
 
     if(retval == 0) {
         context->refcount += 1;
@@ -718,21 +718,21 @@ static int ahci_port_register_atapi(ahci_pci_context_t* restrict context, unsign
         }
     }
 
-    atapi_device_t* atapi_dev = &context->atapi_devices[port_num];
+    atapi_interface_t* atapi = &context->atapi_interfaces[port_num];
     ahci_port_t* port = &context->ports[port_num];
 
     port->context = context;
 
-    atapi_dev->ops = &ahci_atapi_ops;
-    atapi_dev->flags = 0;
-    atapi_dev->base.ctxdata = port;
-    atapi_dev->base.sector_count = 0;
-    atapi_dev->base.sector_size = 0;
-    atapi_dev->base.flags = 0;
+    atapi->ops = &ahci_atapi_ops;
+    atapi->flags = 0;
+    atapi->base.ctxdata = port;
+    atapi->base.sector_count = 0;
+    atapi->base.sector_size = 0;
+    atapi->base.flags = 0;
 
-    set_limits(context, &atapi_dev->base);
+    set_limits(context, &atapi->base);
 
-    int retval = atapi_device_add(atapi_dev, context->atapi_unit, port_num + 1);
+    int retval = atapi_interface_add(atapi, context->atapi_unit, port_num + 1);
 
     if(retval == 0) {
         context->refcount += 1;
@@ -763,25 +763,25 @@ static void ahci_port_probe_ata(ahci_pci_context_t* restrict context, const io_r
         return;
     }
 
-    block_device_t* device = &context->devices[port_num];
-    device->sector_count = ata_identify_sector_count(identify);
-    device->sector_size = ata_identify_logical_sector_size(identify);
+    block_interface_t* interface = &context->interfaces[port_num];
+    interface->sector_count = ata_identify_sector_count(identify);
+    interface->sector_size = ata_identify_logical_sector_size(identify);
 
-    if(device->sector_size == 0 || device->sector_size > AHCI_MAX_TRANSFER) {
-        pr_verbose("ahci: %u.%u: unsupported sector size %zu", context->ata_unit->number, port_num, device->sector_size);
+    if(interface->sector_size == 0 || interface->sector_size > AHCI_MAX_TRANSFER) {
+        pr_verbose("ahci: %u.%u: unsupported sector size %zu", context->ata_unit->number, port_num, interface->sector_size);
         ahci_port_teardown(port);
         return;
     }
 
-    device->flags = BLOCK_FLAG_PRESENT;
-    device->ctxdata = port;
+    interface->flags = BLOCK_FLAG_PRESENT;
+    interface->ctxdata = port;
 
     char model[41];
     ata_identify_string(&identify[ATA_IDENTIFY_MODEL_WORD], ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
-    pr_verbose("ahci: %u.%u: model=%s sector_count=%zu sector_size=%zu", context->ata_unit->number, port_num, model, device->sector_count,
-        device->sector_size);
+    pr_verbose("ahci: %u.%u: model=%s sector_count=%zu sector_size=%zu", context->ata_unit->number, port_num, model,
+        interface->sector_count, interface->sector_size);
 
-    block_event_notify(BLOCK_EVENT_MEDIA_CONNECTED, device);
+    block_event_notify(BLOCK_EVENT_MEDIA_CONNECTED, interface);
 }
 
 static void ahci_port_probe_atapi(ahci_pci_context_t* restrict context, const io_region_t* restrict abar, unsigned port_num)
@@ -792,7 +792,7 @@ static void ahci_port_probe_atapi(ahci_pci_context_t* restrict context, const io
 
     ata_identify_t identify;
     ahci_port_t* port = &context->ports[port_num];
-    atapi_device_t* atapi_dev = &context->atapi_devices[port_num];
+    atapi_interface_t* atapi = &context->atapi_interfaces[port_num];
 
     port->iterator = context->atapi_unit->number;
 
@@ -820,15 +820,15 @@ static void ahci_port_probe_atapi(ahci_pci_context_t* restrict context, const io
         return;
     }
 
-    atapi_dev->base.sector_count = sector_count;
-    atapi_dev->base.sector_size = sector_size;
-    atapi_dev->base.flags = BLOCK_FLAG_PRESENT;
-    atapi_dev->base.ctxdata = port;
+    atapi->base.sector_count = sector_count;
+    atapi->base.sector_size = sector_size;
+    atapi->base.flags = BLOCK_FLAG_PRESENT;
+    atapi->base.ctxdata = port;
 
     pr_verbose("ahci: %u.%u: model=%s sector_count=%zu sector_size=%zu", context->atapi_unit->number, port_num, model, sector_count,
         sector_size);
 
-    block_event_notify(BLOCK_EVENT_MEDIA_CONNECTED, &atapi_dev->base);
+    block_event_notify(BLOCK_EVENT_MEDIA_CONNECTED, &atapi->base);
 }
 
 static void ahci_irq(unsigned number, const hart_context_t* restrict ctx, void* restrict ctxdata)
@@ -1023,10 +1023,10 @@ static void ahci_detach(device_t* restrict device)
         uint32_t port_bit = UINT32_C(1) << port_num;
 
         if(context->ata_mask & port_bit) {
-            block_device_remove(&context->devices[port_num]);
+            block_interface_remove(&context->interfaces[port_num]);
         }
         else if(context->atapi_mask & port_bit) {
-            atapi_device_remove(&context->atapi_devices[port_num]);
+            atapi_interface_remove(&context->atapi_interfaces[port_num]);
         }
         else {
             continue;

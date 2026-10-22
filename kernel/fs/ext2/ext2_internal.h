@@ -9,7 +9,7 @@
 #include <vex/types.h>
 #include <vex/xattr.h>
 
-typedef struct block_device_s block_device_t;
+typedef struct block_interface_s block_interface_t;
 typedef struct fcache_extent_s fcache_extent_t;
 typedef struct vnode_s vnode_t;
 typedef struct vnode_ops_s vnode_ops_t;
@@ -383,7 +383,7 @@ struct ext2_dirent_s {
 
 struct ext2_vfs_context_s {
     mutex_t lock; // Serializes the bitmaps, the group descriptors, the superblock, directory changes and the file cache calls
-    const block_device_t* device;
+    const block_interface_t* volume;
     vnode_t* device_node;
 
     ext2_superblock_t super;

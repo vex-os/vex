@@ -1,8 +1,8 @@
 #include <vex/device.h>
 #include <vex/driver.h>
 #include <vex/errno.h>
-#include <vex/fb_device.h>
 #include <vex/fb_edid.h>
+#include <vex/fb_interface.h>
 #include <vex/kprintf.h>
 #include <vex/pci.h>
 #include <vex/slab.h>
@@ -49,7 +49,7 @@
 typedef struct bochsfb_s bochsfb_t;
 
 struct bochsfb_s {
-    fb_device_t device;
+    fb_interface_t interface;
     io_region_t mmio;
     io_region_t vram;
     uintptr_t vram_phys;
@@ -134,9 +134,9 @@ static uint32_t dac_to_rgb(unsigned dac_bits, uint8_t value)
     return (value << 2) | (value >> 4);
 }
 
-static int bochsfb_get_palette(const fb_device_t* restrict device, uint32_t first, uint32_t count, uint32_t* restrict colors)
+static int bochsfb_get_palette(const fb_interface_t* restrict interface, uint32_t first, uint32_t count, uint32_t* restrict colors)
 {
-    bochsfb_t* bochsfb = device->ctxdata;
+    bochsfb_t* bochsfb = interface->ctxdata;
     bool intr_state = spinlock_acquire_intr(&bochsfb->dac_lock);
 
     io_write8(&bochsfb->mmio, VGA_DAC_READ_INDEX, first);
@@ -153,9 +153,9 @@ static int bochsfb_get_palette(const fb_device_t* restrict device, uint32_t firs
     return 0;
 }
 
-static int bochsfb_set_palette(const fb_device_t* restrict device, uint32_t first, uint32_t count, const uint32_t* restrict colors)
+static int bochsfb_set_palette(const fb_interface_t* restrict interface, uint32_t first, uint32_t count, const uint32_t* restrict colors)
 {
-    bochsfb_t* bochsfb = device->ctxdata;
+    bochsfb_t* bochsfb = interface->ctxdata;
     unsigned shift = 8 - bochsfb->dac_bits;
     bool intr_state = spinlock_acquire_intr(&bochsfb->dac_lock);
 
@@ -189,9 +189,9 @@ static bool mode_supported(const bochsfb_t* restrict bochsfb, const vexfb_mode_t
 }
 
 // Nothing but register accesses, as a panic calls this too
-static int bochsfb_set_mode(fb_device_t* restrict device, const vexfb_mode_t* restrict mode)
+static int bochsfb_set_mode(fb_interface_t* restrict interface, const vexfb_mode_t* restrict mode)
 {
-    bochsfb_t* bochsfb = device->ctxdata;
+    bochsfb_t* bochsfb = interface->ctxdata;
     const io_region_t* mmio = &bochsfb->mmio;
 
     if(!mode_supported(bochsfb, mode)) {
@@ -217,19 +217,19 @@ static int bochsfb_set_mode(fb_device_t* restrict device, const vexfb_mode_t* re
         return -EIO;
     }
 
-    device->info = info;
-    device->phys = bochsfb->vram_phys + offset;
-    device->virt = (uint8_t*)(bochsfb->vram.base) + offset;
+    interface->info = info;
+    interface->phys = bochsfb->vram_phys + offset;
+    interface->virt = (uint8_t*)(bochsfb->vram.base) + offset;
 
     return 0;
 }
 
-static void bochsfb_release(const fb_device_t* restrict device)
+static void bochsfb_release(const fb_interface_t* restrict interface)
 {
-    slab_free(device->ctxdata);
+    slab_free(interface->ctxdata);
 }
 
-static const fb_device_ops_t bochsfb_ops = {
+static const fb_interface_ops_t bochsfb_ops = {
     .get_palette = &bochsfb_get_palette,
     .set_palette = &bochsfb_set_palette,
     .set_mode = &bochsfb_set_mode,
@@ -390,15 +390,15 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
 
     read_limits(bochsfb, &info);
 
-    fb_device_t* device = &bochsfb->device;
-    device->ops = &bochsfb_ops;
-    device->info = info;
-    device->phys = vram_phys + offset;
-    device->cache = VPROT_CACHE_WC;
-    device->virt = (uint8_t*)(vram.base) + offset;
-    device->modes = bochsfb->modes;
-    device->mode_count = collect_modes(bochsfb, &info);
-    device->ctxdata = bochsfb;
+    fb_interface_t* interface = &bochsfb->interface;
+    interface->ops = &bochsfb_ops;
+    interface->info = info;
+    interface->phys = vram_phys + offset;
+    interface->cache = VPROT_CACHE_WC;
+    interface->virt = (uint8_t*)(vram.base) + offset;
+    interface->modes = bochsfb->modes;
+    interface->mode_count = collect_modes(bochsfb, &info);
+    interface->ctxdata = bochsfb;
 
     // NOTE: after a successful claim the
     // screen is ours even if the add below fails
@@ -406,7 +406,7 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
         pr_warning("bochsfb: boot framebuffers are already added, one may share the memory");
     }
 
-    int retval = fb_device_add(device);
+    int retval = fb_interface_add(interface);
 
     if(retval < 0) {
         slab_free(bochsfb);
@@ -415,8 +415,8 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
 
     node->ctxdata = bochsfb;
 
-    pr_inform("bochsfb: %s: DISPI 0x%04X, %zu KiB of video memory, up to %ux%u, %u modes listed", device->chr.name, dispi_id,
-        (size_t)(vram.length / 1024), bochsfb->max_width, bochsfb->max_height, device->mode_count);
+    pr_inform("bochsfb: %s: DISPI 0x%04X, %zu KiB of video memory, up to %ux%u, %u modes listed", interface->char_interface.name, dispi_id,
+        (size_t)(vram.length / 1024), bochsfb->max_width, bochsfb->max_height, interface->mode_count);
 
     return 0;
 }
@@ -427,7 +427,7 @@ static void bochsfb_detach(device_t* restrict node)
 {
     bochsfb_t* bochsfb = node->ctxdata;
 
-    fb_device_remove(&bochsfb->device);
+    fb_interface_remove(&bochsfb->interface);
 }
 
 // The fb core frees the driver's data through bochsfb_release

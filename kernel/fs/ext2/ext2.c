@@ -1,4 +1,4 @@
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/cmdline.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
@@ -15,9 +15,9 @@
 
 static_assert(sizeof(ext2_vnode_context_t) <= SLAB_MAX_SIZE);
 
-static int read_super(const block_device_t* restrict device, ext2_superblock_t* restrict out)
+static int read_super(const block_interface_t* restrict volume, ext2_superblock_t* restrict out)
 {
-    size_t sector_size = device->sector_size;
+    size_t sector_size = volume->sector_size;
     uintptr_t lba = EXT2_SUPER_OFFSET / sector_size;
     size_t skip = EXT2_SUPER_OFFSET % sector_size;
     size_t count = (skip + sizeof(ext2_superblock_t) + sector_size - 1) / sector_size;
@@ -28,7 +28,7 @@ static int read_super(const block_device_t* restrict device, ext2_superblock_t* 
         return -ENOMEM;
     }
 
-    int retval = block_read(device, lba, count, buffer);
+    int retval = block_read(volume, lba, count, buffer);
 
     if(retval == 0) {
         memcpy(out, buffer + skip, sizeof(ext2_superblock_t));
@@ -42,8 +42,8 @@ static int read_super(const block_device_t* restrict device, ext2_superblock_t* 
 static int setup_geometry(ext2_vfs_context_t* restrict context)
 {
     const ext2_superblock_t* super = &context->super;
-    const char* name = context->device->name;
-    size_t sector_size = context->device->sector_size;
+    const char* name = context->volume->name;
+    size_t sector_size = context->volume->sector_size;
 
     if(le16toh(super->s_magic) != EXT2_SUPER_MAGIC) {
         return -EINVAL;
@@ -87,7 +87,7 @@ static int setup_geometry(ext2_vfs_context_t* restrict context)
 
     size_t sectors_per_block = block_size / sector_size;
 
-    if(blocks_count > context->device->sector_count / sectors_per_block) {
+    if(blocks_count > context->volume->sector_count / sectors_per_block) {
         pr_warning("ext2: %s: filesystem is larger than the device", name);
         return -EINVAL;
     }
@@ -139,7 +139,7 @@ static int setup_geometry(ext2_vfs_context_t* restrict context)
 static bool must_mount_readonly(const ext2_vfs_context_t* restrict context)
 {
     const ext2_superblock_t* super = &context->super;
-    const char* name = context->device->name;
+    const char* name = context->volume->name;
 
     if(context->creator_os > EXT2_OS_LITES) {
         pr_notice("ext2: %s: unknown creator OS %u, mounting read-only", name, context->creator_os);
@@ -194,7 +194,7 @@ static int load_groups(ext2_vfs_context_t* restrict context)
         valid = valid && group_block_valid(context, le32toh(desc->bg_inode_table), table_blocks);
 
         if(!valid) {
-            pr_warning("ext2: %s: group %u points outside the filesystem", context->device->name, i);
+            pr_warning("ext2: %s: group %u points outside the filesystem", context->volume->name, i);
             return -EINVAL;
         }
     }
@@ -234,7 +234,7 @@ static int fill_root(vfs_t* restrict fs, ext2_vfs_context_t* restrict context)
     }
 
     if(EXT2_S_IFDIR != (le16toh(root_context->inode.i_mode) & S_IFMT)) {
-        pr_warning("ext2: %s: root inode is not a directory", context->device->name);
+        pr_warning("ext2: %s: root inode is not a directory", context->volume->name);
         slab_free(root_context);
         return -EINVAL;
     }
@@ -261,7 +261,7 @@ static int mark_mounted(ext2_vfs_context_t* restrict context)
     uint16_t mnt_count = le16toh(super->s_mnt_count) + 1;
 
     if(max_mnt_count > 0 && mnt_count >= max_mnt_count) {
-        pr_notice("ext2: %s: maximal mount count reached, running e2fsck is recommended", context->device->name);
+        pr_notice("ext2: %s: maximal mount count reached, running e2fsck is recommended", context->volume->name);
     }
 
     context->mount_state = le16toh(super->s_state);
@@ -273,7 +273,7 @@ static int mark_mounted(ext2_vfs_context_t* restrict context)
     return ext2_super_commit(context);
 }
 
-static int ext2_probe(vfs_t* restrict fs, const block_device_t* restrict device)
+static int ext2_probe(vfs_t* restrict fs, const block_interface_t* restrict volume)
 {
     ext2_superblock_t* super = kmalloc(sizeof(ext2_superblock_t));
 
@@ -281,7 +281,7 @@ static int ext2_probe(vfs_t* restrict fs, const block_device_t* restrict device)
         return -ENOMEM;
     }
 
-    int retval = read_super(device, super);
+    int retval = read_super(volume, super);
 
     if(retval == 0 && le16toh(super->s_magic) != EXT2_SUPER_MAGIC) {
         retval = -ENODEV;
@@ -292,9 +292,9 @@ static int ext2_probe(vfs_t* restrict fs, const block_device_t* restrict device)
     return retval;
 }
 
-static int ext2_mount(vfs_t* restrict fs, const block_device_t* restrict device, const cmdline_t* restrict params)
+static int ext2_mount(vfs_t* restrict fs, const block_interface_t* restrict volume, const cmdline_t* restrict params)
 {
-    if(device == nullptr) {
+    if(volume == nullptr) {
         return -EINVAL;
     }
 
@@ -308,10 +308,10 @@ static int ext2_mount(vfs_t* restrict fs, const block_device_t* restrict device,
 
     mutex_init(&context->lock);
 
-    context->device = device;
+    context->volume = volume;
     context->param_readonly = cmdline_contains(params, "readonly") || cmdline_contains(params, "ro");
 
-    int retval = read_super(device, &context->super);
+    int retval = read_super(volume, &context->super);
 
     if(retval == 0) {
         retval = setup_geometry(context);
@@ -325,7 +325,7 @@ static int ext2_mount(vfs_t* restrict fs, const block_device_t* restrict device,
     uint16_t state = le16toh(context->super.s_state);
 
     if(0 == (state & EXT2_VALID_FS) || (state & EXT2_ERROR_FS)) {
-        pr_warning("ext2: %s: filesystem was not cleanly unmounted or has errors, running e2fsck is recommended", device->name);
+        pr_warning("ext2: %s: filesystem was not cleanly unmounted or has errors, running e2fsck is recommended", volume->name);
     }
 
     context->device_node = fcache_dev_create(fs);
@@ -372,7 +372,7 @@ static int ext2_unmount(vfs_t* restrict fs)
         context->super.s_state = htole16(context->mount_state);
 
         if(ext2_super_commit(context) < 0) {
-            pr_warning("ext2: %s: failed to mark the filesystem clean", context->device->name);
+            pr_warning("ext2: %s: failed to mark the filesystem clean", context->volume->name);
         }
     }
 

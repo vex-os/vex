@@ -1,5 +1,5 @@
-#include <vex/block_device.h>
 #include <vex/block_event.h>
+#include <vex/block_interface.h>
 #include <vex/errno.h>
 #include <vex/kmalloc.h>
 #include <vex/mutex.h>
@@ -13,7 +13,7 @@
 typedef struct devfs_block_context_s devfs_block_context_t;
 
 struct devfs_block_context_s {
-    const block_device_t* device;
+    const block_interface_t* interface;
     mutex_t bounce_lock; // Held across the I/O that fills bounce_buffer
     uint8_t* bounce_buffer;
 };
@@ -23,7 +23,7 @@ static_assert(sizeof(devfs_block_context_t) <= SLAB_MAX_SIZE);
 static void devfs_block_release(vnode_t* restrict node)
 {
     devfs_block_context_t* context = node->ctxdata;
-    block_device_decref(context->device);
+    block_interface_decref(context->interface);
     mutex_deinit(&context->bounce_lock);
     kfree(context->bounce_buffer);
     slab_free(context);
@@ -32,11 +32,11 @@ static void devfs_block_release(vnode_t* restrict node)
 static ssize_t devfs_block_read(vnode_t* restrict node, file_t* restrict file, void* restrict buffer, size_t size, off_t offset)
 {
     devfs_block_context_t* context = node->ctxdata;
-    const block_device_t* device = context->device;
+    const block_interface_t* interface = context->interface;
 
     uint8_t* buffer_ptr = buffer;
 
-    size_t sector_size = device->sector_size;
+    size_t sector_size = interface->sector_size;
     size_t byte_offset = offset % sector_size;
     uintptr_t lba = offset / sector_size;
 
@@ -48,7 +48,7 @@ static ssize_t devfs_block_read(vnode_t* restrict node, file_t* restrict file, v
     }
 
     if(byte_offset == 0 && (size % sector_size) == 0) {
-        int retval = block_read(device, lba, size / sector_size, buffer);
+        int retval = block_read(interface, lba, size / sector_size, buffer);
 
         if(retval < 0)
             return retval;
@@ -63,7 +63,7 @@ static ssize_t devfs_block_read(vnode_t* restrict node, file_t* restrict file, v
         }
 
         mutex_acquire(&context->bounce_lock);
-        int retval = block_read(device, current, 1, context->bounce_buffer);
+        int retval = block_read(interface, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             mutex_release(&context->bounce_lock);
@@ -80,7 +80,7 @@ static ssize_t devfs_block_read(vnode_t* restrict node, file_t* restrict file, v
 
     if(remaining >= sector_size) {
         size_t full = remaining / sector_size;
-        int retval = block_read(device, current, full, buffer_ptr);
+        int retval = block_read(interface, current, full, buffer_ptr);
 
         if(retval < 0) {
             return retval;
@@ -94,7 +94,7 @@ static ssize_t devfs_block_read(vnode_t* restrict node, file_t* restrict file, v
     if(remaining > 0) {
         mutex_acquire(&context->bounce_lock);
 
-        int retval = block_read(device, current, 1, context->bounce_buffer);
+        int retval = block_read(interface, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             mutex_release(&context->bounce_lock);
@@ -112,11 +112,11 @@ static ssize_t devfs_block_read(vnode_t* restrict node, file_t* restrict file, v
 static ssize_t devfs_block_write(vnode_t* restrict node, file_t* restrict file, const void* restrict buffer, size_t size, off_t offset)
 {
     devfs_block_context_t* context = node->ctxdata;
-    const block_device_t* device = context->device;
+    const block_interface_t* interface = context->interface;
 
     const uint8_t* buffer_ptr = buffer;
 
-    size_t sector_size = device->sector_size;
+    size_t sector_size = interface->sector_size;
     size_t byte_offset = offset % sector_size;
     uintptr_t lba = offset / sector_size;
 
@@ -128,7 +128,7 @@ static ssize_t devfs_block_write(vnode_t* restrict node, file_t* restrict file, 
     }
 
     if(byte_offset == 0 && (size % sector_size) == 0) {
-        int retval = block_write(device, lba, size / sector_size, buffer);
+        int retval = block_write(interface, lba, size / sector_size, buffer);
 
         if(retval < 0)
             return retval;
@@ -144,7 +144,7 @@ static ssize_t devfs_block_write(vnode_t* restrict node, file_t* restrict file, 
 
         mutex_acquire(&context->bounce_lock);
 
-        int retval = block_read(device, current, 1, context->bounce_buffer);
+        int retval = block_read(interface, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             mutex_release(&context->bounce_lock);
@@ -153,7 +153,7 @@ static ssize_t devfs_block_write(vnode_t* restrict node, file_t* restrict file, 
 
         memcpy(context->bounce_buffer + byte_offset, buffer_ptr, chunk);
 
-        retval = block_write(device, current, 1, context->bounce_buffer);
+        retval = block_write(interface, current, 1, context->bounce_buffer);
 
         mutex_release(&context->bounce_lock);
 
@@ -168,7 +168,7 @@ static ssize_t devfs_block_write(vnode_t* restrict node, file_t* restrict file, 
 
     if(remaining >= sector_size) {
         size_t full = remaining / sector_size;
-        int retval = block_write(device, current, full, buffer_ptr);
+        int retval = block_write(interface, current, full, buffer_ptr);
 
         if(retval < 0) {
             return retval;
@@ -182,7 +182,7 @@ static ssize_t devfs_block_write(vnode_t* restrict node, file_t* restrict file, 
     if(remaining > 0) {
         mutex_acquire(&context->bounce_lock);
 
-        int retval = block_read(device, current, 1, context->bounce_buffer);
+        int retval = block_read(interface, current, 1, context->bounce_buffer);
 
         if(retval < 0) {
             mutex_release(&context->bounce_lock);
@@ -191,7 +191,7 @@ static ssize_t devfs_block_write(vnode_t* restrict node, file_t* restrict file, 
 
         memcpy(context->bounce_buffer, buffer_ptr, remaining);
 
-        retval = block_write(device, current, 1, context->bounce_buffer);
+        retval = block_write(interface, current, 1, context->bounce_buffer);
 
         mutex_release(&context->bounce_lock);
 
@@ -206,16 +206,16 @@ static ssize_t devfs_block_write(vnode_t* restrict node, file_t* restrict file, 
 static int devfs_block_stat(vnode_t* restrict node, stat_t* restrict out)
 {
     const devfs_block_context_t* context = node->ctxdata;
-    const block_device_t* device = context->device;
+    const block_interface_t* interface = context->interface;
 
     memset(out, 0, sizeof(stat_t));
 
     out->st_mode = S_IFBLK | S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP;
-    out->st_rdev = device->priv.dev;
+    out->st_rdev = interface->priv.dev;
 
-    out->st_size = device->sector_count * device->sector_size;
-    out->st_blksize = device->sector_size;
-    out->st_blocks = device->sector_count;
+    out->st_size = interface->sector_count * interface->sector_size;
+    out->st_blksize = interface->sector_size;
+    out->st_blocks = interface->sector_count;
 
     return 0;
 }
@@ -227,9 +227,9 @@ static const vnode_ops_t devfs_block_ops = {
     .stat = &devfs_block_stat,
 };
 
-void devfs_block_event_handler(unsigned event, const block_device_t* restrict device, void* restrict ctxdata)
+void devfs_block_event_handler(unsigned event, const block_interface_t* restrict interface, void* restrict ctxdata)
 {
-    if(device->flags & BLOCK_FLAG_HIDDEN) {
+    if(interface->flags & BLOCK_FLAG_HIDDEN) {
         return;
     }
 
@@ -240,9 +240,9 @@ void devfs_block_event_handler(unsigned event, const block_device_t* restrict de
             return;
         }
 
-        context->device = device;
+        context->interface = interface;
         mutex_init(&context->bounce_lock);
-        context->bounce_buffer = kmalloc(device->sector_size);
+        context->bounce_buffer = kmalloc(interface->sector_size);
 
         if(context->bounce_buffer == nullptr) {
             slab_free(context);
@@ -257,10 +257,10 @@ void devfs_block_event_handler(unsigned event, const block_device_t* restrict de
             return;
         }
 
-        vnode->device = device;
-        block_device_incref(device); // Dropped by devfs_block_release
+        vnode->volume = interface;
+        block_interface_incref(interface); // Dropped by devfs_block_release
 
-        int retval = devfs_insert(ctxdata, device->name, vnode);
+        int retval = devfs_insert(ctxdata, interface->name, vnode);
 
         if(retval < 0) {
             vnode_decref(vnode);
@@ -270,7 +270,7 @@ void devfs_block_event_handler(unsigned event, const block_device_t* restrict de
     }
 
     if(event == BLOCK_EVENT_MEDIA_DISCONNECTED || event == BLOCK_EVENT_PARTITION_REMOVED) {
-        devfs_remove(ctxdata, device->name);
+        devfs_remove(ctxdata, interface->name);
         return;
     }
 }

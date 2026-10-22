@@ -1,6 +1,6 @@
 #include <vex/atomic.h>
 #include <vex/capability.h>
-#include <vex/char_device.h>
+#include <vex/char_interface.h>
 #include <vex/cred.h>
 #include <vex/dev_name.h>
 #include <vex/errno.h>
@@ -28,9 +28,9 @@ struct kplog_file_s {
 
 static_assert(sizeof(kplog_file_t) <= SLAB_MAX_SIZE);
 
-static char_device_t kplog_device;
+static char_interface_t kplog_device;
 
-static int kplog_open_file(const char_device_t* restrict device, unsigned flags, void** restrict file_ctxdata)
+static int kplog_open_file(const char_interface_t* restrict interface, unsigned flags, void** restrict file_ctxdata)
 {
     thread_t* thread = this_thread();
 
@@ -53,7 +53,7 @@ static int kplog_open_file(const char_device_t* restrict device, unsigned flags,
     return 0;
 }
 
-static void kplog_close_file(const char_device_t* restrict device, void* restrict file_ctxdata)
+static void kplog_close_file(const char_interface_t* restrict interface, void* restrict file_ctxdata)
 {
     kplog_file_t* file = file_ctxdata;
 
@@ -92,7 +92,7 @@ static ssize_t read_locked(kplog_file_t* restrict file, void* restrict buffer, s
     return (ssize_t)(total);
 }
 
-static ssize_t kplog_read(const char_device_t* restrict device, void* restrict file_ctxdata, off_t offset, void* restrict buffer,
+static ssize_t kplog_read(const char_interface_t* restrict interface, void* restrict file_ctxdata, off_t offset, void* restrict buffer,
     size_t size, unsigned flags)
 {
     kplog_file_t* file = file_ctxdata;
@@ -121,7 +121,7 @@ static ssize_t kplog_read(const char_device_t* restrict device, void* restrict f
 }
 
 // The offset isn't a position: only the oldest record and the next one to come can be sought
-static off_t kplog_seek(const char_device_t* restrict device, void* restrict file_ctxdata, off_t position, off_t offset, int origin)
+static off_t kplog_seek(const char_interface_t* restrict interface, void* restrict file_ctxdata, off_t position, off_t offset, int origin)
 {
     kplog_file_t* file = file_ctxdata;
 
@@ -160,8 +160,8 @@ static size_t size_without_line_end(const char* restrict text, size_t size)
 
 // A record is one line, so a longer write fails whole
 // instead of the system call passing the rest as another
-static ssize_t kplog_write(const char_device_t* restrict device, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
-    size_t size, unsigned flags)
+static ssize_t kplog_write(const char_interface_t* restrict interface, void* restrict file_ctxdata, off_t offset,
+    const void* restrict buffer, size_t size, unsigned flags)
 {
     kplog_file_t* file = file_ctxdata;
     const char* text = buffer;
@@ -206,7 +206,7 @@ static int set_level(kplog_file_t* restrict file, uintptr_t argument)
     return 0;
 }
 
-static int kplog_ioctl(const char_device_t* restrict device, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
+static int kplog_ioctl(const char_interface_t* restrict interface, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
 {
     switch(request) {
         case KPLOG_GETLEVEL:
@@ -220,7 +220,7 @@ static int kplog_ioctl(const char_device_t* restrict device, void* restrict file
     }
 }
 
-static const char_device_ops_t kplog_ops = {
+static const char_interface_ops_t kplog_ops = {
     .open_file = &kplog_open_file,
     .close_file = &kplog_close_file,
     .read = &kplog_read,
@@ -236,7 +236,7 @@ static void init_kplog(void)
     int retval = dev_prefix_claim(&dev_prefix_kplog);
 
     if(retval == 0) {
-        retval = char_device_add_unitless(&kplog_device, &dev_prefix_kplog);
+        retval = char_interface_add_unitless(&kplog_device, &dev_prefix_kplog);
     }
 
     if(retval < 0) {

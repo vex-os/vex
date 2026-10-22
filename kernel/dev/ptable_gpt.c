@@ -1,4 +1,4 @@
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/block_ptable.h>
 #include <vex/compiler.h>
 #include <vex/crc32_iso3309.h>
@@ -81,15 +81,15 @@ struct gpt_ptdata_s {
     uint8_t cached_entries[0];
 };
 
-static int gpt_check_header(const block_device_t* restrict device, uintptr_t header_lba, gpt_ptdata_t** restrict ptdata)
+static int gpt_check_header(const block_interface_t* restrict interface, uintptr_t header_lba, gpt_ptdata_t** restrict ptdata)
 {
-    uint8_t* sector = kmalloc(device->sector_size);
+    uint8_t* sector = kmalloc(interface->sector_size);
 
     if(sector == nullptr) {
         return -ENOMEM;
     }
 
-    int retval = block_read(device, header_lba, 1, sector);
+    int retval = block_read(interface, header_lba, 1, sector);
 
     if(retval < 0) {
         kfree(sector);
@@ -101,7 +101,7 @@ static int gpt_check_header(const block_device_t* restrict device, uintptr_t hea
 
     uint32_t header_size = le32toh(header.header_size);
 
-    if(memcmp(header.signature, "EFI PART", 8) || header_size < sizeof(gpt_header_t) || header_size > device->sector_size) {
+    if(memcmp(header.signature, "EFI PART", 8) || header_size < sizeof(gpt_header_t) || header_size > interface->sector_size) {
         kfree(sector);
         return -EINVAL;
     }
@@ -131,20 +131,20 @@ static int gpt_check_header(const block_device_t* restrict device, uintptr_t hea
     }
 
     size_t entries_size = (size_t)entry_count * entry_size;
-    size_t entries_lbas = (entries_size + device->sector_size - 1) / device->sector_size;
+    size_t entries_lbas = (entries_size + interface->sector_size - 1) / interface->sector_size;
 
-    if(entry_start_lba >= device->sector_count || entries_lbas > device->sector_count - entry_start_lba) {
+    if(entry_start_lba >= interface->sector_count || entries_lbas > interface->sector_count - entry_start_lba) {
         return -EINVAL;
     }
 
     // Whole sectors are read, so the buffer is rounded up to them
-    gpt_ptdata_t* gpt = kmalloc(entries_lbas * device->sector_size + sizeof(gpt_ptdata_t));
+    gpt_ptdata_t* gpt = kmalloc(entries_lbas * interface->sector_size + sizeof(gpt_ptdata_t));
 
     if(gpt == nullptr) {
         return -ENOMEM;
     }
 
-    retval = block_read(device, entry_start_lba, entries_lbas, gpt->cached_entries);
+    retval = block_read(interface, entry_start_lba, entries_lbas, gpt->cached_entries);
 
     if(retval < 0) {
         kfree(gpt);
@@ -163,10 +163,10 @@ static int gpt_check_header(const block_device_t* restrict device, uintptr_t hea
     return 0;
 }
 
-static int gpt_detect(const block_device_t* restrict device, void** restrict ptdata)
+static int gpt_detect(const block_interface_t* restrict interface, void** restrict ptdata)
 {
     pmbr_sector_t sector;
-    int retval = block_read_sector_prefix(device, 0, &sector, sizeof(sector));
+    int retval = block_read_sector_prefix(interface, 0, &sector, sizeof(sector));
 
     if(retval < 0) {
         return retval;
@@ -185,10 +185,10 @@ static int gpt_detect(const block_device_t* restrict device, void** restrict ptd
     }
 
     gpt_ptdata_t* gpt;
-    retval = gpt_check_header(device, le32toh(sector.entries[0].lba_start), &gpt);
+    retval = gpt_check_header(interface, le32toh(sector.entries[0].lba_start), &gpt);
 
     if(retval < 0) {
-        retval = gpt_check_header(device, device->sector_count - 1, &gpt);
+        retval = gpt_check_header(interface, interface->sector_count - 1, &gpt);
     }
 
     if(retval < 0) {
@@ -200,7 +200,7 @@ static int gpt_detect(const block_device_t* restrict device, void** restrict ptd
     return 0;
 }
 
-static int gpt_read_table(const block_device_t* restrict device, void* restrict ptdata, unsigned index,
+static int gpt_read_table(const block_interface_t* restrict interface, void* restrict ptdata, unsigned index,
     block_partition_table_info_t* restrict out)
 {
     static const uint8_t null_guid[16] = {}; // FIXME: a GUID library would be nice
@@ -221,7 +221,7 @@ static int gpt_read_table(const block_device_t* restrict device, void* restrict 
         uint64_t lba_start = le64toh(entry->lba_start);
         uint64_t lba_end = le64toh(entry->lba_end);
 
-        if(lba_end < lba_start || lba_end >= device->sector_count) {
+        if(lba_end < lba_start || lba_end >= interface->sector_count) {
             continue;
         }
 

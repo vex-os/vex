@@ -1,4 +1,4 @@
-#include <vex/char_device.h>
+#include <vex/char_interface.h>
 #include <vex/clocksrc.h>
 #include <vex/dev_name.h>
 #include <vex/errno.h>
@@ -6,7 +6,7 @@
 #include <vex/initcall.h>
 #include <vex/ioctl.h>
 #include <vex/kprintf.h>
-#include <vex/serial_device.h>
+#include <vex/serial_interface.h>
 #include <vex/string.h>
 #include <vex/uaccess.h>
 
@@ -19,38 +19,38 @@
 
 #define TEST_MAX_SPEED 921600
 
-static serial_device_t test_port;
-static char_device_t test_line;
+static serial_interface_t test_port;
+static char_interface_t test_line;
 static event_t line_ready;
 static uint32_t test_modem;
 
-static void serial_test_start_tx(serial_device_t* restrict device)
+static void serial_test_start_tx(serial_interface_t* restrict interface)
 {
     event_trigger(&line_ready, true);
 }
 
-static int serial_test_set_line(serial_device_t* restrict device, const serial_line_t* restrict line)
+static int serial_test_set_line(serial_interface_t* restrict interface, const serial_line_t* restrict line)
 {
     return 0;
 }
 
-static void serial_test_set_modem(serial_device_t* restrict device, uint32_t lines)
+static void serial_test_set_modem(serial_interface_t* restrict interface, uint32_t lines)
 {
     test_modem = lines;
 }
 
 // The far end is always there
-static uint32_t serial_test_get_modem(serial_device_t* restrict device)
+static uint32_t serial_test_get_modem(serial_interface_t* restrict interface)
 {
     return test_modem | SERIAL_MODEM_DCD | SERIAL_MODEM_DSR | SERIAL_MODEM_CTS;
 }
 
-static void serial_test_set_break(serial_device_t* restrict device, bool on)
+static void serial_test_set_break(serial_interface_t* restrict interface, bool on)
 {
     // empty
 }
 
-static const serial_device_ops_t serial_test_ops = {
+static const serial_interface_ops_t serial_test_ops = {
     .start_tx = &serial_test_start_tx,
     .set_line = &serial_test_set_line,
     .set_modem = &serial_test_set_modem,
@@ -58,7 +58,7 @@ static const serial_device_ops_t serial_test_ops = {
     .set_break = &serial_test_set_break,
 };
 
-static ssize_t test_line_read(const char_device_t* restrict device, void* restrict file_ctxdata, off_t offset, void* restrict buffer,
+static ssize_t test_line_read(const char_interface_t* restrict interface, void* restrict file_ctxdata, off_t offset, void* restrict buffer,
     size_t size, unsigned flags)
 {
     uint64_t deadline = clock_source_now_ns() + LINE_WAIT_NSEC;
@@ -81,14 +81,14 @@ static ssize_t test_line_read(const char_device_t* restrict device, void* restri
     }
 }
 
-static ssize_t test_line_write(const char_device_t* restrict device, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
-    size_t size, unsigned flags)
+static ssize_t test_line_write(const char_interface_t* restrict interface, void* restrict file_ctxdata, off_t offset,
+    const void* restrict buffer, size_t size, unsigned flags)
 {
     serial_receive(&test_port, buffer, size);
     return size;
 }
 
-static int test_line_ioctl(const char_device_t* restrict device, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
+static int test_line_ioctl(const char_interface_t* restrict interface, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
 {
     int32_t value;
 
@@ -111,7 +111,7 @@ static int test_line_ioctl(const char_device_t* restrict device, void* restrict 
     return 0;
 }
 
-static const char_device_ops_t test_line_ops = {
+static const char_interface_ops_t test_line_ops = {
     .read = &test_line_read,
     .write = &test_line_write,
     .ioctl = &test_line_ioctl,
@@ -127,14 +127,14 @@ static void init_serial_test(void)
     test_port.modem_lines = SERIAL_MODEM_DTR | SERIAL_MODEM_RTS | SERIAL_MODEM_DCD | SERIAL_MODEM_DSR | SERIAL_MODEM_CTS;
     test_line.ops = &test_line_ops;
 
-    int retval = serial_device_add(&test_port);
+    int retval = serial_interface_add(&test_port);
 
     if(retval == 0) {
         retval = dev_prefix_claim(&dev_prefix_serialtest);
     }
 
     if(retval == 0) {
-        retval = char_device_add_unitless(&test_line, &dev_prefix_serialtest);
+        retval = char_interface_add_unitless(&test_line, &dev_prefix_serialtest);
     }
 
     if(retval < 0) {
@@ -142,7 +142,7 @@ static void init_serial_test(void)
         return;
     }
 
-    pr_inform("serial_test: %s, its far end %s", test_port.chr.name, test_line.name);
+    pr_inform("serial_test: %s, its far end %s", test_port.char_interface.name, test_line.name);
 }
 
 initcall_bsp_dev(init_serial_test, INIT_MIDDLE);

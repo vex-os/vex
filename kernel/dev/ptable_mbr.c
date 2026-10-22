@@ -1,4 +1,4 @@
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/block_ptable.h>
 #include <vex/compiler.h>
 #include <vex/endian.h>
@@ -36,10 +36,10 @@ static_assert(16 == sizeof(mbr_entry_t));
 static_assert(512 == sizeof(mbr_sector_t));
 #endif
 
-static int mbr_detect(const block_device_t* restrict device, void** restrict ptdata)
+static int mbr_detect(const block_interface_t* restrict interface, void** restrict ptdata)
 {
     mbr_sector_t sector;
-    int retval = block_read_sector_prefix(device, 0, &sector, sizeof(sector));
+    int retval = block_read_sector_prefix(interface, 0, &sector, sizeof(sector));
 
     if(retval < 0) {
         return retval;
@@ -76,7 +76,7 @@ static int mbr_detect(const block_device_t* restrict device, void** restrict ptd
     return -EINVAL;
 }
 
-static int mbr_read_table(const block_device_t* restrict device, void* restrict ptdata, unsigned index,
+static int mbr_read_table(const block_interface_t* restrict interface, void* restrict ptdata, unsigned index,
     block_partition_table_info_t* restrict out)
 {
     const mbr_sector_t* mbr = ptdata;
@@ -93,7 +93,7 @@ static int mbr_read_table(const block_device_t* restrict device, void* restrict 
         uint64_t lba_start = le32toh(entry->lba_start);
         uint64_t lba_count = le32toh(entry->lba_count);
 
-        if(lba_start >= device->sector_count || lba_count > device->sector_count - lba_start) {
+        if(lba_start >= interface->sector_count || lba_count > interface->sector_count - lba_start) {
             continue;
         }
 

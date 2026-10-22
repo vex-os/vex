@@ -1,4 +1,4 @@
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
 #include <vex/kmalloc.h>
@@ -342,7 +342,7 @@ static int block_area(ext2_vfs_context_t* restrict fs_ctx, uint32_t block, ext2_
     }
 
     if(le32toh(header.h_magic) != EXT2_XATTR_MAGIC || le32toh(header.h_blocks) != 1) {
-        pr_warning("ext2: %s: xattr block %u is broken", fs_ctx->device->name, block);
+        pr_warning("ext2: %s: xattr block %u is broken", fs_ctx->volume->name, block);
         return -EIO;
     }
 
@@ -803,7 +803,7 @@ int ext2_xattr_remove(vnode_t* restrict node, unsigned space, const char* restri
 
 void ext2_xattr_release(ext2_vfs_context_t* restrict context, uint32_t block)
 {
-    const char* name = context->device->name;
+    const char* name = context->volume->name;
 
     if(block < context->first_data_block || block >= le32toh(context->super.s_blocks_count)) {
         pr_warning("ext2: %s: xattr block %u is outside the filesystem", name, block);

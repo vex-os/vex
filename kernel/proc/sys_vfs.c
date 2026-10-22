@@ -1,4 +1,4 @@
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/errno.h>
 #include <vex/file.h>
 #include <vex/mount.h>
@@ -109,7 +109,7 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
         params_ptr = params;
     }
 
-    const block_device_t* device = nullptr;
+    const block_interface_t* interface = nullptr;
 
     if(args[0]) {
         char source[PATH_SIZE];
@@ -138,21 +138,21 @@ static intptr_t sys_mount(const uintptr_t* restrict args)
                 return retval;
             }
 
-            if(source_node->type != VNODE_BLOCK_DEV || source_node->device == nullptr) {
+            if(source_node->type != VNODE_BLOCK_DEV || source_node->volume == nullptr) {
                 vnode_decref(source_node);
                 return -EINVAL;
             }
 
-            device = source_node->device;
-            block_device_incref(device);
+            interface = source_node->volume;
+            block_interface_incref(interface);
             vnode_decref(source_node);
         }
     }
 
-    int retval = vfs_mount(fstype, target, device, params_ptr);
+    int retval = vfs_mount(fstype, target, interface, params_ptr);
 
-    if(device) {
-        block_device_decref(device);
+    if(interface) {
+        block_interface_decref(interface);
     }
 
     return retval;

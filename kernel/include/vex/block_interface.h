@@ -17,9 +17,9 @@ enum {
 
 typedef struct block_segment_s block_segment_t;
 typedef struct block_request_s block_request_t;
-typedef struct block_device_s block_device_t;
-typedef struct block_device_ops_s block_device_ops_t;
-typedef struct block_device_private_s block_device_private_t;
+typedef struct block_interface_s block_interface_t;
+typedef struct block_interface_ops_s block_interface_ops_t;
+typedef struct block_interface_private_s block_interface_private_t;
 
 struct block_segment_s {
     uintptr_t phys;
@@ -40,23 +40,23 @@ struct block_request_s {
     void* ctxdata;
 };
 
-struct block_device_ops_s {
+struct block_interface_ops_s {
     /// @pre block_submit has checked the request against the device's limits and found the device present
     /// @note Finish the request by setting status and calling done exactly once, failure included
-    void (*submit)(const block_device_t* restrict device, block_request_t* restrict req);
-    void (*release)(const block_device_t* restrict device);
+    void (*submit)(const block_interface_t* restrict interface, block_request_t* restrict req);
+    void (*release)(const block_interface_t* restrict interface);
 };
 
-struct block_device_private_s {
-    block_device_t* next;
+struct block_interface_private_s {
+    block_interface_t* next;
     dev_name_t name;
     dev_t dev;
     unsigned refcount;
 };
 
-struct block_device_s {
-    block_device_private_t priv;
-    const block_device_ops_t* ops;
+struct block_interface_s {
+    block_interface_private_t priv;
+    const block_interface_ops_t* ops;
     char name[64];
     size_t sector_count;
     size_t sector_size;
@@ -69,46 +69,46 @@ struct block_device_s {
 };
 
 /// @param index The n of the name, such as the controller's port
-int block_device_add_root(block_device_t* restrict device, dev_unit_t* restrict unit, unsigned index);
+int block_interface_add_root(block_interface_t* restrict interface, dev_unit_t* restrict unit, unsigned index);
 
 /// @param partition The p of the name, from one
-int block_device_add_part(block_device_t* restrict device, const block_device_t* restrict root, unsigned partition);
+int block_interface_add_part(block_interface_t* restrict interface, const block_interface_t* restrict root, unsigned partition);
 
 /// Takes the device out of the registry and drops the reference it held there; holders of
 /// other references keep the structure, but their requests fail with -ENODEV from now on
-int block_device_remove(block_device_t* restrict device);
+int block_interface_remove(block_interface_t* restrict interface);
 
-void block_device_incref(const block_device_t* restrict device);
-void block_device_decref(const block_device_t* restrict device);
+void block_interface_incref(const block_interface_t* restrict interface);
+void block_interface_decref(const block_interface_t* restrict interface);
 
-const block_device_t* block_device_find(const char* restrict name) __nodiscard;
+const block_interface_t* block_interface_find(const char* restrict name) __nodiscard;
 
 /// @pre The caller holds block_event_lock, which keeps the device list still
-void block_device_for_each(void (*callback)(const block_device_t* restrict device, void* restrict arg), void* restrict arg);
+void block_interface_for_each(void (*callback)(const block_interface_t* restrict interface, void* restrict arg), void* restrict arg);
 
 /// Starts the request and returns; done reports the outcome, even for a request
 /// refused right away as -ENODEV or -EINVAL. Segments are physical addresses
 /// within dma_limit and dma_align, the length a multiple of the sector size
-void block_submit(const block_device_t* restrict device, block_request_t* restrict req);
+void block_submit(const block_interface_t* restrict interface, block_request_t* restrict req);
 
 /// block_submit, then waits for done; replaces whatever done and ctxdata the request had
 /// @pre Interrupts are enabled, unless the driver finishes the request before block_submit returns
 /// @return The request's status
-int block_submit_wait(const block_device_t* restrict device, block_request_t* restrict req);
+int block_submit_wait(const block_interface_t* restrict interface, block_request_t* restrict req);
 
 /// Reads synchronously, in as many requests within the device's limits as the transfer needs
 /// @pre Interrupts are enabled, unless the driver finishes requests before block_submit returns
 /// @param count Sectors to transfer
 /// @param buffer Any kernel memory; pages the device can't reach by DMA go through a bounce buffer
 /// @retval -ENOMEM No memory for the bounce buffer
-int block_read(const block_device_t* restrict device, uintptr_t lba, size_t count, void* restrict buffer);
+int block_read(const block_interface_t* restrict interface, uintptr_t lba, size_t count, void* restrict buffer);
 
 /// Writes synchronously, in as many requests within the device's limits as the transfer needs
 /// @pre Interrupts are enabled, unless the driver finishes requests before block_submit returns
 /// @param count Sectors to transfer
 /// @param buffer Any kernel memory; pages the device can't reach by DMA go through a bounce buffer
 /// @retval -ENOMEM No memory for the bounce buffer
-int block_write(const block_device_t* restrict device, uintptr_t lba, size_t count, const void* restrict buffer);
+int block_write(const block_interface_t* restrict interface, uintptr_t lba, size_t count, const void* restrict buffer);
 
-int block_flush(const block_device_t* restrict device);
-int block_read_sector_prefix(const block_device_t* restrict device, uintptr_t lba, void* restrict buffer, size_t size);
+int block_flush(const block_interface_t* restrict interface);
+int block_read_sector_prefix(const block_interface_t* restrict interface, uintptr_t lba, void* restrict buffer, size_t size);

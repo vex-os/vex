@@ -1,19 +1,19 @@
-#include <vex/char_device.h>
+#include <vex/char_interface.h>
 #include <vex/dev_name.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/kmalloc.h>
-#include <vex/serial_device.h>
+#include <vex/serial_interface.h>
 #include <vex/string.h>
 #include <vex/strings.h>
-#include <vex/tty_device.h>
+#include <vex/tty_interface.h>
 #include <vex/uaccess.h>
 
 typedef struct tty_serial_s tty_serial_t;
 
 struct tty_serial_s {
-    tty_device_t tty;
-    serial_device_t* port; // A reference, through its control node
+    tty_interface_t tty;
+    serial_interface_t* port; // A reference, through its control node
     dev_unit_t* unit;
     bool hangup_on_close; // HUPCL, kept from set_termios as close has no termios
     bool hung_up;         // A zero speed lowered DTR
@@ -22,41 +22,41 @@ struct tty_serial_s {
 static_assert(SERIAL_ERROR_BREAK == TTY_ERROR_BREAK && SERIAL_ERROR_PARITY == TTY_ERROR_PARITY);
 static_assert(SERIAL_ERROR_FRAMING == TTY_ERROR_FRAMING && SERIAL_ERROR_OVERRUN == TTY_ERROR_OVERRUN);
 
-static tty_serial_t* tty_serial_of(const tty_device_t* restrict device)
+static tty_serial_t* tty_serial_of(const tty_interface_t* restrict interface)
 {
-    return device->ctxdata;
+    return interface->ctxdata;
 }
 
-static int tty_serial_open(tty_device_t* restrict device)
+static int tty_serial_open(tty_interface_t* restrict interface)
 {
-    tty_serial_t* terminal = tty_serial_of(device);
-    int retval = serial_device_startup(terminal->port);
+    tty_serial_t* terminal = tty_serial_of(interface);
+    int retval = serial_interface_startup(terminal->port);
 
     if(retval < 0) {
         return retval;
     }
 
-    serial_device_set_modem(terminal->port, SERIAL_MODEM_DTR | SERIAL_MODEM_RTS, 0);
+    serial_interface_set_modem(terminal->port, SERIAL_MODEM_DTR | SERIAL_MODEM_RTS, 0);
     terminal->hung_up = false;
 
     return 0;
 }
 
-static void tty_serial_close(tty_device_t* restrict device)
+static void tty_serial_close(tty_interface_t* restrict interface)
 {
-    tty_serial_t* terminal = tty_serial_of(device);
+    tty_serial_t* terminal = tty_serial_of(interface);
 
     if(terminal->hangup_on_close) {
-        serial_device_set_modem(terminal->port, 0, SERIAL_MODEM_DTR | SERIAL_MODEM_RTS);
+        serial_interface_set_modem(terminal->port, 0, SERIAL_MODEM_DTR | SERIAL_MODEM_RTS);
     }
 
-    serial_device_shutdown(terminal->port);
+    serial_interface_shutdown(terminal->port);
 }
 
-static void tty_serial_start_tx(tty_device_t* restrict device)
+static void tty_serial_start_tx(tty_interface_t* restrict interface)
 {
-    tty_serial_t* terminal = tty_serial_of(device);
-    serial_device_start_tx(terminal->port);
+    tty_serial_t* terminal = tty_serial_of(interface);
+    serial_interface_start_tx(terminal->port);
 }
 
 static uint8_t data_bits_of(uint32_t cflag)
@@ -86,9 +86,9 @@ static uint8_t parity_of(uint32_t cflag)
     return SERIAL_PARITY_EVEN;
 }
 
-static int tty_serial_set_termios(tty_device_t* restrict device, const termios_t* restrict termios)
+static int tty_serial_set_termios(tty_interface_t* restrict interface, const termios_t* restrict termios)
 {
-    tty_serial_t* terminal = tty_serial_of(device);
+    tty_serial_t* terminal = tty_serial_of(interface);
     uint32_t cflag = termios->c_cflag;
 
     if(termios->c_ispeed && termios->c_ispeed != termios->c_ospeed) {
@@ -98,7 +98,7 @@ static int tty_serial_set_termios(tty_device_t* restrict device, const termios_t
     terminal->hangup_on_close = cflag & HUPCL;
 
     if(termios->c_ospeed == 0) {
-        serial_device_set_modem(terminal->port, 0, SERIAL_MODEM_DTR);
+        serial_interface_set_modem(terminal->port, 0, SERIAL_MODEM_DTR);
         terminal->hung_up = true;
         return 0;
     }
@@ -113,10 +113,10 @@ static int tty_serial_set_termios(tty_device_t* restrict device, const termios_t
         line.flow = SERIAL_FLOW_RTSCTS;
     }
 
-    int retval = serial_device_set_line(terminal->port, &line);
+    int retval = serial_interface_set_line(terminal->port, &line);
 
     if(retval == 0 && terminal->hung_up) {
-        serial_device_set_modem(terminal->port, SERIAL_MODEM_DTR | SERIAL_MODEM_RTS, 0);
+        serial_interface_set_modem(terminal->port, SERIAL_MODEM_DTR | SERIAL_MODEM_RTS, 0);
         terminal->hung_up = false;
     }
 
@@ -136,27 +136,27 @@ static int send_break(tty_serial_t* restrict terminal, uintptr_t argument)
         return -EINVAL;
     }
 
-    return serial_device_send_break(terminal->port, duration);
+    return serial_interface_send_break(terminal->port, duration);
 }
 
-static int tty_serial_ioctl(tty_device_t* restrict device, uint32_t request, uintptr_t argument)
+static int tty_serial_ioctl(tty_interface_t* restrict interface, uint32_t request, uintptr_t argument)
 {
     if(request == TCSENDBREAK) {
-        return send_break(tty_serial_of(device), argument);
+        return send_break(tty_serial_of(interface), argument);
     }
 
     return -ENOTTY;
 }
 
-static void tty_serial_release(const tty_device_t* restrict device)
+static void tty_serial_release(const tty_interface_t* restrict interface)
 {
-    tty_serial_t* terminal = tty_serial_of(device);
+    tty_serial_t* terminal = tty_serial_of(interface);
 
-    char_device_decref(&terminal->port->chr);
+    char_interface_decref(&terminal->port->char_interface);
     kfree(terminal);
 }
 
-static const tty_device_ops_t tty_serial_ops = {
+static const tty_interface_ops_t tty_serial_ops = {
     .open = &tty_serial_open,
     .close = &tty_serial_close,
     .start_tx = &tty_serial_start_tx,
@@ -174,8 +174,8 @@ static int take_unit(int32_t index, dev_unit_t** restrict unit)
     return dev_unit_claim(&dev_prefix_tty, index, unit);
 }
 
-static int tty_serial_bind(serial_device_t* restrict device, const char* restrict options, int32_t* restrict index, char* restrict object,
-    size_t size)
+static int tty_serial_bind(serial_interface_t* restrict interface, const char* restrict options, int32_t* restrict index,
+    char* restrict object, size_t size)
 {
     if(options[0]) {
         return -EINVAL;
@@ -196,37 +196,37 @@ static int tty_serial_bind(serial_device_t* restrict device, const char* restric
         return retval;
     }
 
-    terminal->port = device;
+    terminal->port = interface;
     terminal->tty.ops = &tty_serial_ops;
-    terminal->tty.initial_speed = device->line.speed;
+    terminal->tty.initial_speed = interface->line.speed;
     terminal->tty.ctxdata = terminal;
 
-    char_device_incref(&device->chr);
-    device->consumer_data = terminal;
+    char_interface_incref(&interface->char_interface);
+    interface->consumer_data = terminal;
 
-    retval = tty_device_add(&terminal->tty, terminal->unit, DEV_NAME_NONE);
+    retval = tty_interface_add(&terminal->tty, terminal->unit, DEV_NAME_NONE);
 
     if(retval < 0) {
-        device->consumer_data = nullptr;
-        char_device_decref(&device->chr);
+        interface->consumer_data = nullptr;
+        char_interface_decref(&interface->char_interface);
         dev_unit_free(terminal->unit);
         kfree(terminal);
         return retval;
     }
 
     *index = terminal->unit->number;
-    kstrncpy(object, terminal->tty.chr.name, size - 1);
+    kstrncpy(object, terminal->tty.char_interface.name, size - 1);
 
     return 0;
 }
 
-static int tty_serial_unbind(serial_device_t* restrict device, bool force)
+static int tty_serial_unbind(serial_interface_t* restrict interface, bool force)
 {
-    tty_serial_t* terminal = device->consumer_data;
+    tty_serial_t* terminal = interface->consumer_data;
     dev_unit_t* unit = terminal->unit;
 
     if(!force) {
-        int retval = char_device_refuse_opens(&terminal->tty.chr);
+        int retval = char_interface_refuse_opens(&terminal->tty.char_interface);
 
         if(retval < 0) {
             return retval;
@@ -234,30 +234,30 @@ static int tty_serial_unbind(serial_device_t* restrict device, bool force)
     }
 
     // Before the removal, which may free the terminal
-    serial_device_detach(device);
+    serial_interface_detach(interface);
 
     // A hangup when forced; the terminal is freed once the last file of it closes
-    tty_device_remove(&terminal->tty);
+    tty_interface_remove(&terminal->tty);
     dev_unit_free(unit);
 
     return 0;
 }
 
-static void tty_serial_receive(serial_device_t* restrict device, const uint8_t* restrict bytes, size_t count)
+static void tty_serial_receive(serial_interface_t* restrict interface, const uint8_t* restrict bytes, size_t count)
 {
-    tty_serial_t* terminal = device->consumer_data;
+    tty_serial_t* terminal = interface->consumer_data;
     tty_receive(&terminal->tty, bytes, count);
 }
 
-static void tty_serial_receive_error(serial_device_t* restrict device, uint8_t byte, unsigned error)
+static void tty_serial_receive_error(serial_interface_t* restrict interface, uint8_t byte, unsigned error)
 {
-    tty_serial_t* terminal = device->consumer_data;
+    tty_serial_t* terminal = interface->consumer_data;
     tty_receive_error(&terminal->tty, byte, error);
 }
 
-static size_t tty_serial_transmit_take(serial_device_t* restrict device, void* restrict buffer, size_t size)
+static size_t tty_serial_transmit_take(serial_interface_t* restrict interface, void* restrict buffer, size_t size)
 {
-    tty_serial_t* terminal = device->consumer_data;
+    tty_serial_t* terminal = interface->consumer_data;
     return tty_transmit_take(&terminal->tty, buffer, size);
 }
 

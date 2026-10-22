@@ -1,4 +1,4 @@
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/cmdline.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
@@ -13,11 +13,11 @@
 
 #define ECHFS_RESERVED_BLOCKS UINT64_C(16)
 
-static int echfs_probe(vfs_t* restrict fs, const block_device_t* restrict device)
+static int echfs_probe(vfs_t* restrict fs, const block_interface_t* restrict volume)
 {
     echfs_identity_t identity;
 
-    int retval = block_read_sector_prefix(device, 0, &identity, sizeof(identity));
+    int retval = block_read_sector_prefix(volume, 0, &identity, sizeof(identity));
 
     if(retval < 0) {
         return retval;
@@ -30,13 +30,13 @@ static int echfs_probe(vfs_t* restrict fs, const block_device_t* restrict device
     return 0;
 }
 
-static int echfs_mount(vfs_t* restrict fs, const block_device_t* restrict device, const cmdline_t* restrict params)
+static int echfs_mount(vfs_t* restrict fs, const block_interface_t* restrict volume, const cmdline_t* restrict params)
 {
-    if(device == nullptr) {
+    if(volume == nullptr) {
         return -EINVAL;
     }
 
-    size_t sector_size = device->sector_size;
+    size_t sector_size = volume->sector_size;
 
     echfs_identity_t* identity = kmalloc(sizeof(echfs_identity_t));
 
@@ -44,7 +44,7 @@ static int echfs_mount(vfs_t* restrict fs, const block_device_t* restrict device
         return -ENOMEM;
     }
 
-    int retval = block_read_sector_prefix(device, 0, identity, sizeof(*identity));
+    int retval = block_read_sector_prefix(volume, 0, identity, sizeof(*identity));
 
     if(retval < 0) {
         kfree(identity);
@@ -88,7 +88,7 @@ static int echfs_mount(vfs_t* restrict fs, const block_device_t* restrict device
     context->param_readonly = context->param_readonly || cmdline_contains(params, "ro");
     context->param_readonly = context->param_readonly || cmdline_contains(params, "readonly");
 
-    context->device = device;
+    context->volume = volume;
     context->block_size = block_size;
     context->sectors_per_block = sectors_per_block;
     context->total_blocks = total_blocks;
@@ -156,7 +156,7 @@ static int statvfs_locked(vfs_t* restrict fs, statvfs_t* restrict out)
         }
     }
 
-    out->f_bsize = context->device->sector_size;
+    out->f_bsize = context->volume->sector_size;
     out->f_frsize = context->block_size;
     out->f_blocks = data_blocks;
     out->f_bfree = free_blocks;

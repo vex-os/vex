@@ -1,4 +1,4 @@
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
 #include <vex/kprintf.h>
@@ -186,7 +186,7 @@ static void touch_dir_locked(vnode_t* restrict dir)
 static bool block_mapped_locked(vnode_t* restrict node, uint64_t pos)
 {
     fcache_extent_t extent;
-    size_t sector_size = node->fs->device->sector_size;
+    size_t sector_size = node->fs->volume->sector_size;
     return ext2_bmap(node, pos / sector_size, false, &extent) == 0 && extent.mapped;
 }
 
@@ -454,7 +454,7 @@ static void destroy_inode_locked(vnode_t* restrict node)
 
     if(node->type != VNODE_SYM_LINK || !is_fast_symlink(fs_ctx, inode)) {
         if(ext2_truncate_blocks(node, 0) < 0) {
-            pr_warning("ext2: %s: failed to free the blocks of inode %u", fs_ctx->device->name, ino);
+            pr_warning("ext2: %s: failed to free the blocks of inode %u", fs_ctx->volume->name, ino);
         }
     }
 

@@ -2,7 +2,7 @@
 
 #include <vex/compiler.h>
 #include <vex/io.h>
-#include <vex/serial_device.h>
+#include <vex/serial_interface.h>
 #include <vex/spinlock.h>
 #include <vex/types.h>
 
@@ -12,7 +12,7 @@
 typedef struct uart16550_s uart16550_t;
 
 struct uart16550_s {
-    serial_device_t serial;
+    serial_interface_t serial;
     io_region_t io;
     unsigned reg_shift; // Registers are 1 << reg_shift bytes apart
     uint32_t clock;     // In Hz

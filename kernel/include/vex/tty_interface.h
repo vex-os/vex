@@ -1,7 +1,7 @@
 #pragma once
 
 #include <vex/bitmap.h>
-#include <vex/char_device.h>
+#include <vex/char_interface.h>
 #include <vex/compiler.h>
 #include <vex/event.h>
 #include <vex/mutex.h>
@@ -24,9 +24,9 @@ typedef struct session_s session_t;
 
 typedef struct tty_ring_s tty_ring_t;
 typedef struct tty_discipline_state_s tty_discipline_state_t;
-typedef struct tty_device_s tty_device_t;
-typedef struct tty_device_ops_s tty_device_ops_t;
-typedef struct tty_device_private_s tty_device_private_t;
+typedef struct tty_interface_s tty_interface_t;
+typedef struct tty_interface_ops_s tty_interface_ops_t;
+typedef struct tty_interface_private_s tty_interface_private_t;
 
 // The positions count up and wrap around
 // as uint32_t, which TTY_RING_SIZE divides
@@ -48,31 +48,31 @@ struct tty_discipline_state_s {
     bool hardcopy_erasing;                 // ECHOPRT: erased bytes are being echoed between \ and /
 };
 
-struct tty_device_ops_s {
+struct tty_interface_ops_s {
     /// Sets the hardware up and starts taking input
     /// @pre The first open, and the device's console is released
     /// @post The tty core follows a success with set_termios, so the line needn't be configured here
-    int (*open)(tty_device_t* restrict device);
+    int (*open)(tty_interface_t* restrict interface);
 
     /// @pre The last close
-    void (*close)(tty_device_t* restrict device);
+    void (*close)(tty_interface_t* restrict interface);
 
     /// There is output: take it with tty_transmit_take, now or from an interrupt
     /// @pre No tty lock is held; may come again before the driver took anything
-    void (*start_tx)(tty_device_t* restrict device);
+    void (*start_tx)(tty_interface_t* restrict interface);
 
     /// Applies c_cflag and the speeds to the hardware
     /// @pre The tty core serializes it with writes, and calls it right after open too
     /// @note nullptr when there is nothing to set
-    int (*set_termios)(tty_device_t* restrict device, const termios_t* restrict termios);
+    int (*set_termios)(tty_interface_t* restrict interface, const termios_t* restrict termios);
 
     /// Requests the tty core doesn't know, TCSENDBREAK among them
-    int (*ioctl)(tty_device_t* restrict device, uint32_t request, uintptr_t argument);
+    int (*ioctl)(tty_interface_t* restrict interface, uint32_t request, uintptr_t argument);
 
-    void (*release)(const tty_device_t* restrict device);
+    void (*release)(const tty_interface_t* restrict interface);
 };
 
-struct tty_device_private_s {
+struct tty_interface_private_s {
     spinlock_t lock;    // Taken with interrupts disabled: the rings, discipline and termios
     mutex_t write_lock; // Keeps writes from mixing, and termios from changing under one
     termios_t termios;  // The line discipline reads it, only the tty core changes it
@@ -88,44 +88,44 @@ struct tty_device_private_s {
     event_t readable;
     event_t writable;
     event_t drained;
-    session_t* session;          // Under process_group_lock, a reference
-    process_group_t* foreground; // Under process_group_lock, a reference
-    tty_device_t* worker_next;   // Under the worker queue's lock
-    bool queued;                 // Under the worker queue's lock
-    unsigned in_flight;          // Calls into the tty core that may still touch the device
+    session_t* session;           // Under process_group_lock, a reference
+    process_group_t* foreground;  // Under process_group_lock, a reference
+    tty_interface_t* worker_next; // Under the worker queue's lock
+    bool queued;                  // Under the worker queue's lock
+    unsigned in_flight;           // Calls into the tty core that may still touch the device
     bool removed;
 };
 
-struct tty_device_s {
-    char_device_t chr; // Its ops and ctxdata belong to the tty core
-    tty_device_private_t priv;
-    const tty_device_ops_t* ops;
+struct tty_interface_s {
+    char_interface_t char_interface; // Its ops and ctxdata belong to the tty core
+    tty_interface_private_t priv;
+    const tty_interface_ops_t* ops;
     uint32_t initial_speed; // Of the line, in bits per second, until termios changes it; 0 for 38400
     void* ctxdata;
 };
 
 /// @param index The n of the name; DEV_NAME_NONE for a device that is its unit's only one
 /// @retval -ENOMEM No memory for the rings
-int tty_device_add(tty_device_t* restrict device, dev_unit_t* restrict unit, unsigned index);
+int tty_interface_add(tty_interface_t* restrict interface, dev_unit_t* restrict unit, unsigned index);
 
 /// Hangs the terminal up: readers get end of file, writers -EIO, and its session loses it
 /// @post No call into the tty core touches the driver any more; release still comes
-int tty_device_remove(tty_device_t* restrict device);
+int tty_interface_remove(tty_interface_t* restrict interface);
 
 /// Hands bytes from the line to the tty core; what doesn't fit is lost and counted
 /// @note Any context, an interrupt handler among them
-void tty_receive(tty_device_t* restrict device, const void* restrict bytes, size_t count);
+void tty_receive(tty_interface_t* restrict interface, const void* restrict bytes, size_t count);
 
 /// Hands over a byte that came with a line error, for termios to drop, mark or turn into SIGINT
 /// @param byte What the hardware read; a break's is ignored
 /// @param error One of TTY_ERROR_*
 /// @note Any context, an interrupt handler among them
-void tty_receive_error(tty_device_t* restrict device, uint8_t byte, unsigned error);
+void tty_receive_error(tty_interface_t* restrict interface, uint8_t byte, unsigned error);
 
 /// Takes bytes to send on the line
 /// @return How many bytes it took; zero when the output is empty or stopped
 /// @note Any context, an interrupt handler among them
-size_t tty_transmit_take(tty_device_t* restrict device, void* restrict buffer, size_t size);
+size_t tty_transmit_take(tty_interface_t* restrict interface, void* restrict buffer, size_t size);
 
 static __always_inline uint32_t tty_ring_used(const tty_ring_t* restrict ring)
 {

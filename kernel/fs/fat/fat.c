@@ -1,4 +1,4 @@
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/cmdline.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
@@ -15,11 +15,11 @@
 
 static_assert(sizeof(fat_vnode_context_t) <= SLAB_MAX_SIZE);
 
-static int fat_probe(vfs_t* restrict fs, const block_device_t* restrict device)
+static int fat_probe(vfs_t* restrict fs, const block_interface_t* restrict volume)
 {
     fat_extparams_t boot;
 
-    int retval = block_read_sector_prefix(device, 0, &boot, sizeof(boot));
+    int retval = block_read_sector_prefix(volume, 0, &boot, sizeof(boot));
 
     if(retval < 0) {
         return retval;
@@ -42,9 +42,9 @@ static int fat_probe(vfs_t* restrict fs, const block_device_t* restrict device)
     return 0;
 }
 
-static int fat_mount(vfs_t* restrict fs, const block_device_t* restrict device, const cmdline_t* restrict params)
+static int fat_mount(vfs_t* restrict fs, const block_interface_t* restrict volume, const cmdline_t* restrict params)
 {
-    if(device == nullptr) {
+    if(volume == nullptr) {
         return -EINVAL;
     }
 
@@ -54,7 +54,7 @@ static int fat_mount(vfs_t* restrict fs, const block_device_t* restrict device, 
         return -ENOMEM;
     }
 
-    int retval = block_read_sector_prefix(device, 0, boot, sizeof(*boot));
+    int retval = block_read_sector_prefix(volume, 0, boot, sizeof(*boot));
 
     if(retval < 0) {
         kfree(boot);
@@ -65,7 +65,7 @@ static int fat_mount(vfs_t* restrict fs, const block_device_t* restrict device, 
 
     size_t sector_size = le16toh(base->sector_size);
 
-    if(sector_size != device->sector_size || base->cluster_size == 0) {
+    if(sector_size != volume->sector_size || base->cluster_size == 0) {
         kfree(boot);
         return -EINVAL;
     }
@@ -98,7 +98,7 @@ static int fat_mount(vfs_t* restrict fs, const block_device_t* restrict device, 
     data_start += base->tables_count * fat_size;
     data_start += rootdir_sectors;
 
-    if(base->tables_count == 0 || fat_size == 0 || total_sectors <= data_start || total_sectors > device->sector_count) {
+    if(base->tables_count == 0 || fat_size == 0 || total_sectors <= data_start || total_sectors > volume->sector_count) {
         kfree(boot);
         return -EINVAL;
     }
@@ -156,7 +156,7 @@ static int fat_mount(vfs_t* restrict fs, const block_device_t* restrict device, 
 
     mutex_init(&context->lock);
 
-    context->device = device;
+    context->volume = volume;
     context->filesystem_type = filesystem_type;
 
     context->param_readonly = cmdline_contains(params, "readonly") || cmdline_contains(params, "ro");

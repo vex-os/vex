@@ -1,5 +1,5 @@
 #include <vex/assert.h>
-#include <vex/block_device.h>
+#include <vex/block_interface.h>
 #include <vex/errno.h>
 #include <vex/event.h>
 #include <vex/hart.h>
@@ -17,7 +17,7 @@ static void finish(block_request_t* restrict req, int status)
     req->done(req);
 }
 
-static bool request_valid(const block_device_t* restrict device, const block_request_t* restrict req)
+static bool request_valid(const block_interface_t* restrict interface, const block_request_t* restrict req)
 {
     if(req->op == BLOCK_REQ_FLUSH) {
         return req->length == 0 && req->num_segments == 0;
@@ -27,17 +27,17 @@ static bool request_valid(const block_device_t* restrict device, const block_req
         return false;
     }
 
-    if(req->length == 0 || req->length % device->sector_size || req->length > device->max_transfer) {
+    if(req->length == 0 || req->length % interface->sector_size || req->length > interface->max_transfer) {
         return false;
     }
 
-    if(req->num_segments == 0 || req->num_segments > device->max_segments) {
+    if(req->num_segments == 0 || req->num_segments > interface->max_segments) {
         return false;
     }
 
-    size_t count = req->length / device->sector_size;
+    size_t count = req->length / interface->sector_size;
 
-    if(req->lba >= device->sector_count || count > device->sector_count - req->lba) {
+    if(req->lba >= interface->sector_count || count > interface->sector_count - req->lba) {
         return false;
     }
 
@@ -46,11 +46,11 @@ static bool request_valid(const block_device_t* restrict device, const block_req
     for(size_t i = 0; i < req->num_segments; ++i) {
         const block_segment_t* segment = &req->segments[i];
 
-        if(segment->length == 0 || ((segment->phys | segment->length) & device->dma_align)) {
+        if(segment->length == 0 || ((segment->phys | segment->length) & interface->dma_align)) {
             return false;
         }
 
-        if(segment->phys > device->dma_limit || segment->length - 1 > device->dma_limit - segment->phys) {
+        if(segment->phys > interface->dma_limit || segment->length - 1 > interface->dma_limit - segment->phys) {
             return false;
         }
 
@@ -65,7 +65,7 @@ static void wake_waiter(block_request_t* restrict req)
     event_trigger(req->ctxdata, true);
 }
 
-static bool map_segments(const block_device_t* restrict device, const uint8_t* restrict buffer, size_t length,
+static bool map_segments(const block_interface_t* restrict interface, const uint8_t* restrict buffer, size_t length,
     block_segment_t* restrict segments, size_t* restrict num_segments)
 {
     size_t count = 0;
@@ -79,7 +79,7 @@ static bool map_segments(const block_device_t* restrict device, const uint8_t* r
             piece = length;
         }
 
-        if(phys == 0 || ((phys | piece) & device->dma_align) || phys > device->dma_limit || piece - 1 > device->dma_limit - phys) {
+        if(phys == 0 || ((phys | piece) & interface->dma_align) || phys > interface->dma_limit || piece - 1 > interface->dma_limit - phys) {
             return false;
         }
 
@@ -87,7 +87,7 @@ static bool map_segments(const block_device_t* restrict device, const uint8_t* r
             segments[count - 1].length += piece;
         }
         else {
-            if(count >= device->max_segments || count >= BLOCK_MAX_SEGMENTS) {
+            if(count >= interface->max_segments || count >= BLOCK_MAX_SEGMENTS) {
                 return false;
             }
 
@@ -105,22 +105,22 @@ static bool map_segments(const block_device_t* restrict device, const uint8_t* r
     return true;
 }
 
-static int transfer(const block_device_t* restrict device, unsigned op, uintptr_t lba, size_t count, uint8_t* restrict buffer)
+static int transfer(const block_interface_t* restrict interface, unsigned op, uintptr_t lba, size_t count, uint8_t* restrict buffer)
 {
-    if(0 == (device->flags & BLOCK_FLAG_PRESENT)) {
+    if(0 == (interface->flags & BLOCK_FLAG_PRESENT)) {
         return -ENODEV;
     }
 
-    size_t sector_size = device->sector_size;
+    size_t sector_size = interface->sector_size;
 
-    if(lba >= device->sector_count || count > device->sector_count - lba) {
+    if(lba >= interface->sector_count || count > interface->sector_count - lba) {
         return -EINVAL;
     }
 
     size_t max_segments = BLOCK_MAX_SEGMENTS;
 
-    if(device->max_segments < BLOCK_MAX_SEGMENTS) {
-        max_segments = device->max_segments;
+    if(interface->max_segments < BLOCK_MAX_SEGMENTS) {
+        max_segments = interface->max_segments;
     }
 
     if(max_segments == 0) {
@@ -129,8 +129,8 @@ static int transfer(const block_device_t* restrict device, unsigned op, uintptr_
 
     size_t max_bytes = (max_segments - 1) * PAGE_SIZE;
 
-    if(max_segments == 1 || max_bytes > device->max_transfer) {
-        max_bytes = device->max_transfer;
+    if(max_segments == 1 || max_bytes > interface->max_transfer) {
+        max_bytes = interface->max_transfer;
     }
 
     size_t max_sectors = max_bytes / sector_size;
@@ -154,7 +154,7 @@ static int transfer(const block_device_t* restrict device, unsigned op, uintptr_
         req.length = bytes;
         req.segments = segments;
 
-        bool direct = map_segments(device, buffer, bytes, segments, &req.num_segments);
+        bool direct = map_segments(interface, buffer, bytes, segments, &req.num_segments);
 
         if(!direct) {
             if(bounce_phys == 0) {
@@ -175,7 +175,7 @@ static int transfer(const block_device_t* restrict device, unsigned op, uintptr_
             }
         }
 
-        retval = block_submit_wait(device, &req);
+        retval = block_submit_wait(interface, &req);
 
         if(retval == 0 && !direct && op == BLOCK_REQ_READ) {
             memcpy(buffer, phys_to_virt(bounce_phys), bytes);
@@ -193,22 +193,22 @@ static int transfer(const block_device_t* restrict device, unsigned op, uintptr_
     return retval;
 }
 
-void block_submit(const block_device_t* restrict device, block_request_t* restrict req)
+void block_submit(const block_interface_t* restrict interface, block_request_t* restrict req)
 {
-    if(0 == (device->flags & BLOCK_FLAG_PRESENT)) {
+    if(0 == (interface->flags & BLOCK_FLAG_PRESENT)) {
         finish(req, -ENODEV);
         return;
     }
 
-    if(!request_valid(device, req)) {
+    if(!request_valid(interface, req)) {
         finish(req, -EINVAL);
         return;
     }
 
-    device->ops->submit(device, req);
+    interface->ops->submit(interface, req);
 }
 
-int block_submit_wait(const block_device_t* restrict device, block_request_t* restrict req)
+int block_submit_wait(const block_interface_t* restrict interface, block_request_t* restrict req)
 {
     event_t done;
     event_t* event = &done;
@@ -218,7 +218,7 @@ int block_submit_wait(const block_device_t* restrict device, block_request_t* re
     req->done = &wake_waiter;
     req->ctxdata = &done;
 
-    block_submit(device, req);
+    block_submit(interface, req);
 
     if(event_await(&event, 1) < 0) {
         kassert(interrupt_state());
@@ -233,19 +233,19 @@ int block_submit_wait(const block_device_t* restrict device, block_request_t* re
     return req->status;
 }
 
-int block_read(const block_device_t* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+int block_read(const block_interface_t* restrict interface, uintptr_t lba, size_t count, void* restrict buffer)
 {
-    return transfer(device, BLOCK_REQ_READ, lba, count, buffer);
+    return transfer(interface, BLOCK_REQ_READ, lba, count, buffer);
 }
 
-int block_write(const block_device_t* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
+int block_write(const block_interface_t* restrict interface, uintptr_t lba, size_t count, const void* restrict buffer)
 {
-    return transfer(device, BLOCK_REQ_WRITE, lba, count, (uint8_t*)(buffer));
+    return transfer(interface, BLOCK_REQ_WRITE, lba, count, (uint8_t*)(buffer));
 }
 
-int block_flush(const block_device_t* restrict device)
+int block_flush(const block_interface_t* restrict interface)
 {
     block_request_t req = {};
     req.op = BLOCK_REQ_FLUSH;
-    return block_submit_wait(device, &req);
+    return block_submit_wait(interface, &req);
 }
