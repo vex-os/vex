@@ -115,7 +115,22 @@ size_t device_get_path(const device_t* restrict device, char* restrict buffer, s
 /// @retval -ENOMEM No address space to map memory into
 int device_map_io(device_t* restrict device, unsigned index, io_region_t* restrict region);
 
+/// device_map_io with a memory type other than uncached, such as VPROT_CACHE_WC for video memory
+/// @param index Counts the device's port and memory ranges together, in its bus's order
+/// @retval -ENODEV The device has no such range
+/// @retval -ERANGE A bridge on the way doesn't pass the range on
+/// @retval -ENOMEM No address space to map memory into
+/// @note x86 leaves two mappings of the same memory with different types undefined (PAT), so a driver maps a range once
+int device_map_io_vprot(device_t* restrict device, unsigned index, unsigned vprot, io_region_t* restrict region);
+
 void device_unmap_io(device_t* restrict device, io_region_t* restrict region);
+
+/// Gets where the CPU sees a memory range of the device, without mapping it, as for mapping it to userspace
+/// @param index Counts the device's port and memory ranges together, in its bus's order
+/// @retval -ENODEV The device has no such range
+/// @retval -ERANGE A bridge on the way doesn't pass the range on
+/// @retval -EINVAL The CPU reaches the range through ports
+int device_get_io_address(device_t* restrict device, unsigned index, uint64_t* restrict address);
 
 /// Routes an interrupt of the device to a handler, sharing its GSI when the bus says it may
 /// be shared; the framework releases it when the driver lets go of the device

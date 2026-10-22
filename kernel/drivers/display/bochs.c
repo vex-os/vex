@@ -50,8 +50,9 @@ typedef struct bochsfb_s bochsfb_t;
 
 struct bochsfb_s {
     fb_device_t device;
-    pci_bar_t* mmio;
-    pci_bar_t* vram;
+    io_region_t mmio;
+    io_region_t vram;
+    uintptr_t vram_phys;
     spinlock_t dac_lock; // The DAC takes an index, then three data accesses per color
     unsigned dac_bits;
     bool has_vga; // 8 and 24 bpp need the VGA side, which bochs-display lacks
@@ -63,14 +64,14 @@ struct bochsfb_s {
 
 static_assert(sizeof(bochsfb_t) <= SLAB_MAX_SIZE);
 
-static uint16_t dispi_read(pci_bar_t* restrict mmio, unsigned index)
+static uint16_t dispi_read(const io_region_t* restrict mmio, unsigned index)
 {
-    return io_read16(&mmio->io, MMIO_DISPI + index * 2);
+    return io_read16(mmio, MMIO_DISPI + index * 2);
 }
 
-static void dispi_write(pci_bar_t* restrict mmio, unsigned index, uint16_t value)
+static void dispi_write(const io_region_t* restrict mmio, unsigned index, uint16_t value)
 {
-    io_write16(&mmio->io, MMIO_DISPI + index * 2, value);
+    io_write16(mmio, MMIO_DISPI + index * 2, value);
 }
 
 static void set_channel(vexfb_channel_t* restrict channel, uint32_t bit_offset, uint32_t bit_length)
@@ -79,7 +80,7 @@ static void set_channel(vexfb_channel_t* restrict channel, uint32_t bit_offset, 
     channel->bit_length = bit_length;
 }
 
-static bool describe(pci_bar_t* restrict mmio, vexfb_info_t* restrict info, uint64_t* restrict offset)
+static bool describe(const io_region_t* restrict mmio, vexfb_info_t* restrict info, uint64_t* restrict offset)
 {
     uint16_t enable = dispi_read(mmio, DISPI_ENABLE);
 
@@ -138,12 +139,12 @@ static int bochsfb_get_palette(const fb_device_t* restrict device, uint32_t firs
     bochsfb_t* bochsfb = device->ctxdata;
     bool intr_state = spinlock_acquire_intr(&bochsfb->dac_lock);
 
-    io_write8(&bochsfb->mmio->io, VGA_DAC_READ_INDEX, first);
+    io_write8(&bochsfb->mmio, VGA_DAC_READ_INDEX, first);
 
     for(uint32_t i = 0; i < count; ++i) {
-        uint32_t red = dac_to_rgb(bochsfb->dac_bits, io_read8(&bochsfb->mmio->io, VGA_DAC_DATA));
-        uint32_t green = dac_to_rgb(bochsfb->dac_bits, io_read8(&bochsfb->mmio->io, VGA_DAC_DATA));
-        uint32_t blue = dac_to_rgb(bochsfb->dac_bits, io_read8(&bochsfb->mmio->io, VGA_DAC_DATA));
+        uint32_t red = dac_to_rgb(bochsfb->dac_bits, io_read8(&bochsfb->mmio, VGA_DAC_DATA));
+        uint32_t green = dac_to_rgb(bochsfb->dac_bits, io_read8(&bochsfb->mmio, VGA_DAC_DATA));
+        uint32_t blue = dac_to_rgb(bochsfb->dac_bits, io_read8(&bochsfb->mmio, VGA_DAC_DATA));
         colors[i] = (red << 16) | (green << 8) | blue;
     }
 
@@ -158,12 +159,12 @@ static int bochsfb_set_palette(const fb_device_t* restrict device, uint32_t firs
     unsigned shift = 8 - bochsfb->dac_bits;
     bool intr_state = spinlock_acquire_intr(&bochsfb->dac_lock);
 
-    io_write8(&bochsfb->mmio->io, VGA_DAC_WRITE_INDEX, first);
+    io_write8(&bochsfb->mmio, VGA_DAC_WRITE_INDEX, first);
 
     for(uint32_t i = 0; i < count; ++i) {
-        io_write8(&bochsfb->mmio->io, VGA_DAC_DATA, ((colors[i] >> 16) & 0xFF) >> shift);
-        io_write8(&bochsfb->mmio->io, VGA_DAC_DATA, ((colors[i] >> 8) & 0xFF) >> shift);
-        io_write8(&bochsfb->mmio->io, VGA_DAC_DATA, (colors[i] & 0xFF) >> shift);
+        io_write8(&bochsfb->mmio, VGA_DAC_DATA, ((colors[i] >> 16) & 0xFF) >> shift);
+        io_write8(&bochsfb->mmio, VGA_DAC_DATA, ((colors[i] >> 8) & 0xFF) >> shift);
+        io_write8(&bochsfb->mmio, VGA_DAC_DATA, (colors[i] & 0xFF) >> shift);
     }
 
     spinlock_release_intr(&bochsfb->dac_lock, intr_state);
@@ -184,14 +185,14 @@ static bool mode_supported(const bochsfb_t* restrict bochsfb, const vexfb_mode_t
         return false;
     }
 
-    return (uint64_t)(mode->width) * (mode->bpp / 8) * mode->height <= bochsfb->vram->io.length;
+    return (uint64_t)(mode->width) * (mode->bpp / 8) * mode->height <= bochsfb->vram.length;
 }
 
 // Nothing but register accesses, as a panic calls this too
 static int bochsfb_set_mode(fb_device_t* restrict device, const vexfb_mode_t* restrict mode)
 {
     bochsfb_t* bochsfb = device->ctxdata;
-    pci_bar_t* mmio = bochsfb->mmio;
+    const io_region_t* mmio = &bochsfb->mmio;
 
     if(!mode_supported(bochsfb, mode)) {
         return -EINVAL;
@@ -212,13 +213,13 @@ static int bochsfb_set_mode(fb_device_t* restrict device, const vexfb_mode_t* re
     vexfb_info_t info;
     uint64_t offset;
 
-    if(!describe(mmio, &info, &offset) || offset + info.size > bochsfb->vram->io.length) {
+    if(!describe(mmio, &info, &offset) || offset + info.size > bochsfb->vram.length) {
         return -EIO;
     }
 
     device->info = info;
-    device->phys = bochsfb->vram->phys + offset;
-    device->virt = (uint8_t*)(bochsfb->vram->io.base) + offset;
+    device->phys = bochsfb->vram_phys + offset;
+    device->virt = (uint8_t*)(bochsfb->vram.base) + offset;
 
     return 0;
 }
@@ -239,7 +240,7 @@ static const fb_device_ops_t bochsfb_ops = {
 // keeps the mode, rather than setting it again
 static void read_limits(bochsfb_t* restrict bochsfb, const vexfb_info_t* restrict info)
 {
-    pci_bar_t* mmio = bochsfb->mmio;
+    const io_region_t* mmio = &bochsfb->mmio;
     uint16_t enable = dispi_read(mmio, DISPI_ENABLE);
 
     dispi_write(mmio, DISPI_ENABLE, enable | DISPI_GETCAPS);
@@ -297,7 +298,7 @@ static size_t collect_modes(bochsfb_t* restrict bochsfb, const vexfb_info_t* res
     uint8_t block[EDID_BLOCK_SIZE];
     vexfb_mode_t found[MAX_MODES];
 
-    io_copy_from(&bochsfb->mmio->io, MMIO_EDID, block, sizeof(block));
+    io_copy_from(&bochsfb->mmio, MMIO_EDID, block, sizeof(block));
 
     size_t found_count = fb_edid_parse_modes(block, found, MAX_MODES);
     size_t count = 0;
@@ -323,16 +324,16 @@ static int bochsfb_probe(device_t* restrict device, const driver_match_t* restri
 static int bochsfb_attach(device_t* restrict node, const driver_match_t* restrict match)
 {
     pci_function_t* function = pci_function_of(node);
-    pci_bar_t* mmio = pci_bar_map(function, BAR_MMIO);
+    io_region_t mmio;
 
     // UNDONE: old QEMU std-vga has no MMIO BAR
     // and only takes DISPI through ports 0x1CE/0x1CF
-    if(mmio == nullptr || mmio->io.space != IO_SPACE_MEMORY) {
+    if(device_map_io(node, BAR_MMIO, &mmio) < 0 || mmio.space != IO_SPACE_MEMORY) {
         pr_verbose("bochsfb: no register BAR");
         return -ENODEV;
     }
 
-    uint16_t dispi_id = dispi_read(mmio, DISPI_ID);
+    uint16_t dispi_id = dispi_read(&mmio, DISPI_ID);
 
     if(dispi_id < DISPI_ID_MIN || dispi_id > DISPI_ID_MAX) {
         pr_verbose("bochsfb: unknown DISPI version 0x%04X", dispi_id);
@@ -343,14 +344,25 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
     uint64_t offset;
 
     // UNDONE: set a mode of our own rather than give up
-    if(!describe(mmio, &info, &offset)) {
+    if(!describe(&mmio, &info, &offset)) {
         pr_verbose("bochsfb: no linear framebuffer mode is set");
         return -ENODEV;
     }
 
-    pci_bar_t* vram = pci_bar_map_vprot(function, BAR_VRAM, VPROT_RW | VPROT_CACHE_WC);
+    io_region_t vram;
+    uint64_t vram_phys;
 
-    if(vram == nullptr || offset + info.size > vram->io.length) {
+    if(device_get_io_address(node, BAR_VRAM, &vram_phys) < 0) {
+        pr_warning("bochsfb: no video memory BAR");
+        return -ENODEV;
+    }
+
+    if(device_map_io_vprot(node, BAR_VRAM, VPROT_RW | VPROT_CACHE_WC, &vram) < 0) {
+        pr_warning("bochsfb: no video memory BAR");
+        return -ENODEV;
+    }
+
+    if(offset + info.size > vram.length) {
         pr_warning("bochsfb: the mode doesn't fit the video memory");
         return -ENODEV;
     }
@@ -365,10 +377,11 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
 
     bochsfb->mmio = mmio;
     bochsfb->vram = vram;
+    bochsfb->vram_phys = vram_phys;
     bochsfb->dac_lock = SPINLOCK_INIT;
     bochsfb->has_vga = function->class_id == 0x03 && function->subclass_id == 0x00;
 
-    if(dispi_read(mmio, DISPI_ENABLE) & DISPI_8BIT_DAC) {
+    if(dispi_read(&mmio, DISPI_ENABLE) & DISPI_8BIT_DAC) {
         bochsfb->dac_bits = 8;
     }
     else {
@@ -380,16 +393,16 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
     fb_device_t* device = &bochsfb->device;
     device->ops = &bochsfb_ops;
     device->info = info;
-    device->phys = vram->phys + offset;
+    device->phys = vram_phys + offset;
     device->cache = VPROT_CACHE_WC;
-    device->virt = (uint8_t*)(vram->io.base) + offset;
+    device->virt = (uint8_t*)(vram.base) + offset;
     device->modes = bochsfb->modes;
     device->mode_count = collect_modes(bochsfb, &info);
     device->ctxdata = bochsfb;
 
     // NOTE: after a successful claim the
     // screen is ours even if the add below fails
-    if(fb_boot_claim(vram->phys, vram->io.length) < 0) {
+    if(fb_boot_claim(vram_phys, vram.length) < 0) {
         pr_warning("bochsfb: boot framebuffers are already added, one may share the memory");
     }
 
@@ -403,7 +416,7 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
     node->ctxdata = bochsfb;
 
     pr_inform("bochsfb: %s: DISPI 0x%04X, %zu KiB of video memory, up to %ux%u, %u modes listed", device->chr.name, dispi_id,
-        (size_t)(vram->io.length / 1024), bochsfb->max_width, bochsfb->max_height, device->mode_count);
+        (size_t)(vram.length / 1024), bochsfb->max_width, bochsfb->max_height, device->mode_count);
 
     return 0;
 }

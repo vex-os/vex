@@ -101,6 +101,53 @@ static int attach_irq(const fwnode_irq_t* restrict irq, irq_handler_t handler, v
     return interrupt_attach(gsi, trigger, polarity, flags, handler, ctxdata, action);
 }
 
+static void enable_irq(device_t* restrict device, unsigned index)
+{
+    device_t* bus = device_bus_of(device);
+
+    if(bus && bus->bus_ops->enable_irq) {
+        bus->bus_ops->enable_irq(bus, device, index);
+    }
+}
+
+static void disable_irq(device_t* restrict device, unsigned index)
+{
+    device_t* bus = device_bus_of(device);
+
+    if(bus && bus->bus_ops->disable_irq) {
+        bus->bus_ops->disable_irq(bus, device, index);
+    }
+}
+
+static int map_range(device_t* restrict bus, unsigned type, uint64_t start, uint64_t length, unsigned vprot, io_region_t* restrict region)
+{
+    uint64_t address = start;
+    int retval = device_translate_range(bus, &type, &address, length);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(type == FWNODE_RESOURCE_PORT) {
+        region->space = IO_SPACE_PORT;
+        region->base = address;
+        region->length = length;
+        return 0;
+    }
+
+    void* virt = mmio_map(address, length, vprot);
+
+    if(virt == nullptr) {
+        return -ENOMEM;
+    }
+
+    region->space = IO_SPACE_MEMORY;
+    region->base = (uintptr_t)(virt);
+    region->length = length;
+
+    return 0;
+}
+
 void device_release_resources(device_t* restrict device)
 {
     device_t* bus = device_bus_of(device);
@@ -118,6 +165,7 @@ void device_release_resources(device_t* restrict device)
 
     while(irqs) {
         device_irq_t* next = irqs->next;
+        disable_irq(device, irqs->index);
         interrupt_detach(irqs->action);
         kfree(irqs);
         irqs = next;
@@ -150,31 +198,7 @@ int device_translate_range(device_t* restrict bus, unsigned* restrict type, uint
 
 int device_map_range(device_t* restrict bus, unsigned type, uint64_t start, uint64_t length, io_region_t* restrict region)
 {
-    uint64_t address = start;
-    int retval = device_translate_range(bus, &type, &address, length);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    if(type == FWNODE_RESOURCE_PORT) {
-        region->space = IO_SPACE_PORT;
-        region->base = address;
-        region->length = length;
-        return 0;
-    }
-
-    void* virt = mmio_map(address, length, VPROT_MMIO);
-
-    if(virt == nullptr) {
-        return -ENOMEM;
-    }
-
-    region->space = IO_SPACE_MEMORY;
-    region->base = (uintptr_t)(virt);
-    region->length = length;
-
-    return 0;
+    return map_range(bus, type, start, length, VPROT_MMIO, region);
 }
 
 void device_unmap_range(io_region_t* restrict region)
@@ -185,6 +209,11 @@ void device_unmap_range(io_region_t* restrict region)
 }
 
 int device_map_io(device_t* restrict device, unsigned index, io_region_t* restrict region)
+{
+    return device_map_io_vprot(device, index, VPROT_MMIO, region);
+}
+
+int device_map_io_vprot(device_t* restrict device, unsigned index, unsigned vprot, io_region_t* restrict region)
 {
     fwnode_resource_t range;
     int retval = get_range(device, index, &range);
@@ -199,7 +228,7 @@ int device_map_io(device_t* restrict device, unsigned index, io_region_t* restri
         return -ENOMEM;
     }
 
-    retval = device_map_range(device->parent, range.type, range.range.start, range.range.length, &mapping->region);
+    retval = map_range(device->parent, range.type, range.range.start, range.range.length, vprot, &mapping->region);
 
     if(retval < 0) {
         kfree(mapping);
@@ -212,6 +241,33 @@ int device_map_io(device_t* restrict device, unsigned index, io_region_t* restri
     mapping->next = device->priv.mappings;
     device->priv.mappings = mapping;
     mutex_release(&device_tree_mutex);
+
+    return 0;
+}
+
+int device_get_io_address(device_t* restrict device, unsigned index, uint64_t* restrict address)
+{
+    fwnode_resource_t range;
+    int retval = get_range(device, index, &range);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    unsigned type = range.type;
+    uint64_t cpu_address = range.range.start;
+
+    retval = device_translate_range(device->parent, &type, &cpu_address, range.range.length);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(type != FWNODE_RESOURCE_MEMORY) {
+        return -EINVAL;
+    }
+
+    *address = cpu_address;
 
     return 0;
 }
@@ -275,6 +331,8 @@ int device_request_irq(device_t* restrict device, unsigned index, irq_handler_t 
     entry->next = device->priv.irqs;
     device->priv.irqs = entry;
 
+    enable_irq(device, index);
+
     mutex_release(&device_tree_mutex);
 
     return 0;
@@ -294,6 +352,7 @@ void device_release_irq(device_t* restrict device, unsigned index)
     mutex_release(&device_tree_mutex);
 
     if(entry) {
+        disable_irq(device, index);
         interrupt_detach(entry->action);
         kfree(entry);
     }

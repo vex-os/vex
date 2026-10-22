@@ -31,7 +31,15 @@ struct bus_ops_s {
     /// @retval -ENODEV The child has no such interrupt, or nothing routes it
     int (*get_irq)(device_t* restrict bus, device_t* restrict child, unsigned index, fwnode_irq_t* restrict irq);
 
-    /// Takes back what the bus gave a child beyond its interrupts and device_map_io, such as mapped BARs
+    /// Lets an interrupt of a child through once a handler is attached to it, as PCI does by clearing Interrupt Disable
+    /// @param index As device_request_irq counts it
+    void (*enable_irq)(device_t* restrict bus, device_t* restrict child, unsigned index);
+
+    /// Stops an interrupt of a child before its handler goes
+    /// @param index As device_request_irq counts it
+    void (*disable_irq)(device_t* restrict bus, device_t* restrict child, unsigned index);
+
+    /// Takes back what the bus gave a child beyond its interrupts and device_map_io, such as MSI and bus mastering
     /// @pre The child's driver has let go of the child
     void (*release_child)(device_t* restrict bus, device_t* restrict child);
 

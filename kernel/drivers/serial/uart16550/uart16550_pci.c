@@ -16,7 +16,6 @@
 typedef struct card_s card_t;
 
 struct card_s {
-    pci_bar_t* bar;
     uart16550_t* ports[PORTS_MAX];
     size_t num_ports; // Of those added, which the interrupt handler reads as it grows
 };
@@ -69,10 +68,10 @@ static void free_ports(uart16550_t* const* restrict ports, size_t count)
     }
 }
 
-static int create_ports(const pci_bar_t* restrict bar, uart16550_t** restrict ports, size_t count)
+static int create_ports(const io_region_t* restrict bar, uart16550_t** restrict ports, size_t count)
 {
     for(size_t i = 0; i < count; ++i) {
-        io_region_t io = bar->io;
+        io_region_t io = *bar;
         io.base += i * PORT_STRIDE;
         io.length = PORT_STRIDE;
 
@@ -128,20 +127,26 @@ static int uart16550_pci_attach(device_t* restrict device, const driver_match_t*
 
     memset(card, 0, sizeof(card_t));
     device->ctxdata = card;
-    card->bar = pci_bar_map(function, 0);
 
-    if(card->bar == nullptr) {
-        return -ENODEV;
-    }
-
-    uart16550_t* ports[PORTS_MAX];
-    int retval = create_ports(card->bar, ports, count);
+    io_region_t bar;
+    int retval = device_map_io(device, 0, &bar);
 
     if(retval < 0) {
         return retval;
     }
 
-    retval = pci_request_irq(function, &uart16550_pci_irq, card);
+    uart16550_t* ports[PORTS_MAX];
+    retval = create_ports(&bar, ports, count);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    retval = pci_request_msi(function, &uart16550_pci_irq, card);
+
+    if(retval == -ENODEV) {
+        retval = device_request_irq(device, 0, &uart16550_pci_irq, card);
+    }
 
     if(retval < 0) {
         free_ports(ports, count);

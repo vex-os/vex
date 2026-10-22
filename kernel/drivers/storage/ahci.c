@@ -166,7 +166,7 @@ struct ahci_port_s {
     event_t done;        // Triggered by the interrupt handler, reset before each command
     uint32_t irq_status; // PxIS bits the interrupt handler cleared since the command was issued
     ahci_pci_context_t* context;
-    pci_bar_t* bar;
+    const io_region_t* bar;
     uintptr_t port_base;
     uintptr_t dma_phys;
     uint8_t* dma_virt;
@@ -175,7 +175,7 @@ struct ahci_port_s {
 };
 
 struct ahci_pci_context_s {
-    pci_bar_t* abar;
+    io_region_t abar;
     uintptr_t dma_limit;
     bool irq;
     blk_device_t devices[32];
@@ -190,12 +190,12 @@ struct ahci_pci_context_s {
 
 static __always_inline uint32_t port_read(ahci_port_t* restrict port, uint32_t offset)
 {
-    return io_read32(&port->bar->io, port->port_base + offset);
+    return io_read32(port->bar, port->port_base + offset);
 }
 
 static __always_inline void port_write(ahci_port_t* restrict port, uint32_t offset, uint32_t value)
 {
-    io_write32(&port->bar->io, port->port_base + offset, value);
+    io_write32(port->bar, port->port_base + offset, value);
 }
 
 // A port torn down by ahci_remove may still be reached
@@ -251,11 +251,11 @@ static void ahci_atapi_release(const atapi_device_t* restrict device)
     context_decref(port->context);
 }
 
-static bool bar_wait(pci_bar_t* restrict bar, uintptr_t offset, uint32_t mask, uint32_t value, uint64_t timeout)
+static bool bar_wait(const io_region_t* restrict bar, uintptr_t offset, uint32_t mask, uint32_t value, uint64_t timeout)
 {
     uint64_t deadline = clock_source_now_ns() + timeout;
 
-    while((io_read32(&bar->io, offset) & mask) != value) {
+    while((io_read32(bar, offset) & mask) != value) {
         if(clock_source_now_ns() >= deadline) {
             return false;
         }
@@ -600,7 +600,7 @@ static void ahci_submit(const blk_device_t* restrict device, blk_request_t* rest
     finish(req, retval);
 }
 
-static int ahci_port_init(ahci_pci_context_t* restrict context, pci_bar_t* restrict abar, unsigned port_num)
+static int ahci_port_init(ahci_pci_context_t* restrict context, const io_region_t* restrict abar, unsigned port_num)
 {
     ahci_port_t* port = &context->ports[port_num];
 
@@ -632,14 +632,14 @@ static int ahci_port_init(ahci_pci_context_t* restrict context, pci_bar_t* restr
         return -EIO;
     }
 
-    io_write32(&abar->io, port_base + PORT_REG_CLB, dma_phys + DMA_OFFSET_CMDLIST);
-    io_write32(&abar->io, port_base + PORT_REG_CLBU, (dma_phys + DMA_OFFSET_CMDLIST) >> 32);
-    io_write32(&abar->io, port_base + PORT_REG_FB, dma_phys + DMA_OFFSET_FIS);
-    io_write32(&abar->io, port_base + PORT_REG_FBU, (dma_phys + DMA_OFFSET_FIS) >> 32);
+    io_write32(abar, port_base + PORT_REG_CLB, dma_phys + DMA_OFFSET_CMDLIST);
+    io_write32(abar, port_base + PORT_REG_CLBU, (dma_phys + DMA_OFFSET_CMDLIST) >> 32);
+    io_write32(abar, port_base + PORT_REG_FB, dma_phys + DMA_OFFSET_FIS);
+    io_write32(abar, port_base + PORT_REG_FBU, (dma_phys + DMA_OFFSET_FIS) >> 32);
 
-    io_write32(&abar->io, port_base + PORT_REG_SERR, 0xFFFFFFFF);
-    io_write32(&abar->io, port_base + PORT_REG_IS, 0xFFFFFFFF);
-    io_write32(&abar->io, port_base + PORT_REG_IE, PORT_IS_DONE | PORT_IS_ERRORS);
+    io_write32(abar, port_base + PORT_REG_SERR, 0xFFFFFFFF);
+    io_write32(abar, port_base + PORT_REG_IS, 0xFFFFFFFF);
+    io_write32(abar, port_base + PORT_REG_IE, PORT_IS_DONE | PORT_IS_ERRORS);
 
     ahci_start(port);
 
@@ -741,7 +741,7 @@ static int ahci_port_register_atapi(ahci_pci_context_t* restrict context, unsign
     return retval;
 }
 
-static void ahci_port_probe_ata(ahci_pci_context_t* restrict context, pci_bar_t* restrict abar, unsigned port_num)
+static void ahci_port_probe_ata(ahci_pci_context_t* restrict context, const io_region_t* restrict abar, unsigned port_num)
 {
     if(ahci_port_init(context, abar, port_num)) {
         return;
@@ -784,7 +784,7 @@ static void ahci_port_probe_ata(ahci_pci_context_t* restrict context, pci_bar_t*
     blk_event_notify(BLK_EVENT_MEDIA_CONNECTED, device);
 }
 
-static void ahci_port_probe_atapi(ahci_pci_context_t* restrict context, pci_bar_t* restrict abar, unsigned port_num)
+static void ahci_port_probe_atapi(ahci_pci_context_t* restrict context, const io_region_t* restrict abar, unsigned port_num)
 {
     if(ahci_port_init(context, abar, port_num)) {
         return;
@@ -834,7 +834,7 @@ static void ahci_port_probe_atapi(ahci_pci_context_t* restrict context, pci_bar_
 static void ahci_irq(unsigned number, const hart_context_t* restrict ctx, void* restrict ctxdata)
 {
     ahci_pci_context_t* context = ctxdata;
-    uint32_t pending = io_read32(&context->abar->io, HBA_IS);
+    uint32_t pending = io_read32(&context->abar, HBA_IS);
 
     for(unsigned port_num = 0; port_num < 32; port_num += 1) {
         if(0 == (pending & (UINT32_C(1) << port_num))) {
@@ -845,31 +845,31 @@ static void ahci_irq(unsigned number, const hart_context_t* restrict ctx, void* 
         uintptr_t port_base = HBA_PORT0_OFFSET + port_num * HBA_PORT_STRIDE;
 
         // PxIS goes before IS, or the port raises IS again right away
-        uint32_t status = io_read32(&context->abar->io, port_base + PORT_REG_IS);
-        io_write32(&context->abar->io, port_base + PORT_REG_IS, status);
+        uint32_t status = io_read32(&context->abar, port_base + PORT_REG_IS);
+        io_write32(&context->abar, port_base + PORT_REG_IS, status);
 
         atomic_fetch_or(&port->irq_status, status, ATOMIC_RELEASE);
         event_trigger(&port->done, true);
     }
 
-    io_write32(&context->abar->io, HBA_IS, pending);
+    io_write32(&context->abar, HBA_IS, pending);
 }
 
 // Firmware that drives the HBA itself (SMI-based legacy
 // emulation and the like) has to let go of it first
-static void ahci_handoff(pci_bar_t* restrict abar)
+static void ahci_handoff(const io_region_t* restrict abar)
 {
-    if(0 == (io_read32(&abar->io, HBA_CAP2) & HBA_CAP2_BOH)) {
+    if(0 == (io_read32(abar, HBA_CAP2) & HBA_CAP2_BOH)) {
         return;
     }
 
-    io_write32(&abar->io, HBA_BOHC, io_read32(&abar->io, HBA_BOHC) | HBA_BOHC_OOS);
+    io_write32(abar, HBA_BOHC, io_read32(abar, HBA_BOHC) | HBA_BOHC_OOS);
 
     uint64_t deadline = clock_source_now_ns() + AHCI_BIOS_BOS_TIMEOUT_NS;
     bool busy = false;
 
-    while((io_read32(&abar->io, HBA_BOHC) & HBA_BOHC_BOS) && clock_source_now_ns() < deadline) {
-        if(io_read32(&abar->io, HBA_BOHC) & HBA_BOHC_BB) {
+    while((io_read32(abar, HBA_BOHC) & HBA_BOHC_BOS) && clock_source_now_ns() < deadline) {
+        if(io_read32(abar, HBA_BOHC) & HBA_BOHC_BB) {
             busy = true;
             break;
         }
@@ -882,7 +882,7 @@ static void ahci_handoff(pci_bar_t* restrict abar)
         bar_wait(abar, HBA_BOHC, HBA_BOHC_BOS, 0, AHCI_BIOS_BB_TIMEOUT_NS);
     }
 
-    if(io_read32(&abar->io, HBA_BOHC) & HBA_BOHC_BOS) {
+    if(io_read32(abar, HBA_BOHC) & HBA_BOHC_BOS) {
         pr_warning("ahci: firmware did not release the HBA, taking it anyway");
     }
 }
@@ -911,34 +911,34 @@ static int ahci_attach(device_t* restrict device, const driver_match_t* restrict
 
     pci_enable_busmaster(function);
 
-    pci_bar_t* abar = pci_bar_map(function, 5);
+    int retval = device_map_io(device, 5, &context->abar);
 
-    if(abar == nullptr) {
-        pr_verbose("ahci: pci_bar_map failed");
+    if(retval < 0) {
+        pr_verbose("ahci: no ABAR");
 
         kfree(context);
 
         device->ctxdata = nullptr;
 
-        return -ENOMEM;
+        return retval;
     }
 
-    context->abar = abar;
+    const io_region_t* abar = &context->abar;
     context->dma_limit = UINT32_MAX;
 
-    if(io_read32(&abar->io, HBA_CAP) & HBA_CAP_S64A) {
+    if(io_read32(abar, HBA_CAP) & HBA_CAP_S64A) {
         context->dma_limit = UINTPTR_MAX;
     }
 
     ahci_handoff(abar);
 
-    uint32_t ahci_ghc = io_read32(&abar->io, HBA_GHC);
+    uint32_t ahci_ghc = io_read32(abar, HBA_GHC);
 
     if(0 == (ahci_ghc & HBA_GHC_AE)) {
-        io_write32(&abar->io, HBA_GHC, ahci_ghc | HBA_GHC_AE);
+        io_write32(abar, HBA_GHC, ahci_ghc | HBA_GHC_AE);
     }
 
-    uint32_t ahci_pi = io_read32(&abar->io, HBA_PI);
+    uint32_t ahci_pi = io_read32(abar, HBA_PI);
 
     for(unsigned port_num = 0; port_num < 32; port_num += 1) {
         if(0 == (ahci_pi & (UINT32_C(1) << port_num))) {
@@ -946,7 +946,7 @@ static int ahci_attach(device_t* restrict device, const driver_match_t* restrict
         }
 
         uintptr_t port_base = HBA_PORT0_OFFSET + port_num * HBA_PORT_STRIDE;
-        uint32_t ahci_signature = io_read32(&abar->io, port_base + PORT_REG_SIG);
+        uint32_t ahci_signature = io_read32(abar, port_base + PORT_REG_SIG);
 
         if(ahci_signature == ATA_SIGNATURE_ATAPI) {
             if(0 == ahci_port_register_atapi(context, port_num)) {
@@ -967,12 +967,18 @@ static int ahci_attach(device_t* restrict device, const driver_match_t* restrict
         return -ENODEV;
     }
 
-    if(0 == pci_request_irq(function, &ahci_irq, context)) {
+    retval = pci_request_msi(function, &ahci_irq, context);
+
+    if(retval == -ENODEV) {
+        retval = device_request_irq(device, 0, &ahci_irq, context);
+    }
+
+    if(retval == 0) {
         context->irq = true;
-        io_write32(&abar->io, HBA_GHC, io_read32(&abar->io, HBA_GHC) | HBA_GHC_IE);
+        io_write32(abar, HBA_GHC, io_read32(abar, HBA_GHC) | HBA_GHC_IE);
     }
     else {
-        pr_verbose("ahci: no MSI, commands are polled");
+        pr_verbose("ahci: no interrupt, commands are polled");
     }
 
     for(unsigned port_num = 0; port_num < 32; port_num += 1) {
@@ -983,7 +989,7 @@ static int ahci_attach(device_t* restrict device, const driver_match_t* restrict
         }
 
         uintptr_t port_base = HBA_PORT0_OFFSET + port_num * HBA_PORT_STRIDE;
-        uint32_t ahci_ssts = io_read32(&abar->io, port_base + PORT_REG_SSTS);
+        uint32_t ahci_ssts = io_read32(abar, port_base + PORT_REG_SSTS);
 
         if((ahci_ssts & 0x0F) != PORT_SSTS_DET_PRESENT) {
             continue;
@@ -1009,7 +1015,7 @@ static void ahci_detach(device_t* restrict device)
     ahci_pci_context_t* context = device->ctxdata;
 
     if(context->irq) {
-        io_write32(&context->abar->io, HBA_GHC, io_read32(&context->abar->io, HBA_GHC) & ~HBA_GHC_IE);
+        io_write32(&context->abar, HBA_GHC, io_read32(&context->abar, HBA_GHC) & ~HBA_GHC_IE);
         context->irq = false;
     }
 

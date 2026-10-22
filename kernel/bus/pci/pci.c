@@ -220,92 +220,6 @@ static int host_translate_range(device_t* restrict bus, unsigned* restrict type,
     return 0;
 }
 
-static int map_range(device_t* restrict bus, unsigned type, uint64_t start, uint64_t length, unsigned vprot, io_region_t* restrict region,
-    uintptr_t* restrict phys)
-{
-    uint64_t cpu_address = start;
-    int retval = device_translate_range(bus, &type, &cpu_address, length);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    if(type == FWNODE_RESOURCE_PORT) {
-        region->space = IO_SPACE_PORT;
-        region->base = cpu_address;
-        region->length = length;
-        *phys = 0;
-        return 0;
-    }
-
-    void* virt = mmio_map(cpu_address, length, vprot);
-
-    if(virt == nullptr) {
-        return -ENOMEM;
-    }
-
-    region->space = IO_SPACE_MEMORY;
-    region->base = (uintptr_t)(virt);
-    region->length = length;
-    *phys = cpu_address;
-
-    return 0;
-}
-
-static void warn_outside_windows(const pci_function_t* restrict function, unsigned bar_index, uint64_t address)
-{
-    const pci_address_t* location = &function->address;
-    unsigned long long value = address;
-
-    pr_warning("pci: %04X:%02X:%02X.%u BAR%u at 0x%llX is outside the host bridge's windows", location->segment, location->bus,
-        location->device, location->function, bar_index, value);
-}
-
-// Two mappings of the same memory with
-// different types are undefined on x86 (PAT)
-// so a BAR has one mapping and every caller gets it
-static pci_bar_t* map_bar(pci_function_t* restrict function, unsigned bar_index, unsigned vprot, bool memory_only)
-{
-    kassert(bar_index < 6);
-
-    pci_bar_t* bar = &function->priv.bars[bar_index];
-    uint32_t raw = pci_read_config32(function, PCI_CFG_BAR0 + bar_index * 4);
-
-    if(memory_only && (raw & PCI_BAR_IO)) {
-        return nullptr;
-    }
-
-    if(function->priv.bars_mapped & (1U << bar_index)) {
-        kassert(bar->io.space == IO_SPACE_PORT || bar->vprot == vprot);
-
-        return bar;
-    }
-
-    uint64_t length = bar_length(function, bar_index);
-
-    if(length == 0) {
-        return nullptr;
-    }
-
-    unsigned type = (raw & PCI_BAR_IO) ? FWNODE_RESOURCE_PORT : FWNODE_RESOURCE_MEMORY;
-    uint64_t address = bar_address(function, bar_index);
-    int retval = map_range(function->priv.bus->device, type, address, length, vprot, &bar->io, &bar->phys);
-
-    if(retval == -ERANGE) {
-        warn_outside_windows(function, bar_index, address);
-    }
-
-    if(retval < 0) {
-        return nullptr;
-    }
-
-    bar->vprot = bar->io.space == IO_SPACE_MEMORY ? vprot : VPROT_NONE;
-
-    function->priv.bars_mapped |= 1U << bar_index;
-
-    return bar;
-}
-
 // PCI-to-PCI Bridge Architecture 1.2, 9.1: a bridge the firmware gives no routes for
 // passes a pin on as a pin of its own slot, rotated by the number of the device behind it
 static int route_intx(const pci_function_t* restrict function, unsigned pin, fwnode_irq_t* restrict irq)
@@ -404,16 +318,46 @@ static bool pci_match(device_t* restrict bus, device_t* restrict child, const dr
 }
 
 // The driver has let go, so the function stops decoding and mastering until the next one turns that on
+static void release_msi(pci_function_t* restrict function)
+{
+    if(function->priv.irq_number == UINT_MAX) {
+        return;
+    }
+
+    uint8_t cap = pci_get_cap(function, PCI_CAP_MSI);
+
+    if(cap) {
+        uint16_t control = pci_read_config16(function, cap + PCI_MSI_CONTROL);
+        pci_write_config16(function, cap + PCI_MSI_CONTROL, control & ~(uint16_t)(PCI_MSI_CONTROL_ENABLE));
+    }
+
+    irq_handler_remove(function->priv.irq_number);
+
+    function->priv.irq_number = UINT_MAX;
+}
+
+// PCI Local Bus 3.0, 6.2.2: Interrupt Disable masks the function's INTx pin, and MSI masks it as well
+static void pci_enable_irq(device_t* restrict bus, device_t* restrict child, unsigned index)
+{
+    pci_function_t* function = child->bus_data;
+    uint16_t command = pci_read_config16(function, PCI_CFG_COMMAND);
+
+    pci_write_config16(function, PCI_CFG_COMMAND, command & ~(uint16_t)(PCI_CMD_INT_DISABLE));
+}
+
+static void pci_disable_irq(device_t* restrict bus, device_t* restrict child, unsigned index)
+{
+    pci_function_t* function = child->bus_data;
+    uint16_t command = pci_read_config16(function, PCI_CFG_COMMAND);
+
+    pci_write_config16(function, PCI_CFG_COMMAND, command | PCI_CMD_INT_DISABLE);
+}
+
 static void pci_release_child(device_t* restrict bus, device_t* restrict child)
 {
     pci_function_t* function = child->bus_data;
 
-    pci_release_irq(function);
-
-    for(unsigned bar_index = 0; bar_index < 6; ++bar_index) {
-        pci_bar_unmap(function, bar_index);
-    }
-
+    release_msi(function);
     pci_disable_busmaster(function);
 }
 
@@ -441,6 +385,8 @@ static void pci_remove_child(device_t* restrict bus, device_t* restrict child)
 static const bus_ops_t host_bus_ops = {
     .place_child = &pci_place_child,
     .match = &pci_match,
+    .enable_irq = &pci_enable_irq,
+    .disable_irq = &pci_disable_irq,
     .release_child = &pci_release_child,
     .remove_child = &pci_remove_child,
     .get_range = &pci_get_range,
@@ -452,6 +398,8 @@ static const bus_ops_t host_bus_ops = {
 static const bus_ops_t bridge_bus_ops = {
     .place_child = &pci_place_child,
     .match = &pci_match,
+    .enable_irq = &pci_enable_irq,
+    .disable_irq = &pci_disable_irq,
     .release_child = &pci_release_child,
     .remove_child = &pci_remove_child,
     .get_range = &pci_get_range,
@@ -532,7 +480,6 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
     function->priv.config_space = bus->config_space;
     function->priv.device = device;
     function->priv.irq_number = UINT_MAX;
-    function->priv.bars_mapped = 0;
     function->priv.secondary = nullptr;
     function->address = *address;
     function->vendor_id = pci_read_config16(function, PCI_CFG_VENDOR_ID);
@@ -629,20 +576,6 @@ static int request_msi(pci_function_t* restrict function, uint8_t cap, irq_handl
     return 0;
 }
 
-static int request_intx(pci_function_t* restrict function, irq_handler_t handler, void* restrict ctxdata)
-{
-    int retval = device_request_irq(function->priv.device, 0, handler, ctxdata);
-
-    if(retval < 0) {
-        return retval;
-    }
-
-    uint16_t cmd = pci_read_config16(function, PCI_CFG_COMMAND);
-    pci_write_config16(function, PCI_CFG_COMMAND, cmd & ~(uint16_t)(PCI_CMD_INT_DISABLE));
-
-    return 0;
-}
-
 int pci_root_attach(device_t* restrict host, unsigned segment, unsigned bus)
 {
     pci_config_space_t* config_space = pci_config_space_find(segment, bus);
@@ -728,41 +661,6 @@ void pci_write_config32(pci_function_t* restrict function, uintptr_t offset, uin
     pci_config_space_write32(function->priv.config_space, &function->address, offset, value);
 }
 
-pci_bar_t* pci_bar_map(pci_function_t* restrict function, unsigned bar_index)
-{
-    return map_bar(function, bar_index, VPROT_MMIO, false);
-}
-
-pci_bar_t* pci_bar_map_vprot(pci_function_t* restrict function, unsigned bar_index, unsigned vprot)
-{
-    return map_bar(function, bar_index, vprot, true);
-}
-
-int pci_map_range(pci_function_t* restrict function, unsigned type, uint64_t start, uint64_t length, io_region_t* restrict region)
-{
-    return device_map_range(function->priv.bus->device, type, start, length, region);
-}
-
-void pci_unmap_range(io_region_t* restrict region)
-{
-    device_unmap_range(region);
-}
-
-void pci_bar_unmap(pci_function_t* restrict function, unsigned bar_index)
-{
-    kassert(bar_index < 6);
-
-    if(function->priv.bars_mapped & (1U << bar_index)) {
-        pci_bar_t* bar = &function->priv.bars[bar_index];
-
-        if(bar->io.space == IO_SPACE_MEMORY) {
-            mmio_unmap((volatile void*)(bar->io.base));
-        }
-
-        function->priv.bars_mapped &= ~(1U << bar_index);
-    }
-}
-
 uint8_t pci_get_cap(pci_function_t* restrict function, uint8_t cap_id)
 {
     uint16_t status = pci_read_config16(function, PCI_CFG_STATUS);
@@ -796,36 +694,17 @@ void pci_disable_busmaster(pci_function_t* restrict function)
     pci_write_config16(function, PCI_CFG_COMMAND, cmd & ~(uint16_t)(PCI_CMD_BUS_MASTER));
 }
 
-int pci_request_irq(pci_function_t* restrict function, irq_handler_t handler, void* restrict ctxdata)
+int pci_request_msi(pci_function_t* restrict function, irq_handler_t handler, void* restrict ctxdata)
 {
-    uint8_t cap = pci_get_cap(function, PCI_CAP_MSI);
-
-    if(cap) {
-        return request_msi(function, cap, handler, ctxdata);
-    }
-
-    return request_intx(function, handler, ctxdata);
-}
-
-void pci_release_irq(pci_function_t* restrict function)
-{
-    uint16_t cmd = pci_read_config16(function, PCI_CFG_COMMAND);
-    pci_write_config16(function, PCI_CFG_COMMAND, cmd | PCI_CMD_INT_DISABLE);
-
-    device_release_irq(function->priv.device, 0);
-
-    if(function->priv.irq_number == UINT_MAX) {
-        return;
+    if(function->priv.irq_number != UINT_MAX) {
+        return -EBUSY;
     }
 
     uint8_t cap = pci_get_cap(function, PCI_CAP_MSI);
 
-    if(cap) {
-        uint16_t control = pci_read_config16(function, cap + PCI_MSI_CONTROL);
-        pci_write_config16(function, cap + PCI_MSI_CONTROL, control & ~(uint16_t)(PCI_MSI_CONTROL_ENABLE));
+    if(cap == 0) {
+        return -ENODEV;
     }
 
-    irq_handler_remove(function->priv.irq_number);
-
-    function->priv.irq_number = UINT_MAX;
+    return request_msi(function, cap, handler, ctxdata);
 }

@@ -95,7 +95,6 @@ typedef struct pci_config_space_s pci_config_space_t;
 #define PCI_FUNCTION_MAX 8
 
 typedef struct pci_address_s pci_address_t;
-typedef struct pci_bar_s pci_bar_t;
 typedef struct pci_function_private_s pci_function_private_t;
 typedef struct pci_function_s pci_function_t;
 
@@ -106,20 +105,12 @@ struct pci_address_s {
     unsigned function;
 };
 
-struct pci_bar_s {
-    io_region_t io;
-    uintptr_t phys; // Of a BAR the CPU reaches through memory
-    unsigned vprot; // Of that mapping
-};
-
 struct pci_function_private_s {
     pci_function_t* next; // On its bus
     pci_bus_t* bus;
     pci_config_space_t* config_space;
-    device_t* device;    // Its fwnode is the companion
-    unsigned irq_number; // Of MSI, UINT_MAX without
-    pci_bar_t bars[6];
-    unsigned bars_mapped; // bitmask, bit N set = bars[N] initialized
+    device_t* device;     // Its fwnode is the companion
+    unsigned irq_number;  // Of MSI, UINT_MAX without
     pci_bus_t* secondary; // The bus behind a bridge, nullptr on other functions
 };
 
@@ -154,29 +145,14 @@ void pci_write_config8(pci_function_t* restrict function, uintptr_t offset, uint
 void pci_write_config16(pci_function_t* restrict function, uintptr_t offset, uint16_t value);
 void pci_write_config32(pci_function_t* restrict function, uintptr_t offset, uint32_t value);
 
-pci_bar_t* pci_bar_map(pci_function_t* restrict function, unsigned bar_index) __nodiscard;
-
-/// pci_bar_map with a memory type other than uncached, such as VPROT_CACHE_WC for video memory
-/// @pre The BAR isn't mapped yet, or is mapped with the same vprot
-/// @return nullptr also for an I/O BAR
-pci_bar_t* pci_bar_map_vprot(pci_function_t* restrict function, unsigned bar_index, unsigned vprot) __nodiscard;
-void pci_bar_unmap(pci_function_t* restrict function, unsigned bar_index);
-
-/// Maps a range of the bus address space that the device decodes for others, as a bridge to another bus does
-/// @param type FWNODE_RESOURCE_PORT or FWNODE_RESOURCE_MEMORY, as the range is on the bus
-/// @retval -ERANGE The host bridge doesn't pass the range on
-/// @retval -ENOMEM No address space to map memory into
-int pci_map_range(pci_function_t* restrict function, unsigned type, uint64_t start, uint64_t length, io_region_t* restrict region);
-
-void pci_unmap_range(io_region_t* restrict region);
-
 uint8_t pci_get_cap(pci_function_t* restrict function, uint8_t cap_id) __nodiscard;
 
 void pci_enable_busmaster(pci_function_t* restrict function);
 void pci_disable_busmaster(pci_function_t* restrict function);
 
-/// Takes MSI where the device has it, or its INTx pin as the firmware routes it, shared with other devices
-/// @retval -ENODEV The device has neither, or the firmware routes no interrupt for the pin
-/// @retval -EBUSY The pin's GSI is taken by a handler that doesn't share it
-int pci_request_irq(pci_function_t* restrict function, irq_handler_t handler, void* restrict ctxdata);
-void pci_release_irq(pci_function_t* restrict function);
+/// Routes the function's MSI to a handler; the bus takes it back when the driver lets go of the function
+/// @note Without MSI, the driver takes the INTx pin through device_request_irq instead
+/// @retval -ENODEV The function has no MSI
+/// @retval -EBUSY MSI is already requested
+/// @retval -ENOMEM No interrupt vector is free
+int pci_request_msi(pci_function_t* restrict function, irq_handler_t handler, void* restrict ctxdata);
