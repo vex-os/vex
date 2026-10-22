@@ -35,9 +35,22 @@ static int host_bridge_attach(device_t* restrict device, const driver_match_t* r
     return pci_root_attach(device, segment, bus);
 }
 
+// The functions below are gone by now, as children go first
+static void host_bridge_detach(device_t* restrict device)
+{
+    pci_root_detach(device);
+}
+
+static void host_bridge_release(device_t* restrict device)
+{
+    // empty
+}
+
 static const driver_ops_t host_bridge_ops = {
     .probe = &host_bridge_probe,
     .attach = &host_bridge_attach,
+    .detach = &host_bridge_detach,
+    .release = &host_bridge_release,
 };
 
 define_driver(pci_host_bridge, &host_bridge_ops, host_bridge_matches);

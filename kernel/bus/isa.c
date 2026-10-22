@@ -99,9 +99,22 @@ static int bridge_attach(device_t* restrict device, const driver_match_t* restri
     return 0;
 }
 
+// The devices on the bus are gone by now, as children go first
+static void bridge_detach(device_t* restrict device)
+{
+    device->bus_ops = nullptr;
+}
+
+static void bridge_release(device_t* restrict device)
+{
+    // empty
+}
+
 static const driver_ops_t bridge_ops = {
     .probe = &bridge_probe,
     .attach = &bridge_attach,
+    .detach = &bridge_detach,
+    .release = &bridge_release,
 };
 
 define_driver(isa_bridge, &bridge_ops, bridge_matches);

@@ -1,12 +1,16 @@
 #include <vex/atomic.h>
 #include <vex/device.h>
 #include <vex/errno.h>
+#include <vex/event.h>
 #include <vex/initcall.h>
 #include <vex/intctl.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/mmio.h>
 #include <vex/mutex.h>
+#include <vex/panic.h>
+#include <vex/sched.h>
+#include <vex/spinlock.h>
 #include <vex/sprintf.h>
 #include <vex/string.h>
 #include <vex/strings.h>
@@ -18,6 +22,10 @@ extern const driver_t drivers_end[];
 #define DEVICE_RESOURCE_MAX 16
 #define DEVICE_PATH_MAX     256
 
+#define DEVICE_REQUEST_RESCAN 0x01U
+#define DEVICE_REQUEST_UNBIND 0x02U
+#define DEVICE_REQUEST_REMOVE 0x04U
+
 typedef struct resource_list_s resource_list_t;
 typedef struct candidate_s candidate_t;
 
@@ -25,6 +33,11 @@ struct device_irq_s {
     device_irq_t* next;
     unsigned index;
     interrupt_action_t* action;
+};
+
+struct device_mapping_s {
+    device_mapping_t* next;
+    io_region_t region;
 };
 
 struct resource_list_s {
@@ -42,6 +55,11 @@ struct candidate_s {
 // and the interrupts requested on them
 static mutex_t tree_mutex = MUTEX_INIT;
 static device_t* root = nullptr;
+
+static spinlock_t queue_lock = SPINLOCK_INIT; // Taken with interrupts disabled
+static device_t* queue_head = nullptr;
+static device_t* queue_tail = nullptr;
+static event_t worker_wakeup;
 
 static bool is_range(const fwnode_resource_t* restrict resource)
 {
@@ -116,7 +134,13 @@ static device_t* allocate(device_t* restrict parent, const fwnode_t* restrict fw
     device->priv.next = nullptr;
     device->priv.children = nullptr;
     device->priv.irqs = nullptr;
+    device->priv.mappings = nullptr;
+    device->priv.worker_next = nullptr;
+    device->priv.pending = 0;
+    device->priv.state = DEVICE_PRESENT;
     device->priv.fw_child = false;
+    device->priv.fw_children_placed = false;
+    device->priv.gone = false;
     atomic_store(&device->priv.refcount, 1, ATOMIC_RELAXED);
 
     device->parent = parent;
@@ -221,6 +245,41 @@ static const driver_match_t* find_match(device_t* restrict device, const driver_
     return nullptr;
 }
 
+static bool is_complete(const driver_t* restrict driver)
+{
+    return driver->ops->detach && driver->ops->release;
+}
+
+static void release_resources(device_t* restrict device)
+{
+    device_t* bus = bus_of(device);
+
+    if(bus && bus->bus_ops->release_child) {
+        bus->bus_ops->release_child(bus, device);
+    }
+
+    mutex_acquire(&tree_mutex);
+    device_irq_t* irqs = device->priv.irqs;
+    device_mapping_t* mappings = device->priv.mappings;
+    device->priv.irqs = nullptr;
+    device->priv.mappings = nullptr;
+    mutex_release(&tree_mutex);
+
+    while(irqs) {
+        device_irq_t* next = irqs->next;
+        interrupt_detach(irqs->action);
+        kfree(irqs);
+        irqs = next;
+    }
+
+    while(mappings) {
+        device_mapping_t* next = mappings->next;
+        device_unmap_range(&mappings->region);
+        kfree(mappings);
+        mappings = next;
+    }
+}
+
 // A driver that fails to attach leaves the device unbound,
 // rather than to one that bid lower and may not suit it
 static void bind(device_t* restrict device)
@@ -228,8 +287,12 @@ static void bind(device_t* restrict device)
     candidate_t best = {};
 
     for(const driver_t* driver = drivers_start; driver < drivers_end; driver += 1) {
-        const driver_match_t* match = find_match(device, driver);
+        const driver_match_t* match = nullptr;
         unsigned bid = 0;
+
+        if(is_complete(driver)) {
+            match = find_match(device, driver);
+        }
 
         if(match == nullptr || driver->ops->probe(device, match, &bid) < 0 || bid <= best.bid) {
             continue;
@@ -247,19 +310,27 @@ static void bind(device_t* restrict device)
     char path[DEVICE_PATH_MAX];
     device_get_path(device, path, sizeof(path));
 
+    device->priv.state = DEVICE_PROBING;
+
     int retval = best.driver->ops->attach(device, best.match);
 
     if(retval < 0) {
         pr_warning("device: %s: %s failed to attach: %s", path, best.driver->name, strerror(retval));
+        release_resources(device);
+        best.driver->ops->release(device);
+        device->ctxdata = nullptr;
+        device->priv.state = DEVICE_PRESENT;
         return;
     }
 
     device->driver = best.driver;
+    device->priv.state = DEVICE_BOUND;
     pr_verbose("device: %s bound to %s", path, best.driver->name);
 }
 
-// The caller's reference to the previous child keeps it in the list
-static device_t* next_child(device_t* restrict parent, device_t* restrict prev)
+// The caller's reference to the previous child keeps it in the list; the
+// walks over the tree take no restrict, as removing a child changes its parent
+static device_t* next_child(device_t* parent, device_t* prev)
 {
     mutex_acquire(&tree_mutex);
 
@@ -276,6 +347,208 @@ static device_t* next_child(device_t* restrict parent, device_t* restrict prev)
     mutex_release(&tree_mutex);
 
     return child;
+}
+
+static void rescan_node(device_t* device)
+{
+    if(device->priv.state == DEVICE_GONE) {
+        return;
+    }
+
+    if(device->driver == nullptr) {
+        bind(device);
+    }
+
+    if(!device->priv.fw_children_placed && device->fwnode.ops) {
+        fwnode_for_each_child(&device->fwnode, &place_fw_child, device);
+    }
+
+    device->priv.fw_children_placed = true;
+
+    device_t* child = next_child(device, nullptr);
+
+    while(child) {
+        rescan_node(child);
+
+        device_t* next = next_child(device, child);
+        device_decref(child);
+        child = next;
+    }
+}
+
+static void remove_node(device_t* device);
+
+static void remove_children(device_t* device)
+{
+    for(device_t* child = next_child(device, nullptr); child; child = next_child(device, nullptr)) {
+        remove_node(child);
+        device_decref(child);
+    }
+
+    device->priv.fw_children_placed = false;
+}
+
+static void unbind_node(device_t* device)
+{
+    remove_children(device);
+
+    const driver_t* driver = device->driver;
+
+    if(driver == nullptr) {
+        return;
+    }
+
+    char path[DEVICE_PATH_MAX];
+    device_get_path(device, path, sizeof(path));
+
+    device->priv.state = DEVICE_DETACHING;
+
+    driver->ops->detach(device);
+    release_resources(device);
+    driver->ops->release(device);
+
+    device->driver = nullptr;
+    device->ctxdata = nullptr;
+    device->priv.state = DEVICE_PRESENT;
+
+    pr_verbose("device: %s unbound from %s", path, driver->name);
+}
+
+// The tree's reference goes last, so the node stays with whoever
+// holds others, such as open functions; the root stays, unbound
+static void remove_node(device_t* device)
+{
+    if(device->priv.state == DEVICE_GONE) {
+        return;
+    }
+
+    unbind_node(device);
+
+    if(device->parent == nullptr) {
+        return;
+    }
+
+    char path[DEVICE_PATH_MAX];
+    device_get_path(device, path, sizeof(path));
+
+    device_t* bus = bus_of(device);
+
+    if(bus && bus->bus_ops->remove_child) {
+        bus->bus_ops->remove_child(bus, device);
+    }
+
+    device_t* parent = device->parent;
+
+    mutex_acquire(&tree_mutex);
+
+    device_t** prev = &parent->priv.children;
+
+    while(*prev != device) {
+        prev = &(*prev)->priv.next;
+    }
+
+    *prev = device->priv.next;
+    device->priv.next = nullptr;
+    device->priv.state = DEVICE_GONE;
+
+    mutex_release(&tree_mutex);
+
+    pr_verbose("device: removed %s", path);
+
+    device_decref(device);
+}
+
+static void queue_request(device_t* restrict device, unsigned request)
+{
+    bool intr_state = spinlock_acquire_intr(&queue_lock);
+    bool queued = device->priv.pending != 0;
+
+    device->priv.pending |= request;
+
+    if(!queued) {
+        device_incref(device);
+        device->priv.worker_next = nullptr;
+
+        if(queue_tail) {
+            queue_tail->priv.worker_next = device;
+        }
+        else {
+            queue_head = device;
+        }
+
+        queue_tail = device;
+    }
+
+    spinlock_release_intr(&queue_lock, intr_state);
+
+    if(!queued) {
+        event_trigger(&worker_wakeup, true);
+    }
+}
+
+static device_t* queue_pop(unsigned* restrict requests)
+{
+    bool intr_state = spinlock_acquire_intr(&queue_lock);
+    device_t* device = queue_head;
+
+    if(device) {
+        queue_head = device->priv.worker_next;
+
+        if(queue_head == nullptr) {
+            queue_tail = nullptr;
+        }
+
+        *requests = device->priv.pending;
+        device->priv.pending = 0;
+    }
+
+    spinlock_release_intr(&queue_lock, intr_state);
+
+    return device;
+}
+
+// A removal makes the node's other requests moot, and an unbind comes
+// before a rescan so that a node asked for both ends up bound anew
+static void run_queue(void)
+{
+    unsigned requests;
+
+    for(device_t* device = queue_pop(&requests); device; device = queue_pop(&requests)) {
+        if(requests & DEVICE_REQUEST_REMOVE) {
+            remove_node(device);
+        }
+        else {
+            if(requests & DEVICE_REQUEST_UNBIND) {
+                unbind_node(device);
+            }
+
+            if(requests & DEVICE_REQUEST_RESCAN) {
+                rescan_node(device);
+            }
+        }
+
+        device_decref(device);
+    }
+}
+
+// Every change to the tree goes through here, so probe, attach and
+// detach may sleep and need no lock against each other
+static void __noreturn device_worker(void* restrict arg)
+{
+    for(;;) {
+        event_t* wakeup = &worker_wakeup;
+        event_await_blocking(&wakeup, 1);
+        run_queue();
+    }
+}
+
+static void set_gone(device_t* device)
+{
+    device->priv.gone = true;
+
+    for(device_t* child = device->priv.children; child; child = child->priv.next) {
+        set_gone(child);
+    }
 }
 
 static int fw_get_resource(device_t* restrict device, bool want_irq, unsigned index, fwnode_resource_t* restrict resource)
@@ -414,23 +687,31 @@ int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const
     return 0;
 }
 
-void device_enumerate(device_t* restrict device)
+void device_rescan(device_t* restrict device)
 {
-    bind(device);
+    queue_request(device, DEVICE_REQUEST_RESCAN);
+}
 
-    if(device->fwnode.ops) {
-        fwnode_for_each_child(&device->fwnode, &place_fw_child, device);
-    }
+void device_unbind(device_t* restrict device)
+{
+    queue_request(device, DEVICE_REQUEST_UNBIND);
+}
 
-    device_t* child = next_child(device, nullptr);
+void device_remove(device_t* restrict device)
+{
+    queue_request(device, DEVICE_REQUEST_REMOVE);
+}
 
-    while(child) {
-        device_enumerate(child);
+void device_set_gone(device_t* restrict device)
+{
+    mutex_acquire(&tree_mutex);
+    set_gone(device);
+    mutex_release(&tree_mutex);
+}
 
-        device_t* next = next_child(device, child);
-        device_decref(child);
-        child = next;
-    }
+bool device_is_gone(const device_t* restrict device)
+{
+    return device->priv.gone || device->priv.state == DEVICE_GONE;
 }
 
 void device_incref(device_t* restrict device)
@@ -446,6 +727,7 @@ void device_decref(device_t* restrict device)
 
     kassert(device->priv.children == nullptr);
     kassert(device->priv.irqs == nullptr);
+    kassert(device->priv.mappings == nullptr);
 
     device_t* parent = device->parent;
 
@@ -512,6 +794,13 @@ int device_map_range(device_t* restrict bus, unsigned type, uint64_t start, uint
     return 0;
 }
 
+void device_unmap_range(io_region_t* restrict region)
+{
+    if(region->space == IO_SPACE_MEMORY) {
+        mmio_unmap((volatile void*)(region->base));
+    }
+}
+
 int device_map_io(device_t* restrict device, unsigned index, io_region_t* restrict region)
 {
     fwnode_resource_t range;
@@ -521,13 +810,50 @@ int device_map_io(device_t* restrict device, unsigned index, io_region_t* restri
         return retval;
     }
 
-    return device_map_range(device->parent, range.type, range.range.start, range.range.length, region);
+    device_mapping_t* mapping = kmalloc(sizeof(device_mapping_t));
+
+    if(mapping == nullptr) {
+        return -ENOMEM;
+    }
+
+    retval = device_map_range(device->parent, range.type, range.range.start, range.range.length, &mapping->region);
+
+    if(retval < 0) {
+        kfree(mapping);
+        return retval;
+    }
+
+    *region = mapping->region;
+
+    mutex_acquire(&tree_mutex);
+    mapping->next = device->priv.mappings;
+    device->priv.mappings = mapping;
+    mutex_release(&tree_mutex);
+
+    return 0;
 }
 
-void device_unmap_io(io_region_t* restrict region)
+void device_unmap_io(device_t* restrict device, io_region_t* restrict region)
 {
-    if(region->space == IO_SPACE_MEMORY) {
-        mmio_unmap((volatile void*)(region->base));
+    mutex_acquire(&tree_mutex);
+
+    device_mapping_t** prev = &device->priv.mappings;
+
+    while(*prev && ((*prev)->region.space != region->space || (*prev)->region.base != region->base)) {
+        prev = &(*prev)->next;
+    }
+
+    device_mapping_t* mapping = *prev;
+
+    if(mapping) {
+        *prev = mapping->next;
+    }
+
+    mutex_release(&tree_mutex);
+
+    if(mapping) {
+        device_unmap_range(&mapping->region);
+        kfree(mapping);
     }
 }
 
@@ -591,18 +917,34 @@ void device_release_irq(device_t* restrict device, unsigned index)
 }
 
 // After the registries that drivers add their functions to, and before the
-// boot framebuffers, so a display driver can claim the memory of its own
+// boot framebuffers, so a display driver can claim the memory of its own;
+// the scheduler doesn't run yet, so the queue is run here and not by the worker
 static void init_device_tree(void)
 {
+    event_init(&worker_wakeup);
+
+    for(const driver_t* driver = drivers_start; driver < drivers_end; driver += 1) {
+        if(!is_complete(driver)) {
+            pr_warning("device: %s can't let go of a device, left out", driver->name);
+        }
+    }
+
     device_t* root = device_get_root();
 
     if(root == nullptr) {
-        pr_warning("device: out of memory");
-        return;
+        panic("device: out of memory");
+        unreachable();
     }
 
-    device_enumerate(root);
+    device_rescan(root);
+    run_queue();
+
     device_decref(root);
+
+    if(!thread_spawn_kernel(&device_worker, nullptr)) {
+        panic("device: out of memory");
+        unreachable();
+    }
 }
 
 initcall_bsp_dev(init_device_tree, INIT_LATE);

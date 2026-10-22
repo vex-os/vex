@@ -7,6 +7,7 @@
 #include <vex/types.h>
 
 typedef struct device_irq_s device_irq_t;
+typedef struct device_mapping_s device_mapping_t;
 
 #define DEVICE_NAME_MAX 32
 
@@ -24,6 +25,15 @@ enum {
     DRIVER_MATCH_PCI_ID,    // vendor_id and device_id
     DRIVER_MATCH_PCI_CLASS, // class_id and subclass_id
 };
+
+enum device_state_e {
+    DEVICE_PRESENT,   // In the tree, without a driver
+    DEVICE_PROBING,   // Drivers bid, and the winner attaches
+    DEVICE_BOUND,     // A driver has it
+    DEVICE_DETACHING, // The driver lets go, then the resources go
+    DEVICE_GONE,      // Out of the tree, until the last reference
+};
+typedef enum device_state_e device_state_t;
 
 typedef struct device_bus_ops_s device_bus_ops_t;
 typedef struct device_private_s device_private_t;
@@ -53,6 +63,14 @@ struct device_bus_ops_s {
     /// @retval -ENODEV The child has no such interrupt, or nothing routes it
     int (*get_irq)(device_t* restrict bus, device_t* restrict child, unsigned index, fwnode_irq_t* restrict irq);
 
+    /// Takes back what the bus gave a child beyond its interrupts and device_map_io, such as mapped BARs
+    /// @pre The child's driver has let go of the child
+    void (*release_child)(device_t* restrict bus, device_t* restrict child);
+
+    /// Forgets a child on its way out of the tree, with what the bus keeps about it in bus_ctxdata
+    /// @pre The child has no children and no driver
+    void (*remove_child)(device_t* restrict bus, device_t* restrict child);
+
     /// Translates a range of this bus to the bus above it
     /// @param type FWNODE_RESOURCE_PORT or FWNODE_RESOURCE_MEMORY, changed when the bus above sees the range in the other space
     /// @retval -ERANGE The node doesn't pass the range on
@@ -64,9 +82,15 @@ struct device_private_s {
     device_t* children;
     fwnode_resource_t* resources; // Of the firmware node, without the windows it passes on
     size_t num_resources;
-    device_irq_t* irqs; // Requested through device_request_irq
+    device_irq_t* irqs;         // Requested through device_request_irq
+    device_mapping_t* mappings; // Made through device_map_io
+    device_t* worker_next;      // In the queue of device_worker, which holds a reference meanwhile
+    unsigned pending;           // What the node is queued for, under the queue's lock
     unsigned refcount;
-    bool fw_child; // Placed by the firmware rather than by the parent's bus, which ignores it
+    device_state_t state;    // Changed by device_worker alone
+    bool fw_child;           // Placed by the firmware rather than by the parent's bus, which ignores it
+    bool fw_children_placed; // Until the node is unbound, which takes its children away
+    bool gone;               // The hardware went away without warning
 };
 
 // A node of the device tree: one piece of hardware wherever it sits, with the
@@ -102,9 +126,15 @@ struct driver_ops_s {
     /// @note Undoes what it did before it fails, as detach isn't called then
     int (*attach)(device_t* restrict device, const driver_match_t* restrict match);
 
-    /// Lets go of the device
-    /// @note nullptr on a driver that can't let go yet
+    /// Takes the device's functions away and stops the hardware raising interrupts
+    /// @post Calls through the functions fail, and the interrupt handlers may still run
+    /// but start nothing new; the framework then takes the resources back
+    /// @note Must not wait for the hardware to answer when device_is_gone
     void (*detach)(device_t* restrict device);
+
+    /// Frees what the driver keeps in ctxdata, nullptr included
+    /// @pre Called after detach, or after attach failed, once the interrupt handlers can't run
+    void (*release)(device_t* restrict device);
 };
 
 struct driver_s {
@@ -156,11 +186,24 @@ device_t* device_get_root(void) __nodiscard;
 /// @retval -ENOMEM Out of memory
 int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, device_t** restrict device);
 
-/// Binds the node to the driver with the highest bid, then places its firmware children, then
-/// does the same below; the firmware children the node's bus can't place become nodes of
-/// their own named by the firmware
-/// @note Goes through a node only once, as nothing takes nodes out of the tree yet
-void device_enumerate(device_t* restrict device);
+/// Queues the node to be bound to the driver with the highest bid if it has none, to have its
+/// firmware children placed if they aren't, and the same for every node below
+/// @note Any context; device_worker does the work
+void device_rescan(device_t* restrict device);
+
+/// Queues the node to have its children removed and its driver detached; it stays in the tree
+/// @note Any context; device_worker does the work
+void device_unbind(device_t* restrict device);
+
+/// Queues the node to be unbound and taken out of the tree
+/// @note Any context; device_worker does the work
+void device_remove(device_t* restrict device);
+
+/// Marks the node and all below it as gone from the hardware, so drivers stop waiting for answers from it
+/// @note Doesn't remove the nodes; the bus that lost them asks for that
+void device_set_gone(device_t* restrict device);
+
+bool device_is_gone(const device_t* restrict device) __nodiscard;
 
 void device_incref(device_t* restrict device);
 
@@ -182,16 +225,19 @@ int device_translate_range(device_t* restrict bus, unsigned* restrict type, uint
 /// @retval -ENOMEM No address space to map memory into
 int device_map_range(device_t* restrict bus, unsigned type, uint64_t start, uint64_t length, io_region_t* restrict region);
 
-/// Maps a register range of the device
+void device_unmap_range(io_region_t* restrict region);
+
+/// Maps a register range of the device, which the framework unmaps when the driver lets go of it
 /// @param index Counts the device's port and memory ranges together, in its bus's order
 /// @retval -ENODEV The device has no such range
 /// @retval -ERANGE A bridge on the way doesn't pass the range on
 /// @retval -ENOMEM No address space to map memory into
 int device_map_io(device_t* restrict device, unsigned index, io_region_t* restrict region);
 
-void device_unmap_io(io_region_t* restrict region);
+void device_unmap_io(device_t* restrict device, io_region_t* restrict region);
 
-/// Routes an interrupt of the device to a handler, sharing its GSI when the bus says it may be shared
+/// Routes an interrupt of the device to a handler, sharing its GSI when the bus says it may
+/// be shared; the framework releases it when the driver lets go of the device
 /// @param index Counts the device's interrupts, in its bus's order
 /// @retval -ENODEV The device has no such interrupt, or no interrupt controller has its GSI
 /// @retval -EBUSY The interrupt is already requested, or its GSI is taken by a handler that doesn't share it

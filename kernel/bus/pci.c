@@ -22,13 +22,13 @@ typedef struct pci_root_s pci_root_t;
 typedef struct companion_search_s companion_search_t;
 
 struct pci_root_s {
+    pci_bus_t* bus;
     unsigned segment;
     fwnode_resource_t windows[PCI_ROOT_WINDOW_MAX]; // Ports and memory the host bridge passes on
     size_t num_windows;
 };
 
 struct pci_bus_s {
-    pci_bus_t* next; // Of all buses, in the order they were found
     pci_root_t* root;
     pci_device_t* bridge; // nullptr on a root bus
     device_t* device;     // The host bridge, or the bridge
@@ -53,9 +53,6 @@ static const char* const pin_names[] = {
 
 static spinlock_t config_lock = SPINLOCK_INIT;
 static pci_config_t* config_head = nullptr;
-static mutex_t pci_mutex = MUTEX_INIT;
-static pci_bus_t* bus_head = nullptr;
-static pci_bus_t** bus_tail = &bus_head;
 
 static void scan_bus(pci_bus_t* restrict bus);
 
@@ -411,9 +408,46 @@ static bool pci_match(device_t* restrict bus, device_t* restrict child, const dr
     return false;
 }
 
+// The driver has let go, so the function stops decoding and mastering until the next one turns that on
+static void pci_release_child(device_t* restrict bus, device_t* restrict child)
+{
+    pci_device_t* function = child->bus_ctxdata;
+
+    pci_release_irq(function);
+
+    for(unsigned bar_index = 0; bar_index < 6; ++bar_index) {
+        pci_bar_unmap(function, bar_index);
+    }
+
+    pci_disable_busmaster(function);
+}
+
+static void pci_remove_child(device_t* restrict bus, device_t* restrict child)
+{
+    pci_device_t* function = child->bus_ctxdata;
+    pci_bus_t* parent = function->priv.bus;
+
+    kassert(function->priv.secondary == nullptr || function->priv.secondary->devices == nullptr);
+
+    pci_device_t** prev = &parent->devices;
+
+    while(*prev != function) {
+        prev = &(*prev)->priv.next;
+    }
+
+    *prev = function->priv.next;
+
+    kfree(function->priv.secondary);
+    kfree(function);
+
+    child->bus_ctxdata = nullptr;
+}
+
 static const device_bus_ops_t host_bus_ops = {
     .place_child = &pci_place_child,
     .match = &pci_match,
+    .release_child = &pci_release_child,
+    .remove_child = &pci_remove_child,
     .get_range = &pci_get_range,
     .get_irq = &pci_get_irq,
     .translate_range = &host_translate_range,
@@ -423,17 +457,19 @@ static const device_bus_ops_t host_bus_ops = {
 static const device_bus_ops_t bridge_bus_ops = {
     .place_child = &pci_place_child,
     .match = &pci_match,
+    .release_child = &pci_release_child,
+    .remove_child = &pci_remove_child,
     .get_range = &pci_get_range,
     .get_irq = &pci_get_irq,
 };
 
-static int add_bus(pci_root_t* restrict root, pci_device_t* restrict bridge, pci_config_t* restrict config, device_t* restrict device,
-    unsigned number)
+static pci_bus_t* add_bus(pci_root_t* restrict root, pci_device_t* restrict bridge, pci_config_t* restrict config,
+    device_t* restrict device, unsigned number)
 {
     pci_bus_t* bus = kmalloc(sizeof(pci_bus_t));
 
     if(bus == nullptr) {
-        return -ENOMEM;
+        return nullptr;
     }
 
     bus->root = root;
@@ -442,14 +478,10 @@ static int add_bus(pci_root_t* restrict root, pci_device_t* restrict bridge, pci
     bus->config = config;
     bus->number = number;
     bus->devices = nullptr;
-    bus->next = nullptr;
-
-    *bus_tail = bus;
-    bus_tail = &bus->next;
 
     scan_bus(bus);
 
-    return 0;
+    return bus;
 }
 
 // UNDONE: a bridge the firmware left without bus numbers needs them assigned
@@ -475,7 +507,9 @@ static void add_bridge(pci_device_t* restrict bridge)
 
     bridge->priv.device->bus_ops = &bridge_bus_ops;
 
-    if(add_bus(parent->root, bridge, config, bridge->priv.device, secondary) < 0) {
+    bridge->priv.secondary = add_bus(parent->root, bridge, config, bridge->priv.device, secondary);
+
+    if(bridge->priv.secondary == nullptr) {
         pr_warning("pci: out of memory");
     }
 }
@@ -504,6 +538,7 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
     function->priv.device = device;
     function->priv.irq_number = UINT_MAX;
     function->priv.bars_mapped = 0;
+    function->priv.secondary = nullptr;
     function->address = *address;
     function->vendor_id = pci_cfg_read16(function, PCI_CFG_VENDOR_ID);
     function->device_id = pci_cfg_read16(function, PCI_CFG_DEVICE_ID);
@@ -669,12 +704,27 @@ int pci_root_attach(device_t* restrict host, unsigned segment, unsigned bus)
 
     host->ctxdata = root;
     host->bus_ops = &host_bus_ops;
+    root->bus = add_bus(root, nullptr, config, host, bus);
 
-    mutex_acquire(&pci_mutex);
-    int retval = add_bus(root, nullptr, config, host, bus);
-    mutex_release(&pci_mutex);
+    if(root->bus == nullptr) {
+        pci_root_detach(host);
+        return -ENOMEM;
+    }
 
-    return retval;
+    return 0;
+}
+
+void pci_root_detach(device_t* restrict host)
+{
+    pci_root_t* root = host->ctxdata;
+
+    kassert(root->bus == nullptr || root->bus->devices == nullptr);
+
+    kfree(root->bus);
+    kfree(root);
+
+    host->ctxdata = nullptr;
+    host->bus_ops = nullptr;
 }
 
 pci_device_t* pci_device_of(device_t* restrict device)
@@ -735,7 +785,7 @@ int pci_map_range(pci_device_t* restrict device, unsigned type, uint64_t start, 
 
 void pci_unmap_range(io_region_t* restrict region)
 {
-    device_unmap_io(region);
+    device_unmap_range(region);
 }
 
 void pci_bar_unmap(pci_device_t* restrict device, unsigned bar_index)

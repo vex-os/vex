@@ -314,12 +314,6 @@ static size_t collect_modes(bochsfb_t* restrict bochsfb, const vexfb_info_t* res
     return keep_mode(bochsfb, count, info->width, info->height, info->bpp, 0);
 }
 
-static void unmap_bars(pci_device_t* restrict pci_device)
-{
-    pci_bar_unmap(pci_device, BAR_VRAM);
-    pci_bar_unmap(pci_device, BAR_MMIO);
-}
-
 static int bochsfb_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
 {
     *bid = DRIVER_BID_SPECIFIC;
@@ -336,7 +330,6 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
     // and only takes DISPI through ports 0x1CE/0x1CF
     if(mmio == nullptr || mmio->io.space != IO_SPACE_MEMORY) {
         pr_verbose("bochsfb: no register BAR");
-        unmap_bars(pci_device);
         return -ENODEV;
     }
 
@@ -344,7 +337,6 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
 
     if(dispi_id < DISPI_ID_MIN || dispi_id > DISPI_ID_MAX) {
         pr_verbose("bochsfb: unknown DISPI version 0x%04X", dispi_id);
-        unmap_bars(pci_device);
         return -ENODEV;
     }
 
@@ -354,7 +346,6 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
     // UNDONE: set a mode of our own rather than give up
     if(!describe(mmio, &info, &offset)) {
         pr_verbose("bochsfb: no linear framebuffer mode is set");
-        unmap_bars(pci_device);
         return -ENODEV;
     }
 
@@ -362,14 +353,12 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
 
     if(vram == nullptr || offset + info.size > vram->io.length) {
         pr_warning("bochsfb: the mode doesn't fit the video memory");
-        unmap_bars(pci_device);
         return -ENODEV;
     }
 
     bochsfb_t* bochsfb = slab_alloc(sizeof(bochsfb_t));
 
     if(bochsfb == nullptr) {
-        unmap_bars(pci_device);
         return -ENOMEM;
     }
 
@@ -409,7 +398,6 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
 
     if(retval < 0) {
         slab_free(bochsfb);
-        unmap_bars(pci_device);
         return retval;
     }
 
@@ -421,23 +409,26 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
     return 0;
 }
 
-// Calls through the fb core after this are refused, so the BARs can go
-// now, while pci_device still exists; the rest goes with the last reference
+// Calls through the fb core after this are refused, and the framework
+// unmaps the BARs; the rest goes with the fb core's last reference
 static void bochsfb_detach(device_t* restrict node)
 {
-    pci_device_t* pci_device = pci_device_of(node);
     bochsfb_t* bochsfb = node->ctxdata;
 
-    node->ctxdata = nullptr;
-
     fb_device_remove(&bochsfb->device);
-    unmap_bars(pci_device);
+}
+
+// The fb core frees the driver's data through bochsfb_release
+static void bochsfb_driver_release(device_t* restrict node)
+{
+    // empty
 }
 
 static const driver_ops_t bochsfb_driver_ops = {
     .probe = &bochsfb_probe,
     .attach = &bochsfb_attach,
     .detach = &bochsfb_detach,
+    .release = &bochsfb_driver_release,
 };
 
 static const driver_match_t bochsfb_matches[] = {

@@ -121,7 +121,6 @@ static int uart16550_pci_attach(device_t* restrict device, const driver_match_t*
 {
     pci_device_t* pci_device = pci_device_of(device);
     size_t count = ports_on(pci_device, match);
-
     card_t* card = kmalloc(sizeof(card_t));
 
     if(card == nullptr) {
@@ -129,10 +128,10 @@ static int uart16550_pci_attach(device_t* restrict device, const driver_match_t*
     }
 
     memset(card, 0, sizeof(card_t));
+    device->ctxdata = card;
     card->bar = pci_bar_map(pci_device, 0);
 
     if(card->bar == nullptr) {
-        kfree(card);
         return -ENODEV;
     }
 
@@ -140,8 +139,6 @@ static int uart16550_pci_attach(device_t* restrict device, const driver_match_t*
     int retval = create_ports(card->bar, ports, count);
 
     if(retval < 0) {
-        pci_bar_unmap(pci_device, 0);
-        kfree(card);
         return retval;
     }
 
@@ -149,46 +146,42 @@ static int uart16550_pci_attach(device_t* restrict device, const driver_match_t*
 
     if(retval < 0) {
         free_ports(ports, count);
-        pci_bar_unmap(pci_device, 0);
-        kfree(card);
         return retval;
     }
 
     add_ports(card, ports, count);
 
     if(card->num_ports == 0) {
-        pci_release_irq(pci_device);
-        pci_bar_unmap(pci_device, 0);
-        kfree(card);
         return -ENODEV;
     }
-
-    device->ctxdata = card;
 
     return 0;
 }
 
 static void uart16550_pci_detach(device_t* restrict device)
 {
-    pci_device_t* pci_device = pci_device_of(device);
     card_t* card = device->ctxdata;
 
     for(size_t i = 0; i < card->num_ports; ++i) {
         uart16550_remove(card->ports[i]);
     }
+}
 
-    pci_release_irq(pci_device);
-    pci_bar_unmap(pci_device, 0);
-    free_ports(card->ports, card->num_ports);
-    kfree(card);
+static void uart16550_pci_release(device_t* restrict device)
+{
+    card_t* card = device->ctxdata;
 
-    device->ctxdata = nullptr;
+    if(card) {
+        free_ports(card->ports, card->num_ports);
+        kfree(card);
+    }
 }
 
 static const driver_ops_t uart16550_pci_ops = {
     .probe = &uart16550_pci_probe,
     .attach = &uart16550_pci_attach,
     .detach = &uart16550_pci_detach,
+    .release = &uart16550_pci_release,
 };
 
 define_driver(uart16550_pci, &uart16550_pci_ops, uart16550_pci_matches);

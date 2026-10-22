@@ -81,6 +81,23 @@ static void enable_keyboard(ps2kbd_t* restrict ps2kbd)
     io_read8(&ps2kbd->data, 0);
 }
 
+// The controller stops raising the keyboard's
+// interrupt while the keyboard itself stays on
+static void disable_keyboard(ps2kbd_t* restrict ps2kbd)
+{
+    i8042_wait_write(&ps2kbd->command);
+    io_write8(&ps2kbd->command, 0, 0x20);
+
+    i8042_wait_read(&ps2kbd->command);
+    uint8_t command_byte = io_read8(&ps2kbd->data, 0) & ~0x01U;
+
+    i8042_wait_write(&ps2kbd->command);
+    io_write8(&ps2kbd->command, 0, 0x60);
+
+    i8042_wait_write(&ps2kbd->command);
+    io_write8(&ps2kbd->data, 0, command_byte);
+}
+
 static int ps2kbd_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
 {
     *bid = DRIVER_BID_DEFAULT;
@@ -96,53 +113,44 @@ static int ps2kbd_attach(device_t* restrict device, const driver_match_t* restri
         return -ENOMEM;
     }
 
+    device->ctxdata = ps2kbd;
+
     int retval = device_map_io(device, 0, &ps2kbd->data);
 
     if(retval < 0) {
-        kfree(ps2kbd);
         return retval;
     }
 
     retval = device_map_io(device, 1, &ps2kbd->command);
 
     if(retval < 0) {
-        device_unmap_io(&ps2kbd->data);
-        kfree(ps2kbd);
         return retval;
     }
 
     enable_keyboard(ps2kbd);
 
-    retval = device_request_irq(device, 0, &ps2kbd_irq, ps2kbd);
-
-    if(retval < 0) {
-        device_unmap_io(&ps2kbd->command);
-        device_unmap_io(&ps2kbd->data);
-        kfree(ps2kbd);
-        return retval;
-    }
-
-    device->ctxdata = ps2kbd;
-
-    return 0;
+    return device_request_irq(device, 0, &ps2kbd_irq, ps2kbd);
 }
 
 static void ps2kbd_detach(device_t* restrict device)
 {
     ps2kbd_t* ps2kbd = device->ctxdata;
 
-    device_release_irq(device, 0);
-    device_unmap_io(&ps2kbd->command);
-    device_unmap_io(&ps2kbd->data);
-    kfree(ps2kbd);
+    if(!device_is_gone(device)) {
+        disable_keyboard(ps2kbd);
+    }
+}
 
-    device->ctxdata = nullptr;
+static void ps2kbd_release(device_t* restrict device)
+{
+    kfree(device->ctxdata);
 }
 
 static const driver_ops_t ps2kbd_ops = {
     .probe = &ps2kbd_probe,
     .attach = &ps2kbd_attach,
     .detach = &ps2kbd_detach,
+    .release = &ps2kbd_release,
 };
 
 define_driver(ps2kbd, &ps2kbd_ops, ps2kbd_matches);

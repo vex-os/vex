@@ -963,7 +963,6 @@ static int ahci_attach(device_t* restrict device, const driver_match_t* restrict
 
     if(0 == (context->ata_mask | context->atapi_mask)) {
         free_units(context);
-        pci_bar_unmap(pci_device, 5);
         kfree(context);
         device->ctxdata = nullptr;
         return -ENODEV;
@@ -1008,16 +1007,10 @@ static int ahci_attach(device_t* restrict device, const driver_match_t* restrict
 
 static void ahci_detach(device_t* restrict device)
 {
-    pci_device_t* pci_device = pci_device_of(device);
     ahci_pci_context_t* context = device->ctxdata;
-
-    if(context == nullptr) {
-        return;
-    }
 
     if(context->irq) {
         io_write32(&context->abar->io, HBA_GHC, io_read32(&context->abar->io, HBA_GHC) & ~HBA_GHC_IE);
-        pci_release_irq(pci_device);
         context->irq = false;
     }
 
@@ -1038,20 +1031,23 @@ static void ahci_detach(device_t* restrict device)
             ahci_port_teardown(&context->ports[port_num]);
         }
     }
+}
 
-    free_units(context);
+static void ahci_release(device_t* restrict device)
+{
+    ahci_pci_context_t* context = device->ctxdata;
 
-    pci_bar_unmap(pci_device, 5);
-
-    device->ctxdata = nullptr;
-
-    context_decref(context);
+    if(context) {
+        free_units(context);
+        context_decref(context);
+    }
 }
 
 static const driver_ops_t ahci_driver_ops = {
     .probe = &ahci_probe,
     .attach = &ahci_attach,
     .detach = &ahci_detach,
+    .release = &ahci_release,
 };
 
 static const driver_match_t ahci_matches[] = {

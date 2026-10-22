@@ -146,6 +146,7 @@ struct pci_device_private_s {
     unsigned irq_number; // Of MSI, UINT_MAX without
     pci_bar_t bars[6];
     unsigned bars_mapped; // bitmask, bit N set = bars[N] initialized
+    pci_bus_t* secondary; // The bus behind a bridge, nullptr on other functions
 };
 
 struct pci_device_s {
@@ -168,6 +169,10 @@ pci_config_t* pci_config_find(unsigned segment, unsigned bus) __nodiscard;
 /// @retval -ENODEV No way reaches the configuration space of the root bus
 /// @retval -ENOMEM Out of memory
 int pci_root_attach(device_t* restrict host, unsigned segment, unsigned bus);
+
+/// Lets go of what pci_root_attach made of the host bridge
+/// @pre The host bridge has no children left
+void pci_root_detach(device_t* restrict host);
 
 /// Gets the PCI function that a node of the tree is
 /// @return nullptr when the node isn't on a PCI bus
