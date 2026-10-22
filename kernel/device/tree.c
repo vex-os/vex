@@ -100,6 +100,7 @@ static device_t* allocate(device_t* restrict parent, const fwnode_t* restrict fw
     device->priv.unplaced = false;
     device->priv.fw_children_placed = false;
     device->priv.gone = false;
+    device->priv.offline = false;
     atomic_store(&device->priv.refcount, 1, ATOMIC_RELAXED);
 
     device->parent = parent;

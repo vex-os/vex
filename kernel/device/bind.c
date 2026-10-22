@@ -56,7 +56,9 @@ static const driver_match_t* find_match(device_t* restrict device, const driver_
 
 static bool is_complete(const driver_t* restrict driver)
 {
-    return driver->ops->detach && driver->ops->release;
+    bool can_come_back = (driver->ops->offline == nullptr) == (driver->ops->online == nullptr);
+
+    return driver->ops->detach && driver->ops->release && can_come_back;
 }
 
 static void undo_attach(device_t* restrict device, const driver_t* restrict driver)
@@ -221,6 +223,8 @@ static void unbind_node(device_t* device)
     unbind_consumers(device);
     remove_children(device);
 
+    device->priv.offline = false;
+
     const driver_t* driver = device->driver;
 
     if(driver == nullptr) {
@@ -287,6 +291,87 @@ static void remove_node(device_t* device)
     device_decref(device);
 }
 
+static bool asks_driver(const device_t* restrict device)
+{
+    return device->driver && device->driver->ops->offline && !device_is_gone(device);
+}
+
+// Links change only on device_worker, which
+// runs this, so they are walked without the tree's lock
+static int offline_node(device_t* device)
+{
+    if(device->priv.offline) {
+        return 0;
+    }
+
+    for(device_t* child = device->priv.children; child; child = child->priv.next) {
+        int retval = offline_node(child);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
+    for(device_link_t* link = device->priv.consumers; link; link = link->next_of_provider) {
+        int retval = offline_node(link->consumer);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
+    if(asks_driver(device)) {
+        int retval = device->driver->ops->offline(device);
+
+        if(retval < 0) {
+            return retval;
+        }
+    }
+
+    device->priv.offline = true;
+
+    return 0;
+}
+
+static void online_node(device_t* device)
+{
+    if(!device->priv.offline) {
+        return;
+    }
+
+    device->priv.offline = false;
+
+    if(asks_driver(device)) {
+        device->driver->ops->online(device);
+    }
+
+    for(device_t* child = device->priv.children; child; child = child->priv.next) {
+        online_node(child);
+    }
+
+    for(device_link_t* link = device->priv.consumers; link; link = link->next_of_provider) {
+        online_node(link->consumer);
+    }
+}
+
+// What a node takes with it goes only if all of it agrees
+static bool take_offline(device_t* restrict device)
+{
+    int retval = offline_node(device);
+
+    if(retval == 0) {
+        return true;
+    }
+
+    online_node(device);
+
+    char path[DEVICE_PATH_MAX];
+    device_get_path(device, path, sizeof(path));
+    pr_warning("device: %s stays: %s", path, strerror(retval));
+
+    return false;
+}
+
 static device_t* queue_pop(unsigned* restrict requests)
 {
     bool intr_state = spinlock_acquire_intr(&queue_lock);
@@ -316,10 +401,12 @@ static void run_queue(void)
 
     for(device_t* device = queue_pop(&requests); device; device = queue_pop(&requests)) {
         if(requests & DEVICE_REQUEST_REMOVE) {
-            remove_node(device);
+            if(take_offline(device)) {
+                remove_node(device);
+            }
         }
         else {
-            if(requests & DEVICE_REQUEST_UNBIND) {
+            if((requests & DEVICE_REQUEST_UNBIND) && take_offline(device)) {
                 unbind_node(device);
             }
 
@@ -418,7 +505,7 @@ static void init_device_tree(void)
 
     for(const driver_t* driver = drivers_start; driver < drivers_end; driver += 1) {
         if(!is_complete(driver)) {
-            pr_warning("device: %s can't let go of a device, left out", driver->name);
+            pr_warning("device: %s can't let go of a device, or come back from offline, left out", driver->name);
         }
     }
 
