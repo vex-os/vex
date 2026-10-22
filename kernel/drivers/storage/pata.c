@@ -29,6 +29,20 @@
 #define REG_STATUS   7
 #define REG_COMMAND  7
 
+#define BM_COMMAND 0 // Programming Interface for Bus Master IDE Controller 1.0, 2.0
+#define BM_STATUS  2
+#define BM_PRDT    4
+
+#define BM_COMMAND_START UINT8_C(0x01)
+#define BM_COMMAND_READ  UINT8_C(0x08) // The engine writes memory, as for a read from the drive
+
+#define BM_STATUS_ERROR UINT8_C(0x02) // Write 1 to clear
+#define BM_STATUS_IRQ   UINT8_C(0x04) // Write 1 to clear
+
+#define PRD_EOT      UINT16_C(0x8000)
+#define PRD_BOUNDARY UINT64_C(0x10000) // An entry may not cross it
+
+#define ATAPI_FEATURES_DMA         UINT8_C(0x01)
 #define ATAPI_CMD_READ_CAPACITY_10 0x25
 
 #define PATA_DRIVES       2 // The master and the slave
@@ -36,16 +50,28 @@
 #define PATA_MAX_TRANSFER 0x10000 // Bytes per command, 128 sectors of 512 bytes
 #define PATA_MAX_SEGMENTS 128
 #define PATA_PACKET_BYTES 0xF800 // The byte count a packet asks for per DRQ block, a multiple of 2048
+#define PATA_PRDT_OFFSET  PATA_SCRATCH_SIZE
+#define PATA_PRDT_MAX     ((PAGE_SIZE - PATA_PRDT_OFFSET) / sizeof(pata_prd_t))
 
 #define PATA_COMMAND_TIMEOUT_NS UINT64_C(10000000000)
 #define PATA_RESET_TIMEOUT_NS   UINT64_C(5000000000)
 
-static_assert(sizeof(ata_identify_t) <= PATA_SCRATCH_SIZE);
-static_assert(PATA_SCRATCH_SIZE <= PAGE_SIZE);
-
+typedef struct pata_prd_s pata_prd_t;
 typedef struct pata_cursor_s pata_cursor_t;
 typedef struct pata_channel_s pata_channel_t;
 typedef struct pata_drive_s pata_drive_t;
+
+struct pata_prd_s {
+    uint32_t address;
+    uint16_t length; // In bytes, 0 for 64 KiB
+    uint16_t flags;
+} __packed;
+
+static_assert(8 == sizeof(pata_prd_t));
+static_assert(sizeof(ata_identify_t) <= PATA_SCRATCH_SIZE);
+
+// Each segment of a transfer splits at most once at a 64 KiB boundary
+static_assert(PATA_MAX_SEGMENTS * 2 <= PATA_PRDT_MAX);
 
 struct pata_cursor_s {
     const block_segment_t* segments;
@@ -60,6 +86,7 @@ struct pata_drive_s {
     pata_channel_t* channel;
     uint8_t select; // ATA_DEVICE_SLAVE or 0
     bool lba48;
+    bool dma;
     bool is_atapi;
     bool registered;
 };
@@ -68,8 +95,10 @@ struct pata_channel_s {
     mutex_t lock; // Held for a whole command, as the two drives share the registers and the scratch page
     event_t done; // Triggered by the interrupt handler, reset before each phase that ends in an interrupt
     io_region_t command;
-    io_region_t control;    // Device Control and Alternate Status at offset 0
-    uintptr_t scratch_phys; // 0 once the channel is torn down
+    io_region_t control; // Device Control and Alternate Status at offset 0
+    io_region_t busmaster;
+    uintptr_t scratch_phys; // Below 16 MiB, as pdma gives it; 0 once the channel is torn down
+    bool has_busmaster;
     bool irq;
     pata_drive_t drives[PATA_DRIVES];
     dev_unit_t* ata_unit;
@@ -330,6 +359,106 @@ static void write_taskfile(pata_channel_t* restrict channel, uint64_t lba, uint1
     io_write8(&channel->command, REG_LBA2, lba >> 16);
 }
 
+static bool build_prdt(pata_channel_t* restrict channel, const block_segment_t* restrict segments, size_t num_segments)
+{
+    volatile pata_prd_t* prdt = phys_to_virt(channel->scratch_phys + PATA_PRDT_OFFSET);
+    size_t count = 0;
+
+    for(size_t i = 0; i < num_segments; ++i) {
+        uint64_t phys = segments[i].phys;
+        size_t left = segments[i].length;
+
+        while(left) {
+            size_t length = PRD_BOUNDARY - (phys & (PRD_BOUNDARY - 1));
+
+            if(length > left) {
+                length = left;
+            }
+
+            prdt[count].address = htole32(phys);
+            prdt[count].length = htole16(length); // 64 KiB becomes 0, as the format wants
+            prdt[count].flags = 0;
+
+            phys += length;
+            left -= length;
+            count += 1;
+        }
+    }
+
+    if(count == 0) {
+        return false;
+    }
+
+    prdt[count - 1].flags = htole16(PRD_EOT);
+
+    return true;
+}
+
+static void prepare_dma(pata_channel_t* restrict channel, bool write)
+{
+    io_write32(&channel->busmaster, BM_PRDT, channel->scratch_phys + PATA_PRDT_OFFSET);
+    io_write8(&channel->busmaster, BM_STATUS, BM_STATUS_ERROR | BM_STATUS_IRQ);
+    io_write8(&channel->busmaster, BM_COMMAND, write ? 0 : BM_COMMAND_READ);
+}
+
+static void start_dma(pata_channel_t* restrict channel)
+{
+    uint8_t command = io_read8(&channel->busmaster, BM_COMMAND);
+    io_write8(&channel->busmaster, BM_COMMAND, command | BM_COMMAND_START);
+}
+
+// The engine stops also after a timeout, as it would go on writing memory otherwise
+static int finish_dma(pata_channel_t* restrict channel)
+{
+    uint8_t status;
+    int retval = wait_not_busy(channel, &status);
+
+    uint8_t command = io_read8(&channel->busmaster, BM_COMMAND);
+    io_write8(&channel->busmaster, BM_COMMAND, command & ~BM_COMMAND_START);
+
+    uint8_t busmaster_status = io_read8(&channel->busmaster, BM_STATUS);
+    io_write8(&channel->busmaster, BM_STATUS, BM_STATUS_ERROR | BM_STATUS_IRQ);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(busmaster_status & BM_STATUS_ERROR) {
+        pr_verbose("pata: %s: bus master error: status=%02X", channel->device->name, busmaster_status);
+        return -EIO;
+    }
+
+    return check_status(channel, status, false);
+}
+
+static int run_ata_dma(pata_drive_t* restrict drive, uint8_t command, uint64_t lba, uint16_t count, const block_request_t* restrict req,
+    bool write)
+{
+    pata_channel_t* channel = drive->channel;
+    uint8_t device = ATA_DEVICE_LBA | drive->select;
+
+    if(!drive->lba48) {
+        device |= (lba >> 24) & 0x0F;
+    }
+
+    if(!build_prdt(channel, req->segments, req->num_segments)) {
+        return -EINVAL;
+    }
+
+    int retval = select_drive(channel, device);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    prepare_dma(channel, write);
+    write_taskfile(channel, lba, count, drive->lba48);
+    issue(channel, command);
+    start_dma(channel);
+
+    return finish_dma(channel);
+}
+
 // LBA28 keeps the top four bits of the address in the device register
 static int run_ata(pata_drive_t* restrict drive, uint8_t command, uint64_t lba, uint16_t count, size_t sector_size,
     pata_cursor_t* restrict cursor, bool write)
@@ -365,7 +494,8 @@ static int run_ata(pata_drive_t* restrict drive, uint8_t command, uint64_t lba, 
     return wait_done(channel);
 }
 
-static int run_packet(pata_drive_t* restrict drive, const atapi_cdb_t cdb, pata_cursor_t* restrict cursor, bool write)
+// With a PRD table built, the data goes by DMA and the cursor is left alone
+static int run_packet(pata_drive_t* restrict drive, const atapi_cdb_t cdb, pata_cursor_t* restrict cursor, bool write, bool dma)
 {
     pata_channel_t* channel = drive->channel;
     int retval = select_drive(channel, drive->select);
@@ -374,7 +504,11 @@ static int run_packet(pata_drive_t* restrict drive, const atapi_cdb_t cdb, pata_
         return retval;
     }
 
-    io_write8(&channel->command, REG_FEATURES, 0); // PIO, not DMA
+    if(dma) {
+        prepare_dma(channel, write);
+    }
+
+    io_write8(&channel->command, REG_FEATURES, dma ? ATAPI_FEATURES_DMA : 0);
     io_write8(&channel->command, REG_LBA1, PATA_PACKET_BYTES & 0xFF);
     io_write8(&channel->command, REG_LBA2, PATA_PACKET_BYTES >> 8);
     issue(channel, ATA_CMD_PACKET);
@@ -390,6 +524,11 @@ static int run_packet(pata_drive_t* restrict drive, const atapi_cdb_t cdb, pata_
 
     event_reset(&channel->done);
     io_write16s(&channel->command, REG_DATA, words, sizeof(atapi_cdb_t) / 2);
+
+    if(dma) {
+        start_dma(channel);
+        return finish_dma(channel);
+    }
 
     for(;;) {
         uint8_t status;
@@ -473,7 +612,7 @@ static int atapi_capacity(pata_drive_t* restrict drive, size_t* restrict sector_
     memset(cdb, 0, sizeof(atapi_cdb_t));
     cdb[0] = ATAPI_CMD_READ_CAPACITY_10;
 
-    int retval = run_packet(drive, cdb, &cursor, false);
+    int retval = run_packet(drive, cdb, &cursor, false, false);
 
     if(retval < 0) {
         return retval;
@@ -517,7 +656,8 @@ static void pata_atapi_submit(const atapi_interface_t* restrict interface, const
 
     request_cursor(req, &cursor);
 
-    int retval = run_packet(drive, cdb, &cursor, req->op == BLOCK_REQ_WRITE);
+    bool dma = drive->dma && req->num_segments && build_prdt(drive->channel, req->segments, req->num_segments);
+    int retval = run_packet(drive, cdb, &cursor, req->op == BLOCK_REQ_WRITE, dma);
 
     mutex_release(&drive->channel->lock);
 
@@ -529,10 +669,36 @@ static const atapi_interface_ops_t pata_atapi_ops = {
     .release = &pata_atapi_release,
 };
 
+static int transfer(pata_drive_t* restrict drive, const block_interface_t* restrict interface, const block_request_t* restrict req,
+    bool write)
+{
+    uint16_t count = (uint16_t)(req->length / interface->sector_size);
+
+    if(drive->dma) {
+        uint8_t command = drive->lba48 ? ATA_CMD_READ_DMA_EXT : ATA_CMD_READ_DMA;
+
+        if(write) {
+            command = drive->lba48 ? ATA_CMD_WRITE_DMA_EXT : ATA_CMD_WRITE_DMA;
+        }
+
+        return run_ata_dma(drive, command, req->lba, count, req, write);
+    }
+
+    uint8_t command = drive->lba48 ? ATA_CMD_READ_PIO_EXT : ATA_CMD_READ_PIO;
+    pata_cursor_t cursor;
+
+    if(write) {
+        command = drive->lba48 ? ATA_CMD_WRITE_PIO_EXT : ATA_CMD_WRITE_PIO;
+    }
+
+    request_cursor(req, &cursor);
+
+    return run_ata(drive, command, req->lba, count, interface->sector_size, &cursor, write);
+}
+
 static void pata_submit(const block_interface_t* restrict interface, block_request_t* restrict req)
 {
     pata_drive_t* drive = interface->ctxdata;
-    uint16_t count = (uint16_t)(req->length / interface->sector_size);
     pata_cursor_t cursor;
     int retval;
 
@@ -541,20 +707,17 @@ static void pata_submit(const block_interface_t* restrict interface, block_reque
         return;
     }
 
-    request_cursor(req, &cursor);
-
     switch(req->op) {
         case BLOCK_REQ_READ:
-            retval = run_ata(drive, drive->lba48 ? ATA_CMD_READ_PIO_EXT : ATA_CMD_READ_PIO, req->lba, count, interface->sector_size,
-                &cursor, false);
+            retval = transfer(drive, interface, req, false);
             break;
 
         case BLOCK_REQ_WRITE:
-            retval = run_ata(drive, drive->lba48 ? ATA_CMD_WRITE_PIO_EXT : ATA_CMD_WRITE_PIO, req->lba, count, interface->sector_size,
-                &cursor, true);
+            retval = transfer(drive, interface, req, true);
             break;
 
         default:
+            request_cursor(req, &cursor);
             retval = run_ata(drive, drive->lba48 ? ATA_CMD_FLUSH_EXT : ATA_CMD_FLUSH, 0, 0, 0, &cursor, false);
             break;
     }
@@ -569,12 +732,12 @@ static const block_interface_ops_t pata_block_interface_ops = {
     .release = &pata_block_release,
 };
 
-static void set_limits(block_interface_t* restrict interface)
+static void set_limits(block_interface_t* restrict interface, bool dma)
 {
     interface->max_transfer = PATA_MAX_TRANSFER;
     interface->max_segments = PATA_MAX_SEGMENTS;
-    interface->dma_limit = UINTPTR_MAX; // PIO goes through the direct map
-    interface->dma_align = 1;           // The data register moves words
+    interface->dma_limit = dma ? UINT32_MAX : UINTPTR_MAX; // PIO goes through the direct map
+    interface->dma_align = 1;                              // PRD entries and the data register both move words
 }
 
 static unsigned drive_index(const pata_drive_t* restrict drive)
@@ -603,7 +766,7 @@ static int register_ata(pata_drive_t* restrict drive, const ata_identify_t ident
     interface->device = channel->device;
     interface->ctxdata = drive;
 
-    set_limits(interface);
+    set_limits(interface, drive->dma);
 
     if(interface->sector_size == 0 || interface->sector_size > PATA_MAX_TRANSFER) {
         pr_verbose("pata: %s.%u: unsupported sector size %zu", channel->device->name, drive_index(drive), interface->sector_size);
@@ -648,7 +811,7 @@ static int register_atapi(pata_drive_t* restrict drive)
     atapi->base.sector_size = 0;
     atapi->base.flags = 0;
 
-    set_limits(&atapi->base);
+    set_limits(&atapi->base, drive->dma);
 
     int retval = atapi_interface_add(atapi, channel->atapi_unit, drive_index(drive) + 1);
 
@@ -728,10 +891,12 @@ static void probe_drive(pata_drive_t* restrict drive)
     }
 
     drive->lba48 = ata_identify_has_lba48(data);
+    drive->dma = channel->has_busmaster && ata_identify_has_dma(data);
 
     char model[41];
     ata_identify_string(&data[ATA_IDENTIFY_MODEL_WORD], ATA_IDENTIFY_MODEL_NWORDS, model, sizeof(model));
-    pr_verbose("pata: %s.%u: model=%s atapi=%d lba48=%d", channel->device->name, drive_index(drive), model, drive->is_atapi, drive->lba48);
+    pr_verbose("pata: %s.%u: model=%s atapi=%d lba48=%d dma=%d", channel->device->name, drive_index(drive), model, drive->is_atapi,
+        drive->lba48, drive->dma);
 
     if(drive->is_atapi) {
         retval = register_atapi(drive);
@@ -766,6 +931,9 @@ static int init_channel(pata_channel_t* restrict channel)
     if(retval < 0) {
         return retval;
     }
+
+    // UNDONE: the transfer modes stay as the firmware set them, in the drives and in the controller's timing registers
+    channel->has_busmaster = 0 == device_map_io(channel->device, 2, &channel->busmaster);
 
     // A channel with no drives floats its data lines high
     if(read_alt_status(channel) == 0xFF) {

@@ -58,6 +58,11 @@ static __always_inline __nodiscard bool ata_identify_is_atapi(const ata_identify
     return le16toh(packet[0]) & UINT16_C(0x8000);
 }
 
+static __always_inline __nodiscard bool ata_identify_has_dma(const ata_identify_t packet)
+{
+    return le16toh(packet[49]) & UINT16_C(0x0100);
+}
+
 static __always_inline __nodiscard bool ata_identify_has_lba48(const ata_identify_t packet)
 {
     return le16toh(packet[83]) & UINT16_C(0x0400);

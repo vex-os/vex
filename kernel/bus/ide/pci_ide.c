@@ -13,9 +13,12 @@
 #define CHANNEL_ID "PNP0600" // ACPI's id of an IDE channel
 
 #define CHANNEL_NAME_MAX      8
-#define CHANNEL_RESOURCES_MAX 3 // The command block, the control block and the interrupt
+#define CHANNEL_RESOURCES_MAX 4 // The command block, the control block, the bus master registers and the interrupt
 
 #define NATIVE_CONTROL_OFFSET 2 // PCI IDE Controller 1.0, 2.1: the Device Control port is at offset 2 of a native control block BAR
+
+#define BUSMASTER_BAR    4 // Programming Interface for Bus Master IDE Controller 1.0, 2.0: in both modes
+#define BUSMASTER_LENGTH 8 // Per channel, the secondary's after the primary's
 
 typedef struct ide_channel_s ide_channel_t;
 typedef struct ide_controller_s ide_controller_t;
@@ -49,37 +52,35 @@ static const uint32_t compat_irqs[] = {
     15,
 };
 
-static void set_ports(fwnode_resource_t* restrict resource, uint64_t start, uint64_t length)
+static fwnode_resource_t* add_resource(ide_channel_t* restrict channel)
 {
+    fwnode_resource_t* resource = &channel->resources[channel->fixed.num_resources];
     *resource = (fwnode_resource_t) {};
-    resource->type = FWNODE_RESOURCE_PORT;
+    channel->fixed.num_resources += 1;
+    return resource;
+}
+
+static void add_ports(ide_channel_t* restrict channel, unsigned type, uint64_t start, uint64_t length)
+{
+    fwnode_resource_t* resource = add_resource(channel);
+    resource->type = type;
     resource->range.start = start;
     resource->range.length = length;
 }
 
-static void describe_compat(ide_channel_t* restrict channel, unsigned number)
+static void describe_compat_blocks(ide_channel_t* restrict channel, unsigned number)
 {
-    set_ports(&channel->resources[0], compat_command_starts[number], 8);
-    set_ports(&channel->resources[1], compat_control_starts[number], 1);
-
-    fwnode_resource_t* irq = &channel->resources[2];
-    *irq = (fwnode_resource_t) {};
-    irq->type = FWNODE_RESOURCE_IRQ;
-    irq->irq.number = compat_irqs[number];
-    irq->irq.trigger = TRIGGER_EDGE;
-    irq->irq.polarity = ACTIVE_HIGH;
-    irq->irq.flags = FWNODE_IRQ_ISA;
-
-    channel->fixed.num_resources = 3;
+    add_ports(channel, FWNODE_RESOURCE_PORT, compat_command_starts[number], 8);
+    add_ports(channel, FWNODE_RESOURCE_PORT, compat_control_starts[number], 1);
 }
 
-// A native channel without an interrupt is still there, and its driver polls
-static int describe_native(device_t* restrict device, ide_channel_t* restrict channel, unsigned number)
+static int describe_native_blocks(device_t* restrict device, ide_channel_t* restrict channel, unsigned number)
 {
     unsigned bar = number * PCI_IDE_BARS_PER_CHANNEL;
+    fwnode_resource_t command;
     fwnode_resource_t control;
 
-    int retval = device_get_range(device, bar, &channel->resources[0]);
+    int retval = device_get_range(device, bar, &command);
 
     if(retval == 0) {
         retval = device_get_range(device, bar + 1, &control);
@@ -89,21 +90,40 @@ static int describe_native(device_t* restrict device, ide_channel_t* restrict ch
         return retval;
     }
 
-    set_ports(&channel->resources[1], control.range.start + NATIVE_CONTROL_OFFSET, 1);
-    channel->resources[1].type = control.type;
-    channel->fixed.num_resources = 2;
-
-    fwnode_resource_t* irq = &channel->resources[2];
-    *irq = (fwnode_resource_t) {};
-    irq->type = FWNODE_RESOURCE_IRQ;
-
-    if(device_get_irq(device, 0, &irq->irq) == 0) {
-        channel->fixed.num_resources = 3;
-    }
-
-    channel->native = true;
+    add_ports(channel, command.type, command.range.start, command.range.length);
+    add_ports(channel, control.type, control.range.start + NATIVE_CONTROL_OFFSET, 1);
 
     return 0;
+}
+
+// A channel without bus master registers is still there, and its driver uses PIO
+static void describe_busmaster(device_t* restrict device, ide_channel_t* restrict channel, unsigned number)
+{
+    fwnode_resource_t busmaster;
+
+    if(device_get_range(device, BUSMASTER_BAR, &busmaster) == 0) {
+        add_ports(channel, busmaster.type, busmaster.range.start + number * BUSMASTER_LENGTH, BUSMASTER_LENGTH);
+    }
+}
+
+// A native channel without an interrupt is still there, and its driver polls
+static void describe_irq(device_t* restrict device, ide_channel_t* restrict channel, unsigned number)
+{
+    fwnode_irq_t native;
+
+    if(!channel->native) {
+        fwnode_resource_t* irq = add_resource(channel);
+        irq->type = FWNODE_RESOURCE_IRQ;
+        irq->irq.number = compat_irqs[number];
+        irq->irq.trigger = TRIGGER_EDGE;
+        irq->irq.polarity = ACTIVE_HIGH;
+        irq->irq.flags = FWNODE_IRQ_ISA;
+    }
+    else if(device_get_irq(device, 0, &native) == 0) {
+        fwnode_resource_t* irq = add_resource(channel);
+        irq->type = FWNODE_RESOURCE_IRQ;
+        irq->irq = native;
+    }
 }
 
 static void add_channel(device_t* restrict device, ide_channel_t* restrict channel, unsigned number)
@@ -116,13 +136,19 @@ static void add_channel(device_t* restrict device, ide_channel_t* restrict chann
     channel->fixed.id = CHANNEL_ID;
     channel->fixed.resources = channel->resources;
 
-    if(pci_ide_is_compat(function, number)) {
-        describe_compat(channel, number);
+    channel->fixed.num_resources = 0;
+    channel->native = !pci_ide_is_compat(function, number);
+
+    if(!channel->native) {
+        describe_compat_blocks(channel, number);
     }
-    else if(describe_native(device, channel, number) < 0) {
+    else if(describe_native_blocks(device, channel, number) < 0) {
         pr_verbose("pci_ide: %s %s: no registers", device->name, channel->name);
         return;
     }
+
+    describe_busmaster(device, channel, number);
+    describe_irq(device, channel, number);
 
     fwnode_t node;
     fwnode_init_fixed(&node, &channel->fixed);
@@ -210,6 +236,8 @@ static int pci_ide_attach(device_t* restrict device, const driver_match_t* restr
         uint16_t command = pci_read_config16(function, PCI_CFG_COMMAND);
         pci_write_config16(function, PCI_CFG_COMMAND, command | PCI_CMD_IO_SPACE);
     }
+
+    pci_enable_busmaster(function);
 
     for(unsigned i = 0; i < PCI_IDE_CHANNELS; ++i) {
         add_channel(device, &controller->channels[i], i);
