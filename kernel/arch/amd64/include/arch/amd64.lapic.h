@@ -4,6 +4,9 @@
 #include <vex/hhdm.h>
 #include <vex/types.h>
 
+typedef struct device_s device_t;
+typedef struct hart_local_s hart_local_t;
+
 #define LAPIC_REG_ID         0x008
 #define LAPIC_REG_EOI        0x02C
 #define LAPIC_REG_SVR        0x03C
@@ -27,6 +30,11 @@
 uint32_t lapic_read(uint32_t reg);
 void lapic_write(uint32_t reg, uint32_t value);
 void lapic_ipi(uint32_t target, uint32_t mode, uint8_t vector);
+
+/// Adds the node of the hart's local APIC below the node of its CPU
+/// @pre Called from the attach of the CPU's driver
+/// @retval -ENOMEM Out of memory
+int lapic_add_device(device_t* restrict cpu, hart_local_t* restrict hart);
 
 static __always_inline __nodiscard uint32_t lapic_query_id(void)
 {

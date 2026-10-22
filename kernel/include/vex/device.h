@@ -74,7 +74,7 @@ device_t* device_get_root(void) __nodiscard;
 int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, device_t** restrict device);
 
 /// Adds a node that a driver already drives, for hardware brought up before the tree, such as interrupt controllers
-/// @pre Called before the stage that binds the tree, as device_worker doesn't run yet
+/// @pre Called before the stage that binds the tree, or from an attach on device_worker
 /// @param fwnode nullptr when the firmware doesn't describe the node
 /// @param name The last component of the node's path, such as ioapic:0
 /// @param ctxdata What the driver keeps, which stays the caller's if the call fails

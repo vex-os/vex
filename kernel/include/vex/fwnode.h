@@ -58,6 +58,10 @@ struct fwnode_ops_s {
     /// @retval -ENOENT The node has none
     int (*get_address)(const fwnode_t* restrict node, uint64_t* restrict address);
 
+    /// Gets the hardware id of the processor the node describes, such as its APIC ID on x86
+    /// @retval -ENOENT The node isn't a processor, or the firmware doesn't say which one it is
+    int (*get_cpu_id)(const fwnode_t* restrict node, uint64_t* restrict cpu_id);
+
     /// Gets the node's first id, for names and messages
     /// @retval -ENOENT The node has none
     int (*get_id)(const fwnode_t* restrict node, char* restrict buffer, size_t size);
@@ -115,6 +119,11 @@ static __always_inline bool fwnode_matches(const fwnode_t* restrict node, const 
 static __always_inline int fwnode_get_address(const fwnode_t* restrict node, uint64_t* restrict address)
 {
     return node->ops->get_address(node, address);
+}
+
+static __always_inline int fwnode_get_cpu_id(const fwnode_t* restrict node, uint64_t* restrict cpu_id)
+{
+    return node->ops->get_cpu_id(node, cpu_id);
 }
 
 static __always_inline int fwnode_get_id(const fwnode_t* restrict node, char* restrict buffer, size_t size)

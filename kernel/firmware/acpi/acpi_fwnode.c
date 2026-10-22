@@ -1,5 +1,7 @@
+#include <uacpi/acpi.h>
 #include <uacpi/namespace.h>
 #include <uacpi/resources.h>
+#include <uacpi/tables.h>
 #include <uacpi/uacpi.h>
 #include <uacpi/utilities.h>
 #include <vex/errno.h>
@@ -9,18 +11,29 @@
 #include <vex/string.h>
 #include <vex/strings.h>
 
+// ACPI 6.5, 8.4 Declaring processors: a Processor object stands for
+// a device of this id, and older firmware such as QEMU's still has them
+#define PROCESSOR_DEVICE_ID "ACPI0007"
+
 // ACPI 6.5, 6.3.7 _STA
 #define STA_PRESENT     0x01U
 #define STA_ENABLED     0x02U
 #define STA_FUNCTIONING 0x08U
 
 typedef struct child_walk_s child_walk_t;
+typedef struct cpu_walk_s cpu_walk_t;
 typedef struct resource_walk_s resource_walk_t;
 typedef struct link_walk_s link_walk_t;
 
 struct child_walk_s {
     void (*callback)(const fwnode_t* child, void* arg);
     void* arg;
+};
+
+struct cpu_walk_s {
+    uint32_t uid;
+    uint64_t cpu_id;
+    bool found;
 };
 
 struct resource_walk_s {
@@ -57,9 +70,162 @@ static bool acpi_node_is_present(const fwnode_t* restrict node)
     return (status & (STA_PRESENT | STA_ENABLED)) == (STA_PRESENT | STA_ENABLED);
 }
 
+static bool is_processor_object(uacpi_namespace_node* restrict namespace_node)
+{
+    uacpi_object_type type;
+
+    return uacpi_likely_success(uacpi_namespace_node_type(namespace_node, &type)) && type == UACPI_OBJECT_PROCESSOR;
+}
+
 static bool acpi_node_matches(const fwnode_t* restrict node, const char* const* restrict ids)
 {
-    return uacpi_device_matches_pnp_id(namespace_node_of(node), ids);
+    uacpi_namespace_node* namespace_node = namespace_node_of(node);
+
+    if(!is_processor_object(namespace_node)) {
+        return uacpi_device_matches_pnp_id(namespace_node, ids);
+    }
+
+    for(const char* const* id = ids; *id; id += 1) {
+        if(0 == strcmp(*id, PROCESSOR_DEVICE_ID)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+// _MAT and MADT entries alike, the local APIC's or the x2APIC's
+static bool parse_cpu_entry(const struct acpi_entry_hdr* restrict entry, size_t size, uint32_t* restrict uid, uint64_t* restrict cpu_id)
+{
+    if(size < sizeof(struct acpi_entry_hdr) || entry->length > size) {
+        return false;
+    }
+
+    if(entry->type == ACPI_MADT_ENTRY_TYPE_LAPIC && entry->length >= sizeof(struct acpi_madt_lapic)) {
+        const struct acpi_madt_lapic* lapic = (const struct acpi_madt_lapic*)(entry);
+        *uid = lapic->uid;
+        *cpu_id = lapic->id;
+        return true;
+    }
+
+    if(entry->type == ACPI_MADT_ENTRY_TYPE_LOCAL_X2APIC && entry->length >= sizeof(struct acpi_madt_x2apic)) {
+        const struct acpi_madt_x2apic* x2apic = (const struct acpi_madt_x2apic*)(entry);
+        *uid = x2apic->uid;
+        *cpu_id = x2apic->id;
+        return true;
+    }
+
+    return false;
+}
+
+static int cpu_id_from_mat(uacpi_namespace_node* restrict namespace_node, uint64_t* restrict cpu_id)
+{
+    uacpi_object* mat;
+
+    if(uacpi_unlikely_error(uacpi_eval_simple_buffer(namespace_node, "_MAT", &mat))) {
+        return -ENOENT;
+    }
+
+    uacpi_data_view view;
+    uint32_t uid;
+    bool found = uacpi_likely_success(uacpi_object_get_buffer(mat, &view)) && parse_cpu_entry(view.data, view.length, &uid, cpu_id);
+
+    uacpi_object_unref(mat);
+
+    return found ? 0 : -ENOENT;
+}
+
+static int uid_of(uacpi_namespace_node* restrict namespace_node, uint32_t* restrict uid)
+{
+    if(!is_processor_object(namespace_node)) {
+        uacpi_u64 value;
+
+        if(uacpi_unlikely_error(uacpi_eval_simple_integer(namespace_node, "_UID", &value))) {
+            return -ENOENT;
+        }
+
+        *uid = value;
+        return 0;
+    }
+
+    uacpi_object* processor;
+
+    if(uacpi_unlikely_error(uacpi_eval_typed(namespace_node, nullptr, nullptr, UACPI_OBJECT_PROCESSOR_BIT, &processor))) {
+        return -ENOENT;
+    }
+
+    uacpi_processor_info info;
+    uacpi_status status = uacpi_object_get_processor_info(processor, &info);
+
+    uacpi_object_unref(processor);
+
+    if(uacpi_unlikely_error(status)) {
+        return -ENOENT;
+    }
+
+    *uid = info.id;
+
+    return 0;
+}
+
+static uacpi_iteration_decision find_cpu_entry(uacpi_handle arg, struct acpi_entry_hdr* entry)
+{
+    cpu_walk_t* walk = arg;
+    uint32_t uid;
+    uint64_t cpu_id;
+
+    if(parse_cpu_entry(entry, entry->length, &uid, &cpu_id) && uid == walk->uid) {
+        walk->cpu_id = cpu_id;
+        walk->found = true;
+        return UACPI_ITERATION_DECISION_BREAK;
+    }
+
+    return UACPI_ITERATION_DECISION_CONTINUE;
+}
+
+static int cpu_id_from_madt(uacpi_namespace_node* restrict namespace_node, uint64_t* restrict cpu_id)
+{
+    cpu_walk_t walk = {};
+
+    if(uid_of(namespace_node, &walk.uid) < 0) {
+        return -ENOENT;
+    }
+
+    uacpi_table madt;
+
+    if(uacpi_unlikely_error(uacpi_table_find_by_signature(ACPI_MADT_SIGNATURE, &madt))) {
+        return -ENOENT;
+    }
+
+    uacpi_for_each_subtable(madt.hdr, sizeof(struct acpi_madt), &find_cpu_entry, &walk);
+    uacpi_table_unref(&madt);
+
+    if(!walk.found) {
+        return -ENOENT;
+    }
+
+    *cpu_id = walk.cpu_id;
+
+    return 0;
+}
+
+static int acpi_node_get_cpu_id(const fwnode_t* restrict node, uint64_t* restrict cpu_id)
+{
+    uacpi_namespace_node* namespace_node = namespace_node_of(node);
+    const char* const ids[] = {
+        PROCESSOR_DEVICE_ID,
+        nullptr,
+    };
+
+    if(!acpi_node_matches(node, ids)) {
+        return -ENOENT;
+    }
+
+    if(0 == cpu_id_from_mat(namespace_node, cpu_id)) {
+        return 0;
+    }
+
+    return cpu_id_from_madt(namespace_node, cpu_id);
 }
 
 static int acpi_node_get_address(const fwnode_t* restrict node, uint64_t* restrict address)
@@ -157,7 +323,8 @@ static void acpi_node_for_each_child(const fwnode_t* restrict node, void (*callb
     walk.callback = callback;
     walk.arg = arg;
 
-    uacpi_namespace_for_each_child(namespace_node_of(node), &visit_child, nullptr, UACPI_OBJECT_DEVICE_BIT, 1, &walk);
+    uacpi_namespace_for_each_child(namespace_node_of(node), &visit_child, nullptr, UACPI_OBJECT_DEVICE_BIT | UACPI_OBJECT_PROCESSOR_BIT, 1,
+        &walk);
 }
 
 static unsigned trigger_of(uacpi_u8 triggering)
@@ -507,6 +674,7 @@ static const fwnode_ops_t acpi_node_ops = {
     .is_present = &acpi_node_is_present,
     .matches = &acpi_node_matches,
     .get_address = &acpi_node_get_address,
+    .get_cpu_id = &acpi_node_get_cpu_id,
     .get_id = &acpi_node_get_id,
     .get_name = &acpi_node_get_name,
     .for_each_child = &acpi_node_for_each_child,

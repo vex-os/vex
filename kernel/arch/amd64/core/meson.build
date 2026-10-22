@@ -1,4 +1,5 @@
 kernel_sources += files(
+    'cpu.c',
     'cpucaps.c',
     'cpuprot.c',
     'gdt.c',
