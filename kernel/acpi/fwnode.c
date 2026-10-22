@@ -4,6 +4,7 @@
 #include <vex/errno.h>
 #include <vex/fwnode.h>
 #include <vex/intctl.h>
+#include <vex/sprintf.h>
 #include <vex/string.h>
 #include <vex/strings.h>
 
@@ -102,6 +103,32 @@ static int acpi_node_get_id(const fwnode_t* restrict node, char* restrict buffer
     }
 
     return -ENOENT;
+}
+
+// ACPI 6.5, 20.2.2: a name segment is four characters, padded with underscores
+static int acpi_node_get_name(const fwnode_t* restrict node, char* restrict buffer, size_t size)
+{
+    uacpi_object_name name = uacpi_namespace_node_name(namespace_node_of(node));
+    char segment[sizeof(name.text) + 1] = {};
+    size_t length = sizeof(name.text);
+
+    while(length > 1 && name.text[length - 1] == '_') {
+        length -= 1;
+    }
+
+    memcpy(segment, name.text, length);
+
+    int formatted = snprintf(buffer, size, "acpi:%s", segment);
+
+    if(formatted < 0) {
+        return -EIO;
+    }
+
+    if((size_t)(formatted) >= size) {
+        return -ERANGE;
+    }
+
+    return 0;
 }
 
 // A device that isn't there but functions may still have children that are
@@ -439,6 +466,7 @@ static const fwnode_ops_t acpi_node_ops = {
     .matches = &acpi_node_matches,
     .get_address = &acpi_node_get_address,
     .get_id = &acpi_node_get_id,
+    .get_name = &acpi_node_get_name,
     .for_each_child = &acpi_node_for_each_child,
     .for_each_resource = &acpi_node_for_each_resource,
     .route_pci_interrupt = &acpi_node_route_pci_interrupt,

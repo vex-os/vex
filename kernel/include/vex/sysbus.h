@@ -2,10 +2,11 @@
 
 #include <vex/compiler.h>
 #include <vex/fwnode.h>
-#include <vex/intctl.h>
 #include <vex/io.h>
 #include <vex/irq.h>
 #include <vex/types.h>
+
+typedef struct device_s device_t;
 
 typedef struct sysbus_device_private_s sysbus_device_private_t;
 typedef struct sysbus_device_s sysbus_device_t;
@@ -16,10 +17,7 @@ typedef struct sysbus_driver_s sysbus_driver_t;
 struct sysbus_device_private_s {
     sysbus_device_t* next;
     sysbus_driver_t* driver;
-    fwnode_t node;
-    fwnode_resource_t* resources;
-    interrupt_action_t** interrupts; // Parallel to resources, set on the IRQs requested
-    size_t num_resources;
+    device_t* device;
 };
 
 // A device the firmware describes on no bus of

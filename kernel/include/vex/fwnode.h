@@ -62,6 +62,11 @@ struct fwnode_ops_s {
     /// @retval -ENOENT The node has none
     int (*get_id)(const fwnode_t* restrict node, char* restrict buffer, size_t size);
 
+    /// Gets the node's name as a component of a device path, such as acpi:SIO for an ACPI name segment
+    /// @retval -ENOENT The node has none
+    /// @retval -ERANGE The buffer is too small for the name
+    int (*get_name)(const fwnode_t* restrict node, char* restrict buffer, size_t size);
+
     /// @note Skips the children the firmware says are absent, with all below them
     void (*for_each_child)(const fwnode_t* restrict node, void (*callback)(const fwnode_t* child, void* arg), void* arg);
 
@@ -111,6 +116,11 @@ static __always_inline int fwnode_get_address(const fwnode_t* restrict node, uin
 static __always_inline int fwnode_get_id(const fwnode_t* restrict node, char* restrict buffer, size_t size)
 {
     return node->ops->get_id(node, buffer, size);
+}
+
+static __always_inline int fwnode_get_name(const fwnode_t* restrict node, char* restrict buffer, size_t size)
+{
+    return node->ops->get_name(node, buffer, size);
 }
 
 static __always_inline void fwnode_for_each_child(const fwnode_t* restrict node, void (*callback)(const fwnode_t* child, void* arg),

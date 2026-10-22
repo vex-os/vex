@@ -2,11 +2,11 @@
 
 #include <vex/compiler.h>
 #include <vex/fwnode.h>
-#include <vex/intctl.h>
 #include <vex/io.h>
 #include <vex/irq.h>
 #include <vex/types.h>
 
+typedef struct device_s device_t;
 typedef struct isa_bus_s isa_bus_t;
 
 typedef struct isa_device_private_s isa_device_private_t;
@@ -19,10 +19,7 @@ struct isa_device_private_s {
     isa_device_t* next;
     isa_bus_t* bus;
     isa_driver_t* driver;
-    fwnode_t node;
-    fwnode_resource_t* resources;
-    interrupt_action_t** interrupts; // Parallel to resources, set on the IRQs requested
-    size_t num_resources;
+    device_t* device;
 };
 
 // A device behind an ISA bridge, with ports and memory that are addresses on the bus above it

@@ -8,6 +8,7 @@
 #include <vex/limits.h>
 #include <vex/types.h>
 
+typedef struct device_s device_t;
 typedef struct pci_bus_s pci_bus_t;
 
 #define PCI_CFG_VENDOR_ID       0x00
@@ -146,9 +147,8 @@ struct pci_device_private_s {
     pci_bus_t* bus;
     pci_config_t* config;
     pci_driver_t* driver;
-    fwnode_t node;                 // The companion; ops is nullptr without one
-    unsigned irq_number;           // Of MSI, UINT_MAX without
-    interrupt_action_t* interrupt; // Of INTx
+    device_t* device;    // Its fwnode is the companion
+    unsigned irq_number; // Of MSI, UINT_MAX without
     pci_bar_t bars[6];
     unsigned bars_mapped; // bitmask, bit N set = bars[N] initialized
 };

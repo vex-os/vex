@@ -1,26 +1,26 @@
+#include <vex/device.h>
 #include <vex/errno.h>
 #include <vex/fwnode.h>
 #include <vex/initcall.h>
-#include <vex/intctl.h>
 #include <vex/isa.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/mutex.h>
 #include <vex/pci.h>
+#include <vex/sprintf.h>
 #include <vex/string.h>
 
-#define ISA_RESOURCE_MAX 16
-#define ISA_ID_MAX       16
+#define ISA_ID_MAX 16
 
-typedef struct resource_list_s resource_list_t;
+typedef struct first_range_s first_range_t;
 
 struct isa_bus_s {
     pci_device_t* bridge;
 };
 
-struct resource_list_s {
-    fwnode_resource_t resources[ISA_RESOURCE_MAX];
-    size_t num_resources;
+struct first_range_s {
+    uint64_t start;
+    bool found;
 };
 
 static const pci_driver_id_t bridge_ids[] = {
@@ -35,7 +35,7 @@ static isa_driver_t* driver_head = nullptr;
 
 static void device_bind(isa_device_t* restrict device, isa_driver_t* restrict driver)
 {
-    if(device->priv.driver || !fwnode_matches(&device->priv.node, driver->ids)) {
+    if(device->priv.driver || !fwnode_matches(&device->priv.device->fwnode, driver->ids)) {
         return;
     }
 
@@ -44,84 +44,69 @@ static void device_bind(isa_device_t* restrict device, isa_driver_t* restrict dr
     }
 }
 
-static void collect_resource(const fwnode_resource_t* resource, void* arg)
+static void find_first_range(const fwnode_resource_t* resource, void* arg)
 {
-    resource_list_t* list = arg;
+    first_range_t* first = arg;
+    bool is_range = resource->type == FWNODE_RESOURCE_PORT || resource->type == FWNODE_RESOURCE_MEMORY;
 
-    if(list->num_resources == ISA_RESOURCE_MAX) {
+    if(first->found || !is_range) {
         return;
     }
 
-    list->resources[list->num_resources] = *resource;
-    list->num_resources += 1;
+    first->start = resource->range.start;
+    first->found = true;
 }
 
-static int copy_resources(isa_device_t* restrict device, const resource_list_t* restrict list)
+// A device is named after its first register range on the bus, as isa:3f8,
+// and only one without registers falls back to the firmware's name for it
+static int make_name(const fwnode_t* restrict node, char* restrict name, size_t size)
 {
-    device->priv.resources = nullptr;
-    device->priv.interrupts = nullptr;
-    device->priv.num_resources = list->num_resources;
+    first_range_t first = {};
+    fwnode_for_each_resource(node, &find_first_range, &first);
 
-    if(list->num_resources == 0) {
-        return 0;
+    if(!first.found) {
+        return fwnode_get_name(node, name, size);
     }
 
-    device->priv.resources = kmalloc(sizeof(fwnode_resource_t) * list->num_resources);
-    device->priv.interrupts = kmalloc(sizeof(interrupt_action_t*) * list->num_resources);
-
-    if(device->priv.resources == nullptr || device->priv.interrupts == nullptr) {
-        kfree(device->priv.resources);
-        kfree(device->priv.interrupts);
-        return -ENOMEM;
-    }
-
-    memcpy(device->priv.resources, list->resources, sizeof(fwnode_resource_t) * list->num_resources);
-    memset(device->priv.interrupts, 0, sizeof(interrupt_action_t*) * list->num_resources);
+    unsigned long long start = first.start;
+    snprintf(name, size, "isa:%llx", start);
 
     return 0;
 }
 
 static void add_device(isa_bus_t* restrict bus, const fwnode_t* restrict node, const char* restrict id)
 {
-    isa_device_t* device = kmalloc(sizeof(isa_device_t));
+    char name[DEVICE_NAME_MAX];
 
-    if(device == nullptr) {
-        pr_warning("isa: out of memory");
+    if(make_name(node, name, sizeof(name)) < 0) {
         return;
     }
 
-    resource_list_t list = {};
-    fwnode_for_each_resource(node, &collect_resource, &list);
+    isa_device_t* isa_device = kmalloc(sizeof(isa_device_t));
+    char* id_copy = kstrdup(id);
+    device_t* device = nullptr;
 
-    char* name = kstrdup(id);
-
-    if(name == nullptr) {
+    if(isa_device == nullptr || id_copy == nullptr || device_add(bus->bridge->priv.device, node, name, &device) < 0) {
         pr_warning("isa: out of memory");
-        kfree(device);
+        kfree(id_copy);
+        kfree(isa_device);
         return;
     }
 
-    if(copy_resources(device, &list) < 0) {
-        pr_warning("isa: out of memory");
-        kfree(name);
-        kfree(device);
-        return;
-    }
+    device->bus_ctxdata = isa_device;
 
-    device->name = name;
-    device->priv.next = nullptr;
-    device->priv.bus = bus;
-    device->priv.driver = nullptr;
-    device->priv.node = *node;
-    device->ctxdata = nullptr;
+    isa_device->name = id_copy;
+    isa_device->priv.next = nullptr;
+    isa_device->priv.bus = bus;
+    isa_device->priv.driver = nullptr;
+    isa_device->priv.device = device;
+    isa_device->ctxdata = nullptr;
 
-    *device_tail = device;
-    device_tail = &device->priv.next;
-
-    pr_verbose("isa: found %s: num_resources=%zu", device->name, device->priv.num_resources);
+    *device_tail = isa_device;
+    device_tail = &isa_device->priv.next;
 
     for(isa_driver_t* it = driver_head; it; it = it->priv.next) {
-        device_bind(device, it);
+        device_bind(isa_device, it);
     }
 }
 
@@ -145,7 +130,8 @@ static void visit_child(const fwnode_t* child, void* arg)
     add_device(bus, child, id);
 }
 
-// UNDONE: a bridge the firmware doesn't describe, such as one on a card, needs its devices found through ISA PnP
+// UNDONE: a bridge the firmware doesn't describe, such
+// as one on a card, needs its devices found through ISA PnP
 static int bridge_probe(pci_device_t* restrict bridge, const pci_driver_id_t* restrict id)
 {
     fwnode_t node;
@@ -178,31 +164,6 @@ static pci_driver_t bridge_driver = {
     .ops = &bridge_ops,
     .ids = bridge_ids,
 };
-
-static fwnode_resource_t* find_resource(isa_device_t* restrict device, bool want_irq, unsigned index, size_t* restrict slot)
-{
-    unsigned found = 0;
-
-    for(size_t i = 0; i < device->priv.num_resources; ++i) {
-        fwnode_resource_t* resource = &device->priv.resources[i];
-        bool is_irq = resource->type == FWNODE_RESOURCE_IRQ;
-        bool is_registers = resource->type == FWNODE_RESOURCE_PORT || resource->type == FWNODE_RESOURCE_MEMORY;
-        bool wanted = want_irq ? is_irq : is_registers;
-
-        if(!wanted) {
-            continue;
-        }
-
-        if(found == index) {
-            *slot = i;
-            return resource;
-        }
-
-        found += 1;
-    }
-
-    return nullptr;
-}
 
 int isa_driver_add(isa_driver_t* restrict driver)
 {
@@ -261,70 +222,27 @@ int isa_driver_remove(isa_driver_t* restrict driver)
 
 void isa_get_node(const isa_device_t* restrict device, fwnode_t* restrict node)
 {
-    *node = device->priv.node;
+    *node = device->priv.device->fwnode;
 }
 
 int isa_map_io(isa_device_t* restrict device, unsigned index, io_region_t* restrict region)
 {
-    size_t slot;
-    const fwnode_resource_t* resource = find_resource(device, false, index, &slot);
-
-    if(resource == nullptr) {
-        return -ENODEV;
-    }
-
-    return pci_map_range(device->priv.bus->bridge, resource->type, resource->range.start, resource->range.length, region);
+    return device_map_io(device->priv.device, index, region);
 }
 
 void isa_unmap_io(io_region_t* restrict region)
 {
-    pci_unmap_range(region);
+    device_unmap_io(region);
 }
 
 int isa_request_irq(isa_device_t* restrict device, unsigned index, irq_handler_t handler, void* restrict ctxdata)
 {
-    size_t slot;
-    const fwnode_resource_t* resource = find_resource(device, true, index, &slot);
-
-    if(resource == nullptr) {
-        return -ENODEV;
-    }
-
-    if(device->priv.interrupts[slot]) {
-        return -EBUSY;
-    }
-
-    uint32_t gsi = resource->irq.number;
-    unsigned trigger = resource->irq.trigger;
-    unsigned polarity = resource->irq.polarity;
-    unsigned flags = 0;
-
-    if(resource->irq.flags & FWNODE_IRQ_ISA) {
-        interrupt_isa_route(resource->irq.number, &gsi, &trigger, &polarity);
-    }
-
-    if(resource->irq.flags & FWNODE_IRQ_SHARED) {
-        flags |= INTERRUPT_SHARED;
-    }
-
-    return interrupt_attach(gsi, trigger, polarity, flags, handler, ctxdata, &device->priv.interrupts[slot]);
+    return device_request_irq(device->priv.device, index, handler, ctxdata);
 }
 
 void isa_release_irq(isa_device_t* restrict device, unsigned index)
 {
-    size_t slot;
-
-    if(find_resource(device, true, index, &slot) == nullptr) {
-        return;
-    }
-
-    if(device->priv.interrupts[slot] == nullptr) {
-        return;
-    }
-
-    interrupt_detach(device->priv.interrupts[slot]);
-
-    device->priv.interrupts[slot] = nullptr;
+    device_release_irq(device->priv.device, index);
 }
 
 static void init_isa(void)
