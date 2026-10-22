@@ -5,7 +5,7 @@
 #include <vex/page.h>
 #include <vex/string.h>
 
-#include "fat.h"
+#include "fat_internal.h"
 
 #define FAT12_EOC  UINT16_C(0xFF8)
 #define FAT16_EOC  UINT16_C(0xFFF8)

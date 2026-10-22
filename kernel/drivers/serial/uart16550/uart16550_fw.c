@@ -3,7 +3,7 @@
 #include <vex/errno.h>
 #include <vex/fwnode.h>
 
-#include "uart16550.h"
+#include "uart16550_internal.h"
 
 static const driver_match_t uart16550_fw_matches[] = {
     DRIVER_MATCH_FIRMWARE("PNP0500"),

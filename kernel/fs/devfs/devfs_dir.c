@@ -6,7 +6,7 @@
 #include <vex/strings.h>
 #include <vex/vnode.h>
 
-#include "devfs.h"
+#include "devfs_internal.h"
 
 static int devfs_dir_lookup(vnode_t* restrict node, const char* restrict name, ino_t* restrict out)
 {

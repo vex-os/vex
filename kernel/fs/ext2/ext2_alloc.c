@@ -4,7 +4,7 @@
 #include <vex/kprintf.h>
 #include <vex/string.h>
 
-#include "ext2.h"
+#include "ext2_internal.h"
 
 static uint32_t group_blocks(const ext2_vfs_context_t* restrict context, uint32_t group)
 {

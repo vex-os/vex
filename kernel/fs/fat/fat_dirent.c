@@ -7,7 +7,7 @@
 #include <vex/fcache.h>
 #include <vex/string.h>
 
-#include "fat.h"
+#include "fat_internal.h"
 
 static int entry_offset(const fat_vfs_context_t* restrict context, uintptr_t cluster, size_t offset, uint64_t* restrict out)
 {

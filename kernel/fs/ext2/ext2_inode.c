@@ -6,7 +6,7 @@
 #include <vex/string.h>
 #include <vex/vnode.h>
 
-#include "ext2.h"
+#include "ext2_internal.h"
 
 typedef struct ext2_time_layout_s ext2_time_layout_t;
 

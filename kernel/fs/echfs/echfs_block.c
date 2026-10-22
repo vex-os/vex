@@ -1,7 +1,7 @@
 #include <vex/errno.h>
 #include <vex/fcache.h>
 
-#include "echfs.h"
+#include "echfs_internal.h"
 
 #define SCAN_BATCH 128 // Table entries read at a time when looking for a free block
 

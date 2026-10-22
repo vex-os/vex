@@ -5,7 +5,7 @@
 #include <vex/string.h>
 #include <vex/vnode.h>
 
-#include "ext2.h"
+#include "ext2_internal.h"
 
 #define MIN_REC_LEN (size_t)(4 + sizeof(ext2_dir_entry_t))
 #define MAX_REC_LEN (size_t)((EXT2_NAME_LEN + 3 + sizeof(ext2_dir_entry_t)) & ~(size_t)(3))

@@ -8,7 +8,7 @@
 #include <vex/vms.h>
 #include <vex/vnode.h>
 
-#include "devfs.h"
+#include "devfs_internal.h"
 
 typedef struct devfs_chr_context_s devfs_chr_context_t;
 

@@ -12,7 +12,7 @@
 #include <vex/vnode.h>
 #include <vex/wallclock.h>
 
-#include "ext2.h"
+#include "ext2_internal.h"
 
 static mutex_t* fs_lock(vnode_t* restrict node)
 {

@@ -2,7 +2,7 @@
 #include <vex/fcache.h>
 #include <vex/string.h>
 
-#include "echfs.h"
+#include "echfs_internal.h"
 
 static uint64_t dirent_offset(const echfs_vfs_context_t* restrict context, uint64_t index)
 {

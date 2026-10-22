@@ -12,7 +12,7 @@
 #include <vex/vcache.h>
 #include <vex/vnode.h>
 
-#include "devfs.h"
+#include "devfs_internal.h"
 
 static_assert(sizeof(devfs_node_t) <= SLAB_MAX_SIZE);
 static_assert(sizeof(devfs_state_t) <= SLAB_MAX_SIZE);

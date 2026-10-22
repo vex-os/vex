@@ -9,7 +9,7 @@
 #include <vex/string.h>
 #include <vex/vnode.h>
 
-#include "echfs.h"
+#include "echfs_internal.h"
 
 #define ECHFS_RESERVED_BLOCKS UINT64_C(16)
 

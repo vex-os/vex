@@ -11,7 +11,7 @@
 #include <vex/string.h>
 #include <vex/vnode.h>
 
-#include "fat.h"
+#include "fat_internal.h"
 
 static_assert(sizeof(fat_vnode_context_t) <= SLAB_MAX_SIZE);
 

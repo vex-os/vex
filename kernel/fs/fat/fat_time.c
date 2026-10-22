@@ -1,7 +1,7 @@
 #include <vex/calendar.h>
 #include <vex/endian.h>
 
-#include "fat.h"
+#include "fat_internal.h"
 
 #define FAT_YEAR_BASE 1980
 #define FAT_TIME_MIN  INT64_C(315532800)  // 1980-01-01 00:00:00

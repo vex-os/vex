@@ -8,7 +8,7 @@
 #include <vex/string.h>
 #include <vex/vnode.h>
 
-#include "devfs.h"
+#include "devfs_internal.h"
 
 typedef struct devfs_blk_context_s devfs_blk_context_t;
 

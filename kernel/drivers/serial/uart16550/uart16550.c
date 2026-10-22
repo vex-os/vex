@@ -4,7 +4,7 @@
 #include <vex/string.h>
 #include <vex/strings.h>
 
-#include "uart16550.h"
+#include "uart16550_internal.h"
 
 #define UART_RBR 0 // Receiver Buffer, read
 #define UART_THR 0 // Transmitter Holding, write

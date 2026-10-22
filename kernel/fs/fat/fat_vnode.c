@@ -17,7 +17,7 @@
 #include <vex/vnode.h>
 #include <vex/wallclock.h>
 
-#include "fat.h"
+#include "fat_internal.h"
 
 static ino_t fat_nodenumber(const fat_vfs_context_t* restrict fs, uintptr_t dir_cluster, size_t index)
 {

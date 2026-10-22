@@ -12,7 +12,7 @@
 #include <vex/vnode.h>
 #include <vex/wallclock.h>
 
-#include "echfs.h"
+#include "echfs_internal.h"
 
 static_assert(sizeof(echfs_vnode_context_t) <= SLAB_MAX_SIZE);
 

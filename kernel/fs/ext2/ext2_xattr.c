@@ -7,7 +7,7 @@
 #include <vex/vnode.h>
 #include <vex/xattr.h>
 
-#include "ext2.h"
+#include "ext2_internal.h"
 
 #define ENTRY_LEN(name_len) (size_t)((sizeof(ext2_xattr_entry_t) + (name_len) + 3) & ~(size_t)(3))
 #define VALUE_LEN(size)     (size_t)(((size) + 3) & ~(size_t)(3))

@@ -7,7 +7,7 @@
 #include <vex/pci.h>
 #include <vex/string.h>
 
-#include "uart16550.h"
+#include "uart16550_internal.h"
 
 #define PROG_IF_16550 0x02
 #define PORT_STRIDE   8 // Between the ports of a card that puts them all in its first BAR

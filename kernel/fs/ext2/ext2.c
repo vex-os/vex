@@ -11,7 +11,7 @@
 #include <vex/vnode.h>
 #include <vex/wallclock.h>
 
-#include "ext2.h"
+#include "ext2_internal.h"
 
 static_assert(sizeof(ext2_vnode_context_t) <= SLAB_MAX_SIZE);
 
