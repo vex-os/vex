@@ -36,20 +36,17 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap) __printflike(2,
 /// @param flags The KPLOG_* flags of the record
 void kputs(unsigned sv, unsigned flags, const char* restrict text, size_t size);
 
-/// Points the cursor at the oldest record the ring holds
 void kprintf_seek_first(kp_cursor_t* restrict cursor);
 
-/// Points the cursor past the newest record, at the next one to be written
 void kprintf_seek_end(kp_cursor_t* restrict cursor);
 
-/// The sequence number the next record gets
 uint64_t kprintf_next_seq(void) __nodiscard;
 
 /// Copies the record under the cursor and moves the cursor past it
 /// @param text Holds at least KP_LINE_MAX bytes
 /// @retval false The cursor is past the newest record
-/// @note A cursor whose record the ring dropped moves to the oldest one first,
-/// so record->seq tells the caller how many it missed
+/// @note If the ring dropped the record under the cursor, the cursor first moves to the oldest record,
+/// so record->seq shows how many the caller missed
 bool kprintf_read(kp_cursor_t* restrict cursor, kplog_record_t* restrict record, char* restrict text);
 
 #define pr_emerg(fmt, ...)    kprintf(KP_EMERG, (fmt), ##__VA_ARGS__)

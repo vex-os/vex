@@ -15,8 +15,8 @@ typedef struct char_interface_private_s char_interface_private_t;
 
 struct char_interface_ops_s {
     /// @pre This is the first open, and the device's console is released
-    /// @note Set the hardware up here, not at probe, as the console owns it until now;
-    /// a failure leaves the device to nobody
+    /// @note Set the hardware up here, not at probe: the console owns it until now
+    /// If open fails, nobody owns the device
     int (*open)(const char_interface_t* restrict interface, unsigned flags);
 
     /// @pre This is the last close, and the device wasn't removed while open
@@ -77,7 +77,7 @@ struct char_interface_s {
     void* ctxdata;
 };
 
-/// @param index The n of the name, such as the card's port; DEV_NAME_NONE for a device that is its unit's only one
+/// @param index The unit number in the name, such as the port of the card; DEV_NAME_NONE for a device that is its unit's only one
 int char_interface_add(char_interface_t* restrict interface, dev_unit_t* restrict unit, unsigned index);
 
 /// Names the device with the prefix alone, for a device the system has only one of
@@ -85,14 +85,15 @@ int char_interface_add(char_interface_t* restrict interface, dev_unit_t* restric
 int char_interface_add_unitless(char_interface_t* restrict interface, dev_prefix_t* restrict prefix);
 
 /// Drops the registry's reference; holders of others keep the structure
-/// @pre The driver fails its own calls with -ENODEV and has woken those that sleep, as a call
-/// that passed the chr layer's check may still reach it
-/// @post Calls through the chr layer fail with -ENODEV, a mapping of the device's memory takes SIGBUS
-/// on its next access, and the driver gets nothing but release
+/// @pre The driver fails its own calls with -ENODEV and has woken the calls that sleep
+/// @post Calls through the chr layer fail with -ENODEV, and a mapping of the device's memory gets SIGBUS on the next access
+/// The driver gets no more calls, except release
+/// @note A call that passed the check of the chr layer can still reach the driver
 int char_interface_remove(char_interface_t* restrict interface);
 
 /// Unmaps the device's memory from every address space, so the next access faults on it again
-/// @pre Interrupts are enabled, as the event subscribers may sleep
+/// @pre Interrupts are enabled
+/// @note The event subscribers can sleep
 /// @note For a driver whose memory changed layout, such as a framebuffer after a mode change
 void char_interface_revoke_mappings(const char_interface_t* restrict interface);
 
@@ -116,7 +117,7 @@ void char_interface_close(const char_interface_t* restrict interface, void* rest
 
 const char_interface_t* char_interface_find(const char* restrict name) __nodiscard;
 
-/// @pre The caller holds char_event_lock, which keeps the device list still
+/// @pre The caller holds char_event_lock, so the device list does not change
 void char_interface_for_each(void (*callback)(const char_interface_t* restrict interface, void* restrict arg), void* restrict arg);
 
 static __always_inline ssize_t char_interface_read(const char_interface_t* restrict interface, void* restrict file_ctxdata, off_t offset,

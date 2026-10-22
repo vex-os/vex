@@ -63,8 +63,8 @@ int dev_unit_claim(dev_prefix_t* restrict prefix, unsigned number, dev_unit_t** 
 /// @pre The devices named with the unit are removed
 void dev_unit_free(dev_unit_t* restrict unit);
 
-/// @retval -ERANGE         A dev_t can't hold the unit, index or partition
-/// @retval -ENAMETOOLONG   The buffer is too small
+/// @retval -ERANGE A dev_t can't hold the unit, index or partition
+/// @retval -ENAMETOOLONG The buffer is too small
 int dev_name_format(const dev_name_t* restrict name, char* restrict buffer, size_t size);
 
 dev_t dev_name_to_dev(const dev_name_t* restrict name) __nodiscard;

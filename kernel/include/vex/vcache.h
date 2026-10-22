@@ -27,7 +27,7 @@ vnode_t* vcache_get(vfs_t* restrict fs, ino_t ino);
 vnode_t* vcache_get_or_insert(vnode_t* restrict node) __nodiscard;
 
 /// Caches a node its owner keeps a reference to until vcache_remove, as devfs does
-/// @retval 0       The node is cached
+/// @retval 0 The node is cached
 /// @retval -EEXIST Another vnode is cached under the same key
 /// @retval -ENOMEM Out of memory
 int vcache_insert_pinned(vnode_t* restrict node) __nodiscard;
@@ -37,14 +37,14 @@ int vcache_insert_pinned(vnode_t* restrict node) __nodiscard;
 /// @return Whether the node lives on, so that the caller must not destroy it
 bool vcache_keep(vnode_t* restrict node) __nodiscard;
 
-/// Whether any vnode of the filesystem has references beyond the owners' references to pinned
-/// nodes, the references directories hold to their parents, and root_refs to the root
+/// Checks if a vnode of the filesystem has references that are not expected
+/// The expected references are those of the owners of pinned nodes, those of directories to their parents, and root_refs to the root
 bool vcache_in_use(vfs_t* restrict fs, unsigned root_refs) __nodiscard;
 
 void vcache_evict(vfs_t* restrict fs);
 
-/// Takes the node out of the cache, so that lookups no longer find
-/// it; the vnode itself lives on until its last reference
+/// Takes the node out of the cache, so that lookups do not find it
+/// The vnode lives until its last reference goes
 /// @pre The caller holds a reference to the node
 void vcache_remove(vnode_t* restrict node);
 

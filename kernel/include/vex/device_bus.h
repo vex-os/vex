@@ -46,7 +46,7 @@ struct bus_ops_s {
     void (*disable_irq)(device_t* restrict bus, device_t* restrict child, unsigned index);
 
     /// Takes back what the bus gave a child beyond its interrupts and device_map_io, such as MSI and bus mastering
-    /// @pre The child's driver has let go of the child
+    /// @pre The child's driver has released the child
     void (*release_child)(device_t* restrict bus, device_t* restrict child);
 
     /// Forgets a child on its way out of the tree, with what the bus keeps about it in bus_data

@@ -41,7 +41,7 @@ void session_decref(session_t* session);
 
 /// Puts a new process in its parent's group, or init, which has no parent, in a session of its own
 /// @pre The process is not in a group yet
-/// @retval 0       In the group
+/// @retval 0 In the group
 /// @retval -ENOMEM No memory for init's session
 int process_group_attach(process_t* restrict process, process_t* restrict parent) __nodiscard;
 
@@ -54,24 +54,24 @@ void process_group_incref(process_group_t* group);
 void process_group_decref(process_group_t* group);
 
 /// @return The id of the process's group
-/// @retval -ESRCH  The process was destroyed since it was located
+/// @retval -ESRCH The process was destroyed since it was located
 pid_t process_get_pgid(process_t* process) __nodiscard;
 
 /// @return The id of the process's session
-/// @retval -ESRCH  The process was destroyed since it was located
+/// @retval -ESRCH The process was destroyed since it was located
 pid_t process_get_sid(process_t* process) __nodiscard;
 
 /// setsid: makes the process the leader of a new session and of a new group in it
 /// @return The new session's id
-/// @retval -EPERM  A group with the process's id exists, so the process would not lead its group
+/// @retval -EPERM A group with the process's id exists, so the process would not lead its group
 /// @retval -ENOMEM No memory for the session or the group
 pid_t process_group_new_session(process_t* process) __nodiscard;
 
 /// setpgid: moves the caller or a child of its into another group of the caller's session, or a new one
 /// @param pgid The group's id; the process's own id makes a new group if there is none
-/// @retval 0       Moved
-/// @retval -ESRCH  The process is neither the caller nor a child of the caller's, or was destroyed
-/// @retval -EPERM  The process is in another session or leads its own, or the
+/// @retval 0 Moved
+/// @retval -ESRCH The process is neither the caller nor a child of the caller's, or was destroyed
+/// @retval -EPERM The process is in another session or leads its own, or the
 /// group is in another session or is not there for a pgid other than the process's id
 /// @retval -EACCES The child has called exec since fork
 /// @retval -ENOMEM No memory for a new group
@@ -79,6 +79,6 @@ int process_group_move(process_t* restrict caller, process_t* restrict process, 
 
 /// Calls the callback on every member of the group, the zombies among them
 /// @pre The callback must not take process_group_lock, which it runs under; it may sleep
-/// @retval 0       The callback ran for every member
-/// @retval -ESRCH  No group has the id
+/// @retval 0 The callback ran for every member
+/// @retval -ESRCH No group has the id
 int process_group_for_each(pid_t pgid, void (*callback)(process_t* restrict process, void* restrict arg), void* restrict arg);

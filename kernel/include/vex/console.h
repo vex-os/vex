@@ -19,8 +19,8 @@ typedef struct console_s console_t;
 typedef struct console_ops_s console_ops_t;
 typedef struct console_private_s console_private_t;
 
-/// A console borrows its device until the device is first opened, and only a panic takes it back.
-/// Either of release and takeover may be nullptr when the device needs nothing done
+/// A console borrows its device until the first open of the device. Only a panic takes the device back
+/// release and takeover can be nullptr if the device needs nothing
 struct console_ops_s {
     void (*init)(console_t* restrict cons);
 
@@ -56,8 +56,7 @@ int console_add(console_t* restrict cons);
 int console_remove(console_t* restrict cons);
 
 /// Writes to every console the records it hasn't written yet
-/// @note Returns at once while another writer holds the consoles, on
-/// any hart or lower in this one's stack, as that writer writes them
+/// @note Returns at once if another writer holds the consoles, on this hart or on another, as that writer writes the records
 void console_flush(void);
 
 /// Looks the device up in the console= option, a list such as console=serial1:115200n8,fbd0

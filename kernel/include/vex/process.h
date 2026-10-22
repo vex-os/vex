@@ -88,8 +88,8 @@ void process_thread_exit(process_t* process, thread_t* thread);
 
 /// Makes every other thread of the process exit and waits for them to be reaped,
 /// for exec; the caller is then the only thread, and its tid becomes the pid
-/// @retval 0       The caller is the last thread
-/// @retval -EINTR  The process is exiting, or another
+/// @retval 0 The caller is the last thread
+/// @retval -EINTR The process is exiting, or another
 /// thread got here first; the caller is on its way out too
 int process_dethread(process_t* process, thread_t* thread);
 

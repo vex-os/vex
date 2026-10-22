@@ -58,8 +58,8 @@ struct fb_interface_s {
     void* ctxdata;
 };
 
-/// Queues a framebuffer set up before the kernel, to be added at dev INIT_LAST
-/// unless a native driver claims its memory first; the first one queued gets fbcons
+/// Queues a framebuffer that was set up before the kernel. It is added at dev INIT_LAST, unless a native driver claims its memory first
+/// The first framebuffer in the queue gets fbcons
 /// @pre The heap stage, before any boot framebuffer is added
 void fb_boot_add(fb_interface_t* restrict interface);
 
@@ -71,7 +71,7 @@ int fb_boot_claim(uintptr_t phys, size_t size);
 
 int fb_interface_add(fb_interface_t* restrict interface);
 
-/// @post No call into the fb core touches virt or the driver any more, and fbcons, if it drew
-/// to the device, waits for the next one added; the driver may unmap and tear down
+/// @post The fb core makes no more calls into the driver and does not use virt, so the driver can unmap and tear down
+/// If fbcons drew to the device, it waits for the next device
 /// @note The driver's release still comes, once the last reference is gone
 int fb_interface_remove(fb_interface_t* restrict interface);

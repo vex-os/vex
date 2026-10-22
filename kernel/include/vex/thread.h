@@ -89,7 +89,8 @@ static_assert((2 * sizeof(uintptr_t)) == offsetof(thread_t, entry_scratch));
 
 /// Handles the thread's pending work, exit or signals, before it returns to user mode
 /// @pre Interrupts are disabled
-/// @post Interrupts are disabled, so that work posted after the last look still finds the thread before ring 3 does
+/// @post Interrupts are disabled
+/// @note This way, work that is posted after the last check reaches the thread before it returns to ring 3
 void exit_to_user(hart_context_t* restrict ctx);
 
 static __always_inline __nodiscard hart_context_t* thread_context(const thread_t* restrict thread)

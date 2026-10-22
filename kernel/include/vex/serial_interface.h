@@ -33,17 +33,18 @@ struct serial_interface_ops_s {
     void (*shutdown)(serial_interface_t* restrict interface);
 
     /// There is output: take it with serial_transmit_take, now or from an interrupt
-    /// @pre The port's dispatch lock is not held; may come again before the driver took anything
+    /// @pre The dispatch lock of the port is not held
+    /// @note Can be called again before the driver takes anything
     void (*start_tx)(serial_interface_t* restrict interface);
 
     /// @pre The serial core serializes it with the other calls but start_tx, and checked
     /// the line: a nonzero speed, 5 to 8 data bits, 1 or 2 stop bits, a known parity
     /// @retval -EINVAL The hardware can't run the line so
-    /// @note Comes whether the port is started up or not
+    /// @note Called with the port started up or not
     int (*set_line)(serial_interface_t* restrict interface, const serial_line_t* restrict line);
 
     /// @pre The serial core serializes it with the other calls but start_tx
-    /// @param lines SERIAL_MODEM_DTR and SERIAL_MODEM_RTS to raise; the one missing is lowered
+    /// @param lines The SERIAL_MODEM_DTR and SERIAL_MODEM_RTS lines to raise. The driver lowers the other one
     /// @note nullptr when modem_lines has neither
     void (*set_modem)(serial_interface_t* restrict interface, uint32_t lines);
 
@@ -95,7 +96,7 @@ struct serial_interface_s {
     const char* firmware_id; // What the firmware calls the device; nullptr when it doesn't
     uint32_t max_speed;      // In bits per second
     uint32_t modem_lines;    // The SERIAL_MODEM_* lines the port has
-    serial_line_t line;      // As the hardware is set before serial_interface_add, a zero speed for 38400 8N1; the serial core's after
+    serial_line_t line;      // Hardware settings before serial_interface_add (zero speed: 38400 8N1), the serial core's after
     void* consumer_data;     // The bound consumer's own
     void* ctxdata;
 };
@@ -104,7 +105,7 @@ struct serial_consumer_s {
     serial_consumer_t* next;
     const char* name;
 
-    /// Makes what the consumer turns the port into, such as a terminal
+    /// Makes the object that the consumer builds on the port, such as a terminal
     /// @pre The port's lock is held, and nothing is bound to the port
     /// @param index The index to give what it makes, SERIAL_ANY_INDEX for the first free; comes back as the one given
     /// @param object Zeroed; gets the name of what it made
@@ -114,11 +115,12 @@ struct serial_consumer_s {
     int (*bind)(serial_interface_t* restrict interface, const char* restrict options, int32_t* restrict index, char* restrict object,
         size_t size);
 
-    /// Takes away what bind made
-    /// @pre The port's lock is not held, as the last calls of what is taken away into the port may need it
+    /// Removes the object that bind made
+    /// @pre The lock of the port is not held
     /// @param force The port is going away, so it is taken away even when in use
     /// @retval -EBUSY It is in use, and force is false
-    /// @note Calls serial_interface_detach before freeing what receive and transmit_take touch
+    /// @note Calls serial_interface_detach before it frees what receive and transmit_take use
+    /// The last calls from the object into the port can need the lock
     int (*unbind)(serial_interface_t* restrict interface, bool force);
 
     /// @pre The port's dispatch lock is held, so this may run in an interrupt handler
@@ -136,8 +138,8 @@ struct serial_consumer_s {
 /// Makes the port's control node, serialN, and binds what the serial.bind= command line option names for it
 int serial_interface_add(serial_interface_t* restrict interface);
 
-/// Takes away what is bound to the port, even when in use, and the control node
-/// @post No call into the serial core touches the driver any more; release still comes
+/// Removes the object that is bound to the port, also when it is in use, and the control node
+/// @post The serial core makes no more calls into the driver, except release
 int serial_interface_remove(serial_interface_t* restrict interface);
 
 /// @pre At initcall time, before the ports that the serial.bind= option binds it to are added
@@ -158,9 +160,9 @@ void serial_receive_error(serial_interface_t* restrict interface, uint8_t byte, 
 /// @note Any context, an interrupt handler among them
 size_t serial_transmit_take(serial_interface_t* restrict interface, void* restrict buffer, size_t size);
 
-/// Stops the bytes going to and coming from the consumer bound to the port
+/// Stops the bytes that go to and come from the consumer of the port
 /// @pre The bound consumer's unbind calls it
-/// @post No receive or transmit_take of the consumer runs or comes
+/// @post No receive or transmit_take of the consumer runs or starts
 void serial_interface_detach(serial_interface_t* restrict interface);
 
 /// Starts the port up for the bound consumer, such as on the first open of its terminal
@@ -183,6 +185,6 @@ void serial_interface_set_modem(serial_interface_t* restrict interface, uint32_t
 /// @retval -ENODEV The port is removed
 int serial_interface_send_break(serial_interface_t* restrict interface, uint32_t msec);
 
-/// Has the driver take the output
+/// Tells the driver to take the output
 /// @pre The port's dispatch lock is not held
 void serial_interface_start_tx(serial_interface_t* restrict interface);

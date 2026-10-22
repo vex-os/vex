@@ -29,7 +29,6 @@ uintptr_t rmap_unmap(pmap_t* restrict pmap, uintptr_t virt) __nodiscard;
 /// @retval -EAGAIN A walker took the mapping of old_phys away meanwhile
 int rmap_replace(pmap_t* restrict pmap, uintptr_t virt, uintptr_t old_phys, uintptr_t new_phys, unsigned vprot);
 
-/// Changes the protection of the mapping of phys at virt
 /// @pre The caller holds the vmspace lock of the page table
 /// @post The caller runs tlb_shootdown, which this leaves out
 /// @retval -EAGAIN The page at virt is no longer the one at phys

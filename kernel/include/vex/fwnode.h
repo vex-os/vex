@@ -89,8 +89,8 @@ struct fwnode_ops_s {
     /// @retval -ENOENT The node needs none
     int (*for_each_dependency)(const fwnode_t* restrict node, void (*callback)(const fwnode_t* provider, void* arg), void* arg);
 
-    /// Has the firmware take the device out once the tree let go of it, or tells the firmware it can't go
-    /// @param status 0 when the node is out of the tree, or -EBUSY when a driver refused to let go of it
+    /// Has the firmware take the device out once the tree released it, or tells the firmware it can't go
+    /// @param status 0 when the node is out of the tree, or -EBUSY when a driver refused to release it
     /// @note Does nothing where the firmware has no say in it
     void (*eject)(const fwnode_t* restrict node, int status);
 };

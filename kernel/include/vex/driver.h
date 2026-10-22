@@ -45,10 +45,10 @@ struct driver_ops_s {
     /// @note Undoes what it did before it fails, as detach isn't called then
     int (*attach)(device_t* restrict device, const driver_match_t* restrict match);
 
-    /// Readies the device to be detached, keeping it working, or refuses to let go of it
+    /// Readies the device to be detached, keeping it working, or refuses to release it
     /// @pre Called on everything that goes with a node asked to be unbound or removed, below and consumers first
     /// @retval -EBUSY The device can't go, which the driver logs with its reason; the whole request fails
-    /// @note Optional, and then the device may always go; a driver with it has online too.
+    /// @note Optional: without it, the device can always go. A driver with offline also has online
     /// Not called on a device that is gone
     int (*offline)(device_t* restrict device);
 
@@ -57,8 +57,8 @@ struct driver_ops_s {
     void (*online)(device_t* restrict device);
 
     /// Takes the device's interfaces away and stops the hardware raising interrupts
-    /// @post Calls through the interfaces fail, and the interrupt handlers may still run
-    /// but start nothing new; the framework then takes the resources back
+    /// @post Calls through the interfaces fail. The interrupt handlers can still run, but start nothing new
+    /// The framework then takes the resources back
     /// @note Must not wait for the hardware to answer when device_is_gone
     void (*detach)(device_t* restrict device);
 

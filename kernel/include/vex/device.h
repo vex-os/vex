@@ -19,7 +19,7 @@ enum device_state_e {
     DEVICE_PROBING,   // Drivers are scored, and the best attaches
     DEVICE_WAITING,   // The winner waits for a provider to be bound, then the node is probed again
     DEVICE_BOUND,     // A driver has it
-    DEVICE_DETACHING, // The driver lets go, then the resources go
+    DEVICE_DETACHING, // The driver releases the device, then the resources are freed
     DEVICE_GONE,      // Out of the tree, until the last reference
 };
 typedef enum device_state_e device_state_t;
@@ -34,7 +34,7 @@ struct device_private_s {
     size_t num_resources;
     device_irq_t* irqs;         // Requested through device_request_irq
     device_mapping_t* mappings; // Made through device_map_io
-    device_link_t* providers;   // What the driver uses, from attach until it lets go
+    device_link_t* providers;   // What the driver uses, from attach until it releases the device
     device_link_t* consumers;   // Whose drivers use the node
     device_t* waits_for;        // With a reference, while waiting for a node of the tree
     fwnode_t waits_for_fwnode;  // While waiting for a device the firmware describes but the tree doesn't have yet
@@ -45,7 +45,7 @@ struct device_private_s {
     device_state_t state; // Changed by device_worker alone
     bool unplaced;        // Placed by the firmware rather than by the parent's bus, which ignores it
     bool gone;            // The hardware went away without warning
-    bool offline;         // The driver agreed to let go, until it is detached or brought back online
+    bool offline;         // The driver agreed to release the device, until it is detached or brought back online
     bool attach_failed;   // Until the node is unbound, so that rescans don't try the same driver again
 };
 
@@ -73,7 +73,8 @@ device_t* device_get_root(void) __nodiscard;
 /// @retval -ENOMEM Out of memory
 int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, device_t** restrict device);
 
-/// Adds a node that a driver already drives, for hardware brought up before the tree, such as interrupt controllers
+/// Adds a node that a driver already drives
+/// @note For hardware that starts before the tree, such as an interrupt controller
 /// @pre Called before the stage that binds the tree, or from an attach on device_worker
 /// @param fwnode nullptr when the firmware doesn't describe the node
 /// @param name The last component of the node's path, such as ioapic:0
@@ -83,13 +84,13 @@ int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const
 int device_add_bound(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, const driver_t* restrict driver,
     void* restrict ctxdata, device_t** restrict device);
 
-/// Queues the node to be bound to the driver with the highest score if it has none, to have its
-/// firmware children placed if they aren't, and the same for every node below
+/// Queues a rescan of the node and of every node below it
+/// A node with no driver gets the driver with the highest score. Firmware children that are not yet in the tree are added
 /// @note Any context; device_worker does the work
 void device_rescan(device_t* restrict device);
 
-/// Queues the node to have its children removed and its driver detached; it stays in the tree,
-/// and the next rescan probes it again, even after an attach that failed
+/// Queues the removal of the children of the node and the detach of its driver
+/// @post The node stays in the tree, and the next rescan probes it again, also after a failed attach
 /// @note Any context; device_worker does the work, and does none of it when a driver refuses to go offline
 void device_unbind(device_t* restrict device);
 
@@ -101,10 +102,9 @@ void device_remove(device_t* restrict device);
 /// @note Any context; device_worker does the work, and tells the firmware when a driver refuses to go offline
 void device_eject(device_t* restrict device);
 
-/// Finds the node that a firmware node describes, wherever it is in the tree
 device_t* device_find_by_fwnode(const fwnode_t* restrict fwnode) __nodiscard;
 
-/// Makes the node's driver use a provider beyond its parent, so that the provider is unbound only after the node
+/// Makes the driver of the node depend on a provider that is not its parent, so the provider is unbound after the node
 /// @pre Called from the attach of the node's driver
 /// @retval -EAGAIN The provider isn't bound yet; attach undoes what it did and returns this
 /// @retval -EDEADLK The provider relies on the node, through the tree or through what it uses
@@ -112,22 +112,22 @@ device_t* device_find_by_fwnode(const fwnode_t* restrict fwnode) __nodiscard;
 /// @retval -ENOMEM Out of memory
 int device_wait_for(device_t* restrict device, device_t* restrict provider) __nodiscard;
 
-/// Marks the node and all below it as gone from the hardware, so drivers stop waiting for answers from it
-/// @note Doesn't remove the nodes; the bus that lost them asks for that
+/// Marks the node and all nodes below it as gone from the hardware
+/// @note Drivers then stop waiting for answers from the hardware. Does not remove the nodes: the bus that lost them asks for that
 void device_set_gone(device_t* restrict device);
 
 bool device_is_gone(const device_t* restrict device) __nodiscard;
 
 void device_incref(device_t* restrict device);
 
-/// @note Frees the node with the last reference, which goes with the tree's own only once the node is out of the tree
+/// @note Frees the node when the last reference goes. The reference of the tree goes only after the node leaves the tree
 void device_decref(device_t* restrict device);
 
 /// Writes the node's path from the root, such as acpi:PCI0/pci:0000:00:1f.0/isa:3f8
 /// @return The path's length, as snprintf gives it
 size_t device_get_path(const device_t* restrict device, char* restrict buffer, size_t size);
 
-/// Maps a register range of the device, which the framework unmaps when the driver lets go of it
+/// Maps a register range of the device, which the framework unmaps when the driver releases the device
 /// @param index Counts the device's port and memory ranges together, in its bus's order
 /// @retval -ENODEV The device has no such range
 /// @retval -ERANGE A bridge on the way doesn't pass the range on
@@ -149,15 +149,15 @@ void device_unmap_io(device_t* restrict device, io_region_t* restrict region);
 /// @retval -ENOMEM Out of memory; the mapping stays the caller's
 int device_adopt_io(device_t* restrict device, const io_region_t* restrict region);
 
-/// Gets where the CPU sees a memory range of the device, without mapping it, as for mapping it to userspace
+/// Gets the address at which the CPU sees a memory range of the device. Does not map the range
 /// @param index Counts the device's port and memory ranges together, in its bus's order
 /// @retval -ENODEV The device has no such range
 /// @retval -ERANGE A bridge on the way doesn't pass the range on
 /// @retval -EINVAL The CPU reaches the range through ports
 int device_get_io_address(device_t* restrict device, unsigned index, uint64_t* restrict address);
 
-/// Routes an interrupt of the device to a handler, sharing its GSI when the bus says it may
-/// be shared; the framework releases it when the driver lets go of the device
+/// Routes an interrupt of the device to a handler. The GSI is shared when the bus allows it
+/// @note The framework releases the interrupt when the driver releases the device
 /// @pre Called from the attach of the node's driver
 /// @param index Counts the device's interrupts, in its bus's order
 /// @retval -EAGAIN The node of the GSI's interrupt controller isn't bound yet, as for device_wait_for

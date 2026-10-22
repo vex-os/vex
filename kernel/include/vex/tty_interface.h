@@ -58,7 +58,8 @@ struct tty_interface_ops_s {
     void (*close)(tty_interface_t* restrict interface);
 
     /// There is output: take it with tty_transmit_take, now or from an interrupt
-    /// @pre No tty lock is held; may come again before the driver took anything
+    /// @pre No tty lock is held
+    /// @note Can be called again before the driver takes anything
     void (*start_tx)(tty_interface_t* restrict interface);
 
     /// Applies c_cflag and the speeds to the hardware
@@ -104,12 +105,12 @@ struct tty_interface_s {
     void* ctxdata;
 };
 
-/// @param index The n of the name; DEV_NAME_NONE for a device that is its unit's only one
+/// @param index The unit number in the name; DEV_NAME_NONE for a device that is its unit's only one
 /// @retval -ENOMEM No memory for the rings
 int tty_interface_add(tty_interface_t* restrict interface, dev_unit_t* restrict unit, unsigned index);
 
 /// Hangs the terminal up: readers get end of file, writers -EIO, and its session loses it
-/// @post No call into the tty core touches the driver any more; release still comes
+/// @post The tty core makes no more calls into the driver, except release
 int tty_interface_remove(tty_interface_t* restrict interface);
 
 /// Hands bytes from the line to the tty core; what doesn't fit is lost and counted

@@ -43,15 +43,15 @@ ssize_t event_await_blocking(event_t** restrict events, size_t count);
 
 /// Waits until one of the events is triggered, or takes a pending wakeup, for at most the timeout
 /// @return The index of the event in events
-/// @retval -ETIMEDOUT  No event was triggered in time
-/// @retval -ENOMEM     No memory to register the thread as a listener
+/// @retval -ETIMEDOUT No event was triggered in time
+/// @retval -ENOMEM No memory to register the thread as a listener
 ssize_t event_await_timeout(event_t** restrict events, size_t count, uint64_t timeout_nsec);
 
 /// Waits until one of the events is triggered, or takes a pending wakeup,
 /// ending early for pending work such as a signal
 /// @return The index of the event in events
-/// @retval -ENOMEM     No memory to register the thread as a listener
-/// @retval -ERESTART   Work is pending; a system call returns this
+/// @retval -ENOMEM No memory to register the thread as a listener
+/// @retval -ERESTART Work is pending; a system call returns this
 /// as it is and runs again or fails with EINTR on the way out
 ssize_t event_await_interruptible(event_t** restrict events, size_t count);
 
@@ -61,9 +61,9 @@ ssize_t event_await_interruptible(event_t** restrict events, size_t count);
 /// @post The lock is released and interrupts are back to intr_state, whatever the result
 /// @param timeout_nsec Zero waits for as long as it takes
 /// @return The index of the event in events
-/// @retval -ETIMEDOUT  No event was triggered in time
-/// @retval -ENOMEM     No memory to register the thread as a listener
-/// @retval -ERESTART   Work is pending; a system call returns this
+/// @retval -ETIMEDOUT No event was triggered in time
+/// @retval -ENOMEM No memory to register the thread as a listener
+/// @retval -ERESTART Work is pending; a system call returns this
 /// as it is and runs again or fails with EINTR on the way out
 ssize_t event_await_unlock(event_t** restrict events, size_t count, spinlock_t* restrict lock, bool intr_state, uint64_t timeout_nsec);
 
@@ -76,7 +76,7 @@ size_t event_trigger(event_t* restrict event, bool linger_pending);
 void event_reset(event_t* restrict event);
 
 /// Triggers the event from the next scheduler tick on any hart, keeping at most one wakeup for the next await
-/// @note Takes no lock, so it works where event_trigger can't, such as in code the scheduler's locks may be held around
+/// @note Takes no lock, so it works where event_trigger cannot: in code that can run with scheduler locks held
 void event_trigger_deferred(event_deferral_t* restrict deferral);
 
 /// Triggers the events of the deferrals queued so far

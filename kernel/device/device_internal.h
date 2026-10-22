@@ -35,7 +35,7 @@ void device_sync_firmware_children(device_t* restrict device);
 void device_queue_request(device_t* restrict device, unsigned request);
 
 /// Takes back what the device got through the framework and from its bus
-/// @pre The driver has let go of the device
+/// @pre The driver has released the device
 void device_release_resources(device_t* restrict device);
 
 bool device_is_waiting(const device_t* restrict device) __nodiscard;
@@ -48,7 +48,7 @@ int device_wait_for_dependencies(device_t* restrict device) __nodiscard;
 /// @pre Called from the attach of the node's driver
 int device_use(device_t* restrict device, device_t* restrict provider) __nodiscard;
 
-/// @pre The device's driver has let go of it, or never attached
+/// @pre The device's driver has released it, or never attached
 void device_unlink_providers(device_t* restrict device);
 
 /// @pre The device is being probed and waits for a provider

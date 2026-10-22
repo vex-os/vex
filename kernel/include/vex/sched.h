@@ -9,45 +9,44 @@ typedef struct process_s process_t;
 
 typedef void (*kernel_thread_entry_t)(void* restrict arg);
 
-/// Leaves the new thread blocked until sched_enqueue
+/// The new thread stays blocked until sched_enqueue
 thread_t* thread_create_kernel(kernel_thread_entry_t entry, void* restrict arg);
 
 /// thread_create_kernel, then sched_enqueue
 thread_t* thread_spawn_kernel(kernel_thread_entry_t entry, void* restrict arg);
 
-/// Leaves the new thread blocked until sched_enqueue
+/// The new thread stays blocked until sched_enqueue
 thread_t* thread_create_user(process_t* restrict process, uintptr_t entry, uintptr_t stack_top);
 
 /// thread_create_user, then sched_enqueue
 thread_t* thread_spawn_user(process_t* restrict process, uintptr_t entry, uintptr_t stack_top);
 
-/// Leaves the new thread blocked until sched_enqueue
+/// The new thread stays blocked until sched_enqueue
 /// @param ctx The parent's system call frame, which the child resumes from
 thread_t* thread_create_fork(process_t* restrict process, const hart_context_t* restrict ctx);
 
-/// Leaves the new thread blocked until sched_enqueue; it starts with the creator's signal mask
+/// The new thread stays blocked until sched_enqueue, and starts with the signal mask of the creator
 thread_t* thread_create_sibling(const thread_t* restrict creator, uintptr_t entry, uintptr_t stack_top, uintptr_t arg, uintptr_t tcb);
 
-/// Wakes a blocked thread, whatever it waits for, and does nothing to one that
-/// isn't blocked. Callable with interrupts disabled and with spinlocks held
+/// Wakes a blocked thread, whatever it waits for. Does nothing to a thread that is not blocked
+/// @note Any context, with interrupts disabled or spinlocks held
 void sched_enqueue(thread_t* restrict thread);
 
-/// Marks the calling thread blocked without switching away. The caller first
-/// registers itself as a waiter under the waker's lock and calls this before
-/// releasing it, so a wakeup can't slip in between; then it calls sched_yield
-/// and checks its condition again, since a wakeup may be spurious
-/// @param interruptible Lets sched_kick end the wait; with work already
-/// pending the thread is not blocked at all
+/// Marks the calling thread blocked, but does not switch away
+/// The protocol: register as a waiter under the lock of the waker, call this before the lock is released,
+/// call sched_yield, then check the condition again
+/// @param interruptible sched_kick can end the wait; if work is already pending, the thread is not blocked
+/// @note A wakeup can be spurious. Calling this before the release of the lock stops a wakeup from getting lost
 void sched_dequeue(thread_t* restrict thread, bool interruptible);
 
-/// Makes the thread notice work just posted to its pending_work: wakes it out of
-/// an interruptible wait, or interrupts it on its hart so that it passes through exit_to_user
+/// Makes the thread see work that was just posted to its pending_work
 /// @pre The work is already posted
+/// @note Wakes the thread from an interruptible wait, or interrupts its hart so that it passes through exit_to_user
 void sched_kick(thread_t* restrict thread);
 
 /// Wakes the thread with sched_enqueue once the deadline passes
-/// @post The thread stays queued until the deadline even when something else wakes
-/// it first, so every call needs a sched_wake_cancel after the wait
+/// @post The thread stays in the list until the deadline, also when something else wakes it first
+/// @note Every call needs a sched_wake_cancel after the wait
 /// @param deadline Absolute time on the clock_source_now_ns scale
 void sched_wake_at(thread_t* restrict thread, uint64_t deadline);
 
@@ -55,11 +54,10 @@ void sched_wake_at(thread_t* restrict thread, uint64_t deadline);
 void sched_wake_cancel(thread_t* restrict thread);
 
 /// Ends the calling thread; its hart frees it on the next scheduler tick
-/// @pre A user thread is already on its way out, through process_thread_exit
-/// or THREAD_WORK_EXIT, so that its process no longer counts it
+/// @pre A user thread has already left its process, through process_thread_exit or THREAD_WORK_EXIT
 void sched_terminate(void) __noreturn;
 
-/// Gives up the hart until the scheduler picks the thread again, which after
-/// sched_dequeue means until it is woken
-/// @pre Interrupts are enabled and no spinlock is held, as the switch is a self-IPI
+/// Gives up the hart until the scheduler picks the thread again; after sched_dequeue, until a wakeup
+/// @pre Interrupts are enabled and no spinlock is held
+/// @note The switch is a self-IPI
 void sched_yield(void);

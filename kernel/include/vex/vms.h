@@ -45,8 +45,8 @@ struct vmspace_s {
 
 vmspace_t* vms_create(void) __nodiscard;
 
-/// Frees the address space and its page tables
-/// @pre No hart has them loaded anymore, as nothing flushes the TLB entries they left behind
+/// @pre No hart has the address space loaded
+/// @note Nothing flushes the TLB entries that the address space left
 void vms_release(vmspace_t* restrict vmspace);
 
 /// @retval -EEXIST The range overlaps an existing mapping; vms_map_replace unmaps it instead
@@ -73,8 +73,8 @@ void vms_revoke(vnode_t* restrict node);
 /// @return The physical address of virt, or zero when it can't be mapped
 uintptr_t vms_touch(vmspace_t* restrict vmspace, uintptr_t virt) __nodiscard;
 
-/// Keeps the page at virt in place until vms_unpin. A private page is made the process's own
-/// first, so the frame stays the one mapped at virt instead of a copy-on-write original a write moves off
+/// Keeps the page at virt in place until vms_unpin
+/// @note Makes a private page the process's own first, so that a write cannot move the mapping to a copy
 /// @return The physical address of virt, or zero when it isn't mapped readable
 uintptr_t vms_pin(vmspace_t* restrict vmspace, uintptr_t virt) __nodiscard;
 
@@ -84,9 +84,9 @@ ssize_t vms_copyin(void* restrict dst, vmspace_t* restrict vmspace, uintptr_t sr
 
 /// Copies a NUL-terminated string of at most max_sz bytes, terminator included
 /// @return The length of the string, without the terminator
-/// @retval -ENAMETOOLONG   No terminator within max_sz; dst holds a truncated, terminated copy
-/// @retval -EFAULT         Part of the string isn't mapped readable
-/// @retval -EINVAL         max_sz is zero
+/// @retval -ENAMETOOLONG No terminator within max_sz; dst holds a truncated, terminated copy
+/// @retval -EFAULT Part of the string isn't mapped readable
+/// @retval -EINVAL max_sz is zero
 ssize_t vms_copyin_str(char* restrict dst, vmspace_t* restrict vmspace, uintptr_t src, size_t max_sz);
 
 ssize_t vms_copyout(vmspace_t* restrict vmspace, uintptr_t dst, const void* restrict src, size_t size);

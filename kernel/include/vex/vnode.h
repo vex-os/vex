@@ -54,11 +54,10 @@ struct vnode_attr_s {
     timespec_t ctime;
 };
 
-/// Implemented by each filesystem. An operation left nullptr makes the VFS fail the call.
-/// By the time an operation runs, the VFS has crossed mount points and turned away "."
-/// and ".." as new names, links or renames across filesystems, and changes to a read-only
-/// filesystem, writes included as file_open refuses those; the filesystem serializes its
-/// operations with its own lock
+/// Implemented by each filesystem. If an operation is nullptr, the VFS fails the call
+/// Before an operation runs, the VFS crosses mount points and rejects these cases:
+/// "." and ".." as new names, links or renames across filesystems, and changes to a read-only filesystem
+/// The filesystem serializes its operations with its own lock
 struct vnode_ops_s {
     /// @note Also frees the storage of a file whose last name was removed while it was open
     void (*release)(vnode_t* restrict node);
@@ -81,8 +80,8 @@ struct vnode_ops_s {
 
     /// @param victim The vnode newname led to, or nullptr
     /// @pre The VFS has filtered out renaming a file onto itself and a directory into its own subtree
-    /// @note The victim is unlinked as by unlink; where the inode number follows from the entry's location,
-    /// vcache_rekey the source under the same lock
+    /// @note The victim is unlinked as unlink does it. If the inode number depends on the location of the entry,
+    /// call vcache_rekey for the source under the same lock
     int (*rename)(vnode_t* olddir, const char* oldname, vnode_t* source, vnode_t* newdir, const char* newname, vnode_t* victim);
 
     /// @pre The target isn't a directory
@@ -121,12 +120,12 @@ struct vnode_ops_s {
 
     /// Checks a mapping before mmap makes it; nullptr allows any
     /// @pre offset and length are page aligned
-    /// @retval -ENXIO The range runs past the end of the device's memory
+    /// @retval -ENXIO The range runs past the end of the memory of the node
     int (*mmap)(vnode_t* restrict node, off_t offset, size_t length);
 
-    /// Gives the physical address and memory type (a VPROT_CACHE_* value) of the page at offset in the device's memory
-    /// @pre offset is page aligned; the caller holds a spinlock, so this can't sleep
-    /// @retval -ENXIO offset is past the end of the device's memory
+    /// Gives the physical address and the memory type (a VPROT_CACHE_* value) of the page at offset
+    /// @pre offset is page aligned. The caller holds a spinlock, so this must not sleep
+    /// @retval -ENXIO offset is past the end of the memory of the node
     /// @note Set only by device nodes, whose memory is mapped through it instead of fault
     int (*resolve_page)(vnode_t* restrict node, off_t offset, uintptr_t* restrict phys, unsigned* restrict cache);
 
@@ -194,8 +193,7 @@ off_t vnode_seek(vnode_t* restrict node, file_t* restrict file, off_t offset, in
 ssize_t vnode_readlink(vnode_t* restrict node, char* restrict buf, size_t size);
 int vnode_stat(vnode_t* restrict node, stat_t* restrict out);
 
-/// Every change made through here is a status change, so the ctime
-/// moves with it unless the caller set one; a new size also modifies
+/// @note Every change is a status change, so the ctime moves too, unless the caller set it. A new size also changes the mtime
 int vnode_set_attr(vnode_t* restrict node, const vnode_attr_t* restrict request);
 
 int vnode_chmod(vnode_t* restrict node, const credentials_t* restrict credentials, mode_t mode);
@@ -216,6 +214,5 @@ int vnode_set_xattr(vnode_t* restrict node, const credentials_t* restrict creden
 ssize_t vnode_list_xattr(vnode_t* restrict node, const credentials_t* restrict credentials, char* restrict list, size_t size);
 int vnode_remove_xattr(vnode_t* restrict node, const credentials_t* restrict credentials, const char* restrict name);
 
-/// Skips both the permission check and the trip to
-/// the filesystem once a file is known to have no caps
+/// @note Once a node is known to have none, this skips the permission check and the call into the filesystem
 ssize_t vnode_get_caps(vnode_t* restrict node, void* restrict value, size_t size);

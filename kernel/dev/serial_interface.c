@@ -926,12 +926,14 @@ int serial_interface_remove(serial_interface_t* restrict interface)
         sleep_msec(REMOVE_RETRY_MSEC);
     }
 
-    // Waits out the calls into the driver, which see removed from now on
+    // Waits for the calls into the driver
+    // New calls see the port as removed
     mutex_acquire(&interface->priv.lock);
     shutdown_locked(interface);
     mutex_release(&interface->priv.lock);
 
-    // The registry's reference may be the last one, so release may come during the removal
+    // The registry's reference may be the last
+    // one, so release can run during the removal
     dev_unit_t* unit = interface->priv.unit;
     int retval = char_interface_remove(&interface->char_interface);
 

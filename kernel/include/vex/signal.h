@@ -124,8 +124,8 @@ void signal_actions_exec(signal_actions_t* restrict signal_actions);
 /// Queues an asynchronous signal; SIGKILL ends the process at once, and init
 /// only ever receives signals it handles
 /// @param tid A thread of the process, or zero for whichever thread can take it
-/// @retval 0       Queued, merged with one already pending, or dropped as ignored
-/// @retval -ESRCH  No such thread in the process
+/// @retval 0 Queued, merged with one already pending, or dropped as ignored
+/// @retval -ESRCH No such thread in the process
 int signal_send(process_t* restrict process, pid_t tid, const siginfo_t* restrict info);
 
 /// signal_send to the whole process for senders that cannot allocate,
@@ -136,10 +136,9 @@ void signal_send_node(process_t* restrict process, pending_signal_t* restrict no
 /// @pre A thread just left the process, and may have been the one chosen for such a signal
 void signal_retarget(process_t* restrict process);
 
-/// Raises a fault signal: unblocks it, resets a handler that is ignored or blocked,
-/// and kills the process outright when the action is the default one
-/// @pre The thread is the calling one and has just faulted; a blocked or ignored
-/// fault signal would return to the faulting instruction forever
+/// Raises a fault signal. Unblocks the signal, resets an ignored or blocked handler, and kills the process if the action is the default one
+/// @pre The thread is the calling thread and has just faulted
+/// @note A blocked or ignored fault signal would return to the faulting instruction forever
 void signal_force(thread_t* restrict thread, const siginfo_t* restrict info);
 
 void signal_deliver(hart_context_t* restrict ctx);
@@ -150,10 +149,9 @@ void signal_flush(pending_signal_t* restrict queue);
 bool signal_on_altstack(const thread_t* restrict thread, uintptr_t sp) __nodiscard;
 void signal_altstack_get(const thread_t* restrict thread, uintptr_t sp, stack_t* restrict out);
 
-/// Builds a signal frame on the user stack, or on the alternate stack with SA_ONSTACK,
-/// and points the context at the handler; the frame keeps the old context and
-/// old_mask for arch_signal_return. The caller kills the process on failure
-/// @retval 0       The context now enters the handler
+/// Builds a signal frame on the user stack, or on the alternate stack with SA_ONSTACK, and points the context at the handler
+/// @note The frame keeps the old context and old_mask for arch_signal_return. If this fails, the caller kills the process
+/// @retval 0 The context now enters the handler
 /// @retval -EFAULT The handler, the restorer or the stack is unusable
 int arch_signal_setup(thread_t* restrict thread, hart_context_t* restrict ctx, const sigaction_t* restrict action,
     const siginfo_t* restrict info, sigset_t old_mask);

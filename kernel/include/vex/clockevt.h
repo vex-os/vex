@@ -6,7 +6,7 @@
 #define CLOCK_EVENT_ONESHOT       0x01U
 #define CLOCK_EVENT_PERIODIC      0x02U
 #define CLOCK_EVENT_PER_HART      0x04U // One of a kind on every hart, which only that hart uses
-#define CLOCK_EVENT_STOPS_IN_IDLE 0x08U // Says nothing in deep idle states, so another has to wake the hart
+#define CLOCK_EVENT_STOPS_IN_IDLE 0x08U // Raises no interrupt in deep idle states, so another timer has to wake the hart
 
 typedef struct clock_event_s clock_event_t;
 typedef struct clock_event_ops_s clock_event_ops_t;
@@ -62,14 +62,14 @@ int clock_event_remove(clock_event_t* restrict event);
 
 /// Raises irq on this hart once, after nsec or as close to it as the timer can
 /// @pre Interrupts are disabled
-/// @note A timer that is only periodic raises it until clock_event_stop. A hart
-/// without a timer gets irq soon after one is added, and runs on until then
+/// @note A timer that only has a periodic mode raises irq until clock_event_stop
+/// A hart with no timer gets irq soon after a timer is added
 void clock_event_oneshot(unsigned irq, uint64_t nsec);
 
 /// Raises irq on this hart every nsec, or as close to it as the timer can
 /// @pre Interrupts are disabled
-/// @note A timer without a periodic mode raises it once. A hart
-/// without a timer gets irq soon after one is added, and runs on until then
+/// @note A timer with no periodic mode raises irq once
+/// A hart with no timer gets irq soon after a timer is added
 void clock_event_periodic(unsigned irq, uint64_t nsec);
 
 /// @pre Interrupts are disabled

@@ -68,10 +68,10 @@ struct block_interface_s {
     void* ctxdata;
 };
 
-/// @param index The n of the name, such as the controller's port
+/// @param index The unit number in the name, such as the port of the controller
 int block_interface_add_root(block_interface_t* restrict interface, dev_unit_t* restrict unit, unsigned index);
 
-/// @param partition The p of the name, from one
+/// @param partition The partition number in the name, counted from one
 int block_interface_add_part(block_interface_t* restrict interface, const block_interface_t* restrict root, unsigned partition);
 
 /// Takes the device out of the registry and drops the reference it held there; holders of
@@ -83,7 +83,7 @@ void block_interface_decref(const block_interface_t* restrict interface);
 
 const block_interface_t* block_interface_find(const char* restrict name) __nodiscard;
 
-/// @pre The caller holds block_event_lock, which keeps the device list still
+/// @pre The caller holds block_event_lock, so the device list does not change
 void block_interface_for_each(void (*callback)(const block_interface_t* restrict interface, void* restrict arg), void* restrict arg);
 
 /// Starts the request and returns; done reports the outcome, even for a request

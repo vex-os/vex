@@ -161,7 +161,6 @@ int pci_root_attach(device_t* restrict host, unsigned segment, unsigned bus);
 /// @pre The host bridge has no children left
 void pci_root_detach(device_t* restrict host);
 
-/// Gets the PCI function that a node of the tree is
 /// @return nullptr when the node isn't on a PCI bus
 pci_function_t* pci_function_of(device_t* restrict device) __nodiscard;
 
@@ -178,7 +177,7 @@ uint8_t pci_get_cap(pci_function_t* restrict function, uint8_t cap_id) __nodisca
 void pci_enable_busmaster(pci_function_t* restrict function);
 void pci_disable_busmaster(pci_function_t* restrict function);
 
-/// Routes the function's MSI to a handler; the bus takes it back when the driver lets go of the function
+/// Routes the function's MSI to a handler; the bus takes it back when the driver releases the function
 /// @note Without MSI, the driver takes the INTx pin through device_request_irq instead
 /// @retval -ENODEV The function has no MSI
 /// @retval -EBUSY MSI is already requested
