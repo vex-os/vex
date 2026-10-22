@@ -22,6 +22,7 @@ static volatile __used __section(".limine_requests") struct limine_date_at_boot_
 
 static timespec_t wallclock_offset = {};
 static seqlock_t wallclock_seqlock = SEQLOCK_INIT;
+static bool date_known = false; // Set at boot or by someone, so an RTC that comes later only checks it
 
 static void store_offset(const timespec_t* restrict offset)
 {
@@ -119,10 +120,11 @@ int wallclock_set(const timespec_t* restrict time)
     }
 
     step_to(time);
+    date_known = true;
 
     // The system clock is set by now, and failing to keep
     // the time over a reboot is no reason to undo that
-    int retval = arch_rtc_write(time->tv_sec);
+    int retval = rtc_write(time->tv_sec);
 
     if(retval < 0 && retval != -ENODEV) {
         pr_warning("wallclock: writing the RTC failed: %s", strerror(retval));
@@ -138,40 +140,47 @@ time_t wallclock_now(void)
     return now.tv_sec;
 }
 
+void wallclock_rtc_arrived(void)
+{
+    time_t rtc_seconds;
+
+    if(rtc_read(&rtc_seconds) < 0 || !seconds_valid(rtc_seconds)) {
+        pr_warning("wallclock: the RTC holds no valid time");
+        return;
+    }
+
+    if(date_known) {
+        check_rtc_drift(rtc_seconds);
+        return;
+    }
+
+    timespec_t now;
+    now.tv_sec = rtc_seconds;
+    now.tv_nsec = 0;
+    step_to(&now);
+    date_known = true;
+
+    inform_date("the RTC says", rtc_seconds);
+}
+
+// The RTCs are in the device tree, which comes later
 static void init_wallclock(void)
 {
     struct limine_date_at_boot_response* response = date_request.response;
-    time_t rtc_seconds;
-    bool rtc_valid = 0 == arch_rtc_read(&rtc_seconds) && seconds_valid(rtc_seconds);
 
-    if(response && seconds_valid(response->timestamp)) {
-        timespec_t offset;
-        offset.tv_sec = response->timestamp;
-        offset.tv_nsec = 0;
-
-        store_offset(&offset);
-
-        inform_date("date at boot is", (time_t)(response->timestamp));
-
-        if(rtc_valid) {
-            check_rtc_drift(rtc_seconds);
-        }
-
+    if(response == nullptr || !seconds_valid(response->timestamp)) {
+        pr_warning("wallclock: no date at boot, starting at the epoch until an RTC says otherwise");
         return;
     }
 
-    if(rtc_valid) {
-        timespec_t now;
-        now.tv_sec = rtc_seconds;
-        now.tv_nsec = 0;
-        step_to(&now);
+    timespec_t offset;
+    offset.tv_sec = response->timestamp;
+    offset.tv_nsec = 0;
 
-        inform_date("no date at boot, the RTC says", rtc_seconds);
+    store_offset(&offset);
+    date_known = true;
 
-        return;
-    }
-
-    pr_warning("wallclock: no date at boot and no RTC, starting at the epoch");
+    inform_date("date at boot is", (time_t)(response->timestamp));
 }
 
 initcall_bsp_timer(init_wallclock, INIT_LAST);

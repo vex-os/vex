@@ -4,5 +4,6 @@ kernel_sources += files(
     'clockevt.c',
     'clocksrc.c',
     'delay.c',
+    'rtc.c',
     'wallclock.c',
 )
