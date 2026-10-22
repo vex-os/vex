@@ -1,4 +1,4 @@
-#include <vex/blk_device.h>
+#include <vex/block_device.h>
 #include <vex/cmdline.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
@@ -15,7 +15,7 @@
 
 static_assert(sizeof(ext2_vnode_context_t) <= SLAB_MAX_SIZE);
 
-static int read_super(const blk_device_t* restrict device, ext2_superblock_t* restrict out)
+static int read_super(const block_device_t* restrict device, ext2_superblock_t* restrict out)
 {
     size_t sector_size = device->sector_size;
     uintptr_t lba = EXT2_SUPER_OFFSET / sector_size;
@@ -28,7 +28,7 @@ static int read_super(const blk_device_t* restrict device, ext2_superblock_t* re
         return -ENOMEM;
     }
 
-    int retval = blk_read(device, lba, count, buffer);
+    int retval = block_read(device, lba, count, buffer);
 
     if(retval == 0) {
         memcpy(out, buffer + skip, sizeof(ext2_superblock_t));
@@ -273,7 +273,7 @@ static int mark_mounted(ext2_vfs_context_t* restrict context)
     return ext2_super_commit(context);
 }
 
-static int ext2_probe(vfs_t* restrict fs, const blk_device_t* restrict device)
+static int ext2_probe(vfs_t* restrict fs, const block_device_t* restrict device)
 {
     ext2_superblock_t* super = kmalloc(sizeof(ext2_superblock_t));
 
@@ -292,7 +292,7 @@ static int ext2_probe(vfs_t* restrict fs, const blk_device_t* restrict device)
     return retval;
 }
 
-static int ext2_mount(vfs_t* restrict fs, const blk_device_t* restrict device, const cmdline_t* restrict params)
+static int ext2_mount(vfs_t* restrict fs, const block_device_t* restrict device, const cmdline_t* restrict params)
 {
     if(device == nullptr) {
         return -EINVAL;

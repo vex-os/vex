@@ -14,7 +14,7 @@
 typedef struct file_s file_t;
 typedef struct pmap_s pmap_t;
 typedef struct vcache_entry_s vcache_entry_t;
-typedef struct blk_device_s blk_device_t;
+typedef struct block_device_s block_device_t;
 typedef struct vfs_s vfs_t;
 
 enum {
@@ -167,7 +167,7 @@ struct vnode_s {
     bool privs_clear;
     ino_t ino;
     vcache_entry_t* cache_entry;
-    const blk_device_t* device;
+    const block_device_t* device;
     fcache_t pages;
     void* ctxdata;
 };

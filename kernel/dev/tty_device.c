@@ -52,7 +52,7 @@ static tty_device_t* worker_head = nullptr;
 static tty_device_t* worker_tail = nullptr;
 static event_t worker_wakeup;
 
-static tty_device_t* tty_of(const chr_device_t* restrict chr)
+static tty_device_t* tty_of(const char_device_t* restrict chr)
 {
     return chr->ctxdata;
 }
@@ -171,7 +171,7 @@ static void queue_for_worker(tty_device_t* restrict device)
     bool was_queued = device->priv.queued;
 
     if(!was_queued) {
-        chr_device_incref(&device->chr);
+        char_device_incref(&device->chr);
 
         device->priv.queued = true;
         device->priv.worker_next = nullptr;
@@ -371,7 +371,7 @@ static void __noreturn tty_worker(void* restrict arg)
 
         for(tty_device_t* device = worker_pop(); device; device = worker_pop()) {
             process_input(device);
-            chr_device_decref(&device->chr);
+            char_device_decref(&device->chr);
         }
     }
 }
@@ -407,7 +407,7 @@ static void drop_detached(const ctty_drop_t* restrict drop)
     }
 
     if(drop->device) {
-        chr_device_decref(&drop->device->chr);
+        char_device_decref(&drop->device->chr);
     }
 }
 
@@ -460,7 +460,7 @@ static int make_controlling(tty_device_t* restrict device, uintptr_t argument)
             detach_locked(device, &drop);
         }
 
-        chr_device_incref(&device->chr);
+        char_device_incref(&device->chr);
         session_incref(session);
         process_group_incref(group);
 
@@ -806,7 +806,7 @@ static int copyout_count(uintptr_t argument, size_t count)
 
 static int set_exclusive(tty_device_t* restrict device, bool exclusive)
 {
-    chr_device_set_exclusive(&device->chr, exclusive);
+    char_device_set_exclusive(&device->chr, exclusive);
     return 0;
 }
 
@@ -1060,7 +1060,7 @@ static ssize_t write_output(tty_device_t* restrict device, const uint8_t* restri
     return 0;
 }
 
-static int tty_chr_open(const chr_device_t* restrict chr, unsigned flags)
+static int tty_char_open(const char_device_t* restrict chr, unsigned flags)
 {
     tty_device_t* device = tty_of(chr);
 
@@ -1094,7 +1094,7 @@ static int tty_chr_open(const chr_device_t* restrict chr, unsigned flags)
 }
 
 // A program's last words would be lost otherwise; a signal cuts the wait short
-static void tty_chr_close(const chr_device_t* restrict chr)
+static void tty_char_close(const char_device_t* restrict chr)
 {
     tty_device_t* device = tty_of(chr);
 
@@ -1105,8 +1105,8 @@ static void tty_chr_close(const chr_device_t* restrict chr)
     }
 }
 
-static ssize_t tty_chr_read(const chr_device_t* restrict chr, void* restrict file_ctxdata, off_t offset, void* restrict buffer, size_t size,
-    unsigned flags)
+static ssize_t tty_char_read(const char_device_t* restrict chr, void* restrict file_ctxdata, off_t offset, void* restrict buffer,
+    size_t size, unsigned flags)
 {
     tty_device_t* device = tty_of(chr);
 
@@ -1125,7 +1125,7 @@ static ssize_t tty_chr_read(const chr_device_t* restrict chr, void* restrict fil
     return retval;
 }
 
-static ssize_t tty_chr_write(const chr_device_t* restrict chr, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
+static ssize_t tty_char_write(const char_device_t* restrict chr, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
     size_t size, unsigned flags)
 {
     tty_device_t* device = tty_of(chr);
@@ -1141,7 +1141,7 @@ static ssize_t tty_chr_write(const chr_device_t* restrict chr, void* restrict fi
     return retval;
 }
 
-static int tty_chr_ioctl(const chr_device_t* restrict chr, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
+static int tty_char_ioctl(const char_device_t* restrict chr, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
 {
     tty_device_t* device = tty_of(chr);
 
@@ -1156,7 +1156,7 @@ static int tty_chr_ioctl(const chr_device_t* restrict chr, void* restrict file_c
     return retval;
 }
 
-static void tty_chr_release(const chr_device_t* restrict chr)
+static void tty_char_release(const char_device_t* restrict chr)
 {
     tty_device_t* device = tty_of(chr);
 
@@ -1174,13 +1174,13 @@ static void tty_chr_release(const chr_device_t* restrict chr)
     }
 }
 
-static const chr_device_ops_t tty_chr_ops = {
-    .open = &tty_chr_open,
-    .close = &tty_chr_close,
-    .read = &tty_chr_read,
-    .write = &tty_chr_write,
-    .ioctl = &tty_chr_ioctl,
-    .release = &tty_chr_release,
+static const char_device_ops_t tty_char_ops = {
+    .open = &tty_char_open,
+    .close = &tty_char_close,
+    .read = &tty_char_read,
+    .write = &tty_char_write,
+    .ioctl = &tty_char_ioctl,
+    .release = &tty_char_release,
 };
 
 int tty_device_add(tty_device_t* restrict device, dev_unit_t* restrict unit, unsigned index)
@@ -1213,10 +1213,10 @@ int tty_device_add(tty_device_t* restrict device, dev_unit_t* restrict unit, uns
     event_init(&priv->drained);
     set_default_termios(&priv->termios, device->initial_speed);
 
-    device->chr.ops = &tty_chr_ops;
+    device->chr.ops = &tty_char_ops;
     device->chr.ctxdata = device;
 
-    retval = chr_device_add(&device->chr, unit, index);
+    retval = char_device_add(&device->chr, unit, index);
 
     if(retval < 0) {
         pslab_free_virt(priv->flip.data);
@@ -1238,12 +1238,12 @@ int tty_device_remove(tty_device_t* restrict device)
 
     // The registry's reference may be the
     // last one, and the device is still needed below
-    chr_device_incref(&device->chr);
+    char_device_incref(&device->chr);
 
-    int retval = chr_device_remove(&device->chr);
+    int retval = char_device_remove(&device->chr);
 
     if(retval < 0) {
-        chr_device_decref(&device->chr);
+        char_device_decref(&device->chr);
         return retval;
     }
 
@@ -1270,7 +1270,7 @@ int tty_device_remove(tty_device_t* restrict device)
     process_group_lock_release();
 
     drop_detached(&drop);
-    chr_device_decref(&device->chr);
+    char_device_decref(&device->chr);
 
     return 0;
 }

@@ -1,5 +1,5 @@
-#include <vex/blk_atapi.h>
-#include <vex/blk_device.h>
+#include <vex/block_atapi.h>
+#include <vex/block_device.h>
 #include <vex/errno.h>
 #include <vex/string.h>
 
@@ -19,20 +19,20 @@ static void setup_rw_cdb(atapi_cdb_t cdb, uint8_t command, uintptr_t lba, size_t
     cdb[8] = count & 0xFF;
 }
 
-static int check_request(const atapi_device_t* restrict atapi, const blk_request_t* restrict req, size_t count)
+static int check_request(const atapi_device_t* restrict atapi, const block_request_t* restrict req, size_t count)
 {
     if(count > UINT16_MAX) {
         return -EINVAL;
     }
 
-    if(req->op == BLK_REQ_WRITE && 0 == (atapi->flags & ATAPI_FLAG_WRITABLE)) {
+    if(req->op == BLOCK_REQ_WRITE && 0 == (atapi->flags & ATAPI_FLAG_WRITABLE)) {
         return -EROFS;
     }
 
     return 0;
 }
 
-static void atapi_submit(const blk_device_t* restrict device, blk_request_t* restrict req)
+static void atapi_submit(const block_device_t* restrict device, block_request_t* restrict req)
 {
     const atapi_device_t* atapi = ATAPI_DEVICE_FROM_BLK(device);
     size_t count = req->length / device->sector_size;
@@ -46,11 +46,11 @@ static void atapi_submit(const blk_device_t* restrict device, blk_request_t* res
     }
 
     switch(req->op) {
-        case BLK_REQ_READ:
+        case BLOCK_REQ_READ:
             setup_rw_cdb(cdb, ATAPI_CMD_READ_10, req->lba, count);
             break;
 
-        case BLK_REQ_WRITE:
+        case BLOCK_REQ_WRITE:
             setup_rw_cdb(cdb, ATAPI_CMD_WRITE_10, req->lba, count);
             break;
 
@@ -63,7 +63,7 @@ static void atapi_submit(const blk_device_t* restrict device, blk_request_t* res
     atapi->ops->submit_packet(atapi, cdb, req);
 }
 
-static void atapi_release(const blk_device_t* restrict device)
+static void atapi_release(const block_device_t* restrict device)
 {
     const atapi_device_t* atapi = ATAPI_DEVICE_FROM_BLK(device);
 
@@ -72,19 +72,19 @@ static void atapi_release(const blk_device_t* restrict device)
     }
 }
 
-static const blk_device_ops_t atapi_blk_device_ops = {
+static const block_device_ops_t atapi_block_device_ops = {
     .submit = &atapi_submit,
     .release = &atapi_release,
 };
 
 int atapi_device_add(atapi_device_t* restrict device, dev_unit_t* restrict unit, unsigned index)
 {
-    device->base.ops = &atapi_blk_device_ops;
+    device->base.ops = &atapi_block_device_ops;
 
-    return blk_device_add_root(&device->base, unit, index);
+    return block_device_add_root(&device->base, unit, index);
 }
 
 void atapi_device_remove(atapi_device_t* restrict device)
 {
-    blk_device_remove(&device->base);
+    block_device_remove(&device->base);
 }

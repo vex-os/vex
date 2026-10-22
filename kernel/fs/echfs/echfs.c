@@ -1,4 +1,4 @@
-#include <vex/blk_device.h>
+#include <vex/block_device.h>
 #include <vex/cmdline.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
@@ -13,11 +13,11 @@
 
 #define ECHFS_RESERVED_BLOCKS UINT64_C(16)
 
-static int echfs_probe(vfs_t* restrict fs, const blk_device_t* restrict device)
+static int echfs_probe(vfs_t* restrict fs, const block_device_t* restrict device)
 {
     echfs_identity_t identity;
 
-    int retval = blk_read_sector_prefix(device, 0, &identity, sizeof(identity));
+    int retval = block_read_sector_prefix(device, 0, &identity, sizeof(identity));
 
     if(retval < 0) {
         return retval;
@@ -30,7 +30,7 @@ static int echfs_probe(vfs_t* restrict fs, const blk_device_t* restrict device)
     return 0;
 }
 
-static int echfs_mount(vfs_t* restrict fs, const blk_device_t* restrict device, const cmdline_t* restrict params)
+static int echfs_mount(vfs_t* restrict fs, const block_device_t* restrict device, const cmdline_t* restrict params)
 {
     if(device == nullptr) {
         return -EINVAL;
@@ -44,7 +44,7 @@ static int echfs_mount(vfs_t* restrict fs, const blk_device_t* restrict device, 
         return -ENOMEM;
     }
 
-    int retval = blk_read_sector_prefix(device, 0, identity, sizeof(*identity));
+    int retval = block_read_sector_prefix(device, 0, identity, sizeof(*identity));
 
     if(retval < 0) {
         kfree(identity);

@@ -44,7 +44,7 @@ struct exchange_s {
 static spinlock_t consumers_lock = SPINLOCK_INIT;
 static serial_consumer_t* consumers_head = nullptr;
 
-static serial_device_t* serial_of(const chr_device_t* restrict chr)
+static serial_device_t* serial_of(const char_device_t* restrict chr)
 {
     return chr->ctxdata;
 }
@@ -674,10 +674,10 @@ static bool may_change(const serial_device_t* restrict device)
 {
     thread_t* thread = this_thread();
 
-    return chr_device_is_exclusive(&device->chr) && cred_capable(thread->credentials, CAP_SYS_TTY_CONFIG);
+    return char_device_is_exclusive(&device->chr) && cred_capable(thread->credentials, CAP_SYS_TTY_CONFIG);
 }
 
-static int serial_chr_ioctl(const chr_device_t* restrict chr, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
+static int serial_char_ioctl(const char_device_t* restrict chr, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
 {
     serial_device_t* device = serial_of(chr);
 
@@ -721,7 +721,7 @@ static int serial_chr_ioctl(const chr_device_t* restrict chr, void* restrict fil
     }
 }
 
-static void serial_chr_release(const chr_device_t* restrict chr)
+static void serial_char_release(const char_device_t* restrict chr)
 {
     serial_device_t* device = serial_of(chr);
 
@@ -732,9 +732,9 @@ static void serial_chr_release(const chr_device_t* restrict chr)
     }
 }
 
-static const chr_device_ops_t serial_chr_ops = {
-    .ioctl = &serial_chr_ioctl,
-    .release = &serial_chr_release,
+static const char_device_ops_t serial_char_ops = {
+    .ioctl = &serial_char_ioctl,
+    .release = &serial_char_release,
 };
 
 static serial_device_t* console_port(const console_t* restrict cons)
@@ -870,7 +870,7 @@ int serial_device_add(serial_device_t* restrict device)
     }
 
     device->consumer_data = nullptr;
-    device->chr.ops = &serial_chr_ops;
+    device->chr.ops = &serial_char_ops;
     device->chr.ctxdata = device;
 
     char name[sizeof(device->chr.name)];
@@ -886,7 +886,7 @@ int serial_device_add(serial_device_t* restrict device)
         prepare_console(device, name);
     }
 
-    retval = chr_device_add(&device->chr, priv->unit, DEV_NAME_NONE);
+    retval = char_device_add(&device->chr, priv->unit, DEV_NAME_NONE);
 
     if(retval < 0) {
         dev_unit_free(priv->unit);
@@ -932,7 +932,7 @@ int serial_device_remove(serial_device_t* restrict device)
 
     // The registry's reference may be the last one, so release may come during the removal
     dev_unit_t* unit = device->priv.unit;
-    int retval = chr_device_remove(&device->chr);
+    int retval = char_device_remove(&device->chr);
 
     if(retval < 0) {
         return retval;

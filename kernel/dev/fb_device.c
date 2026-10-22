@@ -1,5 +1,5 @@
 #include <vex/assert.h>
-#include <vex/chr_device.h>
+#include <vex/char_device.h>
 #include <vex/console.h>
 #include <vex/dev_name.h>
 #include <vex/errno.h>
@@ -25,7 +25,7 @@ static bool console_tried = false;
 static mutex_t console_mutex = MUTEX_INIT;
 static bool console_pending = false; // Under console_mutex; fbcons lost its device and waits for the next one
 
-static const fb_device_t* fb_of(const chr_device_t* restrict device)
+static const fb_device_t* fb_of(const char_device_t* restrict device)
 {
     return device->ctxdata;
 }
@@ -306,7 +306,7 @@ static int ioctl_set_mode(const fb_device_t* restrict fb, uintptr_t argument)
         return retval;
     }
 
-    chr_device_revoke_mappings(&fb->chr);
+    char_device_revoke_mappings(&fb->chr);
 
     return 0;
 }
@@ -384,7 +384,7 @@ static void leave(const fb_device_t* restrict fb)
     atomic_fetch_sub(&mutable_fb->priv.in_flight, 1, ATOMIC_RELEASE);
 }
 
-static ssize_t fb_chr_read(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset, void* restrict buffer,
+static ssize_t fb_char_read(const char_device_t* restrict device, void* restrict file_ctxdata, off_t offset, void* restrict buffer,
     size_t size, unsigned flags)
 {
     const fb_device_t* fb = fb_of(device);
@@ -399,7 +399,7 @@ static ssize_t fb_chr_read(const chr_device_t* restrict device, void* restrict f
     return retval;
 }
 
-static ssize_t fb_chr_write(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
+static ssize_t fb_char_write(const char_device_t* restrict device, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
     size_t size, unsigned flags)
 {
     const fb_device_t* fb = fb_of(device);
@@ -414,7 +414,7 @@ static ssize_t fb_chr_write(const chr_device_t* restrict device, void* restrict 
     return retval;
 }
 
-static int fb_chr_ioctl(const chr_device_t* restrict device, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
+static int fb_char_ioctl(const char_device_t* restrict device, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
 {
     const fb_device_t* fb = fb_of(device);
 
@@ -428,7 +428,7 @@ static int fb_chr_ioctl(const chr_device_t* restrict device, void* restrict file
     return retval;
 }
 
-static int fb_chr_mmap(const chr_device_t* restrict device, off_t offset, size_t length)
+static int fb_char_mmap(const char_device_t* restrict device, off_t offset, size_t length)
 {
     uint64_t size = mapped_size(fb_of(device));
 
@@ -439,7 +439,7 @@ static int fb_chr_mmap(const chr_device_t* restrict device, off_t offset, size_t
     return 0;
 }
 
-static int fb_chr_resolve_page(const chr_device_t* restrict device, off_t offset, uintptr_t* restrict phys, unsigned* restrict cache)
+static int fb_char_resolve_page(const char_device_t* restrict device, off_t offset, uintptr_t* restrict phys, unsigned* restrict cache)
 {
     const fb_device_t* fb = fb_of(device);
 
@@ -453,7 +453,7 @@ static int fb_chr_resolve_page(const chr_device_t* restrict device, off_t offset
     return 0;
 }
 
-static void fb_chr_release(const chr_device_t* restrict device)
+static void fb_char_release(const char_device_t* restrict device)
 {
     const fb_device_t* fb = fb_of(device);
 
@@ -462,18 +462,18 @@ static void fb_chr_release(const chr_device_t* restrict device)
     }
 }
 
-static const chr_device_ops_t fb_chr_ops = {
-    .read = &fb_chr_read,
-    .write = &fb_chr_write,
-    .ioctl = &fb_chr_ioctl,
-    .mmap = &fb_chr_mmap,
-    .resolve_page = &fb_chr_resolve_page,
-    .release = &fb_chr_release,
+static const char_device_ops_t fb_char_ops = {
+    .read = &fb_char_read,
+    .write = &fb_char_write,
+    .ioctl = &fb_char_ioctl,
+    .mmap = &fb_char_mmap,
+    .resolve_page = &fb_char_resolve_page,
+    .release = &fb_char_release,
 };
 
 static int add_device(fb_device_t* restrict device)
 {
-    device->chr.ops = &fb_chr_ops;
+    device->chr.ops = &fb_char_ops;
     device->chr.ctxdata = device;
     device->priv.in_flight = 0;
     device->priv.removed = false;
@@ -485,7 +485,7 @@ static int add_device(fb_device_t* restrict device)
         return retval;
     }
 
-    retval = chr_device_add(&device->chr, device->priv.unit, DEV_NAME_NONE);
+    retval = char_device_add(&device->chr, device->priv.unit, DEV_NAME_NONE);
 
     if(retval < 0) {
         dev_unit_free(device->priv.unit);
@@ -575,7 +575,7 @@ int fb_device_remove(fb_device_t* restrict device)
 {
     atomic_store(&device->priv.removed, true, ATOMIC_SEQ_CST);
 
-    int retval = chr_device_remove(&device->chr);
+    int retval = char_device_remove(&device->chr);
 
     if(retval < 0) {
         return retval;

@@ -5,7 +5,7 @@
 #include <vex/path.h>
 #include <vex/types.h>
 
-typedef struct blk_device_s blk_device_t;
+typedef struct block_device_s block_device_t;
 typedef struct vnode_s vnode_t;
 typedef struct vnode_ops_s vnode_ops_t;
 
@@ -57,7 +57,7 @@ static_assert(256 == sizeof(echfs_dirent_t));
 #endif
 
 struct echfs_vfs_context_s {
-    const blk_device_t* device;
+    const block_device_t* device;
 
     bool param_readonly;
 

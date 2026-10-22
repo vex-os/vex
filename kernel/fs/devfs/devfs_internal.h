@@ -4,8 +4,8 @@
 #include <vex/path.h>
 #include <vex/spinlock.h>
 
-typedef struct blk_device_s blk_device_t;
-typedef struct chr_device_s chr_device_t;
+typedef struct block_device_s block_device_t;
+typedef struct char_device_s char_device_t;
 typedef struct vfs_s vfs_t;
 typedef struct vnode_ops_s vnode_ops_t;
 
@@ -30,5 +30,5 @@ extern int devfs_insert(vfs_t* restrict fs, const char* restrict name, vnode_t* 
 extern void devfs_remove(vfs_t* restrict fs, const char* restrict name);
 extern vnode_t* devfs_find(vfs_t* restrict fs, const char* restrict name);
 
-extern void devfs_blk_event_handler(unsigned event, const blk_device_t* restrict device, void* restrict ctxdata);
-extern void devfs_chr_event_handler(unsigned event, const chr_device_t* restrict device, void* restrict ctxdata);
+extern void devfs_block_event_handler(unsigned event, const block_device_t* restrict device, void* restrict ctxdata);
+extern void devfs_char_event_handler(unsigned event, const char_device_t* restrict device, void* restrict ctxdata);

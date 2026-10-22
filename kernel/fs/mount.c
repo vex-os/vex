@@ -1,6 +1,6 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
-#include <vex/blk_device.h>
+#include <vex/block_device.h>
 #include <vex/cmdline.h>
 #include <vex/dev_name.h>
 #include <vex/fcache.h>
@@ -48,7 +48,7 @@ static vfs_driver_t* find_driver(const char* restrict name)
     return nullptr;
 }
 
-static vfs_driver_t* deduce_driver(const blk_device_t* restrict device)
+static vfs_driver_t* deduce_driver(const block_device_t* restrict device)
 {
     vfs_driver_t* it;
 
@@ -61,7 +61,7 @@ static vfs_driver_t* deduce_driver(const blk_device_t* restrict device)
     return nullptr;
 }
 
-static int set_dev(vfs_t* restrict fs, const blk_device_t* restrict device)
+static int set_dev(vfs_t* restrict fs, const block_device_t* restrict device)
 {
     fs->unit = nullptr;
 
@@ -96,7 +96,7 @@ static void free_fs(vfs_t* restrict fs)
     slab_free(fs);
 }
 
-static int mount_locked(const char* restrict type, const char* restrict path, const blk_device_t* restrict device,
+static int mount_locked(const char* restrict type, const char* restrict path, const block_device_t* restrict device,
     const char* restrict params)
 {
     if(path == nullptr) {
@@ -246,7 +246,7 @@ static int mount_locked(const char* restrict type, const char* restrict path, co
     spinlock_release(&mounts_lock);
 
     if(device) {
-        blk_device_incref(device);
+        block_device_incref(device);
     }
 
     return 0;
@@ -308,7 +308,7 @@ int vfs_driver_remove(vfs_driver_t* restrict driver)
     return -ENOENT;
 }
 
-int vfs_mount(const char* restrict type, const char* restrict path, const blk_device_t* restrict device, const char* restrict params)
+int vfs_mount(const char* restrict type, const char* restrict path, const block_device_t* restrict device, const char* restrict params)
 {
     mutex_acquire(&mounts_mutex);
     int retval = mount_locked(type, path, device, params);
@@ -400,7 +400,7 @@ int vfs_unmount(const char* restrict path)
     fs->ops->unmount(fs);
 
     if(fs->device) {
-        blk_device_decref(fs->device);
+        block_device_decref(fs->device);
     }
 
     free_fs(fs);

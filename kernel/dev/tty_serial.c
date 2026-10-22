@@ -1,4 +1,4 @@
-#include <vex/chr_device.h>
+#include <vex/char_device.h>
 #include <vex/dev_name.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
@@ -152,7 +152,7 @@ static void tty_serial_release(const tty_device_t* restrict device)
 {
     tty_serial_t* terminal = tty_serial_of(device);
 
-    chr_device_decref(&terminal->port->chr);
+    char_device_decref(&terminal->port->chr);
     kfree(terminal);
 }
 
@@ -201,14 +201,14 @@ static int tty_serial_bind(serial_device_t* restrict device, const char* restric
     terminal->tty.initial_speed = device->line.speed;
     terminal->tty.ctxdata = terminal;
 
-    chr_device_incref(&device->chr);
+    char_device_incref(&device->chr);
     device->consumer_data = terminal;
 
     retval = tty_device_add(&terminal->tty, terminal->unit, DEV_NAME_NONE);
 
     if(retval < 0) {
         device->consumer_data = nullptr;
-        chr_device_decref(&device->chr);
+        char_device_decref(&device->chr);
         dev_unit_free(terminal->unit);
         kfree(terminal);
         return retval;
@@ -226,7 +226,7 @@ static int tty_serial_unbind(serial_device_t* restrict device, bool force)
     dev_unit_t* unit = terminal->unit;
 
     if(!force) {
-        int retval = chr_device_refuse_opens(&terminal->tty.chr);
+        int retval = char_device_refuse_opens(&terminal->tty.chr);
 
         if(retval < 0) {
             return retval;

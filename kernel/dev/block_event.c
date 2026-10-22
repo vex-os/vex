@@ -1,5 +1,5 @@
-#include <vex/blk_device.h>
-#include <vex/blk_event.h>
+#include <vex/block_device.h>
+#include <vex/block_event.h>
 #include <vex/errno.h>
 #include <vex/hrsize.h>
 #include <vex/kmalloc.h>
@@ -10,7 +10,7 @@ typedef struct event_handler_s event_handler_t;
 
 struct event_handler_s {
     event_handler_t* next;
-    blk_event_handler_t handler;
+    block_event_handler_t handler;
     void* ctxdata;
 };
 
@@ -19,59 +19,59 @@ static unsigned events_depth = 0;
 static event_handler_t* handlers_head = nullptr;
 
 #ifdef CONFIG_TRACE_BLK_EVENTS
-static void blk_event_log(unsigned event, const blk_device_t* restrict device)
+static void block_event_log(unsigned event, const block_device_t* restrict device)
 {
     char hrsize_buffer[256];
 
     switch(event) {
-        case BLK_EVENT_DEVICE_ADDED:
-            pr_verbose("blk_event: device added: %s", device->name);
+        case BLOCK_EVENT_DEVICE_ADDED:
+            pr_verbose("block_event: device added: %s", device->name);
             break;
 
-        case BLK_EVENT_DEVICE_REMOVED:
-            pr_verbose("blk_event: device removed: %s", device->name);
+        case BLOCK_EVENT_DEVICE_REMOVED:
+            pr_verbose("block_event: device removed: %s", device->name);
             break;
 
-        case BLK_EVENT_MEDIA_CONNECTED:
+        case BLOCK_EVENT_MEDIA_CONNECTED:
             format_size_iec(hrsize_buffer, sizeof(hrsize_buffer), device->sector_count * device->sector_size);
-            pr_verbose("blk_event: media connected: %s: %s [%zux%zu]", device->name, hrsize_buffer, device->sector_count,
+            pr_verbose("block_event: media connected: %s: %s [%zux%zu]", device->name, hrsize_buffer, device->sector_count,
                 device->sector_size);
             break;
 
-        case BLK_EVENT_MEDIA_DISCONNECTED:
-            pr_verbose("blk_event: media disconnected: %s", device->name);
+        case BLOCK_EVENT_MEDIA_DISCONNECTED:
+            pr_verbose("block_event: media disconnected: %s", device->name);
             break;
 
-        case BLK_EVENT_PARTITION_ADDED:
+        case BLOCK_EVENT_PARTITION_ADDED:
             format_size_iec(hrsize_buffer, sizeof(hrsize_buffer), device->sector_count * device->sector_size);
-            pr_verbose("blk_event: partition added: %s: %s [%zux%zu]", device->name, hrsize_buffer, device->sector_count,
+            pr_verbose("block_event: partition added: %s: %s [%zux%zu]", device->name, hrsize_buffer, device->sector_count,
                 device->sector_size);
             break;
 
-        case BLK_EVENT_PARTITION_REMOVED:
-            pr_verbose("blk_event: partition removed: %s", device->name);
+        case BLOCK_EVENT_PARTITION_REMOVED:
+            pr_verbose("block_event: partition removed: %s", device->name);
             break;
     }
 }
 #endif
 
-static void replay_device(const blk_device_t* restrict device, void* restrict arg)
+static void replay_device(const block_device_t* restrict device, void* restrict arg)
 {
     const event_handler_t* entry = arg;
 
-    entry->handler(BLK_EVENT_DEVICE_ADDED, device, entry->ctxdata);
+    entry->handler(BLOCK_EVENT_DEVICE_ADDED, device, entry->ctxdata);
 
-    if(device->flags & BLK_FLAG_PRESENT) {
-        if(device->flags & BLK_FLAG_PARTITION) {
-            entry->handler(BLK_EVENT_PARTITION_ADDED, device, entry->ctxdata);
+    if(device->flags & BLOCK_FLAG_PRESENT) {
+        if(device->flags & BLOCK_FLAG_PARTITION) {
+            entry->handler(BLOCK_EVENT_PARTITION_ADDED, device, entry->ctxdata);
         }
         else {
-            entry->handler(BLK_EVENT_MEDIA_CONNECTED, device, entry->ctxdata);
+            entry->handler(BLOCK_EVENT_MEDIA_CONNECTED, device, entry->ctxdata);
         }
     }
 }
 
-void blk_event_lock(void)
+void block_event_lock(void)
 {
     if(mutex_held(&events_mutex)) {
         events_depth += 1;
@@ -81,7 +81,7 @@ void blk_event_lock(void)
     mutex_acquire(&events_mutex);
 }
 
-void blk_event_unlock(void)
+void block_event_unlock(void)
 {
     if(events_depth > 0) {
         events_depth -= 1;
@@ -91,7 +91,7 @@ void blk_event_unlock(void)
     mutex_release(&events_mutex);
 }
 
-int blk_event_subscribe(blk_event_handler_t handler, void* restrict ctxdata)
+int block_event_subscribe(block_event_handler_t handler, void* restrict ctxdata)
 {
     if(mutex_held(&events_mutex)) {
         return -EDEADLK;
@@ -119,14 +119,14 @@ int blk_event_subscribe(blk_event_handler_t handler, void* restrict ctxdata)
     entry->next = handlers_head;
     handlers_head = entry;
 
-    blk_device_for_each(&replay_device, entry);
+    block_device_for_each(&replay_device, entry);
 
     mutex_release(&events_mutex);
 
     return 0;
 }
 
-int blk_event_unsubscribe(blk_event_handler_t handler, void* restrict ctxdata)
+int block_event_unsubscribe(block_event_handler_t handler, void* restrict ctxdata)
 {
     if(mutex_held(&events_mutex)) {
         return -EDEADLK;
@@ -150,17 +150,17 @@ int blk_event_unsubscribe(blk_event_handler_t handler, void* restrict ctxdata)
     return -ENOENT;
 }
 
-void blk_event_notify(unsigned event, const blk_device_t* restrict device)
+void block_event_notify(unsigned event, const block_device_t* restrict device)
 {
 #ifdef CONFIG_TRACE_BLK_EVENTS
-    blk_event_log(event, device);
+    block_event_log(event, device);
 #endif
 
-    blk_event_lock();
+    block_event_lock();
 
     for(event_handler_t* it = handlers_head; it; it = it->next) {
         it->handler(event, device, it->ctxdata);
     }
 
-    blk_event_unlock();
+    block_event_unlock();
 }

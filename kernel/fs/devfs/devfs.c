@@ -1,7 +1,7 @@
-#include <vex/blk_device.h>
-#include <vex/blk_event.h>
-#include <vex/chr_device.h>
-#include <vex/chr_event.h>
+#include <vex/block_device.h>
+#include <vex/block_event.h>
+#include <vex/char_device.h>
+#include <vex/char_event.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/mount.h>
@@ -21,8 +21,8 @@ static int devfs_unmount(vfs_t* restrict fs)
 {
     devfs_state_t* state = fs->ctxdata;
 
-    blk_event_unsubscribe(&devfs_blk_event_handler, fs);
-    chr_event_unsubscribe(&devfs_chr_event_handler, fs);
+    block_event_unsubscribe(&devfs_block_event_handler, fs);
+    char_event_unsubscribe(&devfs_char_event_handler, fs);
 
     spinlock_acquire(&state->lock);
 
@@ -46,7 +46,7 @@ static int devfs_unmount(vfs_t* restrict fs)
     return 0;
 }
 
-static int devfs_mount(vfs_t* restrict fs, const blk_device_t* restrict device, const cmdline_t* restrict params)
+static int devfs_mount(vfs_t* restrict fs, const block_device_t* restrict device, const cmdline_t* restrict params)
 {
     devfs_state_t* state = slab_alloc(sizeof(devfs_state_t));
 
@@ -69,10 +69,10 @@ static int devfs_mount(vfs_t* restrict fs, const blk_device_t* restrict device, 
     fs->root = root;
     fs->ctxdata = state;
 
-    int retval = blk_event_subscribe(&devfs_blk_event_handler, fs);
+    int retval = block_event_subscribe(&devfs_block_event_handler, fs);
 
     if(retval == 0) {
-        retval = chr_event_subscribe(&devfs_chr_event_handler, fs);
+        retval = char_event_subscribe(&devfs_char_event_handler, fs);
     }
 
     if(retval < 0) {

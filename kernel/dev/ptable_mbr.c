@@ -1,5 +1,5 @@
-#include <vex/blk_device.h>
-#include <vex/blk_ptable.h>
+#include <vex/block_device.h>
+#include <vex/block_ptable.h>
 #include <vex/compiler.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
@@ -36,10 +36,10 @@ static_assert(16 == sizeof(mbr_entry_t));
 static_assert(512 == sizeof(mbr_sector_t));
 #endif
 
-static int mbr_detect(const blk_device_t* restrict device, void** restrict ptdata)
+static int mbr_detect(const block_device_t* restrict device, void** restrict ptdata)
 {
     mbr_sector_t sector;
-    int retval = blk_read_sector_prefix(device, 0, &sector, sizeof(sector));
+    int retval = block_read_sector_prefix(device, 0, &sector, sizeof(sector));
 
     if(retval < 0) {
         return retval;
@@ -76,8 +76,8 @@ static int mbr_detect(const blk_device_t* restrict device, void** restrict ptdat
     return -EINVAL;
 }
 
-static int mbr_read_table(const blk_device_t* restrict device, void* restrict ptdata, unsigned index,
-    blk_partition_table_info_t* restrict out)
+static int mbr_read_table(const block_device_t* restrict device, void* restrict ptdata, unsigned index,
+    block_partition_table_info_t* restrict out)
 {
     const mbr_sector_t* mbr = ptdata;
 
@@ -117,20 +117,20 @@ static void mbr_release(void* restrict ptdata)
     kfree(ptdata);
 }
 
-static const blk_partition_table_ops_t mbr_ops = {
+static const block_partition_table_ops_t mbr_ops = {
     .detect = &mbr_detect,
     .read_table = &mbr_read_table,
     .release = &mbr_release,
 };
 
-static blk_partition_table_t mbr_ptable = {
+static block_partition_table_t mbr_ptable = {
     .ops = &mbr_ops,
     .name = "mbr",
 };
 
 static void init_ptable_mbr(void)
 {
-    blk_partition_table_add(&mbr_ptable);
+    block_partition_table_add(&mbr_ptable);
 }
 
 initcall_bsp_dev(init_ptable_mbr, INIT_FIRST);

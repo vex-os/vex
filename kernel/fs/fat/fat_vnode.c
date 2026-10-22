@@ -1,6 +1,6 @@
 #include <vex/assert.h>
 #include <vex/bitmap.h>
-#include <vex/blk_device.h>
+#include <vex/block_device.h>
 #include <vex/ctype.h>
 #include <vex/dirent.h>
 #include <vex/endian.h>

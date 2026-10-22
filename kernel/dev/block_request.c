@@ -1,5 +1,5 @@
 #include <vex/assert.h>
-#include <vex/blk_device.h>
+#include <vex/block_device.h>
 #include <vex/errno.h>
 #include <vex/event.h>
 #include <vex/hart.h>
@@ -9,21 +9,21 @@
 #include <vex/pmap.h>
 #include <vex/string.h>
 
-#define BLK_MAX_SEGMENTS 32 // Most segments blk_read and blk_write put in one request
+#define BLOCK_MAX_SEGMENTS 32 // Most segments block_read and block_write put in one request
 
-static void finish(blk_request_t* restrict req, int status)
+static void finish(block_request_t* restrict req, int status)
 {
     req->status = status;
     req->done(req);
 }
 
-static bool request_valid(const blk_device_t* restrict device, const blk_request_t* restrict req)
+static bool request_valid(const block_device_t* restrict device, const block_request_t* restrict req)
 {
-    if(req->op == BLK_REQ_FLUSH) {
+    if(req->op == BLOCK_REQ_FLUSH) {
         return req->length == 0 && req->num_segments == 0;
     }
 
-    if(req->op != BLK_REQ_READ && req->op != BLK_REQ_WRITE) {
+    if(req->op != BLOCK_REQ_READ && req->op != BLOCK_REQ_WRITE) {
         return false;
     }
 
@@ -44,7 +44,7 @@ static bool request_valid(const blk_device_t* restrict device, const blk_request
     size_t total = 0;
 
     for(size_t i = 0; i < req->num_segments; ++i) {
-        const blk_segment_t* segment = &req->segments[i];
+        const block_segment_t* segment = &req->segments[i];
 
         if(segment->length == 0 || ((segment->phys | segment->length) & device->dma_align)) {
             return false;
@@ -60,13 +60,13 @@ static bool request_valid(const blk_device_t* restrict device, const blk_request
     return total == req->length;
 }
 
-static void wake_waiter(blk_request_t* restrict req)
+static void wake_waiter(block_request_t* restrict req)
 {
     event_trigger(req->ctxdata, true);
 }
 
-static bool map_segments(const blk_device_t* restrict device, const uint8_t* restrict buffer, size_t length,
-    blk_segment_t* restrict segments, size_t* restrict num_segments)
+static bool map_segments(const block_device_t* restrict device, const uint8_t* restrict buffer, size_t length,
+    block_segment_t* restrict segments, size_t* restrict num_segments)
 {
     size_t count = 0;
 
@@ -87,7 +87,7 @@ static bool map_segments(const blk_device_t* restrict device, const uint8_t* res
             segments[count - 1].length += piece;
         }
         else {
-            if(count >= device->max_segments || count >= BLK_MAX_SEGMENTS) {
+            if(count >= device->max_segments || count >= BLOCK_MAX_SEGMENTS) {
                 return false;
             }
 
@@ -105,9 +105,9 @@ static bool map_segments(const blk_device_t* restrict device, const uint8_t* res
     return true;
 }
 
-static int transfer(const blk_device_t* restrict device, unsigned op, uintptr_t lba, size_t count, uint8_t* restrict buffer)
+static int transfer(const block_device_t* restrict device, unsigned op, uintptr_t lba, size_t count, uint8_t* restrict buffer)
 {
-    if(0 == (device->flags & BLK_FLAG_PRESENT)) {
+    if(0 == (device->flags & BLOCK_FLAG_PRESENT)) {
         return -ENODEV;
     }
 
@@ -117,9 +117,9 @@ static int transfer(const blk_device_t* restrict device, unsigned op, uintptr_t 
         return -EINVAL;
     }
 
-    size_t max_segments = BLK_MAX_SEGMENTS;
+    size_t max_segments = BLOCK_MAX_SEGMENTS;
 
-    if(device->max_segments < BLK_MAX_SEGMENTS) {
+    if(device->max_segments < BLOCK_MAX_SEGMENTS) {
         max_segments = device->max_segments;
     }
 
@@ -147,8 +147,8 @@ static int transfer(const blk_device_t* restrict device, unsigned op, uintptr_t 
         size_t chunk = count < max_sectors ? count : max_sectors;
         size_t bytes = chunk * sector_size;
 
-        blk_segment_t segments[BLK_MAX_SEGMENTS];
-        blk_request_t req = {};
+        block_segment_t segments[BLOCK_MAX_SEGMENTS];
+        block_request_t req = {};
         req.op = op;
         req.lba = lba;
         req.length = bytes;
@@ -170,14 +170,14 @@ static int transfer(const blk_device_t* restrict device, unsigned op, uintptr_t 
             segments[0].length = bytes;
             req.num_segments = 1;
 
-            if(op == BLK_REQ_WRITE) {
+            if(op == BLOCK_REQ_WRITE) {
                 memcpy(phys_to_virt(bounce_phys), buffer, bytes);
             }
         }
 
-        retval = blk_submit_wait(device, &req);
+        retval = block_submit_wait(device, &req);
 
-        if(retval == 0 && !direct && op == BLK_REQ_READ) {
+        if(retval == 0 && !direct && op == BLOCK_REQ_READ) {
             memcpy(buffer, phys_to_virt(bounce_phys), bytes);
         }
 
@@ -193,9 +193,9 @@ static int transfer(const blk_device_t* restrict device, unsigned op, uintptr_t 
     return retval;
 }
 
-void blk_submit(const blk_device_t* restrict device, blk_request_t* restrict req)
+void block_submit(const block_device_t* restrict device, block_request_t* restrict req)
 {
-    if(0 == (device->flags & BLK_FLAG_PRESENT)) {
+    if(0 == (device->flags & BLOCK_FLAG_PRESENT)) {
         finish(req, -ENODEV);
         return;
     }
@@ -208,7 +208,7 @@ void blk_submit(const blk_device_t* restrict device, blk_request_t* restrict req
     device->ops->submit(device, req);
 }
 
-int blk_submit_wait(const blk_device_t* restrict device, blk_request_t* restrict req)
+int block_submit_wait(const block_device_t* restrict device, block_request_t* restrict req)
 {
     event_t done;
     event_t* event = &done;
@@ -218,7 +218,7 @@ int blk_submit_wait(const blk_device_t* restrict device, blk_request_t* restrict
     req->done = &wake_waiter;
     req->ctxdata = &done;
 
-    blk_submit(device, req);
+    block_submit(device, req);
 
     if(event_await(&event, 1) < 0) {
         kassert(interrupt_state());
@@ -233,19 +233,19 @@ int blk_submit_wait(const blk_device_t* restrict device, blk_request_t* restrict
     return req->status;
 }
 
-int blk_read(const blk_device_t* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
+int block_read(const block_device_t* restrict device, uintptr_t lba, size_t count, void* restrict buffer)
 {
-    return transfer(device, BLK_REQ_READ, lba, count, buffer);
+    return transfer(device, BLOCK_REQ_READ, lba, count, buffer);
 }
 
-int blk_write(const blk_device_t* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
+int block_write(const block_device_t* restrict device, uintptr_t lba, size_t count, const void* restrict buffer)
 {
-    return transfer(device, BLK_REQ_WRITE, lba, count, (uint8_t*)(buffer));
+    return transfer(device, BLOCK_REQ_WRITE, lba, count, (uint8_t*)(buffer));
 }
 
-int blk_flush(const blk_device_t* restrict device)
+int block_flush(const block_device_t* restrict device)
 {
-    blk_request_t req = {};
-    req.op = BLK_REQ_FLUSH;
-    return blk_submit_wait(device, &req);
+    block_request_t req = {};
+    req.op = BLOCK_REQ_FLUSH;
+    return block_submit_wait(device, &req);
 }

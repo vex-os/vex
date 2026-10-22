@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vex/chr_device.h>
+#include <vex/char_device.h>
 #include <vex/compiler.h>
 #include <vex/fb.h>
 #include <vex/mutex.h>
@@ -46,7 +46,7 @@ struct fb_device_private_s {
 };
 
 struct fb_device_s {
-    chr_device_t chr; // Its name, ops and ctxdata belong to the fb core
+    char_device_t chr; // Its name, ops and ctxdata belong to the fb core
     fb_device_private_t priv;
     const fb_device_ops_t* ops;
     vexfb_info_t info;

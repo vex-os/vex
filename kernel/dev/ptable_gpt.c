@@ -1,5 +1,5 @@
-#include <vex/blk_device.h>
-#include <vex/blk_ptable.h>
+#include <vex/block_device.h>
+#include <vex/block_ptable.h>
 #include <vex/compiler.h>
 #include <vex/crc32_iso3309.h>
 #include <vex/endian.h>
@@ -81,7 +81,7 @@ struct gpt_ptdata_s {
     uint8_t cached_entries[0];
 };
 
-static int gpt_check_header(const blk_device_t* restrict device, uintptr_t header_lba, gpt_ptdata_t** restrict ptdata)
+static int gpt_check_header(const block_device_t* restrict device, uintptr_t header_lba, gpt_ptdata_t** restrict ptdata)
 {
     uint8_t* sector = kmalloc(device->sector_size);
 
@@ -89,7 +89,7 @@ static int gpt_check_header(const blk_device_t* restrict device, uintptr_t heade
         return -ENOMEM;
     }
 
-    int retval = blk_read(device, header_lba, 1, sector);
+    int retval = block_read(device, header_lba, 1, sector);
 
     if(retval < 0) {
         kfree(sector);
@@ -144,7 +144,7 @@ static int gpt_check_header(const blk_device_t* restrict device, uintptr_t heade
         return -ENOMEM;
     }
 
-    retval = blk_read(device, entry_start_lba, entries_lbas, gpt->cached_entries);
+    retval = block_read(device, entry_start_lba, entries_lbas, gpt->cached_entries);
 
     if(retval < 0) {
         kfree(gpt);
@@ -163,10 +163,10 @@ static int gpt_check_header(const blk_device_t* restrict device, uintptr_t heade
     return 0;
 }
 
-static int gpt_detect(const blk_device_t* restrict device, void** restrict ptdata)
+static int gpt_detect(const block_device_t* restrict device, void** restrict ptdata)
 {
     pmbr_sector_t sector;
-    int retval = blk_read_sector_prefix(device, 0, &sector, sizeof(sector));
+    int retval = block_read_sector_prefix(device, 0, &sector, sizeof(sector));
 
     if(retval < 0) {
         return retval;
@@ -200,8 +200,8 @@ static int gpt_detect(const blk_device_t* restrict device, void** restrict ptdat
     return 0;
 }
 
-static int gpt_read_table(const blk_device_t* restrict device, void* restrict ptdata, unsigned index,
-    blk_partition_table_info_t* restrict out)
+static int gpt_read_table(const block_device_t* restrict device, void* restrict ptdata, unsigned index,
+    block_partition_table_info_t* restrict out)
 {
     static const uint8_t null_guid[16] = {}; // FIXME: a GUID library would be nice
 
@@ -255,20 +255,20 @@ static void gpt_release(void* ptdata)
     kfree(ptdata);
 }
 
-static const blk_partition_table_ops_t gpt_ptable_ops = {
+static const block_partition_table_ops_t gpt_ptable_ops = {
     .detect = &gpt_detect,
     .read_table = &gpt_read_table,
     .release = &gpt_release,
 };
 
-static blk_partition_table_t gpt_ptable = {
+static block_partition_table_t gpt_ptable = {
     .ops = &gpt_ptable_ops,
     .name = "gpt",
 };
 
 static void init_ptable_gpt(void)
 {
-    blk_partition_table_add(&gpt_ptable);
+    block_partition_table_add(&gpt_ptable);
 }
 
 initcall_bsp_dev(init_ptable_gpt, INIT_FIRST);

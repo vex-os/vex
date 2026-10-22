@@ -555,14 +555,14 @@ int uart16550_add(uart16550_t* restrict port)
 
 void uart16550_remove(uart16550_t* restrict port)
 {
-    chr_device_incref(&port->serial.chr);
+    char_device_incref(&port->serial.chr);
     serial_device_remove(&port->serial);
 }
 
 void uart16550_free(uart16550_t* restrict port)
 {
     if(port->added) {
-        chr_device_decref(&port->serial.chr);
+        char_device_decref(&port->serial.chr);
         return;
     }
 

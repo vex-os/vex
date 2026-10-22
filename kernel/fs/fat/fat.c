@@ -1,4 +1,4 @@
-#include <vex/blk_device.h>
+#include <vex/block_device.h>
 #include <vex/cmdline.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
@@ -15,11 +15,11 @@
 
 static_assert(sizeof(fat_vnode_context_t) <= SLAB_MAX_SIZE);
 
-static int fat_probe(vfs_t* restrict fs, const blk_device_t* restrict device)
+static int fat_probe(vfs_t* restrict fs, const block_device_t* restrict device)
 {
     fat_extparams_t boot;
 
-    int retval = blk_read_sector_prefix(device, 0, &boot, sizeof(boot));
+    int retval = block_read_sector_prefix(device, 0, &boot, sizeof(boot));
 
     if(retval < 0) {
         return retval;
@@ -42,7 +42,7 @@ static int fat_probe(vfs_t* restrict fs, const blk_device_t* restrict device)
     return 0;
 }
 
-static int fat_mount(vfs_t* restrict fs, const blk_device_t* restrict device, const cmdline_t* restrict params)
+static int fat_mount(vfs_t* restrict fs, const block_device_t* restrict device, const cmdline_t* restrict params)
 {
     if(device == nullptr) {
         return -EINVAL;
@@ -54,7 +54,7 @@ static int fat_mount(vfs_t* restrict fs, const blk_device_t* restrict device, co
         return -ENOMEM;
     }
 
-    int retval = blk_read_sector_prefix(device, 0, boot, sizeof(*boot));
+    int retval = block_read_sector_prefix(device, 0, boot, sizeof(*boot));
 
     if(retval < 0) {
         kfree(boot);

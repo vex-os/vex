@@ -1,4 +1,4 @@
-#include <vex/blk_device.h>
+#include <vex/block_device.h>
 #include <vex/endian.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
@@ -340,7 +340,7 @@ uintptr_t fat_cluster_alloc_zeroed(fat_vfs_context_t* restrict context)
             count = per_write;
         }
 
-        if(blk_write(context->device, lba + s, count, zeroes) < 0) {
+        if(block_write(context->device, lba + s, count, zeroes) < 0) {
             fat_cluster_free(context, cluster);
             return UINTPTR_MAX;
         }

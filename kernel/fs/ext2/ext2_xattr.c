@@ -1,4 +1,4 @@
-#include <vex/blk_device.h>
+#include <vex/block_device.h>
 #include <vex/errno.h>
 #include <vex/fcache.h>
 #include <vex/kmalloc.h>

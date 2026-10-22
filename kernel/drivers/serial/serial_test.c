@@ -1,4 +1,4 @@
-#include <vex/chr_device.h>
+#include <vex/char_device.h>
 #include <vex/clocksrc.h>
 #include <vex/dev_name.h>
 #include <vex/errno.h>
@@ -20,7 +20,7 @@
 #define TEST_MAX_SPEED 921600
 
 static serial_device_t test_port;
-static chr_device_t test_line;
+static char_device_t test_line;
 static event_t line_ready;
 static uint32_t test_modem;
 
@@ -58,7 +58,7 @@ static const serial_device_ops_t serial_test_ops = {
     .set_break = &serial_test_set_break,
 };
 
-static ssize_t test_line_read(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset, void* restrict buffer,
+static ssize_t test_line_read(const char_device_t* restrict device, void* restrict file_ctxdata, off_t offset, void* restrict buffer,
     size_t size, unsigned flags)
 {
     uint64_t deadline = clock_source_now_ns() + LINE_WAIT_NSEC;
@@ -81,14 +81,14 @@ static ssize_t test_line_read(const chr_device_t* restrict device, void* restric
     }
 }
 
-static ssize_t test_line_write(const chr_device_t* restrict device, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
+static ssize_t test_line_write(const char_device_t* restrict device, void* restrict file_ctxdata, off_t offset, const void* restrict buffer,
     size_t size, unsigned flags)
 {
     serial_receive(&test_port, buffer, size);
     return size;
 }
 
-static int test_line_ioctl(const chr_device_t* restrict device, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
+static int test_line_ioctl(const char_device_t* restrict device, void* restrict file_ctxdata, uint32_t request, uintptr_t argument)
 {
     int32_t value;
 
@@ -111,7 +111,7 @@ static int test_line_ioctl(const chr_device_t* restrict device, void* restrict f
     return 0;
 }
 
-static const chr_device_ops_t test_line_ops = {
+static const char_device_ops_t test_line_ops = {
     .read = &test_line_read,
     .write = &test_line_write,
     .ioctl = &test_line_ioctl,
@@ -134,7 +134,7 @@ static void init_serial_test(void)
     }
 
     if(retval == 0) {
-        retval = chr_device_add_unitless(&test_line, &dev_prefix_serialtest);
+        retval = char_device_add_unitless(&test_line, &dev_prefix_serialtest);
     }
 
     if(retval < 0) {

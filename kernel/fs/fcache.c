@@ -1,6 +1,6 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
-#include <vex/blk_device.h>
+#include <vex/block_device.h>
 #include <vex/errno.h>
 #include <vex/event.h>
 #include <vex/fcache.h>
@@ -222,7 +222,7 @@ static void remove_page(fcache_t* restrict cache, pframe_t* restrict pframe)
     }
 }
 
-static bool sector_size_valid(const blk_device_t* restrict device)
+static bool sector_size_valid(const block_device_t* restrict device)
 {
     return device->sector_size && device->sector_size <= PAGE_SIZE && 0 == (PAGE_SIZE % device->sector_size);
 }
@@ -238,7 +238,7 @@ static unsigned sector_span(vnode_t* restrict node, size_t in_page, size_t lengt
 
 static int fill_page(vnode_t* restrict node, fcache_bmap_t bmap, pframe_t* restrict pframe, off_t size)
 {
-    const blk_device_t* device = node->fs->device;
+    const block_device_t* device = node->fs->device;
     size_t sector_size = device->sector_size;
     uint8_t* data = page_data(pframe);
 
@@ -267,7 +267,7 @@ static int fill_page(vnode_t* restrict node, fcache_bmap_t bmap, pframe_t* restr
         }
 
         if(extent.mapped) {
-            retval = blk_read(device, extent.lba, count, data + i * sector_size);
+            retval = block_read(device, extent.lba, count, data + i * sector_size);
 
             if(retval < 0) {
                 return retval;
@@ -311,7 +311,7 @@ static int allocate_span(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t po
 
 static int write_run(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t sector, size_t count, const uint8_t* restrict data)
 {
-    const blk_device_t* device = node->fs->device;
+    const block_device_t* device = node->fs->device;
 
     while(count > 0) {
         fcache_extent_t extent;
@@ -334,7 +334,7 @@ static int write_run(vnode_t* restrict node, fcache_bmap_t bmap, uint64_t sector
         // A hole stays a hole; the sectors
         // written to were allocated by fcache_write
         if(extent.mapped) {
-            retval = blk_write(device, extent.lba, chunk, data);
+            retval = block_write(device, extent.lba, chunk, data);
 
             if(retval < 0) {
                 return retval;
@@ -456,7 +456,7 @@ static void __noreturn writeback_thread(void* restrict arg)
 
 static int dev_bmap(vnode_t* restrict node, uint64_t sector, bool create, fcache_extent_t* restrict out)
 {
-    const blk_device_t* device = node->fs->device;
+    const block_device_t* device = node->fs->device;
 
     if(sector >= device->sector_count) {
         return -EIO;
@@ -471,7 +471,7 @@ static int dev_bmap(vnode_t* restrict node, uint64_t sector, bool create, fcache
 
 static off_t dev_size(const vnode_t* restrict node)
 {
-    const blk_device_t* device = node->fs->device;
+    const block_device_t* device = node->fs->device;
     return device->sector_count * device->sector_size;
 }
 

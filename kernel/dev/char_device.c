@@ -1,27 +1,27 @@
 #include <vex/assert.h>
 #include <vex/atomic.h>
-#include <vex/chr_device.h>
-#include <vex/chr_event.h>
+#include <vex/char_device.h>
+#include <vex/char_event.h>
 #include <vex/console.h>
 #include <vex/dev_name.h>
 #include <vex/fcntl.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 
-// Writers also hold chr_event_lock, which keeps the list still for
-// chr_device_for_each; the spinlock is for lookups from anywhere else
-static spinlock_t chr_devices_lock = SPINLOCK_INIT;
-static chr_device_t* chr_devices_head = nullptr;
+// Writers also hold char_event_lock, which keeps the list still for
+// char_device_for_each; the spinlock is for lookups from anywhere else
+static spinlock_t char_devices_lock = SPINLOCK_INIT;
+static char_device_t* char_devices_head = nullptr;
 
-static int chr_device_register_internal(chr_device_t* restrict device)
+static int char_device_register_internal(char_device_t* restrict device)
 {
-    chr_event_lock();
-    spinlock_acquire(&chr_devices_lock);
+    char_event_lock();
+    spinlock_acquire(&char_devices_lock);
 
-    for(chr_device_t* it = chr_devices_head; it; it = it->priv.next) {
+    for(char_device_t* it = char_devices_head; it; it = it->priv.next) {
         if(it == device) {
-            spinlock_release(&chr_devices_lock);
-            chr_event_unlock();
+            spinlock_release(&char_devices_lock);
+            char_event_unlock();
             return -EEXIST;
         }
     }
@@ -33,19 +33,19 @@ static int chr_device_register_internal(chr_device_t* restrict device)
     device->priv.open_count = 0;
     device->priv.exclusive = false;
 
-    device->priv.next = chr_devices_head;
-    chr_devices_head = device;
+    device->priv.next = char_devices_head;
+    char_devices_head = device;
 
-    spinlock_release(&chr_devices_lock);
+    spinlock_release(&char_devices_lock);
 
-    chr_event_notify(CHR_EVENT_DEVICE_ADDED, device);
+    char_event_notify(CHAR_EVENT_DEVICE_ADDED, device);
 
-    chr_event_unlock();
+    char_event_unlock();
 
     return 0;
 }
 
-static int add_named(chr_device_t* restrict device, const dev_name_t* restrict name)
+static int add_named(char_device_t* restrict device, const dev_name_t* restrict name)
 {
     int retval = dev_name_format(name, device->name, sizeof(device->name));
 
@@ -56,10 +56,10 @@ static int add_named(chr_device_t* restrict device, const dev_name_t* restrict n
     device->priv.name = *name;
     device->priv.dev = dev_name_to_dev(name);
 
-    return chr_device_register_internal(device);
+    return char_device_register_internal(device);
 }
 
-int chr_device_add(chr_device_t* restrict device, dev_unit_t* restrict unit, unsigned index)
+int char_device_add(char_device_t* restrict device, dev_unit_t* restrict unit, unsigned index)
 {
     dev_name_t name = {};
     name.prefix = unit->prefix;
@@ -70,7 +70,7 @@ int chr_device_add(chr_device_t* restrict device, dev_unit_t* restrict unit, uns
     return add_named(device, &name);
 }
 
-int chr_device_add_unitless(chr_device_t* restrict device, dev_prefix_t* restrict prefix)
+int char_device_add_unitless(char_device_t* restrict device, dev_prefix_t* restrict prefix)
 {
     kassert(prefix->claimed);
 
@@ -83,55 +83,55 @@ int chr_device_add_unitless(chr_device_t* restrict device, dev_prefix_t* restric
     return add_named(device, &name);
 }
 
-int chr_device_remove(chr_device_t* restrict device)
+int char_device_remove(char_device_t* restrict device)
 {
-    chr_event_lock();
-    spinlock_acquire(&chr_devices_lock);
+    char_event_lock();
+    spinlock_acquire(&char_devices_lock);
 
-    for(chr_device_t** prev = &chr_devices_head; *prev; prev = &(*prev)->priv.next) {
+    for(char_device_t** prev = &char_devices_head; *prev; prev = &(*prev)->priv.next) {
         if(*prev == device) {
             *prev = device->priv.next;
             device->priv.next = nullptr;
 
-            spinlock_release(&chr_devices_lock);
+            spinlock_release(&char_devices_lock);
 
             // Waits out an open or close already in the driver
             mutex_acquire(&device->priv.open_lock);
             atomic_store(&device->priv.removed, true, ATOMIC_RELEASE);
             mutex_release(&device->priv.open_lock);
 
-            chr_event_notify(CHR_EVENT_DEVICE_REMOVED, device);
+            char_event_notify(CHAR_EVENT_DEVICE_REMOVED, device);
 
-            chr_event_unlock();
+            char_event_unlock();
 
-            chr_device_decref(device);
+            char_device_decref(device);
 
             return 0;
         }
     }
 
-    spinlock_release(&chr_devices_lock);
-    chr_event_unlock();
+    spinlock_release(&char_devices_lock);
+    char_event_unlock();
 
     return -ENODEV;
 }
 
-void chr_device_revoke_mappings(const chr_device_t* restrict device)
+void char_device_revoke_mappings(const char_device_t* restrict device)
 {
-    chr_event_lock();
-    chr_event_notify(CHR_EVENT_MEMORY_CHANGED, device);
-    chr_event_unlock();
+    char_event_lock();
+    char_event_notify(CHAR_EVENT_MEMORY_CHANGED, device);
+    char_event_unlock();
 }
 
-void chr_device_incref(const chr_device_t* restrict device)
+void char_device_incref(const char_device_t* restrict device)
 {
-    chr_device_t* mutable_device = (chr_device_t*)(device);
+    char_device_t* mutable_device = (char_device_t*)(device);
     atomic_fetch_add(&mutable_device->priv.refcount, 1, ATOMIC_RELAXED);
 }
 
-void chr_device_decref(const chr_device_t* restrict device)
+void char_device_decref(const char_device_t* restrict device)
 {
-    chr_device_t* mutable_device = (chr_device_t*)(device);
+    char_device_t* mutable_device = (char_device_t*)(device);
 
     if(1 == atomic_fetch_sub(&mutable_device->priv.refcount, 1, ATOMIC_ACQ_REL)) {
         mutex_deinit(&mutable_device->priv.open_lock);
@@ -142,9 +142,9 @@ void chr_device_decref(const chr_device_t* restrict device)
     }
 }
 
-int chr_device_open(const chr_device_t* restrict device, unsigned flags, void** restrict file_ctxdata)
+int char_device_open(const char_device_t* restrict device, unsigned flags, void** restrict file_ctxdata)
 {
-    chr_device_t* mutable_device = (chr_device_t*)(device);
+    char_device_t* mutable_device = (char_device_t*)(device);
     int retval = 0;
 
     mutex_acquire(&mutable_device->priv.open_lock);
@@ -186,18 +186,18 @@ int chr_device_open(const chr_device_t* restrict device, unsigned flags, void** 
     return retval;
 }
 
-void chr_device_set_exclusive(const chr_device_t* restrict device, bool exclusive)
+void char_device_set_exclusive(const char_device_t* restrict device, bool exclusive)
 {
-    chr_device_t* mutable_device = (chr_device_t*)(device);
+    char_device_t* mutable_device = (char_device_t*)(device);
 
     mutex_acquire(&mutable_device->priv.open_lock);
     mutable_device->priv.exclusive = exclusive;
     mutex_release(&mutable_device->priv.open_lock);
 }
 
-bool chr_device_is_exclusive(const chr_device_t* restrict device)
+bool char_device_is_exclusive(const char_device_t* restrict device)
 {
-    chr_device_t* mutable_device = (chr_device_t*)(device);
+    char_device_t* mutable_device = (char_device_t*)(device);
 
     mutex_acquire(&mutable_device->priv.open_lock);
     bool exclusive = device->priv.exclusive;
@@ -206,9 +206,9 @@ bool chr_device_is_exclusive(const chr_device_t* restrict device)
     return exclusive;
 }
 
-int chr_device_refuse_opens(const chr_device_t* restrict device)
+int char_device_refuse_opens(const char_device_t* restrict device)
 {
-    chr_device_t* mutable_device = (chr_device_t*)(device);
+    char_device_t* mutable_device = (char_device_t*)(device);
     int retval = 0;
 
     mutex_acquire(&mutable_device->priv.open_lock);
@@ -225,9 +225,9 @@ int chr_device_refuse_opens(const chr_device_t* restrict device)
     return retval;
 }
 
-void chr_device_close(const chr_device_t* restrict device, void* restrict file_ctxdata)
+void char_device_close(const char_device_t* restrict device, void* restrict file_ctxdata)
 {
-    chr_device_t* mutable_device = (chr_device_t*)(device);
+    char_device_t* mutable_device = (char_device_t*)(device);
 
     mutex_acquire(&mutable_device->priv.open_lock);
 
@@ -249,27 +249,27 @@ void chr_device_close(const chr_device_t* restrict device, void* restrict file_c
     mutex_release(&mutable_device->priv.open_lock);
 }
 
-const chr_device_t* chr_device_find(const char* restrict name)
+const char_device_t* char_device_find(const char* restrict name)
 {
-    spinlock_acquire(&chr_devices_lock);
+    spinlock_acquire(&char_devices_lock);
 
-    for(chr_device_t* it = chr_devices_head; it; it = it->priv.next) {
+    for(char_device_t* it = char_devices_head; it; it = it->priv.next) {
         if(0 == strcmp(it->name, name)) {
-            chr_device_incref(it);
-            spinlock_release(&chr_devices_lock);
+            char_device_incref(it);
+            spinlock_release(&char_devices_lock);
             return it;
         }
     }
 
-    spinlock_release(&chr_devices_lock);
+    spinlock_release(&char_devices_lock);
 
     return nullptr;
 }
 
-void chr_device_for_each(void (*callback)(const chr_device_t* restrict device, void* restrict arg), void* restrict arg)
+void char_device_for_each(void (*callback)(const char_device_t* restrict device, void* restrict arg), void* restrict arg)
 {
-    for(chr_device_t* it = chr_devices_head; it;) {
-        chr_device_t* next = it->priv.next;
+    for(char_device_t* it = char_devices_head; it;) {
+        char_device_t* next = it->priv.next;
         callback(it, arg);
         it = next;
     }

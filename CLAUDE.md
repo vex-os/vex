@@ -59,8 +59,8 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
   - An enum's typedef goes right after its definition, since enums can't be forward-declared.
   - Don't make pointer typedefs.
 - Name a variable or field after its type's stem (`thread_t* thread`, `file_t* file`), not an abbreviation such as `thrd` or `fp`. Use a role name such as `parent`, `curr` or `dir` when that says more. Prefer whole words to abbreviations in new names, except established terms (`vnode`, `pmap`, `pslab`, `pdma`, `hart`, `irq`).
-- A function named `_get`, `_find` or `_locate` that returns a reference-counted object (`process_locate`, `blk_device_find`, `process_get_cwd`) hands the caller a new reference to drop. Only a function that breaks this rule needs a comment saying so.
-- Public functions are named `<subsystem>_<verb>`: `blk_device_add_root`, `blk_device_find`, `blk_device_for_each`, not `add_blk_device_root`.
+- A function named `_get`, `_find` or `_locate` that returns a reference-counted object (`process_locate`, `block_device_find`, `process_get_cwd`) hands the caller a new reference to drop. Only a function that breaks this rule needs a comment saying so.
+- Public functions are named `<subsystem>_<verb>`: `block_device_add_root`, `block_device_find`, `block_device_for_each`, not `add_block_device_root`.
 - Test a bitmask against zero explicitly: `if(0 == (flags & FLAG))`, not `if(!(flags & FLAG))`.
 - Compare pointers to `nullptr` only for the null case (`if(ptr == nullptr)`); for non-null, use the pointer itself (`if(ptr)`). A call whose result only signals failure can be negated directly: `if(!pmentry_get(table, i, true))`.
 - Don't dereference a call's result in place (`this_hart()->caps`, `pframe_of(phys)->flags`). Put the result in a named local first (`hart_local_t* hart = this_hart();`), then use its fields. `(*prev)->next` in list walks is a plain pointer dereference and is fine.

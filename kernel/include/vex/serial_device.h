@@ -1,6 +1,6 @@
 #pragma once
 
-#include <vex/chr_device.h>
+#include <vex/char_device.h>
 #include <vex/compiler.h>
 #include <vex/console.h>
 #include <vex/mutex.h>
@@ -88,7 +88,7 @@ struct serial_device_private_s {
 };
 
 struct serial_device_s {
-    chr_device_t chr; // Its ops and ctxdata belong to the serial core
+    char_device_t chr; // Its ops and ctxdata belong to the serial core
     serial_device_private_t priv;
     const serial_device_ops_t* ops;
     const char* driver;
