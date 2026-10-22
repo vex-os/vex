@@ -167,9 +167,7 @@ static void rescan_node(device_t* device)
         device->bus_ops->rescan(device);
     }
 
-    if(device->fwnode.ops) {
-        device_sync_firmware_children(device);
-    }
+    device_sync_firmware_children(device);
 
     device_t* child = device_next_child(device, nullptr);
 

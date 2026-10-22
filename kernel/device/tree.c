@@ -147,19 +147,28 @@ static int add_node(device_t* restrict parent, const fwnode_t* restrict fwnode, 
     child->priv.unplaced = unplaced;
 
     device_incref(parent);
-    device_incref(child);
 
     mutex_acquire(&device_tree_mutex);
 
     device_t** tail = &parent->priv.children;
+    bool taken = false;
 
     while(*tail) {
+        taken = taken || 0 == strcmp((*tail)->name, child->name);
         tail = &(*tail)->priv.next;
     }
 
-    *tail = child;
+    if(!taken) {
+        device_incref(child);
+        *tail = child;
+    }
 
     mutex_release(&device_tree_mutex);
+
+    if(taken) {
+        device_decref(child);
+        return -EEXIST;
+    }
 
     char path[DEVICE_PATH_MAX];
     device_get_path(child, path, sizeof(path));
@@ -213,9 +222,10 @@ static void place_firmware_child(device_t* restrict parent, const fwnode_t* rest
     }
 
     device_t* device = nullptr;
+    int retval = add_node(parent, child, name, nullptr, true, &device);
 
-    if(add_node(parent, child, name, nullptr, true, &device) < 0) {
-        pr_warning("device: out of memory");
+    if(retval < 0) {
+        pr_warning("device: %s: %s", name, strerror(retval));
         return;
     }
 
@@ -311,7 +321,14 @@ device_t* device_find_by_fwnode(const fwnode_t* restrict fwnode)
 
 void device_sync_firmware_children(device_t* restrict device)
 {
-    fwnode_for_each_child(&device->fwnode, &sync_firmware_child, device);
+    char path[DEVICE_PATH_MAX];
+    device_get_path(device, path, sizeof(path));
+
+    if(device->fwnode.ops) {
+        fwnode_for_each_child(&device->fwnode, &sync_firmware_child, device);
+    }
+
+    fwnode_for_each_fixed_option(path, &sync_firmware_child, device);
 }
 
 device_t* device_get_root(void)

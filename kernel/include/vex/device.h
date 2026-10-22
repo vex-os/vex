@@ -73,6 +73,7 @@ device_t* device_get_root(void) __nodiscard;
 /// @param name The last component of the node's path, such as pci:0000:00:1f.0 or acpi:SIO
 /// @param bus_data What the parent bus keeps about the node, or nullptr. It is set before /dev/devctl tells of the node
 /// @param device Gets a new reference to the node, beside the one the tree holds
+/// @retval -EEXIST The parent has a child with the name
 /// @retval -ENOMEM Out of memory
 int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, void* restrict bus_data,
     device_t** restrict device);
@@ -84,6 +85,7 @@ int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const
 /// @param name The last component of the node's path, such as ioapic:0
 /// @param ctxdata What the driver keeps, which stays the caller's if the call fails
 /// @param device Gets a new reference to the node, beside the one the tree holds
+/// @retval -EEXIST The parent has a child with the name
 /// @retval -ENOMEM Out of memory
 int device_add_bound(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, const driver_t* restrict driver,
     void* restrict ctxdata, device_t** restrict device);

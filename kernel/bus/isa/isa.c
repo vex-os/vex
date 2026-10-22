@@ -4,6 +4,7 @@
 #include <vex/fwnode.h>
 #include <vex/kprintf.h>
 #include <vex/sprintf.h>
+#include <vex/string.h>
 
 #include "isa_internal.h"
 
@@ -62,9 +63,10 @@ static int isa_place_child(device_t* restrict bridge, const fwnode_t* restrict c
     }
 
     device_t* device = nullptr;
+    int retval = device_add(bridge, child, name, nullptr, &device);
 
-    if(device_add(bridge, child, name, nullptr, &device) < 0) {
-        pr_warning("isa: out of memory");
+    if(retval < 0) {
+        pr_warning("isa: %s: %s", name, strerror(retval));
         return 0;
     }
 

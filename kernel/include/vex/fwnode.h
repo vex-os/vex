@@ -118,6 +118,10 @@ int fwnode_root(fwnode_t* restrict root);
 /// Makes a node of a fixed description, which has to outlive every copy of the node
 void fwnode_init_fixed(fwnode_t* restrict node, const fwnode_fixed_t* restrict fixed);
 
+/// Calls back for each node that a fixed= option of the command line puts under the node with the path
+/// @note The nodes are fixed ones, and their descriptions live as long as the kernel
+void fwnode_for_each_fixed_option(const char* restrict parent_path, void (*callback)(const fwnode_t* child, void* arg), void* arg);
+
 /// @return Whether two nodes are the same device of the firmware
 static __always_inline bool fwnode_is_same(const fwnode_t* first, const fwnode_t* second)
 {
