@@ -42,7 +42,7 @@ int strcasecmp(const char* restrict sa, const char* restrict sb)
         sb += 1;
     }
 
-    return tolower((unsigned char)*sa) - tolower((unsigned char)*sb);
+    return tolower((unsigned char)(*sa)) - tolower((unsigned char)(*sb));
 }
 
 int strncasecmp(const char* restrict sa, const char* restrict sb, size_t size)

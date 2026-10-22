@@ -39,8 +39,8 @@ static credentials_t* cred_alloc(size_t num_groups)
 
 static int compare_gids(const void* a, const void* b)
 {
-    gid_t gid_a = *(const gid_t*)a;
-    gid_t gid_b = *(const gid_t*)b;
+    gid_t gid_a = *(const gid_t*)(a);
+    gid_t gid_b = *(const gid_t*)(b);
 
     if(gid_a < gid_b) {
         return -1;
@@ -165,7 +165,7 @@ bool cred_capable(const credentials_t* restrict credentials, unsigned cap)
     kassert(credentials);
     kassert(cap < 64);
 
-    return (bool)(credentials->cap_effective & CAP_TO_MASK(cap));
+    return credentials->cap_effective & CAP_TO_MASK(cap);
 }
 
 int cred_setcaps(credentials_t* restrict credentials, const caps_t* restrict caps)

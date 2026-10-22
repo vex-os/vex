@@ -243,7 +243,7 @@ int fat_dirent_write(const fat_vfs_context_t* restrict context, uintptr_t cluste
             pos = base + j;
 
             if(pos < name_length) {
-                ldir->name_1[j] = htole16((uint16_t)(unsigned char)entry->full_name[pos]);
+                ldir->name_1[j] = htole16((uint16_t)(unsigned char)(entry->full_name[pos]));
             }
             else if(pos == name_length) {
                 ldir->name_1[j] = htole16(0x0000);
@@ -257,7 +257,7 @@ int fat_dirent_write(const fat_vfs_context_t* restrict context, uintptr_t cluste
             pos = base + j + 5;
 
             if(pos < name_length) {
-                ldir->name_2[j] = htole16((uint16_t)(unsigned char)entry->full_name[pos]);
+                ldir->name_2[j] = htole16((uint16_t)(unsigned char)(entry->full_name[pos]));
             }
             else if(pos == name_length) {
                 ldir->name_2[j] = htole16(0x0000);
@@ -271,7 +271,7 @@ int fat_dirent_write(const fat_vfs_context_t* restrict context, uintptr_t cluste
             pos = base + j + 11;
 
             if(pos < name_length) {
-                ldir->name_3[j] = htole16((uint16_t)(unsigned char)entry->full_name[pos]);
+                ldir->name_3[j] = htole16((uint16_t)(unsigned char)(entry->full_name[pos]));
             }
             else if(pos == name_length) {
                 ldir->name_3[j] = htole16(0x0000);

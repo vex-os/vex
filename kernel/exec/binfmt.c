@@ -77,7 +77,7 @@ int load_binary(vmspace_t* restrict vmspace, file_t* restrict file, const char**
 
     for(binfmt_t* it = next_binfmt(nullptr); it; it = next_binfmt(it)) {
         if(it->ops->probe && it->ops->setup) {
-            int retval = it->ops->probe(file, header, (size_t)read);
+            int retval = it->ops->probe(file, header, (size_t)(read));
 
             if(retval == -ENOEXEC) {
                 continue;

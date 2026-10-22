@@ -94,7 +94,7 @@ static int setup_geometry(ext2_vfs_context_t* restrict context)
 
     uint32_t groups_count = (blocks_count - first_data_block + blocks_per_group - 1) / blocks_per_group;
 
-    if((uint64_t)groups_count * inodes_per_group != inodes_count) {
+    if((uint64_t)(groups_count) * inodes_per_group != inodes_count) {
         return -EINVAL;
     }
 
@@ -257,7 +257,7 @@ static int fill_root(vfs_t* restrict fs, ext2_vfs_context_t* restrict context)
 static int mark_mounted(ext2_vfs_context_t* restrict context)
 {
     ext2_superblock_t* super = &context->super;
-    int16_t max_mnt_count = (int16_t)le16toh(super->s_max_mnt_count);
+    int16_t max_mnt_count = (int16_t)(le16toh(super->s_max_mnt_count));
     uint16_t mnt_count = le16toh(super->s_mnt_count) + 1;
 
     if(max_mnt_count > 0 && mnt_count >= max_mnt_count) {
@@ -434,7 +434,7 @@ static int ext2_fill_node(vfs_t* restrict fs, vnode_t* restrict node)
     node_context->fs_ctx = context;
 
     mutex_acquire(&context->lock);
-    int retval = ext2_inode_read(context, (uint32_t)node->ino, &node_context->inode);
+    int retval = ext2_inode_read(context, (uint32_t)(node->ino), &node_context->inode);
     mutex_release(&context->lock);
 
     if(retval == 0 && 0 == le16toh(node_context->inode.i_links_count)) {
@@ -470,7 +470,7 @@ int ext2_super_commit(ext2_vfs_context_t* restrict context)
 
 int ext2_group_commit(ext2_vfs_context_t* restrict context, uint32_t group)
 {
-    uint64_t offset = context->groups_offset + (uint64_t)group * sizeof(ext2_group_desc_t);
+    uint64_t offset = context->groups_offset + (uint64_t)(group) * sizeof(ext2_group_desc_t);
     return fcache_dev_write(context->device_node, offset, &context->groups[group], sizeof(ext2_group_desc_t));
 }
 

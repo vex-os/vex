@@ -104,7 +104,7 @@ static void recalc_locked(thread_t* restrict thread)
 
 static bool leaving(const thread_t* restrict thread)
 {
-    return (bool)(atomic_load(&thread->pending_work, ATOMIC_ACQUIRE) & THREAD_WORK_EXIT);
+    return atomic_load(&thread->pending_work, ATOMIC_ACQUIRE) & THREAD_WORK_EXIT;
 }
 
 static thread_t* choose_thread_locked(process_t* restrict process, sigset_t bit)

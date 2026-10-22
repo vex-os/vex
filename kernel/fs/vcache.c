@@ -21,7 +21,7 @@ static spinlock_t cache_lock = SPINLOCK_INIT;
 static unsigned hash_bucket(vfs_t* restrict fs, ino_t ino)
 {
     uint64_t hash;
-    hash = (uint64_t)(uintptr_t)fs;
+    hash = (uint64_t)(uintptr_t)(fs);
     hash *= UINT64_C(0x9E3779B97F4A7C15);
     hash ^= ino * UINT64_C(0x517CC1B727220A95);
     hash >>= 56;

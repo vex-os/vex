@@ -66,18 +66,18 @@ static __always_inline __nodiscard bool ata_identify_has_lba48(const ata_identif
 static __always_inline __nodiscard size_t ata_identify_lba48_capacity(const ata_identify_t packet)
 {
     size_t result = 0;
-    result |= (size_t)le16toh(packet[100]);
-    result |= (size_t)le16toh(packet[101]) << 16;
-    result |= (size_t)le16toh(packet[102]) << 32;
-    result |= (size_t)le16toh(packet[103]) << 48;
+    result |= (size_t)(le16toh(packet[100]));
+    result |= (size_t)(le16toh(packet[101])) << 16;
+    result |= (size_t)(le16toh(packet[102])) << 32;
+    result |= (size_t)(le16toh(packet[103])) << 48;
     return result;
 }
 
 static __always_inline __nodiscard size_t ata_identify_lba28_capacity(const ata_identify_t packet)
 {
     size_t result = 0;
-    result |= (size_t)le16toh(packet[60]);
-    result |= (size_t)le16toh(packet[61]) << 16;
+    result |= (size_t)(le16toh(packet[60]));
+    result |= (size_t)(le16toh(packet[61])) << 16;
     return result;
 }
 
@@ -93,8 +93,8 @@ static __always_inline __nodiscard size_t ata_identify_logical_sector_size(const
     size_t result = 0;
 
     if(le16toh(packet[106]) & UINT16_C(0x1000)) {
-        result |= (size_t)le16toh(packet[117]);
-        result |= (size_t)le16toh(packet[118]) << 16;
+        result |= (size_t)(le16toh(packet[117]));
+        result |= (size_t)(le16toh(packet[118])) << 16;
         return result;
     }
 

@@ -124,7 +124,7 @@ static intptr_t sys_mmap(const uintptr_t* restrict args)
         return -EBADF;
     }
 
-    bool device = file->node->ops->resolve_page != nullptr;
+    bool device = file->node->ops->resolve_page;
     bool shared = sharing == MAP_SHARED;
     bool readonly = !device && file->node->fs->readonly; // A device node stays writable on a read-only filesystem
     bool may_write = !shared || ((file->flags & O_WRONLY) && !readonly);

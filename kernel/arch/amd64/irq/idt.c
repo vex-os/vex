@@ -39,9 +39,9 @@ static void set_entry(idt_entry_t* restrict entry, bool trap, uint16_t selector,
 {
     memset(entry, 0, sizeof(*entry));
 
-    entry->offset_0 = ((uintptr_t)pfn & 0x000000000000FFFF);
-    entry->offset_1 = ((uintptr_t)pfn & 0x00000000FFFF0000) >> 16;
-    entry->offset_2 = ((uintptr_t)pfn & 0xFFFFFFFF00000000) >> 32;
+    entry->offset_0 = ((uintptr_t)(pfn) & 0x000000000000FFFF);
+    entry->offset_1 = ((uintptr_t)(pfn) & 0x00000000FFFF0000) >> 16;
+    entry->offset_2 = ((uintptr_t)(pfn) & 0xFFFFFFFF00000000) >> 32;
     entry->selector = selector;
     entry->flags = IDT_PRESENT;
 

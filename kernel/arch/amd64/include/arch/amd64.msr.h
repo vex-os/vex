@@ -18,7 +18,7 @@ static __always_inline __nodiscard uint64_t rdmsr(uint32_t msreg)
 {
     uint32_t lo, hi;
     asm volatile("rdmsr" : "=a"(lo), "=d"(hi) : "c"(msreg));
-    return ((uint64_t)hi << 32) | (uint64_t)lo;
+    return ((uint64_t)(hi) << 32) | (uint64_t)(lo);
 }
 
 static __always_inline void wrmsr(uint32_t msreg, uint64_t value)

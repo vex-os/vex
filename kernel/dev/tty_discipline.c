@@ -385,7 +385,7 @@ static bool erase_last(tty_interface_t* restrict interface)
 
 static bool erases_visibly(const termios_t* restrict termios)
 {
-    return (bool)(termios->c_lflag & (ECHOE | ECHOPRT));
+    return termios->c_lflag & (ECHOE | ECHOPRT);
 }
 
 static void erase(tty_interface_t* restrict interface, uint8_t byte)

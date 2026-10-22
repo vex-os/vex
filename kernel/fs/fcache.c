@@ -684,7 +684,7 @@ int fcache_fault(vnode_t* restrict node, fcache_bmap_t bmap, off_t offset, off_t
 
     uint64_t index = offset / PAGE_SIZE;
 
-    bool write = (bool)(vprot & VPROT_WRITE);
+    bool write = vprot & VPROT_WRITE;
 
     if(write && node->fs->readonly) {
         return -EROFS;

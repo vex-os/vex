@@ -109,8 +109,8 @@ static void read_bus_windows(const pci_bus_t* restrict bus, pci_window_list_t* r
 
 static bool fits_window(const pci_window_t* restrict window, const pci_bar_t* restrict bar)
 {
-    bool is_io = 0 != (bar->flags & PCI_BAR_IO);
-    bool prefetchable = 0 != (bar->flags & PCI_BAR_PREFETCH);
+    bool is_io = bar->flags & PCI_BAR_IO;
+    bool prefetchable = bar->flags & PCI_BAR_PREFETCH;
 
     return window->is_io == is_io && (prefetchable || !window->prefetchable);
 }
@@ -138,7 +138,7 @@ static bool function_takes(pci_function_t* restrict function, bool is_io, uint64
 {
     for(unsigned i = 0; i < PCI_BAR_MAX; ++i) {
         const pci_bar_t* bar = &function->priv.bars[i];
-        bool bar_is_io = 0 != (bar->flags & PCI_BAR_IO);
+        bool bar_is_io = bar->flags & PCI_BAR_IO;
 
         if(bar->length && bar->assigned && bar_is_io == is_io && overlaps(start, end, bar->address, bar->address + bar->length)) {
             *taken_end = bar->address + bar->length;
@@ -301,7 +301,7 @@ static void read_bar(pci_function_t* restrict function, unsigned index)
 
     if(mask != UINT64_C(0xFFFFFFFF00000000) && mask != UINT64_C(0xFFFFFFFFFFFF0000)) {
         bar->length = ~mask + 1;
-        bar->assigned = address != 0;
+        bar->assigned = address;
     }
 }
 
@@ -324,7 +324,7 @@ static space_decode_t assign_space(const pci_bus_t* restrict bus, pci_function_t
     for(unsigned i = 0; i < PCI_BAR_MAX; ++i) {
         pci_bar_t* bar = &function->priv.bars[i];
 
-        if(bar->length == 0 || (0 != (bar->flags & PCI_BAR_IO)) != is_io) {
+        if(bar->length == 0 || (bool)(bar->flags & PCI_BAR_IO) != is_io) {
             continue;
         }
 
@@ -363,7 +363,7 @@ static space_decode_t assign_space(const pci_bus_t* restrict bus, pci_function_t
         for(unsigned i = 0; i < PCI_BAR_MAX; ++i) {
             pci_bar_t* bar = &function->priv.bars[i];
 
-            if(bar->length && (0 != (bar->flags & PCI_BAR_IO)) == is_io) {
+            if(bar->length && is_io == (bool)(bar->flags & PCI_BAR_IO)) {
                 bar->assigned = false;
             }
         }

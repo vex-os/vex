@@ -242,7 +242,7 @@ void* krealloc(void* restrict ptr, size_t size)
 
     bool intr_state = spinlock_acquire_intr(&heap_lock);
 
-    memblock_t* block = find_block_at((uintptr_t)ptr);
+    memblock_t* block = find_block_at((uintptr_t)(ptr));
 
     if(block == nullptr) {
         spinlock_release_intr(&heap_lock, intr_state);
@@ -278,7 +278,7 @@ void kfree(void* restrict ptr)
 
     bool intr_state = spinlock_acquire_intr(&heap_lock);
 
-    memblock_t* block = find_block_at((uintptr_t)ptr);
+    memblock_t* block = find_block_at((uintptr_t)(ptr));
 
     if(block == nullptr || block->type == BLOCK_TYPE_FREE) {
         spinlock_release_intr(&heap_lock, intr_state);

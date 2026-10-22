@@ -4,7 +4,7 @@
 #include <vex/limits.h>
 #include <vex/types.h>
 
-#define BITMAP_BIT(bit) (UINT32_C(1) << ((uint32_t)bit))
+#define BITMAP_BIT(bit) (UINT32_C(1) << ((uint32_t)(bit)))
 
 #define BITMAP_CHUNK_BITS 32
 #define BITMAP_MASK_CLEAR UINT32_C(0x00000000)

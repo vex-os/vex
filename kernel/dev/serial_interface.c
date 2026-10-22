@@ -56,7 +56,7 @@ static bool is_removed(const serial_interface_t* restrict interface)
 
 static bool is_terminated(const char* restrict buffer, size_t size)
 {
-    return (bool)(memchr(buffer, 0, size));
+    return memchr(buffer, 0, size);
 }
 
 static void sleep_msec(uint32_t msec)

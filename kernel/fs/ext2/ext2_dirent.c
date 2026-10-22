@@ -44,7 +44,7 @@ static int read_exact(vnode_t* restrict dir, void* restrict buffer, size_t size,
         return done;
     }
 
-    if((size_t)done != size) {
+    if((size_t)(done) != size) {
         return -EIO;
     }
 
@@ -61,7 +61,7 @@ static int write_exact(vnode_t* restrict dir, const void* restrict buffer, size_
         return done;
     }
 
-    if((size_t)done != size) {
+    if((size_t)(done) != size) {
         return -EIO;
     }
 
@@ -103,7 +103,7 @@ static void fill_record(const ext2_vfs_context_t* restrict fs_ctx, uint8_t* rest
 
     head->inode = htole32(ino);
     head->rec_len = rec_len_to_disk(rec_len);
-    head->name_len = (uint8_t)name_len;
+    head->name_len = (uint8_t)(name_len);
     head->file_type = 0;
 
     if(has_filetype(fs_ctx)) {

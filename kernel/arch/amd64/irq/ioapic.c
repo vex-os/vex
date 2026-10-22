@@ -92,8 +92,8 @@ static rte_entry_t ioapic_get_rte(ioapic_data_t* data, uint8_t irq)
     uint32_t index = IOAPIC_REG_TBL_BASE + irq * IOAPIC_REG_TBL_STRIDE;
 
     uint64_t raw = UINT64_C(0);
-    raw |= (uint64_t)ioapic_read(data, index + 0);
-    raw |= (uint64_t)ioapic_read(data, index + 1) << 32;
+    raw |= (uint64_t)(ioapic_read(data, index + 0));
+    raw |= (uint64_t)(ioapic_read(data, index + 1)) << 32;
 
     rte_entry_t entry;
     memcpy(&entry, &raw, sizeof(entry));
@@ -239,7 +239,7 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         controller->ctxdata = data;
         controller->device = nullptr;
 
-        controller->name = kasprintf("ioapic%u", (unsigned)id);
+        controller->name = kasprintf("ioapic%u", (unsigned)(id));
 
         if(!controller->name) {
             panic("ioapic: out of memory");

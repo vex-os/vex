@@ -1050,7 +1050,7 @@ static int set_attr_locked(vnode_t* restrict node, const vnode_attr_t* restrict 
         return -EROFS;
     }
 
-    if((attr->mask & VATTR_SIZE) && (size_t)attr->size != context->size_bytes) {
+    if((attr->mask & VATTR_SIZE) && (size_t)(attr->size) != context->size_bytes) {
         int retval = resize_locked(node, attr->size);
 
         if(retval < 0) {

@@ -168,8 +168,8 @@ static uintptr_t pmap_resolve_address_nolock(pmap_t* restrict pmap, uintptr_t vi
 
 static int map_kernel_section(const void* restrict start, const void* restrict end, unsigned vprot)
 {
-    uintptr_t virt = page_align((uintptr_t)start);
-    uintptr_t virt_end = page_align_up((uintptr_t)end);
+    uintptr_t virt = page_align((uintptr_t)(start));
+    uintptr_t virt_end = page_align_up((uintptr_t)(end));
     uintptr_t phys = virt - kernel_base_virt + kernel_base_phys;
 
     return pmap_map_range(&sys_pmap, virt, phys, virt_end - virt, vprot);

@@ -12,5 +12,5 @@ static __always_inline __nodiscard void* phys_to_virt(uintptr_t phys)
 
 static __always_inline __nodiscard uintptr_t virt_to_phys(const void* virt)
 {
-    return (uintptr_t)virt - hhdm_base;
+    return (uintptr_t)(virt) - hhdm_base;
 }

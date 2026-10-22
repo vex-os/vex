@@ -623,7 +623,7 @@ static ssize_t write_locked(vnode_t* restrict node, const void* restrict buffer,
 {
     echfs_vnode_context_t* ctx = node->ctxdata;
 
-    if((uint64_t)offset > ctx->size) {
+    if((uint64_t)(offset) > ctx->size) {
         int retval = zero_fill_locked(node, ctx->size, offset);
 
         if(retval < 0) {
@@ -735,7 +735,7 @@ static int resize_locked(vnode_t* restrict node, off_t size)
 {
     echfs_vnode_context_t* ctx = node->ctxdata;
 
-    if((uint64_t)size > ctx->size) {
+    if((uint64_t)(size) > ctx->size) {
         return zero_fill_locked(node, ctx->size, size);
     }
 
@@ -754,7 +754,7 @@ static int set_attr_locked(vnode_t* restrict node, const vnode_attr_t* restrict 
         }
     }
 
-    if((attr->mask & VATTR_SIZE) && (uint64_t)attr->size != ctx->size) {
+    if((attr->mask & VATTR_SIZE) && (uint64_t)(attr->size) != ctx->size) {
         int retval = resize_locked(node, attr->size);
 
         if(retval < 0) {

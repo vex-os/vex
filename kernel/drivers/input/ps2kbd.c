@@ -52,7 +52,7 @@ static void ps2kbd_irq(unsigned number, const hart_context_t* restrict ctx, void
         pr_verbose("ps2kbd: key up   scancode=0x%02X", (unsigned)(scancode & 0x7F));
     }
     else {
-        pr_verbose("ps2kbd: key down scancode=0x%02X", (unsigned)scancode);
+        pr_verbose("ps2kbd: key down scancode=0x%02X", (unsigned)(scancode));
     }
 }
 

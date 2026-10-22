@@ -307,7 +307,7 @@ static ssize_t write_locked(vnode_t* restrict node, const void* restrict buffer,
 
     int retval = 0;
 
-    if((uint64_t)offset > size) {
+    if((uint64_t)(offset) > size) {
         retval = clear_tail_locked(node, size, offset);
     }
 
@@ -315,7 +315,7 @@ static ssize_t write_locked(vnode_t* restrict node, const void* restrict buffer,
         retval = fill_hole_locked(node, offset, limit);
     }
 
-    if(retval == 0 && (end - 1) / block_size != (uint64_t)offset / block_size) {
+    if(retval == 0 && (end - 1) / block_size != (uint64_t)(offset) / block_size) {
         retval = fill_hole_locked(node, end - 1, limit);
     }
 
@@ -1025,7 +1025,7 @@ static int ext2_vnode_stat(vnode_t* restrict node, stat_t* restrict out)
     out->st_nlink = le16toh(inode->i_links_count);
     out->st_uid = ext2_inode_uid(fs_ctx, inode);
     out->st_gid = ext2_inode_gid(fs_ctx, inode);
-    out->st_size = (off_t)ext2_inode_size(inode);
+    out->st_size = (off_t)(ext2_inode_size(inode));
     ext2_inode_get_time(inode, EXT2_ATIME, &out->st_atim);
     ext2_inode_get_time(inode, EXT2_MTIME, &out->st_mtim);
     ext2_inode_get_time(inode, EXT2_CTIME, &out->st_ctim);

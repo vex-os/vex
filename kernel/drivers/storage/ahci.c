@@ -391,7 +391,7 @@ static void ahci_setup(ahci_port_t* restrict port, uint64_t lba, uint8_t cmd, ui
 {
     volatile ata_fis_h2d_t* fis = (volatile ata_fis_h2d_t*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
 
-    memset((void*)fis, 0, sizeof(ata_fis_h2d_t));
+    memset((void*)(fis), 0, sizeof(ata_fis_h2d_t));
 
     ahci_setup_header(port, write ? CMD_HEADER_W : 0, segments, num_segments);
 
@@ -442,7 +442,7 @@ static int ahci_identify(ahci_port_t* restrict port, ata_identify_t identify)
     segment.phys = port->dma_phys + DMA_OFFSET_DATABUF;
     segment.length = sizeof(ata_identify_t);
 
-    memset((void*)databuf, 0, sizeof(ata_identify_t));
+    memset((void*)(databuf), 0, sizeof(ata_identify_t));
 
     ahci_setup(port, 0, ATA_CMD_IDENTIFY, 0, &segment, 1, false);
 
@@ -486,7 +486,7 @@ static void ahci_atapi_setup(ahci_port_t* restrict port, const atapi_cdb_t cdb, 
     volatile ata_fis_h2d_t* fis = (volatile ata_fis_h2d_t*)(port->dma_virt + DMA_OFFSET_CMDTABLE);
     volatile uint8_t* atapi_area = port->dma_virt + DMA_OFFSET_CMDTABLE + CMDTABLE_ACMD;
 
-    memset((void*)fis, 0, sizeof(ata_fis_h2d_t));
+    memset((void*)(fis), 0, sizeof(ata_fis_h2d_t));
 
     ahci_setup_header(port, (write ? CMD_HEADER_W : 0) | CMD_HEADER_A, segments, num_segments);
 
@@ -497,7 +497,7 @@ static void ahci_atapi_setup(ahci_port_t* restrict port, const atapi_cdb_t cdb, 
     fis->lba1 = byte_count & 0xFF;
     fis->lba2 = (byte_count >> 8) & 0xFF;
 
-    memcpy((void*)atapi_area, cdb, sizeof(atapi_cdb_t));
+    memcpy((void*)(atapi_area), cdb, sizeof(atapi_cdb_t));
 }
 
 static int ahci_atapi_capacity(ahci_port_t* restrict port, size_t* restrict sector_count, size_t* restrict sector_size)
@@ -514,7 +514,7 @@ static int ahci_atapi_capacity(ahci_port_t* restrict port, size_t* restrict sect
     segment.phys = port->dma_phys + DMA_OFFSET_DATABUF;
     segment.length = sizeof(result);
 
-    memset((void*)databuf, 0, sizeof(result));
+    memset((void*)(databuf), 0, sizeof(result));
 
     ahci_atapi_setup(port, cdb, &segment, 1, sizeof(result), false);
 
@@ -524,18 +524,18 @@ static int ahci_atapi_capacity(ahci_port_t* restrict port, size_t* restrict sect
         return retval;
     }
 
-    memcpy(result, (const void*)databuf, sizeof(result));
+    memcpy(result, (const void*)(databuf), sizeof(result));
 
-    *sector_count = (size_t)result[0] << 24;
-    *sector_count |= (size_t)result[1] << 16;
-    *sector_count |= (size_t)result[2] << 8;
-    *sector_count |= (size_t)result[3];
+    *sector_count = (size_t)(result[0]) << 24;
+    *sector_count |= (size_t)(result[1]) << 16;
+    *sector_count |= (size_t)(result[2]) << 8;
+    *sector_count |= (size_t)(result[3]);
     *sector_count += 1;
 
-    *sector_size = (size_t)result[4] << 24;
-    *sector_size |= (size_t)result[5] << 16;
-    *sector_size |= (size_t)result[6] << 8;
-    *sector_size |= (size_t)result[7];
+    *sector_size = (size_t)(result[4]) << 24;
+    *sector_size |= (size_t)(result[5]) << 16;
+    *sector_size |= (size_t)(result[6]) << 8;
+    *sector_size |= (size_t)(result[7]);
 
     return 0;
 }

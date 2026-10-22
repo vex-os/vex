@@ -119,7 +119,7 @@ int devfs_insert(vfs_t* restrict fs, const char* restrict name, vnode_t* restric
     kstrncpy(entry->name, name, sizeof(entry->name));
 
     node->fs = fs;
-    node->ino = (ino_t)(uintptr_t)node;
+    node->ino = (ino_t)(uintptr_t)(node);
 
     int retval = vcache_insert_pinned(node);
 

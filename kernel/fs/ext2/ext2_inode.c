@@ -73,13 +73,13 @@ static int table_set(ext2_vfs_context_t* restrict context, ext2_inode_t* restric
 
 static void add_blocks(const ext2_vfs_context_t* restrict context, ext2_inode_t* restrict inode, int count)
 {
-    int64_t sectors = (int64_t)le32toh(inode->i_blocks) + count * (int64_t)(context->block_size / 512);
+    int64_t sectors = (int64_t)(le32toh(inode->i_blocks)) + count * (int64_t)(context->block_size / 512);
 
     if(sectors < 0) {
         sectors = 0;
     }
 
-    inode->i_blocks = htole32((uint32_t)sectors);
+    inode->i_blocks = htole32((uint32_t)(sectors));
 }
 
 // Indices into i_block and then into each indirect block on the way to the data block
@@ -310,7 +310,7 @@ int ext2_inode_offset(const ext2_vfs_context_t* restrict context, uint32_t ino, 
     uint32_t index = (ino - 1) % context->inodes_per_group;
     const ext2_group_desc_t* desc = &context->groups[group];
 
-    *out = ext2_block_offset(context, le32toh(desc->bg_inode_table)) + (uint64_t)index * context->inode_size;
+    *out = ext2_block_offset(context, le32toh(desc->bg_inode_table)) + (uint64_t)(index) * context->inode_size;
 
     return 0;
 }
@@ -429,7 +429,7 @@ int ext2_inode_set_size(ext2_vfs_context_t* restrict context, ext2_inode_t* rest
         }
     }
 
-    inode->i_size = htole32((uint32_t)size);
+    inode->i_size = htole32((uint32_t)(size));
 
     if(regular) {
         inode->i_size_high = htole32((uint32_t)(size >> 32));
@@ -446,16 +446,16 @@ bool ext2_inode_set_owner(const ext2_vfs_context_t* restrict context, ext2_inode
         limit = UINT32_MAX;
     }
 
-    if(uid < 0 || gid < 0 || (uint32_t)uid > limit || (uint32_t)gid > limit) {
+    if(uid < 0 || gid < 0 || (uint32_t)(uid) > limit || (uint32_t)(gid) > limit) {
         return false;
     }
 
-    inode->i_uid = htole16((uint16_t)uid);
-    inode->i_gid = htole16((uint16_t)gid);
+    inode->i_uid = htole16((uint16_t)(uid));
+    inode->i_gid = htole16((uint16_t)(gid));
 
     if(ext2_has_id_high(context)) {
-        inode->osd2.os_linux.l_i_uid_high = htole16((uint16_t)((uint32_t)uid >> 16));
-        inode->osd2.os_linux.l_i_gid_high = htole16((uint16_t)((uint32_t)gid >> 16));
+        inode->osd2.os_linux.l_i_uid_high = htole16((uint16_t)((uint32_t)(uid) >> 16));
+        inode->osd2.os_linux.l_i_gid_high = htole16((uint16_t)((uint32_t)(gid) >> 16));
     }
 
     return true;

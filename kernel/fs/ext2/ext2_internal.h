@@ -450,17 +450,17 @@ int ext2_dir_check_empty(vnode_t* restrict dir);
 
 static __always_inline uint64_t ext2_block_offset(const ext2_vfs_context_t* restrict context, uint32_t block)
 {
-    return (uint64_t)block * context->block_size;
+    return context->block_size * (uint64_t)(block);
 }
 
 static __always_inline uint64_t ext2_block_lba(const ext2_vfs_context_t* restrict context, uint32_t block)
 {
-    return (uint64_t)block * context->sectors_per_block;
+    return context->sectors_per_block * (uint64_t)(block);
 }
 
 static __always_inline size_t ext2_dirent_reclen(size_t name_len)
 {
-    return (sizeof(ext2_dir_entry_t) + name_len + 3) & ~(size_t)3;
+    return (sizeof(ext2_dir_entry_t) + name_len + 3) & ~(size_t)(3);
 }
 
 static __always_inline bool ext2_has_id_high(const ext2_vfs_context_t* restrict context)
@@ -481,7 +481,7 @@ static __always_inline uid_t ext2_inode_uid(const ext2_vfs_context_t* restrict c
         uid |= (uint32_t)(le16toh(inode->osd2.os_linux.l_i_uid_high)) << 16;
     }
 
-    return (uid_t)uid;
+    return (uid_t)(uid);
 }
 
 static __always_inline gid_t ext2_inode_gid(const ext2_vfs_context_t* restrict context, const ext2_inode_t* restrict inode)
@@ -492,7 +492,7 @@ static __always_inline gid_t ext2_inode_gid(const ext2_vfs_context_t* restrict c
         gid |= (uint32_t)(le16toh(inode->osd2.os_linux.l_i_gid_high)) << 16;
     }
 
-    return (gid_t)gid;
+    return (gid_t)(gid);
 }
 
 static __always_inline uint64_t ext2_inode_size(const ext2_inode_t* restrict inode)

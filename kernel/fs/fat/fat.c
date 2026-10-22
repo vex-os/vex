@@ -293,8 +293,8 @@ static int fill_node_locked(vfs_t* restrict fs, vnode_t* restrict node)
     }
 
     uintptr_t cluster = 0;
-    cluster |= (uintptr_t)le16toh(raw_entry.first_cluster_hi) << 16;
-    cluster |= (uintptr_t)le16toh(raw_entry.first_cluster_lo);
+    cluster |= (uintptr_t)(le16toh(raw_entry.first_cluster_hi)) << 16;
+    cluster |= (uintptr_t)(le16toh(raw_entry.first_cluster_lo));
 
     fat_vnode_context_t* node_context = slab_alloc(sizeof(fat_vnode_context_t));
 

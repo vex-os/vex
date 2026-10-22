@@ -130,7 +130,7 @@ static int gpt_check_header(const block_interface_t* restrict interface, uintptr
         return -EINVAL;
     }
 
-    size_t entries_size = (size_t)entry_count * entry_size;
+    size_t entries_size = (size_t)(entry_count) * entry_size;
     size_t entries_lbas = (entries_size + interface->sector_size - 1) / interface->sector_size;
 
     if(entry_start_lba >= interface->sector_count || entries_lbas > interface->sector_count - entry_start_lba) {
@@ -226,7 +226,7 @@ static int gpt_read_table(const block_interface_t* restrict interface, void* res
         }
 
         if(found == index) {
-            const uint16_t* name = (const uint16_t*)((const uint8_t*)entry + sizeof(gpt_entry_t));
+            const uint16_t* name = (const uint16_t*)((const uint8_t*)(entry) + sizeof(gpt_entry_t));
             size_t name_len = (entry_size - sizeof(gpt_entry_t)) / sizeof(uint16_t);
 
             unsigned i;
