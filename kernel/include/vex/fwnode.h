@@ -22,6 +22,7 @@ typedef struct fwnode_range_s fwnode_range_t;
 typedef struct fwnode_irq_s fwnode_irq_t;
 typedef struct fwnode_resource_s fwnode_resource_t;
 typedef struct fwnode_s fwnode_t;
+typedef struct fwnode_fixed_s fwnode_fixed_t;
 typedef struct fwnode_ops_s fwnode_ops_t;
 
 struct fwnode_range_s {
@@ -96,9 +97,21 @@ struct fwnode_s {
     void* handle; // The firmware's own, such as a uACPI namespace node
 };
 
+// A device that code knows is there, such as legacy hardware that a probe
+// found where the firmware says nothing; it has no children or dependencies
+struct fwnode_fixed_s {
+    const char* name; // A device path names the node fixed:<name>
+    const char* id;   // Matched as ACPI matches _HID, such as PNP0100
+    const fwnode_resource_t* resources;
+    size_t num_resources;
+};
+
 /// Gets the node the devices of the system hang from
 /// @retval -ENODEV The system has no firmware tables to describe its devices
 int fwnode_root(fwnode_t* restrict root);
+
+/// Makes a node of a fixed description, which has to outlive every copy of the node
+void fwnode_init_fixed(fwnode_t* restrict node, const fwnode_fixed_t* restrict fixed);
 
 /// @return Whether two nodes are the same device of the firmware
 static __always_inline bool fwnode_is_same(const fwnode_t* first, const fwnode_t* second)

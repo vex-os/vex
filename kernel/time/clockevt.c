@@ -1,4 +1,3 @@
-#include <vex/assert.h>
 #include <vex/clockevt.h>
 #include <vex/errno.h>
 #include <vex/hart.h>
@@ -213,11 +212,12 @@ void clock_event_oneshot(unsigned irq, uint64_t nsec)
 
     raw_spinlock_acquire(&timer->lock);
 
-    kassert(timer->active);
-
     timer->irq = irq;
     timer->armed = true;
-    program(timer->active, irq, nsec, false);
+
+    if(timer->active) {
+        program(timer->active, irq, nsec, false);
+    }
 
     raw_spinlock_release(&timer->lock);
 }
@@ -229,11 +229,12 @@ void clock_event_periodic(unsigned irq, uint64_t nsec)
 
     raw_spinlock_acquire(&timer->lock);
 
-    kassert(timer->active);
-
     timer->irq = irq;
     timer->armed = true;
-    program(timer->active, irq, nsec, true);
+
+    if(timer->active) {
+        program(timer->active, irq, nsec, true);
+    }
 
     raw_spinlock_release(&timer->lock);
 }

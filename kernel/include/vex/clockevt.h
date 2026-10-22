@@ -15,15 +15,15 @@ typedef struct clock_event_private_s clock_event_private_t;
 struct clock_event_ops_s {
     /// Raises the interrupt once, after at least nsec
     /// @pre On the hart that uses the timer, with interrupts disabled
-    /// @param irq The handler to run, numbered by irq_handler_add; a timer whose interrupt
-    /// comes through an interrupt controller calls irq_dispatch with it from its own handler
+    /// @param irq The handler to run, numbered by irq_handler_add; a timer whose interrupt comes
+    /// through an interrupt controller raises it on the hart with hart_ipi from its own handler
     /// @note nsec is within the timer's min_delta_ns and max_delta_ns
     void (*set_oneshot)(clock_event_t* restrict event, unsigned irq, uint64_t nsec);
 
     /// Raises the interrupt every nsec until stop
     /// @pre On the hart that uses the timer, with interrupts disabled
-    /// @param irq The handler to run, numbered by irq_handler_add; a timer whose interrupt
-    /// comes through an interrupt controller calls irq_dispatch with it from its own handler
+    /// @param irq The handler to run, numbered by irq_handler_add; a timer whose interrupt comes
+    /// through an interrupt controller raises it on the hart with hart_ipi from its own handler
     /// @note nsec is within the timer's min_delta_ns and max_delta_ns
     void (*set_periodic)(clock_event_t* restrict event, unsigned irq, uint64_t nsec);
 
@@ -61,13 +61,15 @@ int clock_event_add(clock_event_t* restrict event);
 int clock_event_remove(clock_event_t* restrict event);
 
 /// Raises irq on this hart once, after nsec or as close to it as the timer can
-/// @pre Interrupts are disabled, and the hart has a timer
-/// @note A timer that is only periodic raises it until clock_event_stop
+/// @pre Interrupts are disabled
+/// @note A timer that is only periodic raises it until clock_event_stop. A hart
+/// without a timer gets irq soon after one is added, and runs on until then
 void clock_event_oneshot(unsigned irq, uint64_t nsec);
 
 /// Raises irq on this hart every nsec, or as close to it as the timer can
-/// @pre Interrupts are disabled, and the hart has a timer
-/// @note A timer without a periodic mode raises it once
+/// @pre Interrupts are disabled
+/// @note A timer without a periodic mode raises it once. A hart
+/// without a timer gets irq soon after one is added, and runs on until then
 void clock_event_periodic(unsigned irq, uint64_t nsec);
 
 /// @pre Interrupts are disabled
