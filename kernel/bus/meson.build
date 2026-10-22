@@ -1,7 +1,3 @@
-kernel_sources += files(
-    'device.c',
-)
-
 if kconfig.get('CONFIG_PCI', 'n') == 'y'
     kernel_sources += files('pci.c')
 endif

@@ -1,4 +1,5 @@
 #include <vex/device.h>
+#include <vex/driver.h>
 #include <vex/errno.h>
 #include <vex/fb_device.h>
 #include <vex/fb_edid.h>
@@ -314,11 +315,9 @@ static size_t collect_modes(bochsfb_t* restrict bochsfb, const vexfb_info_t* res
     return keep_mode(bochsfb, count, info->width, info->height, info->bpp, 0);
 }
 
-static int bochsfb_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
+static int bochsfb_probe(device_t* restrict device, const driver_match_t* restrict match)
 {
-    *bid = DRIVER_BID_SPECIFIC;
-
-    return 0;
+    return DRIVER_SCORE_SPECIFIC;
 }
 
 static int bochsfb_attach(device_t* restrict node, const driver_match_t* restrict match)

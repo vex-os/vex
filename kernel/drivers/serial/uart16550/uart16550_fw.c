@@ -1,12 +1,13 @@
 #include <vex/device.h>
+#include <vex/driver.h>
 #include <vex/errno.h>
 #include <vex/fwnode.h>
 
 #include "uart16550.h"
 
 static const driver_match_t uart16550_fw_matches[] = {
-    DRIVER_MATCH_FW("PNP0500"),
-    DRIVER_MATCH_FW("PNP0501"),
+    DRIVER_MATCH_FIRMWARE("PNP0500"),
+    DRIVER_MATCH_FIRMWARE("PNP0501"),
     DRIVER_MATCH_END(),
 };
 
@@ -15,11 +16,9 @@ static void uart16550_fw_irq(unsigned number, const hart_context_t* restrict ctx
     uart16550_interrupt(ctxdata);
 }
 
-static int uart16550_fw_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
+static int uart16550_fw_probe(device_t* restrict device, const driver_match_t* restrict match)
 {
-    *bid = DRIVER_BID_DEFAULT;
-
-    return 0;
+    return DRIVER_SCORE_DEFAULT;
 }
 
 static int uart16550_fw_attach(device_t* restrict device, const driver_match_t* restrict match)

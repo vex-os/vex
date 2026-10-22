@@ -1,4 +1,6 @@
 #include <vex/device.h>
+#include <vex/device_bus.h>
+#include <vex/driver.h>
 #include <vex/errno.h>
 #include <vex/fwnode.h>
 #include <vex/kprintf.h>
@@ -75,21 +77,19 @@ static int isa_place_child(device_t* restrict bridge, const fwnode_t* restrict c
     return 0;
 }
 
-static const device_bus_ops_t isa_bus_ops = {
+static const bus_ops_t isa_bus_ops = {
     .place_child = &isa_place_child,
 };
 
 // UNDONE: a bridge the firmware doesn't describe, such
 // as one on a card, needs its devices found through ISA PnP
-static int bridge_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
+static int bridge_probe(device_t* restrict device, const driver_match_t* restrict match)
 {
     if(device->fwnode.ops == nullptr) {
         return -ENODEV;
     }
 
-    *bid = DRIVER_BID_DEFAULT;
-
-    return 0;
+    return DRIVER_SCORE_DEFAULT;
 }
 
 static int bridge_attach(device_t* restrict device, const driver_match_t* restrict match)

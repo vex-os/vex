@@ -6,30 +6,17 @@
 #include <vex/irq.h>
 #include <vex/types.h>
 
+typedef struct bus_ops_s bus_ops_t;
 typedef struct device_irq_s device_irq_t;
 typedef struct device_link_s device_link_t;
 typedef struct device_mapping_s device_mapping_t;
+typedef struct driver_s driver_t;
 
 #define DEVICE_NAME_MAX 32
 
-// A driver bids one of these, or one above to win over others
-// of the same level; a gap of 100 leaves room for that
-#define DRIVER_BID_GENERIC  100 // Works with any device of its kind, through no more than the standard
-#define DRIVER_BID_LOW      200 // Matches, but gives way to any other driver that does
-#define DRIVER_BID_DEFAULT  300 // Drives a standard interface, such as a PCI class or a firmware id
-#define DRIVER_BID_VENDOR   400 // Knows the vendor's own interface of the device
-#define DRIVER_BID_SPECIFIC 500 // Knows the device by its exact id
-
-enum {
-    DRIVER_MATCH_END,
-    DRIVER_MATCH_FW,        // fw_id, as fwnode_matches matches it
-    DRIVER_MATCH_PCI_ID,    // vendor_id and device_id
-    DRIVER_MATCH_PCI_CLASS, // class_id and subclass_id
-};
-
 enum device_state_e {
     DEVICE_PRESENT,   // In the tree, without a driver
-    DEVICE_PROBING,   // Drivers bid, and the winner attaches
+    DEVICE_PROBING,   // Drivers are scored, and the best attaches
     DEVICE_WAITING,   // The winner waits for a provider to be bound, then the node is probed again
     DEVICE_BOUND,     // A driver has it
     DEVICE_DETACHING, // The driver lets go, then the resources go
@@ -37,47 +24,8 @@ enum device_state_e {
 };
 typedef enum device_state_e device_state_t;
 
-typedef struct device_bus_ops_s device_bus_ops_t;
 typedef struct device_private_s device_private_t;
 typedef struct device_s device_t;
-typedef struct driver_match_s driver_match_t;
-typedef struct driver_ops_s driver_ops_t;
-typedef struct driver_s driver_t;
-
-// What a node does for its children; a missing op, or a missing table,
-// falls back to what the firmware describes and passes ranges on as they are
-struct device_bus_ops_s {
-    /// Places a present firmware child of the bus on the bus
-    /// @retval 0 The bus placed the child, or knows it as one of its own that isn't there
-    /// @retval -ENOENT The bus can't place the child, so it becomes a firmware child of the node
-    int (*place_child)(device_t* restrict bus, const fwnode_t* restrict child);
-
-    /// @return Whether a child matches an entry of a driver's table that is of the bus's own kinds
-    bool (*match)(device_t* restrict bus, device_t* restrict child, const driver_match_t* restrict match);
-
-    /// Gets a register range of a child, as an address on this bus
-    /// @param index Counts the child's port and memory ranges together, in the bus's order
-    /// @retval -ENODEV The child has no such range
-    int (*get_range)(device_t* restrict bus, device_t* restrict child, unsigned index, fwnode_resource_t* restrict range);
-
-    /// Gets an interrupt of a child as the interrupt controllers see it, or as an ISA IRQ
-    /// @param index Counts the child's interrupts, in the bus's order
-    /// @retval -ENODEV The child has no such interrupt, or nothing routes it
-    int (*get_irq)(device_t* restrict bus, device_t* restrict child, unsigned index, fwnode_irq_t* restrict irq);
-
-    /// Takes back what the bus gave a child beyond its interrupts and device_map_io, such as mapped BARs
-    /// @pre The child's driver has let go of the child
-    void (*release_child)(device_t* restrict bus, device_t* restrict child);
-
-    /// Forgets a child on its way out of the tree, with what the bus keeps about it in bus_ctxdata
-    /// @pre The child has no children and no driver
-    void (*remove_child)(device_t* restrict bus, device_t* restrict child);
-
-    /// Translates a range of this bus to the bus above it
-    /// @param type FWNODE_RESOURCE_PORT or FWNODE_RESOURCE_MEMORY, changed when the bus above sees the range in the other space
-    /// @retval -ERANGE The node doesn't pass the range on
-    int (*translate_range)(device_t* restrict bus, unsigned* restrict type, uint64_t* restrict address, uint64_t length);
-};
 
 struct device_private_s {
     device_t* next; // Among the parent's children
@@ -88,14 +36,14 @@ struct device_private_s {
     device_mapping_t* mappings; // Made through device_map_io
     device_link_t* providers;   // What the driver uses, from attach until it lets go
     device_link_t* consumers;   // Whose drivers use the node
-    device_t* awaited;          // With a reference, while waiting for a node of the tree
-    fwnode_t awaited_fwnode;    // While waiting for a device the firmware describes but the tree doesn't have yet
+    device_t* waits_for;        // With a reference, while waiting for a node of the tree
+    fwnode_t waits_for_fwnode;  // While waiting for a device the firmware describes but the tree doesn't have yet
     device_t* waiting_next;     // Among the nodes that wait
     device_t* worker_next;      // In the queue of device_worker, which holds a reference meanwhile
     unsigned pending;           // What the node is queued for, under the queue's lock
     unsigned refcount;
     device_state_t state;    // Changed by device_worker alone
-    bool fw_child;           // Placed by the firmware rather than by the parent's bus, which ignores it
+    bool unplaced;           // Placed by the firmware rather than by the parent's bus, which ignores it
     bool fw_children_placed; // Until the node is unbound, which takes its children away
     bool gone;               // The hardware went away without warning
 };
@@ -106,82 +54,12 @@ struct device_s {
     device_private_t priv;
     device_t* parent; // nullptr only on the root
     fwnode_t fwnode;  // ops is nullptr without one
-    const device_bus_ops_t* bus_ops;
-    void* bus_ctxdata; // The parent bus's own data about the node
+    const bus_ops_t* bus_ops;
+    void* bus_data; // The parent bus's own data about the node
     const driver_t* driver;
     void* ctxdata; // Of what drives the node
     char name[DEVICE_NAME_MAX];
 };
-
-struct driver_match_s {
-    unsigned kind; // DRIVER_MATCH_*
-    const char* fw_id;
-    unsigned vendor_id;
-    unsigned device_id;
-    unsigned class_id;
-    unsigned subclass_id;
-};
-
-struct driver_ops_s {
-    /// Bids for a device, without touching its state
-    /// @param match The first entry of the driver's table that the device matches
-    /// @param bid A DRIVER_BID_* level, or one above it
-    /// @retval -ENODEV The driver doesn't take the device after all
-    int (*probe)(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid);
-
-    /// Takes the device the driver won
-    /// @retval -EAGAIN device_wait_for said to wait, and the framework probes the device again once the provider is bound
-    /// @note Undoes what it did before it fails, as detach isn't called then
-    int (*attach)(device_t* restrict device, const driver_match_t* restrict match);
-
-    /// Takes the device's functions away and stops the hardware raising interrupts
-    /// @post Calls through the functions fail, and the interrupt handlers may still run
-    /// but start nothing new; the framework then takes the resources back
-    /// @note Must not wait for the hardware to answer when device_is_gone
-    void (*detach)(device_t* restrict device);
-
-    /// Frees what the driver keeps in ctxdata, nullptr included
-    /// @pre Called after detach, or after attach failed, once the interrupt handlers can't run
-    void (*release)(device_t* restrict device);
-};
-
-struct driver_s {
-    const char* name;
-    const driver_ops_t* ops;
-    const driver_match_t* matches; // Ends with DRIVER_MATCH_END
-};
-
-#define DRIVER_MATCH_FW(dm_id)   \
-    {                            \
-        .kind = DRIVER_MATCH_FW, \
-        .fw_id = (dm_id),        \
-    }
-
-#define DRIVER_MATCH_PCI_ID(dm_vendor, dm_device) \
-    {                                             \
-        .kind = DRIVER_MATCH_PCI_ID,              \
-        .vendor_id = (dm_vendor),                 \
-        .device_id = (dm_device),                 \
-    }
-
-#define DRIVER_MATCH_PCI_CLASS(dm_class, dm_subclass) \
-    {                                                 \
-        .kind = DRIVER_MATCH_PCI_CLASS,               \
-        .class_id = (dm_class),                       \
-        .subclass_id = (dm_subclass),                 \
-    }
-
-#define DRIVER_MATCH_END()        \
-    {                             \
-        .kind = DRIVER_MATCH_END, \
-    }
-
-#define define_driver(dr_name, dr_ops, dr_matches)                            \
-    static const __used __section(".drivers") driver_t __driver_##dr_name = { \
-        .name = #dr_name,                                                     \
-        .ops = (dr_ops),                                                      \
-        .matches = (dr_matches),                                              \
-    }
 
 /// Gets the root of the tree, made on the first call from the firmware's root node when there is one
 /// @retval nullptr Out of memory
@@ -194,7 +72,7 @@ device_t* device_get_root(void) __nodiscard;
 /// @retval -ENOMEM Out of memory
 int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, device_t** restrict device);
 
-/// Queues the node to be bound to the driver with the highest bid if it has none, to have its
+/// Queues the node to be bound to the driver with the highest score if it has none, to have its
 /// firmware children placed if they aren't, and the same for every node below
 /// @note Any context; device_worker does the work
 void device_rescan(device_t* restrict device);
@@ -229,19 +107,6 @@ void device_decref(device_t* restrict device);
 /// Writes the node's path from the root, such as acpi:PCI0/pci:0000:00:1f.0/isa:3f8
 /// @return The path's length, as snprintf gives it
 size_t device_get_path(const device_t* restrict device, char* restrict buffer, size_t size);
-
-/// Translates a range of a bus up to the CPU
-/// @param type In: FWNODE_RESOURCE_PORT or FWNODE_RESOURCE_MEMORY as on the bus; out: how the CPU reaches the range
-/// @retval -ERANGE A bridge on the way doesn't pass the range on
-int device_translate_range(device_t* restrict bus, unsigned* restrict type, uint64_t* restrict address, uint64_t length);
-
-/// Maps a range of a bus for the CPU, as uncached memory or as ports
-/// @param type FWNODE_RESOURCE_PORT or FWNODE_RESOURCE_MEMORY, as on the bus
-/// @retval -ERANGE A bridge on the way doesn't pass the range on
-/// @retval -ENOMEM No address space to map memory into
-int device_map_range(device_t* restrict bus, unsigned type, uint64_t start, uint64_t length, io_region_t* restrict region);
-
-void device_unmap_range(io_region_t* restrict region);
 
 /// Maps a register range of the device, which the framework unmaps when the driver lets go of it
 /// @param index Counts the device's port and memory ranges together, in its bus's order

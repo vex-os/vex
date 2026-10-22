@@ -8,6 +8,7 @@
 #include <vex/delay.h>
 #include <vex/dev_name.h>
 #include <vex/device.h>
+#include <vex/driver.h>
 #include <vex/endian.h>
 #include <vex/event.h>
 #include <vex/hart.h>
@@ -886,11 +887,9 @@ static void ahci_handoff(pci_bar_t* restrict abar)
     }
 }
 
-static int ahci_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
+static int ahci_probe(device_t* restrict device, const driver_match_t* restrict match)
 {
-    *bid = DRIVER_BID_DEFAULT;
-
-    return 0;
+    return DRIVER_SCORE_DEFAULT;
 }
 
 static int ahci_attach(device_t* restrict device, const driver_match_t* restrict match)

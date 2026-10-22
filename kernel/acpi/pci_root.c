@@ -1,10 +1,11 @@
 #include <uacpi/uacpi.h>
 #include <vex/device.h>
+#include <vex/driver.h>
 #include <vex/pci.h>
 
 static const driver_match_t host_bridge_matches[] = {
-    DRIVER_MATCH_FW("PNP0A03"),
-    DRIVER_MATCH_FW("PNP0A08"),
+    DRIVER_MATCH_FIRMWARE("PNP0A03"),
+    DRIVER_MATCH_FIRMWARE("PNP0A08"),
     DRIVER_MATCH_END(),
 };
 
@@ -20,11 +21,9 @@ static unsigned evaluate_number(const fwnode_t* restrict node, const char* restr
     return value;
 }
 
-static int host_bridge_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
+static int host_bridge_probe(device_t* restrict device, const driver_match_t* restrict match)
 {
-    *bid = DRIVER_BID_DEFAULT;
-
-    return 0;
+    return DRIVER_SCORE_DEFAULT;
 }
 
 static int host_bridge_attach(device_t* restrict device, const driver_match_t* restrict match)

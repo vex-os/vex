@@ -1,5 +1,6 @@
 #include <vex/atomic.h>
 #include <vex/device.h>
+#include <vex/driver.h>
 #include <vex/errno.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
@@ -100,7 +101,7 @@ static void add_ports(card_t* restrict card, uart16550_t* const* restrict ports,
     }
 }
 
-static int uart16550_pci_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
+static int uart16550_pci_probe(device_t* restrict device, const driver_match_t* restrict match)
 {
     pci_device_t* pci_device = pci_device_of(device);
 
@@ -108,13 +109,11 @@ static int uart16550_pci_probe(device_t* restrict device, const driver_match_t* 
         return -ENODEV;
     }
 
-    *bid = DRIVER_BID_DEFAULT;
-
     if(match->kind == DRIVER_MATCH_PCI_ID) {
-        *bid = DRIVER_BID_SPECIFIC;
+        return DRIVER_SCORE_SPECIFIC;
     }
 
-    return 0;
+    return DRIVER_SCORE_DEFAULT;
 }
 
 static int uart16550_pci_attach(device_t* restrict device, const driver_match_t* restrict match)

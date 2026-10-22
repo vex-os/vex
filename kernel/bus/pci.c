@@ -2,6 +2,8 @@
 #include <arch/msi.h>
 #include <vex/assert.h>
 #include <vex/device.h>
+#include <vex/device_bus.h>
+#include <vex/driver.h>
 #include <vex/errno.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
@@ -338,7 +340,7 @@ static int route_intx(const pci_device_t* restrict device, unsigned pin, fwnode_
 
 static int pci_get_range(device_t* restrict bus, device_t* restrict child, unsigned index, fwnode_resource_t* restrict range)
 {
-    pci_device_t* function = child->bus_ctxdata;
+    pci_device_t* function = child->bus_data;
 
     if(index >= 6) {
         return -ENODEV;
@@ -362,10 +364,10 @@ static int pci_get_range(device_t* restrict bus, device_t* restrict child, unsig
 
 static int pci_get_irq(device_t* restrict bus, device_t* restrict child, unsigned index, fwnode_irq_t* restrict irq)
 {
-    pci_device_t* function = child->bus_ctxdata;
+    pci_device_t* function = child->bus_data;
     unsigned pin = pci_cfg_read8(function, PCI_CFG_INT_PIN);
 
-    if(index != 0 || pin == 0 || pin > sizeof(pin_names) / sizeof(pin_names[0])) {
+    if(index || pin == 0 || pin > sizeof(pin_names) / sizeof(pin_names[0])) {
         return -ENODEV;
     }
 
@@ -395,7 +397,7 @@ static int pci_place_child(device_t* restrict bus, const fwnode_t* restrict chil
 
 static bool pci_match(device_t* restrict bus, device_t* restrict child, const driver_match_t* restrict match)
 {
-    const pci_device_t* function = child->bus_ctxdata;
+    const pci_device_t* function = child->bus_data;
 
     if(match->kind == DRIVER_MATCH_PCI_ID) {
         return match->vendor_id == function->vendor_id && match->device_id == function->device_id;
@@ -411,7 +413,7 @@ static bool pci_match(device_t* restrict bus, device_t* restrict child, const dr
 // The driver has let go, so the function stops decoding and mastering until the next one turns that on
 static void pci_release_child(device_t* restrict bus, device_t* restrict child)
 {
-    pci_device_t* function = child->bus_ctxdata;
+    pci_device_t* function = child->bus_data;
 
     pci_release_irq(function);
 
@@ -424,7 +426,7 @@ static void pci_release_child(device_t* restrict bus, device_t* restrict child)
 
 static void pci_remove_child(device_t* restrict bus, device_t* restrict child)
 {
-    pci_device_t* function = child->bus_ctxdata;
+    pci_device_t* function = child->bus_data;
     pci_bus_t* parent = function->priv.bus;
 
     kassert(function->priv.secondary == nullptr || function->priv.secondary->devices == nullptr);
@@ -440,10 +442,10 @@ static void pci_remove_child(device_t* restrict bus, device_t* restrict child)
     kfree(function->priv.secondary);
     kfree(function);
 
-    child->bus_ctxdata = nullptr;
+    child->bus_data = nullptr;
 }
 
-static const device_bus_ops_t host_bus_ops = {
+static const bus_ops_t host_bus_ops = {
     .place_child = &pci_place_child,
     .match = &pci_match,
     .release_child = &pci_release_child,
@@ -454,7 +456,7 @@ static const device_bus_ops_t host_bus_ops = {
 };
 
 // A bridge passes ranges on unchanged, within the windows it is set up with
-static const device_bus_ops_t bridge_bus_ops = {
+static const bus_ops_t bridge_bus_ops = {
     .place_child = &pci_place_child,
     .match = &pci_match,
     .release_child = &pci_release_child,
@@ -531,7 +533,7 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
         return;
     }
 
-    device->bus_ctxdata = function;
+    device->bus_data = function;
 
     function->priv.bus = bus;
     function->priv.config = bus->config;
@@ -735,7 +737,7 @@ pci_device_t* pci_device_of(device_t* restrict device)
         return nullptr;
     }
 
-    return device->bus_ctxdata;
+    return device->bus_data;
 }
 
 uint8_t pci_cfg_read8(pci_device_t* restrict device, uintptr_t offset)

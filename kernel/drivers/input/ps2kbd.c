@@ -1,4 +1,5 @@
 #include <vex/device.h>
+#include <vex/driver.h>
 #include <vex/errno.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
@@ -11,7 +12,7 @@ struct ps2kbd_s {
 };
 
 static const driver_match_t ps2kbd_matches[] = {
-    DRIVER_MATCH_FW("PNP0303"),
+    DRIVER_MATCH_FIRMWARE("PNP0303"),
     DRIVER_MATCH_END(),
 };
 
@@ -98,11 +99,9 @@ static void disable_keyboard(ps2kbd_t* restrict ps2kbd)
     io_write8(&ps2kbd->data, 0, command_byte);
 }
 
-static int ps2kbd_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
+static int ps2kbd_probe(device_t* restrict device, const driver_match_t* restrict match)
 {
-    *bid = DRIVER_BID_DEFAULT;
-
-    return 0;
+    return DRIVER_SCORE_DEFAULT;
 }
 
 static int ps2kbd_attach(device_t* restrict device, const driver_match_t* restrict match)
