@@ -53,15 +53,7 @@ static const char* const pin_names[] = {
     "INTD",
 };
 
-static spinlock_t config_lock = SPINLOCK_INIT;
-static pci_config_t* config_head = nullptr;
-
 static void scan_bus(pci_bus_t* restrict bus);
-
-static bool configs_overlap(const pci_config_t* restrict first, const pci_config_t* restrict second)
-{
-    return first->segment == second->segment && first->bus_start <= second->bus_end && second->bus_start <= first->bus_end;
-}
 
 static void visit_companion(const fwnode_t* child, void* arg)
 {
@@ -648,41 +640,6 @@ static int request_intx(pci_device_t* restrict device, irq_handler_t handler, vo
     pci_cfg_write16(device, PCI_CFG_COMMAND, cmd & ~(uint16_t)(PCI_CMD_INT_DISABLE));
 
     return 0;
-}
-
-int pci_config_add(pci_config_t* restrict config)
-{
-    spinlock_acquire(&config_lock);
-
-    for(pci_config_t* it = config_head; it; it = it->priv.next) {
-        if(it == config || configs_overlap(it, config)) {
-            spinlock_release(&config_lock);
-            return -EEXIST;
-        }
-    }
-
-    config->priv.next = config_head;
-    config_head = config;
-
-    spinlock_release(&config_lock);
-
-    return 0;
-}
-
-pci_config_t* pci_config_find(unsigned segment, unsigned bus)
-{
-    spinlock_acquire(&config_lock);
-
-    for(pci_config_t* it = config_head; it; it = it->priv.next) {
-        if(it->segment == segment && bus >= it->bus_start && bus <= it->bus_end) {
-            spinlock_release(&config_lock);
-            return it;
-        }
-    }
-
-    spinlock_release(&config_lock);
-
-    return nullptr;
 }
 
 int pci_root_attach(device_t* restrict host, unsigned segment, unsigned bus)

@@ -55,7 +55,6 @@ kernel_c_args = [
 
 subdir('arch' / arch)
 
-subdir('acpi')
 subdir('bus')
 subdir('core')
 subdir('crypto')
@@ -63,6 +62,7 @@ subdir('dev')
 subdir('device')
 subdir('drivers')
 subdir('exec')
+subdir('firmware')
 subdir('fs')
 subdir('init')
 subdir('irq')

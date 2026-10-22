@@ -17,9 +17,9 @@ kernel_ldscript = meson.current_source_dir() / 'kernel.ld'
 kernel_link_args += ['-m', 'elf_x86_64', '-T', kernel_ldscript]
 kernel_link_depends += kernel_ldscript
 
-subdir('acpi')
 subdir('bus')
 subdir('core')
+subdir('firmware')
 subdir('irq')
 subdir('mm')
 subdir('proc')
