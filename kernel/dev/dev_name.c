@@ -54,8 +54,8 @@ dev_prefix_t dev_prefix_fbd = {
     .string = "fbd",
 };
 
-dev_prefix_t dev_prefix_kplog = {
-    .string = "kplog",
+dev_prefix_t dev_prefix_kmsg = {
+    .string = "kmsg",
 };
 
 dev_prefix_t dev_prefix_devctl = {
@@ -73,7 +73,7 @@ static dev_prefix_t* const dev_prefixes[] = {
     &dev_prefix_serial,
     &dev_prefix_serialtest,
     &dev_prefix_fbd,
-    &dev_prefix_kplog,
+    &dev_prefix_kmsg,
     &dev_prefix_devctl,
 };
 

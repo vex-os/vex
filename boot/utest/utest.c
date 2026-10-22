@@ -2,7 +2,7 @@
 #include <vex/errno.h>
 #include <vex/fcntl.h>
 #include <vex/futex.h>
-#include <vex/kplog.h>
+#include <vex/kmsg.h>
 #include <vex/mman.h>
 #include <vex/serial.h>
 #include <vex/signal.h>
@@ -806,64 +806,112 @@ static void test_tty(void)
     syscall1(__k_SYS_CLOSE, line_fd);
 }
 
-#define KPLOG_POKE "kplog poke"
+#define KMSG_POKE "kmsg poke"
 
 /* Sleeps so the reader blocks first, then logs a line through sys_test */
-static void __attribute__((noreturn)) kplog_poker(long arg)
+static void __attribute__((noreturn)) kmsg_poker(long arg)
 {
     struct __k_timespec delay;
     delay.tv_sec = 0;
     delay.tv_nsec = 100000000;
     syscall4(__k_SYS_FUTEX_WAIT, (long)&never_changes, 0, (long)&delay, 0);
-    syscall2(__k_SYS_TEST, (long)KPLOG_POKE, ustrlen(KPLOG_POKE));
+    syscall2(__k_SYS_TEST, (long)KMSG_POKE, ustrlen(KMSG_POKE));
     syscall1(__k_SYS_THREAD_EXIT, 0);
     __builtin_unreachable();
 }
 
-/* Whether the record's text ends with what sys_test logs for data */
-static int kplog_has_data(const struct __k_kplog_record* record, const char* data)
+/* Reads one line a byte at a time, as a shell does, without the newline; the length or the error */
+static long kmsg_line(long fd, char* line, long size)
 {
-    const char* text = (const char*)(record + 1);
+    long length = 0;
+
+    for(;;) {
+        long result = syscall3(__k_SYS_READ, fd, (long)(line + length), 1);
+
+        if(result <= 0) {
+            return result;
+        }
+
+        if(line[length] == '\n') {
+            line[length] = 0;
+            return length;
+        }
+
+        if(length < size - 1) {
+            length += 1;
+        }
+    }
+}
+
+/* The text of a line, after the head that ends with a semicolon */
+static const char* kmsg_text(const char* line)
+{
+    while(*line && *line != ';') {
+        line += 1;
+    }
+
+    return *line ? line + 1 : line;
+}
+
+/* Whether the line starts with the prefix field, a comma after it */
+static int kmsg_has_prefix(const char* line, const char* prefix)
+{
+    long length = ustrlen(prefix);
+
+    return same_bytes(line, prefix, length) && line[length] == ',';
+}
+
+/* Whether the line's text ends with what sys_test logs for data */
+static int kmsg_has_data(const char* line, const char* data)
+{
+    const char* text = kmsg_text(line);
+    long size = ustrlen(text);
     long length = ustrlen(data);
 
-    if(record->size < length + 1) {
+    if(size < length + 1) {
         return 0;
     }
 
-    return same_bytes(text + record->size - length - 1, data, length) && text[record->size - 1] == '"';
+    return same_bytes(text + size - length - 1, data, length) && text[size - 1] == '"';
 }
 
-static void test_kplog(void)
+static void test_kmsg(void)
 {
-    _Alignas(8) char buffer[1024];
-    struct __k_kplog_record* record = (struct __k_kplog_record*)buffer;
-    long fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kplog", __k_O_RDONLY, 0);
+    char line[2200];
+    char chunk[8];
+    long fd = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kmsg", __k_O_RDONLY, 0);
     long length, nonblock, seek_bad, seek_end;
     long reads = 0;
     int found = 0;
+    const char* field;
 
     printnumber(fd >= 0); /* should print 1 */
 
-    length = syscall3(__k_SYS_READ, fd, (long)buffer, sizeof(buffer));
-    printnumber(length == (long)(sizeof(*record) + record->size) && record->seq == 0); /* should print 1 */
-    syscall2(__k_SYS_TEST, (long)(record + 1), record->size);                          /* should print the banner */
+    length = kmsg_line(fd, line, sizeof(line));
+    field = line;
 
-    printnumber(syscall3(__k_SYS_READ, fd, (long)buffer, 8)); /* should print -226 (EINVAL) */
-    syscall3(__k_SYS_READ, fd, (long)buffer, sizeof(buffer));
-    printnumber(record->seq == 1); /* should print 1 */
+    while(*field && *field != ',') {
+        field += 1;
+    }
+
+    printnumber(length > 0 && same_bytes(field, ",0,", 3)); /* should print 1 */
+    syscall2(__k_SYS_TEST, (long)kmsg_text(line), ustrlen(kmsg_text(line))); /* should print the banner */
+
+    printnumber(syscall3(__k_SYS_READ, fd, (long)chunk, sizeof(chunk))); /* should print 8 */
+    kmsg_line(fd, line, sizeof(line));
 
     /* Nothing logs between the seek and the reads, so the results wait until after them */
     seek_bad = syscall3(__k_SYS_SEEK, fd, 5, 0);
     seek_end = syscall3(__k_SYS_SEEK, fd, 0, 2);
     syscall3(__k_SYS_FCNTL, fd, __k_F_SETFL, __k_O_NONBLOCK);
-    nonblock = syscall3(__k_SYS_READ, fd, (long)buffer, sizeof(buffer));
+    nonblock = syscall3(__k_SYS_READ, fd, (long)chunk, sizeof(chunk));
     syscall3(__k_SYS_FCNTL, fd, __k_F_SETFL, 0);
-    spawn_joinable(&kplog_poker, 0);
+    spawn_joinable(&kmsg_poker, 0);
 
     /* The kernel may log something else first */
     while(!found && reads < 16) {
-        length = syscall3(__k_SYS_READ, fd, (long)buffer, sizeof(buffer));
-        found = length > 0 && kplog_has_data(record, KPLOG_POKE);
+        length = kmsg_line(fd, line, sizeof(line));
+        found = length > 0 && kmsg_has_data(line, KMSG_POKE);
         reads += 1;
     }
 
@@ -877,31 +925,27 @@ static void test_kplog(void)
     syscall1(__k_SYS_CLOSE, fd);
 }
 
-/* Reads records without blocking until one holds exactly data; 0 when none does */
-static const struct __k_kplog_record* kplog_find(long fd, char* buffer, long size, const char* data)
+/* Reads lines without blocking until one holds exactly text after the prefix field; 0 when none does */
+static int kmsg_find(long fd, const char* prefix, const char* text)
 {
-    const struct __k_kplog_record* record = (const struct __k_kplog_record*)buffer;
-    long length = ustrlen(data);
+    char line[2200];
 
-    while(syscall3(__k_SYS_READ, fd, (long)buffer, size) > 0) {
-        if(record->size == length && same_bytes((const char*)(record + 1), data, length)) {
-            return record;
+    while(kmsg_line(fd, line, sizeof(line)) > 0) {
+        if(kmsg_has_prefix(line, prefix) && same_bytes(kmsg_text(line), text, ustrlen(text) + 1)) {
+            return 1;
         }
     }
 
     return 0;
 }
 
-static void test_kplog_write(void)
+static void test_kmsg_write(void)
 {
-    _Alignas(8) char buffer[1024];
     char too_long[600];
-    const struct __k_kplog_record* record;
-    __k_int32_t level = 0;
     int wstatus = -1;
     long child;
-    long reader = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kplog", __k_O_RDONLY | __k_O_NONBLOCK, 0);
-    long writer = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kplog", __k_O_WRONLY, 0);
+    long reader = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kmsg", __k_O_RDONLY | __k_O_NONBLOCK, 0);
+    long writer = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kmsg", __k_O_WRONLY, 0);
     long i;
 
     for(i = 0; i < (long)sizeof(too_long); ++i) {
@@ -911,24 +955,21 @@ static void test_kplog_write(void)
     printnumber(reader >= 0 && writer >= 0); /* should print 1 */
     syscall3(__k_SYS_SEEK, reader, 0, 2);
 
-    printnumber(syscall3(__k_SYS_WRITE, writer, (long)"user line\r\n", 11));        /* should print 11 */
-    printnumber(syscall3(__k_SYS_IOCTL, writer, __k_KPLOG_GETLEVEL, (long)&level)); /* should print 0 */
-    printnumber(level);                                                             /* should print 5 (NOTICE) */
-    level = __k_KPLOG_CRITICAL;
-    printnumber(syscall3(__k_SYS_IOCTL, writer, __k_KPLOG_SETLEVEL, (long)&level)); /* should print -226 (EINVAL) */
-    level = __k_KPLOG_WARNING;
-    printnumber(syscall3(__k_SYS_IOCTL, writer, __k_KPLOG_SETLEVEL, (long)&level)); /* should print 0 */
-    printnumber(syscall3(__k_SYS_WRITE, writer, (long)"warned\n", 7));              /* should print 7 */
+    printnumber(syscall3(__k_SYS_WRITE, writer, (long)"user line\r\n", 11));       /* should print 11 */
+    printnumber(syscall3(__k_SYS_WRITE, writer, (long)"<4>warned\n", 10));          /* should print 10 */
+    printnumber(syscall3(__k_SYS_WRITE, writer, (long)"<14>syslog user", 15));      /* should print 15 */
+    printnumber(syscall3(__k_SYS_WRITE, writer, (long)"tab\there\\", 9));           /* should print 9 */
+    printnumber(syscall3(__k_SYS_WRITE, writer, (long)"<2>critical", 11));          /* should print -226 (EINVAL) */
     printnumber(syscall3(__k_SYS_WRITE, writer, (long)"two\nlines", 9));            /* should print -226 (EINVAL) */
     printnumber(syscall3(__k_SYS_WRITE, writer, (long)"nul\0byte", 8));             /* should print -226 (EINVAL) */
     printnumber(syscall3(__k_SYS_WRITE, writer, (long)too_long, sizeof(too_long))); /* should print -226 (EINVAL) */
     printnumber(syscall3(__k_SYS_WRITE, reader, (long)"read only", 9));             /* should print -208 (EBADF) */
 
-    record = kplog_find(reader, buffer, sizeof(buffer), "user line");
-    printnumber(record && record->level == __k_KPLOG_NOTICE && record->flags == __k_KPLOG_USER); /* should print 1 */
-
-    record = kplog_find(reader, buffer, sizeof(buffer), "warned");
-    printnumber(record && record->level == __k_KPLOG_WARNING && record->flags == __k_KPLOG_USER); /* should print 1 */
+    /* The user facility is 1, so a prefix is 8 + the level */
+    printnumber(kmsg_find(reader, "13", "user line"));              /* should print 1 */
+    printnumber(kmsg_find(reader, "12", "warned"));                 /* should print 1 */
+    printnumber(kmsg_find(reader, "14", "syslog user"));            /* should print 1 */
+    printnumber(kmsg_find(reader, "13", "tab\\x09here\\x5c"));      /* should print 1 */
 
     /* A child without CAP_SYSLOG still reads, and its open for writing exits with the error */
     child = syscall1(__k_SYS_FORK, 0);
@@ -941,8 +982,8 @@ static void test_kplog_write(void)
         caps.effective &= ~__k_CAP_TO_MASK(__k_CAP_SYSLOG);
         syscall1(__k_SYS_CAPSET, (long)&caps);
 
-        denied = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kplog", __k_O_WRONLY, 0);
-        allowed = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kplog", __k_O_RDONLY, 0);
+        denied = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kmsg", __k_O_WRONLY, 0);
+        allowed = syscall4(__k_SYS_OPENAT, __k_AT_FDCWD, (long)"/dev/kmsg", __k_O_RDONLY, 0);
         syscall1(__k_SYS_EXIT, allowed >= 0 ? -denied : 0);
     }
 
@@ -1603,8 +1644,8 @@ int main(int argc, char** argv)
     printnumber(wstatus);                                               // should print 1024 (exit code 4)
 
     test_tty();
-    test_kplog();
-    test_kplog_write();
+    test_kmsg();
+    test_kmsg_write();
     serial_console();
 
     return 1337;

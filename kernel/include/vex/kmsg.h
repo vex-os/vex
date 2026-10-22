@@ -1,0 +1,15 @@
+#pragma once
+
+#include <usr/vex/kmsg.h>
+
+#define KMSG_EMERG    __k_KMSG_EMERG
+#define KMSG_ALERT    __k_KMSG_ALERT
+#define KMSG_CRITICAL __k_KMSG_CRITICAL
+#define KMSG_ERROR    __k_KMSG_ERROR
+#define KMSG_WARNING  __k_KMSG_WARNING
+#define KMSG_NOTICE   __k_KMSG_NOTICE
+#define KMSG_INFORM   __k_KMSG_INFORM
+#define KMSG_VERBOSE  __k_KMSG_VERBOSE
+
+#define KMSG_FACILITY_KERNEL __k_KMSG_FACILITY_KERNEL
+#define KMSG_FACILITY_USER   __k_KMSG_FACILITY_USER

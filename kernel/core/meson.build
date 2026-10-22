@@ -1,6 +1,7 @@
 kernel_sources += files(
     'cmdline.c',
     'console.c',
+    'kmsg.c',
     'kprintf.c',
     'panic.c',
     'version.c',

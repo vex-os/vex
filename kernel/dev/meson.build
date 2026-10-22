@@ -10,7 +10,6 @@ kernel_sources += files(
     'dev_name.c',
     'fb_interface.c',
     'fb_edid.c',
-    'kplog.c',
     'serial_interface.c',
     'tty_interface.c',
     'tty_discipline.c',

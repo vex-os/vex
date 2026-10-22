@@ -20,11 +20,11 @@
 #define PADDING_SIZE UINT16_MAX // The size of a record that only fills the end of the ring
 
 static_assert(KP_LINE_MAX < PADDING_SIZE);
-static_assert(0 == sizeof(kplog_record_t) % RECORD_ALIGN);
+static_assert(0 == sizeof(kp_record_t) % RECORD_ALIGN);
 static_assert(0 == KP_BUFSIZE % RECORD_ALIGN, "CONFIG_KPRINTF_BUFSIZE must be a multiple of 8");
 
 // The padding in front of a record at the end of the ring is shorter than the record
-static_assert(KP_BUFSIZE >= 2U * (sizeof(kplog_record_t) + KP_LINE_MAX), "CONFIG_KPRINTF_BUFSIZE can't hold the longest record");
+static_assert(KP_BUFSIZE >= 2U * (sizeof(kp_record_t) + KP_LINE_MAX), "CONFIG_KPRINTF_BUFSIZE can't hold the longest record");
 
 unsigned loglevel = KP_DEFAULT_LOGLEVEL;
 event_t kprintf_appended = {};
@@ -69,7 +69,7 @@ static void ring_unlock(bool locked)
 
 static size_t record_footprint(size_t text_size)
 {
-    size_t size = sizeof(kplog_record_t) + text_size;
+    size_t size = sizeof(kp_record_t) + text_size;
     return (size + RECORD_ALIGN - 1U) & ~(size_t)(RECORD_ALIGN - 1U);
 }
 
@@ -80,11 +80,11 @@ static uint64_t skip_padding(uint64_t position)
     size_t offset = position % KP_BUFSIZE;
     size_t remaining = KP_BUFSIZE - offset;
 
-    if(remaining < sizeof(kplog_record_t)) {
+    if(remaining < sizeof(kp_record_t)) {
         return position + remaining;
     }
 
-    kplog_record_t record;
+    kp_record_t record;
     memcpy(&record, &ring[offset], sizeof(record));
 
     if(record.size == PADDING_SIZE) {
@@ -102,7 +102,7 @@ static void drop_oldest_locked(void)
 
     ring_tail = skip_padding(ring_tail);
 
-    kplog_record_t record;
+    kp_record_t record;
     memcpy(&record, &ring[ring_tail % KP_BUFSIZE], sizeof(record));
 
     ring_tail += record_footprint(record.size);
@@ -123,15 +123,15 @@ static void append_locked(unsigned level, unsigned flags, uint64_t time_ns, cons
         drop_oldest_locked();
     }
 
-    if(padding >= sizeof(kplog_record_t)) {
-        kplog_record_t marker = {};
+    if(padding >= sizeof(kp_record_t)) {
+        kp_record_t marker = {};
         marker.size = PADDING_SIZE;
         memcpy(&ring[offset], &marker, sizeof(marker));
     }
 
     offset = (ring_head + padding) % KP_BUFSIZE;
 
-    kplog_record_t record = {};
+    kp_record_t record = {};
     record.seq = next_seq;
     record.time_ns = time_ns;
     record.size = (uint16_t)(size);
@@ -189,7 +189,7 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 
     if(size > KP_LINE_MAX) {
         size = KP_LINE_MAX;
-        flags |= KPLOG_TRUNCATED;
+        flags |= KP_TRUNCATED;
     }
 
     while(size && (line[size - 1U] == '\n' || line[size - 1U] == '\r')) {
@@ -242,7 +242,7 @@ uint64_t kprintf_next_seq(void)
     return atomic_load_n(&next_seq, ATOMIC_ACQUIRE);
 }
 
-bool kprintf_read(kp_cursor_t* restrict cursor, kplog_record_t* restrict record, char* restrict text)
+bool kprintf_read(kp_cursor_t* restrict cursor, kp_record_t* restrict record, char* restrict text)
 {
     bool intr_state = disable_interrupts();
     bool locked = ring_lock();
