@@ -67,6 +67,7 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
 - Cast only where an implicit conversion doesn't do the job: where the compiler would warn (a narrowing or a change of signedness it flags), a pointer to or from an integer, a varargs argument. A narrowing that compiles without a warning, such as `uint32_t value = UINT64_C(42);`, needs no cast. Wrap the operand of a cast in parentheses: `(uint32_t)(address)`, `(void*)(fault)`.
 - Don't dereference a call's result in place (`this_hart()->caps`, `pframe_of(phys)->flags`). Put the result in a named local first (`hart_local_t* hart = this_hart();`), then use its fields. `(*prev)->next` in list walks is a plain pointer dereference and is fine.
 - Never use a standalone increment or decrement statement (`++x;`, `x++;`, `--x;`, `x--;`). Outside a `for` header, write `x += 1` or `x -= 1`. Inside a `for` header, a one-letter counter uses `++i` or `--i`, and a longer name uses `page += 1` or `level -= 1`.
+- A `for` header has all three parts or none (`for(;;)`). A loop that doesn't fill all three is a `while`, with the step at the end of its body.
 - Top-level order in a translation unit:
   1. includes;
   2. forward declarations (other files' typedefs, `extern` asm/linker symbols);
