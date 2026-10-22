@@ -6,6 +6,7 @@
 
 #define PCI_BUS_WINDOW_MAX (PCI_ROOT_WINDOW_MAX + 3)
 
+#define IO_SPACE_START    UINT64_C(0x1000)      // ISA devices and the PCI configuration ports are below
 #define IO_SPACE_END      UINT64_C(0x10000)     // PCI Local Bus 3.0, 6.2.5.1: I/O BARs decode 16 bits on x86
 #define BELOW_4G_END      UINT64_C(0x100000000) // A 32-bit BAR's reach
 #define ADDRESS_SPACE_END UINT64_MAX
@@ -133,20 +134,22 @@ static bool overlaps(uint64_t start, uint64_t end, uint64_t other_start, uint64_
     return start < other_end && other_start < end;
 }
 
-// What a function takes of its bus's space: its own BARs, and the windows of a bridge
-static bool function_takes(pci_function_t* restrict function, bool is_io, uint64_t start, uint64_t end, uint64_t* restrict taken_end)
+// What a function takes of its bus's space: its own BARs except one, and the windows of a bridge
+static bool function_takes(pci_function_t* restrict function, const pci_bar_t* except, bool is_io, uint64_t start, uint64_t end,
+    uint64_t* restrict taken_end)
 {
     for(unsigned i = 0; i < PCI_BAR_MAX; ++i) {
         const pci_bar_t* bar = &function->priv.bars[i];
         bool bar_is_io = bar->flags & PCI_BAR_IO;
 
-        if(bar->length && bar->assigned && bar_is_io == is_io && overlaps(start, end, bar->address, bar->address + bar->length)) {
+        if(bar != except && bar->length && bar->assigned && bar_is_io == is_io
+            && overlaps(start, end, bar->address, bar->address + bar->length)) {
             *taken_end = bar->address + bar->length;
             return true;
         }
     }
 
-    if(function->priv.secondary == nullptr) {
+    if(!function->priv.is_bridge) {
         return false;
     }
 
@@ -166,15 +169,15 @@ static bool function_takes(pci_function_t* restrict function, bool is_io, uint64
     return false;
 }
 
-static bool bus_takes(const pci_bus_t* restrict bus, pci_function_t* restrict function, bool is_io, uint64_t start, uint64_t end,
-    uint64_t* restrict taken_end)
+static bool bus_takes(const pci_bus_t* restrict bus, pci_function_t* restrict function, const pci_bar_t* except, bool is_io, uint64_t start,
+    uint64_t end, uint64_t* restrict taken_end)
 {
-    if(function_takes(function, is_io, start, end, taken_end)) {
+    if(function_takes(function, except, is_io, start, end, taken_end)) {
         return true;
     }
 
     for(pci_function_t* sibling = bus->functions; sibling; sibling = sibling->priv.next) {
-        if(sibling != function && function_takes(sibling, is_io, start, end, taken_end)) {
+        if(sibling != function && function_takes(sibling, nullptr, is_io, start, end, taken_end)) {
             return true;
         }
     }
@@ -202,12 +205,18 @@ static bool find_room(const pci_bus_t* restrict bus, pci_function_t* restrict fu
     }
 
     uint64_t end = window->end < reach ? window->end : reach;
-    uint64_t start = align_up(window->start, bar->length);
+    uint64_t start = window->start;
+
+    if(is_io && start < IO_SPACE_START) {
+        start = IO_SPACE_START;
+    }
+
+    start = align_up(start, bar->length);
 
     while(start < end && bar->length <= end - start) {
         uint64_t taken_end;
 
-        if(!bus_takes(bus, function, is_io, start, start + bar->length, &taken_end)) {
+        if(!bus_takes(bus, function, bar, is_io, start, start + bar->length, &taken_end)) {
             *address = start;
             return true;
         }
@@ -305,13 +314,12 @@ static void read_bar(pci_function_t* restrict function, unsigned index)
     }
 }
 
-static unsigned num_bars_of(pci_function_t* restrict function)
+// The firmware may leave two BARs at the same address, or a BAR in the window of a bridge on the same bus
+static bool collides(const pci_bus_t* restrict bus, pci_function_t* restrict function, const pci_bar_t* restrict bar)
 {
-    if((pci_read_config8(function, PCI_CFG_HEADER_TYPE) & PCI_HDR_TYPE_MASK) == PCI_HDR_TYPE_BRIDGE) {
-        return PCI_BRIDGE_BAR_MAX;
-    }
+    uint64_t taken_end;
 
-    return PCI_BAR_MAX;
+    return bus_takes(bus, function, bar, bar->flags & PCI_BAR_IO, bar->address, bar->address + bar->length, &taken_end);
 }
 
 // The space decodes only once all of its BARs have room
@@ -330,13 +338,16 @@ static space_decode_t assign_space(const pci_bus_t* restrict bus, pci_function_t
 
         any = true;
 
-        if(bar->assigned && is_in_windows(list, bar)) {
-            continue;
-        }
-
-        if(bar->assigned) {
+        if(bar->assigned && !is_in_windows(list, bar)) {
             pr_warning("pci: %s BAR%u at %p is outside the windows of its bus", function->priv.device->name, i,
                 (void*)(uintptr_t)(bar->address));
+        }
+        else if(bar->assigned && collides(bus, function, bar)) {
+            pr_warning("pci: %s BAR%u at %p overlaps another BAR or a bridge window", function->priv.device->name, i,
+                (void*)(uintptr_t)(bar->address));
+        }
+        else if(bar->assigned) {
+            continue;
         }
 
         uint64_t address;
@@ -394,7 +405,7 @@ void pci_read_bars(pci_function_t* restrict function)
     uint16_t command = pci_read_config16(function, PCI_CFG_COMMAND);
     pci_write_config16(function, PCI_CFG_COMMAND, command & ~(uint16_t)(PCI_CMD_IO_SPACE | PCI_CMD_MEM_SPACE));
 
-    unsigned num_bars = num_bars_of(function);
+    unsigned num_bars = function->priv.is_bridge ? PCI_BRIDGE_BAR_MAX : PCI_BAR_MAX;
 
     for(unsigned i = 0; i < PCI_BAR_MAX; ++i) {
         pci_bar_t* bar = &function->priv.bars[i];
@@ -424,7 +435,7 @@ void pci_assign_bars(pci_function_t* restrict function)
 
     space_decode_t io_decode = assign_space(bus, function, &list, true);
     space_decode_t memory_decode = assign_space(bus, function, &list, false);
-    bool is_bridge = num_bars_of(function) == PCI_BRIDGE_BAR_MAX;
+    bool is_bridge = function->priv.is_bridge;
 
     uint16_t command = pci_read_config16(function, PCI_CFG_COMMAND);
     command = apply_decode(command, PCI_CMD_IO_SPACE, io_decode, is_bridge);

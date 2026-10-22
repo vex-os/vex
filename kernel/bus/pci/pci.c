@@ -470,16 +470,20 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
     function->priv.config_space = bus->config_space;
     function->priv.device = device;
     function->priv.secondary = nullptr;
+    function->priv.settled = false;
     function->address = *address;
     function->vendor_id = pci_read_config16(function, PCI_CFG_VENDOR_ID);
     function->device_id = pci_read_config16(function, PCI_CFG_DEVICE_ID);
     function->class_id = pci_read_config8(function, PCI_CFG_CLASS);
     function->subclass_id = pci_read_config8(function, PCI_CFG_SUBCLASS);
 
+    uint8_t header_type = pci_read_config8(function, PCI_CFG_HEADER_TYPE) & PCI_HDR_TYPE_MASK;
+
+    function->priv.is_bridge = header_type == PCI_HDR_TYPE_BRIDGE;
+
     log_device(function);
 
     pci_read_bars(function);
-    pci_assign_bars(function);
 
     pci_function_t** tail = &bus->functions;
 
@@ -489,10 +493,6 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
 
     function->priv.next = nullptr;
     *tail = function;
-
-    if((pci_read_config8(function, PCI_CFG_HEADER_TYPE) & PCI_HDR_TYPE_MASK) == PCI_HDR_TYPE_BRIDGE) {
-        add_bridge(function);
-    }
 }
 
 static pci_function_t* find_function(const pci_bus_t* restrict bus, unsigned slot, unsigned number)
@@ -554,10 +554,25 @@ static void scan_slot(pci_bus_t* restrict bus, unsigned slot)
     }
 }
 
+// All new functions are read before any of them is assigned. Thus a BAR that overlaps
+// the BAR of a later function is found. Of two such BARs, the BAR that is checked first moves
 static void scan_bus(pci_bus_t* restrict bus)
 {
     for(unsigned slot = 0; slot < PCI_DEVICE_MAX; slot += 1) {
         scan_slot(bus, slot);
+    }
+
+    for(pci_function_t* function = bus->functions; function; function = function->priv.next) {
+        if(function->priv.settled) {
+            continue;
+        }
+
+        pci_assign_bars(function);
+        function->priv.settled = true;
+
+        if(function->priv.is_bridge) {
+            add_bridge(function);
+        }
     }
 }
 

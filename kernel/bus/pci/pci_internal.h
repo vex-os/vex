@@ -29,8 +29,8 @@ struct pci_bus_s {
 /// @pre No driver has the function, as a BAR doesn't decode while it is sized
 void pci_read_bars(pci_function_t* restrict function);
 
-/// Gives the BARs that the firmware left without an address, or outside the windows of the function's bus,
-/// room in those windows, and turns on decoding of the spaces that then all have room
-/// @pre pci_read_bars has read the BARs
+/// Gives room in the windows of the function's bus to each BAR that the firmware left without an address,
+/// outside those windows, or over another BAR or a bridge window of the bus. Then turns on decoding of the spaces that all have room
+/// @pre pci_read_bars has read the BARs of the function and of all the other new functions of its bus
 /// @note A BAR that doesn't fit stays unassigned, with the others of its space, which then doesn't decode
 void pci_assign_bars(pci_function_t* restrict function);

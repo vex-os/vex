@@ -138,6 +138,8 @@ struct pci_function_private_s {
     pci_config_space_t* config_space;
     device_t* device;     // Its fwnode is the companion
     pci_bus_t* secondary; // The bus behind a bridge, nullptr on other functions
+    bool is_bridge;
+    bool settled; // The BARs are assigned and the bus behind a bridge is added
     pci_bar_t bars[PCI_BAR_MAX];
 };
 
