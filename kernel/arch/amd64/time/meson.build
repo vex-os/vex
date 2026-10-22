@@ -1,5 +1,5 @@
 kernel_sources += files(
-    'clockevt.c',
     'hpet.c',
+    'lapic_timer.c',
     'rtc.c',
 )
