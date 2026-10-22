@@ -141,6 +141,31 @@ int interrupt_controller_add(interrupt_controller_t* restrict controller)
     return 0;
 }
 
+void interrupt_controller_remove(interrupt_controller_t* restrict controller)
+{
+    mutex_acquire(&line_mutex);
+
+    for(interrupt_line_t* line = line_head; line; line = line->next) {
+        kassert(line->controller != controller);
+    }
+
+    mutex_release(&line_mutex);
+
+    spinlock_acquire(&interrupt_controller_lock);
+
+    interrupt_controller_t** prev = &interrupt_controller_head;
+
+    while(*prev != controller) {
+        prev = &(*prev)->priv.next;
+    }
+
+    *prev = controller->priv.next;
+
+    spinlock_release(&interrupt_controller_lock);
+
+    pr_verbose("intctl: removed %s", controller->name);
+}
+
 interrupt_controller_t* interrupt_controller_find(uint32_t gsi)
 {
     spinlock_acquire(&interrupt_controller_lock);

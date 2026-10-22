@@ -150,9 +150,14 @@ int device_get_io_address(device_t* restrict device, unsigned index, uint64_t* r
 
 /// Routes an interrupt of the device to a handler, sharing its GSI when the bus says it may
 /// be shared; the framework releases it when the driver lets go of the device
+/// @pre Called from the attach of the node's driver
 /// @param index Counts the device's interrupts, in its bus's order
+/// @retval -EAGAIN The node of the GSI's interrupt controller isn't bound yet, as for device_wait_for
+/// @retval -EDEADLK The interrupt controller relies on the node
 /// @retval -ENODEV The device has no such interrupt, or no interrupt controller has its GSI
 /// @retval -EBUSY The interrupt is already requested, or its GSI is taken by a handler that doesn't share it
+/// @retval -ENOMEM Out of memory
+/// @note Makes the driver rely on the controller's node, so the node is unbound only after the device
 int device_request_irq(device_t* restrict device, unsigned index, irq_handler_t handler, void* restrict ctxdata);
 
 void device_release_irq(device_t* restrict device, unsigned index);

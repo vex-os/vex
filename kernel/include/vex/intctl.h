@@ -4,6 +4,8 @@
 #include <vex/irq.h>
 #include <vex/types.h>
 
+typedef struct device_s device_t;
+
 enum {
     TRIGGER_LEVEL,
     TRIGGER_EDGE,
@@ -39,9 +41,14 @@ struct interrupt_controller_s {
     uint32_t gsi_base;
     uint32_t gsi_count;
     void* ctxdata;
+    device_t* device; // The node of the tree that drives it, which drivers with its GSIs then rely on; nullptr until there is one
 };
 
 int interrupt_controller_add(interrupt_controller_t* restrict controller);
+
+/// @pre No GSI of the controller is attached
+void interrupt_controller_remove(interrupt_controller_t* restrict controller);
+
 interrupt_controller_t* interrupt_controller_find(uint32_t gsi) __nodiscard;
 
 void interrupt_controller_mask(interrupt_controller_t* restrict controller, uint32_t gsi);

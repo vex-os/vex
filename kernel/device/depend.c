@@ -254,3 +254,22 @@ int device_wait_for(device_t* restrict device, device_t* restrict provider)
 
     return retval;
 }
+
+int device_use(device_t* restrict device, device_t* restrict provider)
+{
+    mutex_acquire(&device_tree_mutex);
+
+    bool uses = false;
+
+    for(const device_link_t* link = device->priv.providers; link; link = link->next_of_consumer) {
+        uses = uses || link->provider == provider;
+    }
+
+    mutex_release(&device_tree_mutex);
+
+    if(uses) {
+        return 0;
+    }
+
+    return device_wait_for(device, provider);
+}

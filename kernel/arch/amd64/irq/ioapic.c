@@ -1,5 +1,7 @@
 #include <uacpi/acpi.h>
 #include <uacpi/tables.h>
+#include <vex/device.h>
+#include <vex/driver.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
 #include <vex/intctl.h>
@@ -58,6 +60,9 @@ static_assert(8 == sizeof(rte_entry_t));
 
 struct ioapic_data_s {
     volatile uint32_t* base;
+    uint32_t id;
+    interrupt_controller_t* controller;
+    ioapic_data_t* next; // Among those brought up before the tree, until the tree has a node for it
 };
 
 struct isa_route_s {
@@ -67,6 +72,7 @@ struct isa_route_s {
 };
 
 static isa_route_t isa_routes[ISA_IRQ_COUNT];
+static ioapic_data_t* unplaced_head = nullptr;
 
 static uint32_t ioapic_read(ioapic_data_t* data, uint32_t index)
 {
@@ -149,6 +155,41 @@ static const interrupt_controller_ops_t ioapic_ops = {
     .route = &ioapic_route,
 };
 
+static void ioapic_detach(device_t* restrict device)
+{
+    interrupt_controller_remove(device->ctxdata);
+}
+
+static void ioapic_release(device_t* restrict device)
+{
+    interrupt_controller_t* controller = device->ctxdata;
+
+    if(controller == nullptr) {
+        return;
+    }
+
+    kfree(controller->ctxdata);
+    kfree((void*)(controller->name));
+    kfree(controller);
+}
+
+static const driver_ops_t ioapic_driver_ops = {
+    .detach = &ioapic_detach,
+    .release = &ioapic_release,
+};
+
+static const driver_match_t ioapic_matches[] = {
+    DRIVER_MATCH_END(),
+};
+
+// Not in the drivers' table, as the IOAPICs
+// are brought up before the tree and never probed
+static const driver_t ioapic_driver = {
+    .name = "ioapic",
+    .ops = &ioapic_driver_ops,
+    .matches = ioapic_matches,
+};
+
 // A flag that conforms to the bus means ISA's own: edge-triggered and active-high
 static void record_override(const struct acpi_madt_interrupt_source_override* restrict iso)
 {
@@ -187,10 +228,16 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
         uint32_t id = ioapic_read(data, IOAPIC_REG_ID) >> 24;
         uint32_t ver = ioapic_read(data, IOAPIC_REG_VER);
 
+        data->id = id;
+        data->controller = controller;
+        data->next = unplaced_head;
+        unplaced_head = data;
+
         controller->ops = &ioapic_ops;
         controller->gsi_base = ioapic->gsi_base;
         controller->gsi_count = ((ver >> IOAPIC_VER_MAXREDIR_SHIFT) & IOAPIC_VER_MAXREDIR_MASK) + 1;
         controller->ctxdata = data;
+        controller->device = nullptr;
 
         controller->name = kasprintf("ioapic%u", (unsigned)id);
 
@@ -213,6 +260,30 @@ static uacpi_iteration_decision ioapic_madt_callback(uacpi_handle user, struct a
     }
 
     return UACPI_ITERATION_DECISION_CONTINUE;
+}
+
+static void place_ioapic(device_t* restrict root, ioapic_data_t* restrict data)
+{
+    char name[DEVICE_NAME_MAX];
+    snprintf(name, sizeof(name), "ioapic:%u", (unsigned)(data->id));
+
+    device_t* device;
+
+    if(device_add_bound(root, nullptr, name, &ioapic_driver, data->controller, &device) < 0) {
+        panic("ioapic: out of memory");
+    }
+
+    io_region_t region = {};
+    region.space = IO_SPACE_MEMORY;
+    region.base = (uintptr_t)(data->base);
+    region.length = IOAPIC_MMIO_SIZE;
+
+    if(device_adopt_io(device, &region) < 0) {
+        panic("ioapic: out of memory");
+    }
+
+    data->controller->device = device;
+    device_decref(device);
 }
 
 void interrupt_isa_route(unsigned irq, uint32_t* restrict gsi, unsigned* restrict trigger, unsigned* restrict polarity)
@@ -249,3 +320,26 @@ static void arch_init_ioapic(void)
 }
 
 initcall_bsp_irq(arch_init_ioapic, INIT_FIRST);
+
+// After the firmware's root node is there, and before the tree is bound,
+// so that drivers on the IOAPICs' GSIs come to rely on them
+static void arch_init_ioapic_nodes(void)
+{
+    device_t* root = device_get_root();
+
+    if(root == nullptr) {
+        panic("ioapic: out of memory");
+    }
+
+    while(unplaced_head) {
+        ioapic_data_t* data = unplaced_head;
+        unplaced_head = data->next;
+        data->next = nullptr;
+
+        place_ioapic(root, data);
+    }
+
+    device_decref(root);
+}
+
+initcall_bsp_bus(arch_init_ioapic_nodes, INIT_LATE);

@@ -43,6 +43,10 @@ bool device_is_waiting(const device_t* restrict device) __nodiscard;
 /// @pre The device is being probed, on device_worker
 int device_wait_for_dependencies(device_t* restrict device) __nodiscard;
 
+/// device_wait_for, except that a provider the driver already uses is left as it is
+/// @pre Called from the attach of the node's driver
+int device_use(device_t* restrict device, device_t* restrict provider) __nodiscard;
+
 /// @pre The device's driver has let go of it, or never attached
 void device_unlink_providers(device_t* restrict device);
 

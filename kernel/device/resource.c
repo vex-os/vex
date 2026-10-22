@@ -83,16 +83,40 @@ static device_irq_t** find_irq_nolock(device_t* restrict device, unsigned index)
     return prev;
 }
 
-static int attach_irq(const fwnode_irq_t* restrict irq, irq_handler_t handler, void* restrict ctxdata, interrupt_action_t** restrict action)
+static uint32_t gsi_of(const fwnode_irq_t* restrict irq, unsigned* restrict trigger, unsigned* restrict polarity)
 {
     uint32_t gsi = irq->number;
-    unsigned trigger = irq->trigger;
-    unsigned polarity = irq->polarity;
-    unsigned flags = 0;
+    *trigger = irq->trigger;
+    *polarity = irq->polarity;
 
     if(irq->flags & FWNODE_IRQ_ISA) {
-        interrupt_isa_route(irq->number, &gsi, &trigger, &polarity);
+        interrupt_isa_route(irq->number, &gsi, trigger, polarity);
     }
+
+    return gsi;
+}
+
+static int use_controller(device_t* restrict device, uint32_t gsi)
+{
+    interrupt_controller_t* controller = interrupt_controller_find(gsi);
+
+    if(controller == nullptr) {
+        return -ENODEV;
+    }
+
+    if(controller->device == nullptr || controller->device == device) {
+        return 0;
+    }
+
+    return device_use(device, controller->device);
+}
+
+static int attach_irq(const fwnode_irq_t* restrict irq, irq_handler_t handler, void* restrict ctxdata, interrupt_action_t** restrict action)
+{
+    unsigned trigger;
+    unsigned polarity;
+    uint32_t gsi = gsi_of(irq, &trigger, &polarity);
+    unsigned flags = 0;
 
     if(irq->flags & FWNODE_IRQ_SHARED) {
         flags |= INTERRUPT_SHARED;
@@ -318,6 +342,14 @@ int device_request_irq(device_t* restrict device, unsigned index, irq_handler_t 
 {
     fwnode_irq_t irq;
     int retval = get_irq(device, index, &irq);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    unsigned trigger;
+    unsigned polarity;
+    retval = use_controller(device, gsi_of(&irq, &trigger, &polarity));
 
     if(retval < 0) {
         return retval;
