@@ -1,4 +1,5 @@
 #include "uacpi/status.h"
+#include "vex/strings.h"
 #include <uacpi/acpi.h>
 #include <uacpi/kernel_api.h>
 #include <uacpi/tables.h>
@@ -27,12 +28,14 @@
 #include <vex/sched.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
+#include <vex/sprintf.h>
 #include <vex/thread.h>
 #include <vex/vprot.h>
 
 #define UACPI_TIMEOUT_INFINITE 0xFFFF
 
-#define SCI_FIRMWARE_ID "ACPI_SCI" // The namespace gives the SCI no node, and no _HID has an underscore
+#define IRQ_FIRMWARE_ID "ACPI_IRQ" // No _HID has an underscore, so no namespace device can match it
+#define IRQ_NAME_MAX    16
 
 typedef struct acpi_work_s acpi_work_t;
 typedef struct acpi_semaphore_s acpi_semaphore_t;
@@ -50,8 +53,11 @@ struct acpi_semaphore_s {
     event_t given;
 };
 
+// A GSI that uACPI handles, with the node of the tree that requests it
 struct acpi_irq_trampoline_s {
-    interrupt_action_t* action;
+    fwnode_fixed_t fixed; // First, so that the handle of the node is the trampoline
+    fwnode_resource_t resource;
+    char name[IRQ_NAME_MAX];
     uacpi_interrupt_handler handler;
     uacpi_handle ctxdata;
 };
@@ -65,28 +71,9 @@ static_assert(sizeof(acpi_work_t) <= SLAB_MAX_SIZE);
 static_assert(sizeof(acpi_semaphore_t) <= SLAB_MAX_SIZE);
 static_assert(sizeof(acpi_pci_function_t) <= SLAB_MAX_SIZE);
 
-static const driver_match_t acpi_sci_matches[] = {
-    DRIVER_MATCH_FIRMWARE(SCI_FIRMWARE_ID),
+static const driver_match_t acpi_irq_matches[] = {
+    DRIVER_MATCH_FIRMWARE(IRQ_FIRMWARE_ID),
     DRIVER_MATCH_END(),
-};
-
-// ACPI 6.5, 5.2.9: SCI_INT is a level, active-low interrupt that devices may share
-static fwnode_resource_t sci_resources[] = {
-    {
-        .type = FWNODE_RESOURCE_IRQ,
-        .irq = {
-            .trigger = TRIGGER_LEVEL,
-            .polarity = ACTIVE_LOW,
-            .flags = FWNODE_IRQ_SHARED,
-        },
-    },
-};
-
-static const fwnode_fixed_t sci_fixed = {
-    .name = "sci",
-    .id = SCI_FIRMWARE_ID,
-    .resources = sci_resources,
-    .num_resources = sizeof(sci_resources) / sizeof(sci_resources[0]),
 };
 
 static acpi_work_t* work_head;
@@ -95,7 +82,6 @@ static spinlock_t work_lock = SPINLOCK_INIT;
 static event_t work_queued;
 static unsigned long irqs_running;
 static unsigned long works_pending;
-static acpi_irq_trampoline_t* sci_trampoline; // Set once uACPI installs the SCI, before the tree is first bound
 
 static bool poll_until(bool (*done)(void* arg), void* arg, uacpi_u16 timeout_msec)
 {
@@ -196,55 +182,58 @@ static void acpi_irq_dispatch(unsigned number, const hart_context_t* restrict ct
     atomic_fetch_sub(&irqs_running, 1, ATOMIC_ACQ_REL);
 }
 
-static int acpi_sci_probe(device_t* restrict device, const driver_match_t* restrict match)
+static int acpi_irq_probe(device_t* restrict device, const driver_match_t* restrict match)
 {
     return DRIVER_SCORE_SPECIFIC;
 }
 
-static int acpi_sci_attach(device_t* restrict device, const driver_match_t* restrict match)
+static int acpi_irq_attach(device_t* restrict device, const driver_match_t* restrict match)
 {
-    device->ctxdata = sci_trampoline;
+    acpi_irq_trampoline_t* trampoline = device->fwnode.handle;
 
-    return device_request_irq(device, 0, &acpi_irq_dispatch, sci_trampoline);
+    device->ctxdata = trampoline;
+
+    return device_request_irq(device, 0, &acpi_irq_dispatch, trampoline);
 }
 
-// Events, the embedded controller and sleep all come through the SCI, which has nowhere else to go
-static int acpi_sci_offline(device_t* restrict device)
+// The SCI carries events, the embedded controller
+// and sleep, and a GPE block carries its GPEs
+static int acpi_irq_offline(device_t* restrict device)
 {
-    pr_warning("acpi: %s carries every ACPI event", device->name);
+    pr_warning("acpi: %s carries ACPI events", device->name);
     return -EBUSY;
 }
 
-static void acpi_sci_online(device_t* restrict device)
+static void acpi_irq_online(device_t* restrict device)
 {
     // empty
 }
 
-static void acpi_sci_detach(device_t* restrict device)
+static void acpi_irq_detach(device_t* restrict device)
 {
-    pr_warning("acpi: %s is gone, and ACPI events with it", device->name);
+    pr_warning("acpi: %s is gone, and its ACPI events with it", device->name);
 }
 
-// The trampoline is uACPI's, and lives as long as it does
-static void acpi_sci_release(device_t* restrict device)
+// The trampoline belongs to uACPI and lives as long as uACPI does
+static void acpi_irq_release(device_t* restrict device)
 {
     // empty
 }
 
-static const driver_ops_t acpi_sci_driver_ops = {
-    .probe = &acpi_sci_probe,
-    .attach = &acpi_sci_attach,
-    .offline = &acpi_sci_offline,
-    .online = &acpi_sci_online,
-    .detach = &acpi_sci_detach,
-    .release = &acpi_sci_release,
+static const driver_ops_t acpi_irq_driver_ops = {
+    .probe = &acpi_irq_probe,
+    .attach = &acpi_irq_attach,
+    .offline = &acpi_irq_offline,
+    .online = &acpi_irq_online,
+    .detach = &acpi_irq_detach,
+    .release = &acpi_irq_release,
 };
 
-define_driver(acpi_sci, &acpi_sci_driver_ops, acpi_sci_matches);
+define_driver(acpi_irq, &acpi_irq_driver_ops, acpi_irq_matches);
 
-// The SCI's handler is requested by the driver of its node, so that the
-// node relies on the interrupt controller of its GSI like any other
-static uacpi_status add_sci_node(uacpi_u32 gsi, acpi_irq_trampoline_t* restrict trampoline)
+// The driver of the node requests the handler. Thus the node relies on the
+// interrupt controller of its GSI, as all other nodes do
+static uacpi_status add_irq_node(acpi_irq_trampoline_t* restrict trampoline)
 {
     device_t* root = device_get_root();
 
@@ -252,11 +241,8 @@ static uacpi_status add_sci_node(uacpi_u32 gsi, acpi_irq_trampoline_t* restrict 
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
 
-    sci_resources[0].irq.number = gsi;
-    sci_trampoline = trampoline;
-
     fwnode_t fwnode;
-    fwnode_init_fixed(&fwnode, &sci_fixed);
+    fwnode_init_fixed(&fwnode, &trampoline->fixed);
 
     char name[DEVICE_NAME_MAX];
     device_t* device;
@@ -269,7 +255,6 @@ static uacpi_status add_sci_node(uacpi_u32 gsi, acpi_irq_trampoline_t* restrict 
     device_decref(root);
 
     if(retval < 0) {
-        sci_trampoline = nullptr;
         return retval == -ENOMEM ? UACPI_STATUS_OUT_OF_MEMORY : UACPI_STATUS_INTERNAL_ERROR;
     }
 
@@ -565,30 +550,36 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
 
-    trampoline->action = nullptr;
+    if(is_sci(gsi)) {
+        kstrncpy(trampoline->name, "sci", sizeof(trampoline->name));
+    }
+    else {
+        snprintf(trampoline->name, sizeof(trampoline->name), "gpe_gsi%u", (unsigned)(gsi));
+    }
+
+    // ACPI 6.5, 5.2.9: SCI_INT is a level, active-low interrupt that devices may share.
+    // uACPI gives only the GSI of a GPE block device, so its interrupt is taken as the same
+    trampoline->resource = (fwnode_resource_t) {};
+    trampoline->resource.type = FWNODE_RESOURCE_IRQ;
+    trampoline->resource.irq.number = gsi;
+    trampoline->resource.irq.trigger = TRIGGER_LEVEL;
+    trampoline->resource.irq.polarity = ACTIVE_LOW;
+    trampoline->resource.irq.flags = FWNODE_IRQ_SHARED;
+
+    trampoline->fixed = (fwnode_fixed_t) {};
+    trampoline->fixed.name = trampoline->name;
+    trampoline->fixed.id = IRQ_FIRMWARE_ID;
+    trampoline->fixed.resources = &trampoline->resource;
+    trampoline->fixed.num_resources = 1;
+
     trampoline->handler = handler;
     trampoline->ctxdata = ctxdata;
 
-    if(is_sci(gsi)) {
-        uacpi_status status = add_sci_node(gsi, trampoline);
+    uacpi_status status = add_irq_node(trampoline);
 
-        if(uacpi_unlikely_error(status)) {
-            kfree(trampoline);
-            return status;
-        }
-
-        *out_handle = trampoline;
-
-        return UACPI_STATUS_OK;
-    }
-
-    // NOTE: GPE block devices on interrupts of their own stay out of the tree, which QEMU and most boards never have
-    int retval = interrupt_attach(gsi, TRIGGER_LEVEL, ACTIVE_LOW, INTERRUPT_SHARED, &acpi_irq_dispatch, trampoline, &trampoline->action);
-
-    if(retval < 0) {
+    if(uacpi_unlikely_error(status)) {
         kfree(trampoline);
-
-        return retval == -ENOMEM ? UACPI_STATUS_OUT_OF_MEMORY : UACPI_STATUS_NOT_FOUND;
+        return status;
     }
 
     *out_handle = trampoline;
@@ -596,17 +587,10 @@ uacpi_status uacpi_kernel_install_interrupt_handler(uacpi_u32 gsi, uacpi_interru
     return UACPI_STATUS_OK;
 }
 
-// Vex never tears uACPI down, and the node of the SCI never goes offline
+// Vex never tears uACPI down, so the nodes of its interrupts never go
 uacpi_status uacpi_kernel_uninstall_interrupt_handler(uacpi_interrupt_handler handler, uacpi_handle irq_handle)
 {
-    acpi_irq_trampoline_t* trampoline = irq_handle;
-
-    kassert(trampoline != sci_trampoline);
-
-    interrupt_detach(trampoline->action);
-    kfree(trampoline);
-
-    return UACPI_STATUS_OK;
+    return UACPI_STATUS_UNIMPLEMENTED;
 }
 
 uacpi_handle uacpi_kernel_create_work_item(void)
