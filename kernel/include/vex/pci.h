@@ -40,9 +40,24 @@ typedef struct pci_config_space_s pci_config_space_t;
 #define PCI_CFG_MIN_GNT         0x3E
 #define PCI_CFG_MAX_LAT         0x3F
 
-#define PCI_CFG_PRIMARY_BUS     0x18 // Of a PCI-PCI bridge
-#define PCI_CFG_SECONDARY_BUS   0x19
-#define PCI_CFG_SUBORDINATE_BUS 0x1A
+#define PCI_CFG_PRIMARY_BUS      0x18 // Of a PCI-PCI bridge
+#define PCI_CFG_SECONDARY_BUS    0x19
+#define PCI_CFG_SUBORDINATE_BUS  0x1A
+#define PCI_CFG_IO_BASE          0x1C
+#define PCI_CFG_IO_LIMIT         0x1D
+#define PCI_CFG_MEMORY_BASE      0x20
+#define PCI_CFG_MEMORY_LIMIT     0x22
+#define PCI_CFG_PREF_BASE        0x24 // Prefetchable Memory Base
+#define PCI_CFG_PREF_LIMIT       0x26
+#define PCI_CFG_PREF_BASE_UPPER  0x28 // Upper 32 bits, when the window is 64-bit
+#define PCI_CFG_PREF_LIMIT_UPPER 0x2C
+#define PCI_CFG_IO_BASE_UPPER    0x30 // Upper 16 bits, when the window is 32-bit
+#define PCI_CFG_IO_LIMIT_UPPER   0x32
+
+#define PCI_BRIDGE_IO_32BIT    0x01 // In the low bits of I/O Base
+#define PCI_BRIDGE_PREF_64BIT  0x01 // In the low bits of Prefetchable Memory Base
+#define PCI_BRIDGE_IO_MASK     0xF0
+#define PCI_BRIDGE_WINDOW_MASK 0xFFF0
 
 #define PCI_HDR_TYPE_MASK    0x7F
 #define PCI_HDR_TYPE_NORMAL  0x00
@@ -90,11 +105,15 @@ typedef struct pci_config_space_s pci_config_space_t;
 #define PCI_MSI_CONTROL_64BIT  0x0080 // 64 Bit Address Capable
 #define PCI_MSI_CONTROL_PVM    0x0100 // Per-Vector Masking Capable
 
+#define PCI_BAR_MAX        6
+#define PCI_BRIDGE_BAR_MAX 2 // A bridge's header has bus numbers and windows where the others go on
+
 #define PCI_BUS_MAX      256
 #define PCI_DEVICE_MAX   32
 #define PCI_FUNCTION_MAX 8
 
 typedef struct pci_address_s pci_address_t;
+typedef struct pci_bar_s pci_bar_t;
 typedef struct pci_function_private_s pci_function_private_t;
 typedef struct pci_function_s pci_function_t;
 
@@ -105,6 +124,14 @@ struct pci_address_s {
     unsigned function;
 };
 
+// Read once, before a driver has the function, as sizing a BAR stops it decoding meanwhile
+struct pci_bar_s {
+    uint64_t address; // On the function's bus
+    uint64_t length;  // 0 for no BAR, and for the upper half of a 64-bit one
+    uint32_t flags;   // PCI_BAR_IO, PCI_BAR_MEM_64BIT and PCI_BAR_PREFETCH, as the BAR has them
+    bool assigned;    // Decodes at its address; one that didn't fit in a window of its bus doesn't
+};
+
 struct pci_function_private_s {
     pci_function_t* next; // On its bus
     pci_bus_t* bus;
@@ -112,6 +139,7 @@ struct pci_function_private_s {
     device_t* device;     // Its fwnode is the companion
     unsigned irq_number;  // Of MSI, UINT_MAX without
     pci_bus_t* secondary; // The bus behind a bridge, nullptr on other functions
+    pci_bar_t bars[PCI_BAR_MAX];
 };
 
 struct pci_function_s {

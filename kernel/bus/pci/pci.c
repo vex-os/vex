@@ -17,28 +17,11 @@
 #include <vex/sprintf.h>
 #include <vex/vprot.h>
 
-#define PCI_ROOT_WINDOW_MAX 16
+#include "pci_internal.h"
 
 #define PCI_ANY_FUNCTION 0xFFFF // In a firmware node's address
 
-typedef struct pci_root_s pci_root_t;
 typedef struct companion_search_s companion_search_t;
-
-struct pci_root_s {
-    pci_bus_t* bus;
-    unsigned segment;
-    fwnode_resource_t windows[PCI_ROOT_WINDOW_MAX]; // Ports and memory the host bridge passes on
-    size_t num_windows;
-};
-
-struct pci_bus_s {
-    pci_root_t* root;
-    pci_function_t* bridge; // nullptr on a root bus
-    device_t* device;       // The host bridge, or the bridge
-    pci_config_space_t* config_space;
-    unsigned number;
-    pci_function_t* functions; // In the order of their addresses
-};
 
 // The firmware gives a function's address on its bus as device << 16 | function, as ACPI's _ADR does
 struct companion_search_s {
@@ -130,71 +113,6 @@ static const fwnode_range_t* find_window(const pci_root_t* restrict root, unsign
     return nullptr;
 }
 
-static uintptr_t bar_address(pci_function_t* restrict function, unsigned bar_index)
-{
-    uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
-    uint32_t raw = pci_read_config32(function, offset);
-
-    if(raw & PCI_BAR_IO) {
-        return raw & PCI_BAR_ADDR_MASK_IO;
-    }
-
-    if((raw & PCI_BAR_MEM_TYPE_MASK) == PCI_BAR_MEM_64BIT) {
-        uint64_t raw_higher = pci_read_config32(function, offset + 4);
-
-        return (raw & PCI_BAR_ADDR_MASK_MEM) | (raw_higher << 32);
-    }
-
-    return raw & PCI_BAR_ADDR_MASK_MEM;
-}
-
-static uint32_t probe_bar_mask(pci_function_t* restrict function, uintptr_t offset)
-{
-    uint32_t raw = pci_read_config32(function, offset);
-    pci_write_config32(function, offset, UINT32_C(0xFFFFFFFF));
-    uint32_t mask = pci_read_config32(function, offset);
-    pci_write_config32(function, offset, raw);
-    return mask;
-}
-
-static uint64_t bar_length(pci_function_t* restrict function, unsigned bar_index)
-{
-    uintptr_t offset = PCI_CFG_BAR0 + bar_index * 4;
-    uint32_t raw = pci_read_config32(function, offset);
-
-    // A half-written BAR would decode at
-    // a bogus address while it is being probed
-    // so we disable the BAR while probing its length
-    uint16_t command = pci_read_config16(function, PCI_CFG_COMMAND);
-
-    pci_write_config16(function, PCI_CFG_COMMAND, command & ~(PCI_COMMAND_IO | PCI_COMMAND_MEM));
-
-    uint64_t mask = probe_bar_mask(function, offset);
-
-    if(0 == (raw & PCI_BAR_IO) && (raw & PCI_BAR_MEM_TYPE_MASK) == PCI_BAR_MEM_64BIT && bar_index < 5) {
-        mask |= (uint64_t)(probe_bar_mask(function, offset + 4)) << 32;
-    }
-    else {
-        mask |= UINT64_C(0xFFFFFFFF00000000);
-    }
-
-    pci_write_config16(function, PCI_CFG_COMMAND, command);
-
-    if(raw & PCI_BAR_IO) {
-        // I/O BARs may hardwire the upper 16 bits to zero
-        mask = (mask & PCI_BAR_ADDR_MASK_IO) | UINT64_C(0xFFFFFFFFFFFF0000);
-    }
-    else {
-        mask &= PCI_BAR_ADDR_MASK_MEM;
-    }
-
-    if(mask == UINT64_C(0xFFFFFFFF00000000) || mask == UINT64_C(0xFFFFFFFFFFFF0000)) {
-        return 0;
-    }
-
-    return ~mask + 1;
-}
-
 // Ports and memory reach the CPU through the windows of the host
 // bridge, which can show the CPU ports as memory or the other way round
 static int host_translate_range(device_t* restrict bus, unsigned* restrict type, uint64_t* restrict address, uint64_t length)
@@ -249,22 +167,26 @@ static int pci_get_range(device_t* restrict bus, device_t* restrict child, unsig
 {
     pci_function_t* function = child->bus_data;
 
-    if(index >= 6) {
+    if(index >= PCI_BAR_MAX) {
         return -ENODEV;
     }
 
-    uint64_t length = bar_length(function, index);
+    const pci_bar_t* bar = &function->priv.bars[index];
 
-    if(length == 0) {
+    if(bar->length == 0 || !bar->assigned) {
         return -ENODEV;
     }
-
-    uint32_t raw = pci_read_config32(function, PCI_CFG_BAR0 + index * 4);
 
     *range = (fwnode_resource_t) {};
-    range->type = (raw & PCI_BAR_IO) ? FWNODE_RESOURCE_PORT : FWNODE_RESOURCE_MEMORY;
-    range->range.start = bar_address(function, index);
-    range->range.length = length;
+    range->range.start = bar->address;
+    range->range.length = bar->length;
+
+    if(bar->flags & PCI_BAR_IO) {
+        range->type = FWNODE_RESOURCE_PORT;
+    }
+    else {
+        range->type = FWNODE_RESOURCE_MEMORY;
+    }
 
     return 0;
 }
@@ -506,6 +428,9 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
     function->subclass_id = pci_read_config8(function, PCI_CFG_SUBCLASS);
 
     log_device(function);
+
+    pci_read_bars(function);
+    pci_assign_bars(function);
 
     pci_function_t** tail = &bus->functions;
 
