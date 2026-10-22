@@ -894,7 +894,7 @@ static int ahci_probe(device_t* restrict device, const driver_match_t* restrict 
 
 static int ahci_attach(device_t* restrict device, const driver_match_t* restrict match)
 {
-    pci_device_t* pci_device = pci_device_of(device);
+    pci_function_t* function = pci_function_of(device);
     ahci_pci_context_t* context = kmalloc(sizeof(ahci_pci_context_t));
 
     if(context == nullptr) {
@@ -909,9 +909,9 @@ static int ahci_attach(device_t* restrict device, const driver_match_t* restrict
 
     device->ctxdata = context;
 
-    pci_enable_busmaster(pci_device);
+    pci_enable_busmaster(function);
 
-    pci_bar_t* abar = pci_bar_map(pci_device, 5);
+    pci_bar_t* abar = pci_bar_map(function, 5);
 
     if(abar == nullptr) {
         pr_verbose("ahci: pci_bar_map failed");
@@ -967,7 +967,7 @@ static int ahci_attach(device_t* restrict device, const driver_match_t* restrict
         return -ENODEV;
     }
 
-    if(0 == pci_request_irq(pci_device, &ahci_irq, context)) {
+    if(0 == pci_request_irq(function, &ahci_irq, context)) {
         context->irq = true;
         io_write32(&abar->io, HBA_GHC, io_read32(&abar->io, HBA_GHC) | HBA_GHC_IE);
     }

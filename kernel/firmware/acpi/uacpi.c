@@ -16,6 +16,7 @@
 #include <vex/page.h>
 #include <vex/panic.h>
 #include <vex/pci.h>
+#include <vex/pci_config.h>
 #include <vex/rsdp.h>
 #include <vex/sched.h>
 #include <vex/slab.h>
@@ -48,7 +49,7 @@ struct acpi_irq_trampoline_s {
 };
 
 struct acpi_pci_function_s {
-    pci_config_t* config;
+    pci_config_space_t* config_space;
     pci_address_t address;
 };
 
@@ -332,12 +333,12 @@ void uacpi_kernel_sleep(uacpi_u64 msec)
 uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handle* out_handle)
 {
 #ifdef CONFIG_PCI
-    pci_config_t* config = pci_config_find(address.segment, address.bus);
+    pci_config_space_t* config_space = pci_config_space_find(address.segment, address.bus);
 #else
-    pci_config_t* config = nullptr;
+    pci_config_space_t* config_space = nullptr;
 #endif
 
-    if(config == nullptr) {
+    if(config_space == nullptr) {
         return UACPI_STATUS_NOT_FOUND;
     }
 
@@ -347,7 +348,7 @@ uacpi_status uacpi_kernel_pci_device_open(uacpi_pci_address address, uacpi_handl
         return UACPI_STATUS_OUT_OF_MEMORY;
     }
 
-    function->config = config;
+    function->config_space = config_space;
     function->address.segment = address.segment;
     function->address.bus = address.bus;
     function->address.device = address.device;
@@ -367,7 +368,7 @@ uacpi_status uacpi_kernel_pci_read8(uacpi_handle handle, uacpi_size off, uacpi_u
 {
     acpi_pci_function_t* function = handle;
 
-    *value = pci_config_read8(function->config, &function->address, off);
+    *value = pci_config_space_read8(function->config_space, &function->address, off);
 
     return UACPI_STATUS_OK;
 }
@@ -376,7 +377,7 @@ uacpi_status uacpi_kernel_pci_read16(uacpi_handle handle, uacpi_size off, uacpi_
 {
     acpi_pci_function_t* function = handle;
 
-    *value = pci_config_read16(function->config, &function->address, off);
+    *value = pci_config_space_read16(function->config_space, &function->address, off);
 
     return UACPI_STATUS_OK;
 }
@@ -385,7 +386,7 @@ uacpi_status uacpi_kernel_pci_read32(uacpi_handle handle, uacpi_size off, uacpi_
 {
     acpi_pci_function_t* function = handle;
 
-    *value = pci_config_read32(function->config, &function->address, off);
+    *value = pci_config_space_read32(function->config_space, &function->address, off);
 
     return UACPI_STATUS_OK;
 }
@@ -394,7 +395,7 @@ uacpi_status uacpi_kernel_pci_write8(uacpi_handle handle, uacpi_size off, uacpi_
 {
     acpi_pci_function_t* function = handle;
 
-    pci_config_write8(function->config, &function->address, off, value);
+    pci_config_space_write8(function->config_space, &function->address, off, value);
 
     return UACPI_STATUS_OK;
 }
@@ -403,7 +404,7 @@ uacpi_status uacpi_kernel_pci_write16(uacpi_handle handle, uacpi_size off, uacpi
 {
     acpi_pci_function_t* function = handle;
 
-    pci_config_write16(function->config, &function->address, off, value);
+    pci_config_space_write16(function->config_space, &function->address, off, value);
 
     return UACPI_STATUS_OK;
 }
@@ -412,7 +413,7 @@ uacpi_status uacpi_kernel_pci_write32(uacpi_handle handle, uacpi_size off, uacpi
 {
     acpi_pci_function_t* function = handle;
 
-    pci_config_write32(function->config, &function->address, off, value);
+    pci_config_space_write32(function->config_space, &function->address, off, value);
 
     return UACPI_STATUS_OK;
 }

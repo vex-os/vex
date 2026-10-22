@@ -29,15 +29,15 @@ static const driver_match_t uart16550_pci_matches[] = {
     DRIVER_MATCH_END(),
 };
 
-static size_t ports_on(pci_device_t* restrict device, const driver_match_t* restrict match)
+static size_t ports_on(pci_function_t* restrict function, const driver_match_t* restrict match)
 {
     if(match->kind == DRIVER_MATCH_PCI_CLASS) {
-        // A serial controller of another interface lays its registers out its own way
-        if(pci_cfg_read8(device, PCI_CFG_PROG_IF) != PROG_IF_16550) {
-            return 0;
+        if(PROG_IF_16550 == pci_read_config8(function, PCI_CFG_PROG_IF)) {
+            return 1;
         }
-
-        return 1;
+        else {
+            return 0; // A serial controller of another interface lays its registers out its own way
+        }
     }
 
     if(match->device_id == 0x0003) {
@@ -103,9 +103,9 @@ static void add_ports(card_t* restrict card, uart16550_t* const* restrict ports,
 
 static int uart16550_pci_probe(device_t* restrict device, const driver_match_t* restrict match)
 {
-    pci_device_t* pci_device = pci_device_of(device);
+    pci_function_t* function = pci_function_of(device);
 
-    if(ports_on(pci_device, match) == 0) {
+    if(ports_on(function, match) == 0) {
         return -ENODEV;
     }
 
@@ -118,8 +118,8 @@ static int uart16550_pci_probe(device_t* restrict device, const driver_match_t* 
 
 static int uart16550_pci_attach(device_t* restrict device, const driver_match_t* restrict match)
 {
-    pci_device_t* pci_device = pci_device_of(device);
-    size_t count = ports_on(pci_device, match);
+    pci_function_t* function = pci_function_of(device);
+    size_t count = ports_on(function, match);
     card_t* card = kmalloc(sizeof(card_t));
 
     if(card == nullptr) {
@@ -128,7 +128,7 @@ static int uart16550_pci_attach(device_t* restrict device, const driver_match_t*
 
     memset(card, 0, sizeof(card_t));
     device->ctxdata = card;
-    card->bar = pci_bar_map(pci_device, 0);
+    card->bar = pci_bar_map(function, 0);
 
     if(card->bar == nullptr) {
         return -ENODEV;
@@ -141,7 +141,7 @@ static int uart16550_pci_attach(device_t* restrict device, const driver_match_t*
         return retval;
     }
 
-    retval = pci_request_irq(pci_device, &uart16550_pci_irq, card);
+    retval = pci_request_irq(function, &uart16550_pci_irq, card);
 
     if(retval < 0) {
         free_ports(ports, count);

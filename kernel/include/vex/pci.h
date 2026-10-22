@@ -10,6 +10,7 @@
 
 typedef struct device_s device_t;
 typedef struct pci_bus_s pci_bus_t;
+typedef struct pci_config_space_s pci_config_space_t;
 
 #define PCI_CFG_VENDOR_ID       0x00
 #define PCI_CFG_DEVICE_ID       0x02
@@ -95,11 +96,8 @@ typedef struct pci_bus_s pci_bus_t;
 
 typedef struct pci_address_s pci_address_t;
 typedef struct pci_bar_s pci_bar_t;
-typedef struct pci_config_ops_s pci_config_ops_t;
-typedef struct pci_config_private_s pci_config_private_t;
-typedef struct pci_config_s pci_config_t;
-typedef struct pci_device_private_s pci_device_private_t;
-typedef struct pci_device_s pci_device_t;
+typedef struct pci_function_private_s pci_function_private_t;
+typedef struct pci_function_s pci_function_t;
 
 struct pci_address_s {
     unsigned segment;
@@ -114,34 +112,10 @@ struct pci_bar_s {
     unsigned vprot; // Of that mapping
 };
 
-struct pci_config_ops_s {
-    uint8_t (*read8)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset);
-    uint16_t (*read16)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset);
-    uint32_t (*read32)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset);
-    void (*write8)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset, uint8_t value);
-    void (*write16)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset, uint16_t value);
-    void (*write32)(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset, uint32_t value);
-};
-
-struct pci_config_private_s {
-    pci_config_t* next;
-};
-
-// A way to reach the configuration space of the buses bus_start through bus_end of a segment
-struct pci_config_s {
-    pci_config_private_t priv;
-    const pci_config_ops_t* ops;
-    const char* name;
-    unsigned segment;
-    unsigned bus_start;
-    unsigned bus_end;
-    void* ctxdata;
-};
-
-struct pci_device_private_s {
-    pci_device_t* next; // On its bus
+struct pci_function_private_s {
+    pci_function_t* next; // On its bus
     pci_bus_t* bus;
-    pci_config_t* config;
+    pci_config_space_t* config_space;
     device_t* device;    // Its fwnode is the companion
     unsigned irq_number; // Of MSI, UINT_MAX without
     pci_bar_t bars[6];
@@ -149,20 +123,14 @@ struct pci_device_private_s {
     pci_bus_t* secondary; // The bus behind a bridge, nullptr on other functions
 };
 
-struct pci_device_s {
-    pci_device_private_t priv;
+struct pci_function_s {
+    pci_function_private_t priv;
     pci_address_t address;
     unsigned vendor_id;
     unsigned device_id;
     unsigned class_id;
     unsigned subclass_id;
 };
-
-/// @retval -EEXIST Another way already reaches some of the buses
-int pci_config_add(pci_config_t* restrict config);
-
-/// @return The way to reach the bus, which stays for good, or nullptr when there is none
-pci_config_t* pci_config_find(unsigned segment, unsigned bus) __nodiscard;
 
 /// Makes a node of the tree a host bridge and scans the hierarchy below it,
 /// with the windows and interrupt routes the node's firmware node gives it
@@ -176,72 +144,39 @@ void pci_root_detach(device_t* restrict host);
 
 /// Gets the PCI function that a node of the tree is
 /// @return nullptr when the node isn't on a PCI bus
-pci_device_t* pci_device_of(device_t* restrict device) __nodiscard;
+pci_function_t* pci_function_of(device_t* restrict device) __nodiscard;
 
-uint8_t pci_cfg_read8(pci_device_t* restrict device, uintptr_t offset);
-uint16_t pci_cfg_read16(pci_device_t* restrict device, uintptr_t offset);
-uint32_t pci_cfg_read32(pci_device_t* restrict device, uintptr_t offset);
+uint8_t pci_read_config8(pci_function_t* restrict function, uintptr_t offset);
+uint16_t pci_read_config16(pci_function_t* restrict function, uintptr_t offset);
+uint32_t pci_read_config32(pci_function_t* restrict function, uintptr_t offset);
 
-void pci_cfg_write8(pci_device_t* restrict device, uintptr_t offset, uint8_t value);
-void pci_cfg_write16(pci_device_t* restrict device, uintptr_t offset, uint16_t value);
-void pci_cfg_write32(pci_device_t* restrict device, uintptr_t offset, uint32_t value);
+void pci_write_config8(pci_function_t* restrict function, uintptr_t offset, uint8_t value);
+void pci_write_config16(pci_function_t* restrict function, uintptr_t offset, uint16_t value);
+void pci_write_config32(pci_function_t* restrict function, uintptr_t offset, uint32_t value);
 
-pci_bar_t* pci_bar_map(pci_device_t* restrict device, unsigned bar_index) __nodiscard;
+pci_bar_t* pci_bar_map(pci_function_t* restrict function, unsigned bar_index) __nodiscard;
 
 /// pci_bar_map with a memory type other than uncached, such as VPROT_CACHE_WC for video memory
 /// @pre The BAR isn't mapped yet, or is mapped with the same vprot
 /// @return nullptr also for an I/O BAR
-pci_bar_t* pci_bar_map_vprot(pci_device_t* restrict device, unsigned bar_index, unsigned vprot) __nodiscard;
-void pci_bar_unmap(pci_device_t* restrict device, unsigned bar_index);
+pci_bar_t* pci_bar_map_vprot(pci_function_t* restrict function, unsigned bar_index, unsigned vprot) __nodiscard;
+void pci_bar_unmap(pci_function_t* restrict function, unsigned bar_index);
 
 /// Maps a range of the bus address space that the device decodes for others, as a bridge to another bus does
 /// @param type FWNODE_RESOURCE_PORT or FWNODE_RESOURCE_MEMORY, as the range is on the bus
 /// @retval -ERANGE The host bridge doesn't pass the range on
 /// @retval -ENOMEM No address space to map memory into
-int pci_map_range(pci_device_t* restrict device, unsigned type, uint64_t start, uint64_t length, io_region_t* restrict region);
+int pci_map_range(pci_function_t* restrict function, unsigned type, uint64_t start, uint64_t length, io_region_t* restrict region);
 
 void pci_unmap_range(io_region_t* restrict region);
 
-uint8_t pci_get_cap(pci_device_t* restrict device, uint8_t cap_id) __nodiscard;
+uint8_t pci_get_cap(pci_function_t* restrict function, uint8_t cap_id) __nodiscard;
 
-void pci_enable_busmaster(pci_device_t* restrict device);
-void pci_disable_busmaster(pci_device_t* restrict device);
+void pci_enable_busmaster(pci_function_t* restrict function);
+void pci_disable_busmaster(pci_function_t* restrict function);
 
 /// Takes MSI where the device has it, or its INTx pin as the firmware routes it, shared with other devices
 /// @retval -ENODEV The device has neither, or the firmware routes no interrupt for the pin
 /// @retval -EBUSY The pin's GSI is taken by a handler that doesn't share it
-int pci_request_irq(pci_device_t* restrict device, irq_handler_t handler, void* restrict ctxdata);
-void pci_release_irq(pci_device_t* restrict device);
-
-static __always_inline uint8_t pci_config_read8(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset)
-{
-    return config->ops->read8(config, address, offset);
-}
-
-static __always_inline uint16_t pci_config_read16(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset)
-{
-    return config->ops->read16(config, address, offset);
-}
-
-static __always_inline uint32_t pci_config_read32(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset)
-{
-    return config->ops->read32(config, address, offset);
-}
-
-static __always_inline void pci_config_write8(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset,
-    uint8_t value)
-{
-    config->ops->write8(config, address, offset, value);
-}
-
-static __always_inline void pci_config_write16(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset,
-    uint16_t value)
-{
-    config->ops->write16(config, address, offset, value);
-}
-
-static __always_inline void pci_config_write32(pci_config_t* restrict config, const pci_address_t* restrict address, uintptr_t offset,
-    uint32_t value)
-{
-    config->ops->write32(config, address, offset, value);
-}
+int pci_request_irq(pci_function_t* restrict function, irq_handler_t handler, void* restrict ctxdata);
+void pci_release_irq(pci_function_t* restrict function);

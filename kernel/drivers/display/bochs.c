@@ -322,8 +322,8 @@ static int bochsfb_probe(device_t* restrict device, const driver_match_t* restri
 
 static int bochsfb_attach(device_t* restrict node, const driver_match_t* restrict match)
 {
-    pci_device_t* pci_device = pci_device_of(node);
-    pci_bar_t* mmio = pci_bar_map(pci_device, BAR_MMIO);
+    pci_function_t* function = pci_function_of(node);
+    pci_bar_t* mmio = pci_bar_map(function, BAR_MMIO);
 
     // UNDONE: old QEMU std-vga has no MMIO BAR
     // and only takes DISPI through ports 0x1CE/0x1CF
@@ -348,7 +348,7 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
         return -ENODEV;
     }
 
-    pci_bar_t* vram = pci_bar_map_vprot(pci_device, BAR_VRAM, VPROT_RW | VPROT_CACHE_WC);
+    pci_bar_t* vram = pci_bar_map_vprot(function, BAR_VRAM, VPROT_RW | VPROT_CACHE_WC);
 
     if(vram == nullptr || offset + info.size > vram->io.length) {
         pr_warning("bochsfb: the mode doesn't fit the video memory");
@@ -366,7 +366,7 @@ static int bochsfb_attach(device_t* restrict node, const driver_match_t* restric
     bochsfb->mmio = mmio;
     bochsfb->vram = vram;
     bochsfb->dac_lock = SPINLOCK_INIT;
-    bochsfb->has_vga = pci_device->class_id == 0x03 && pci_device->subclass_id == 0x00;
+    bochsfb->has_vga = function->class_id == 0x03 && function->subclass_id == 0x00;
 
     if(dispi_read(mmio, DISPI_ENABLE) & DISPI_8BIT_DAC) {
         bochsfb->dac_bits = 8;
