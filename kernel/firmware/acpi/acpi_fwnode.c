@@ -1,12 +1,18 @@
 #include <uacpi/acpi.h>
+#include <uacpi/event.h>
 #include <uacpi/namespace.h>
+#include <uacpi/notify.h>
 #include <uacpi/resources.h>
 #include <uacpi/tables.h>
 #include <uacpi/uacpi.h>
 #include <uacpi/utilities.h>
+#include <vex/device.h>
 #include <vex/errno.h>
 #include <vex/fwnode.h>
+#include <vex/initcall.h>
 #include <vex/intctl.h>
+#include <vex/kprintf.h>
+#include <vex/panic.h>
 #include <vex/sprintf.h>
 #include <vex/string.h>
 #include <vex/strings.h>
@@ -19,6 +25,15 @@
 #define STA_PRESENT     0x01U
 #define STA_ENABLED     0x02U
 #define STA_FUNCTIONING 0x08U
+
+// ACPI 6.5, 5.6.6 Device Object Notifications
+#define NOTIFY_BUS_CHECK     0x00
+#define NOTIFY_DEVICE_CHECK  0x01
+#define NOTIFY_EJECT_REQUEST 0x03
+
+// ACPI 6.5, 6.3.5 _OST: status codes for an Eject Request
+#define OST_SUCCESS     0x00
+#define OST_DEVICE_BUSY 0x82
 
 typedef struct child_walk_s child_walk_t;
 typedef struct cpu_walk_s cpu_walk_t;
@@ -298,15 +313,9 @@ static int acpi_node_get_name(const fwnode_t* restrict node, char* restrict buff
     return 0;
 }
 
-// A device that isn't there but functions may still have children that are
 static uacpi_iteration_decision visit_child(void* arg, uacpi_namespace_node* namespace_node, uacpi_u32 depth)
 {
     child_walk_t* walk = arg;
-    uint32_t status = status_of(namespace_node);
-
-    if(0 == (status & (STA_PRESENT | STA_FUNCTIONING))) {
-        return UACPI_ITERATION_DECISION_CONTINUE;
-    }
 
     fwnode_t child = {};
     child.ops = &acpi_node_ops;
@@ -670,6 +679,62 @@ static int acpi_node_for_each_dependency(const fwnode_t* restrict node, void (*c
     return 0;
 }
 
+static void report_ost(uacpi_namespace_node* restrict namespace_node, uint64_t event, uint64_t status)
+{
+    uacpi_data_view no_info = {};
+    uacpi_object* objects[3];
+    objects[0] = uacpi_object_create_integer(event);
+    objects[1] = uacpi_object_create_integer(status);
+    objects[2] = uacpi_object_create_buffer(no_info);
+
+    if(objects[0] && objects[1] && objects[2]) {
+        uacpi_object_array args = {};
+        args.objects = objects;
+        args.count = 3;
+
+        // Optional: firmware without _OST doesn't wait to hear back
+        uacpi_execute(namespace_node, "_OST", &args);
+    }
+
+    for(size_t i = 0; i < 3; ++i) {
+        if(objects[i]) {
+            uacpi_object_unref(objects[i]);
+        }
+    }
+}
+
+// ACPI 6.5, 6.3.3 _EJx: Arg0 of 1 ejects the device, 0 cancels
+static void acpi_node_eject(const fwnode_t* restrict node, int status)
+{
+    uacpi_namespace_node* namespace_node = namespace_node_of(node);
+
+    if(status < 0) {
+        report_ost(namespace_node, NOTIFY_EJECT_REQUEST, OST_DEVICE_BUSY);
+        return;
+    }
+
+    uacpi_object* eject = uacpi_object_create_integer(1);
+
+    if(eject == nullptr) {
+        pr_warning("acpi: out of memory");
+        return;
+    }
+
+    uacpi_object_array args = {};
+    args.objects = &eject;
+    args.count = 1;
+
+    uacpi_status result = uacpi_execute(namespace_node, "_EJ0", &args);
+    uacpi_object_unref(eject);
+
+    if(uacpi_unlikely_error(result)) {
+        pr_warning("acpi: %.4s: _EJ0: %s", uacpi_namespace_node_name(namespace_node).text, uacpi_status_to_string(result));
+        return;
+    }
+
+    report_ost(namespace_node, NOTIFY_EJECT_REQUEST, OST_SUCCESS);
+}
+
 static const fwnode_ops_t acpi_node_ops = {
     .is_present = &acpi_node_is_present,
     .matches = &acpi_node_matches,
@@ -681,7 +746,66 @@ static const fwnode_ops_t acpi_node_ops = {
     .for_each_resource = &acpi_node_for_each_resource,
     .route_pci_interrupt = &acpi_node_route_pci_interrupt,
     .for_each_dependency = &acpi_node_for_each_dependency,
+    .eject = &acpi_node_eject,
 };
+
+// A node that is in the tree has its parent judge whether it is still there;
+// a node that isn't yet comes from the nearest one above it that is
+static void check_below(uacpi_namespace_node* restrict target)
+{
+    for(uacpi_namespace_node* namespace_node = target; namespace_node; namespace_node = uacpi_namespace_node_parent(namespace_node)) {
+        fwnode_t fwnode = {};
+        fwnode.ops = &acpi_node_ops;
+        fwnode.handle = namespace_node;
+
+        device_t* device = device_find_by_fwnode(&fwnode);
+
+        if(device == nullptr) {
+            continue;
+        }
+
+        if(namespace_node == target && device->parent) {
+            device_rescan(device->parent);
+        }
+        else {
+            device_rescan(device);
+        }
+
+        device_decref(device);
+        return;
+    }
+}
+
+// Nothing in the tree holds a device it doesn't have, so the firmware may take it at once
+static void eject(uacpi_namespace_node* restrict namespace_node)
+{
+    fwnode_t fwnode = {};
+    fwnode.ops = &acpi_node_ops;
+    fwnode.handle = namespace_node;
+
+    device_t* device = device_find_by_fwnode(&fwnode);
+
+    if(device == nullptr) {
+        acpi_node_eject(&fwnode, 0);
+        return;
+    }
+
+    device_eject(device);
+    device_decref(device);
+}
+
+// Runs as uACPI's work, so it only queues what device_worker does
+static uacpi_status handle_notify(uacpi_handle ctxdata, uacpi_namespace_node* namespace_node, uacpi_u64 value)
+{
+    if(value == NOTIFY_BUS_CHECK || value == NOTIFY_DEVICE_CHECK) {
+        check_below(namespace_node);
+    }
+    else if(value == NOTIFY_EJECT_REQUEST) {
+        eject(namespace_node);
+    }
+
+    return UACPI_STATUS_OK;
+}
 
 int fwnode_root(fwnode_t* restrict root)
 {
@@ -696,3 +820,22 @@ int fwnode_root(fwnode_t* restrict root)
 
     return 0;
 }
+
+// After the tree is first bound, which already has what was there before; the
+// GPEs that run _Lxx and _Exx, which send the notifications, come on with it
+static void init_acpi_notify(void)
+{
+    uacpi_status status = uacpi_install_notify_handler(uacpi_namespace_root(), &handle_notify, nullptr);
+
+    if(uacpi_unlikely_error(status)) {
+        panic("acpi: notify handler: %s", uacpi_status_to_string(status));
+    }
+
+    status = uacpi_finalize_gpe_initialization();
+
+    if(uacpi_unlikely_error(status)) {
+        panic("acpi: GPEs: %s", uacpi_status_to_string(status));
+    }
+}
+
+initcall_bsp_dev(init_acpi_notify, INIT_LAST);

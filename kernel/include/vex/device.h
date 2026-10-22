@@ -97,6 +97,13 @@ void device_unbind(device_t* restrict device);
 /// @note Any context; device_worker does the work, and does none of it when a driver refuses to go offline
 void device_remove(device_t* restrict device);
 
+/// Queues the node to be taken out of the tree and then out of the machine by the firmware, as ACPI's _EJ0 does
+/// @note Any context; device_worker does the work, and tells the firmware when a driver refuses to go offline
+void device_eject(device_t* restrict device);
+
+/// Finds the node that a firmware node describes, wherever it is in the tree
+device_t* device_find_by_fwnode(const fwnode_t* restrict fwnode) __nodiscard;
+
 /// Makes the node's driver use a provider beyond its parent, so that the provider is unbound only after the node
 /// @pre Called from the attach of the node's driver
 /// @retval -EAGAIN The provider isn't bound yet; attach undoes what it did and returns this

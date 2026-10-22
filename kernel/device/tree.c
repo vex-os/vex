@@ -214,13 +214,13 @@ static void set_gone(device_t* device)
     }
 }
 
-static device_t* find_by_fwnode_nolock(device_t* parent, const fwnode_t* restrict fwnode)
+static device_t* find_by_fwnode_nolock(device_t* device, const fwnode_t* restrict fwnode)
 {
-    for(device_t* child = parent->priv.children; child; child = child->priv.next) {
-        if(child->fwnode.ops && fwnode_is_same(&child->fwnode, fwnode)) {
-            return child;
-        }
+    if(device->fwnode.ops && fwnode_is_same(&device->fwnode, fwnode)) {
+        return device;
+    }
 
+    for(device_t* child = device->priv.children; child; child = child->priv.next) {
         device_t* found = find_by_fwnode_nolock(child, fwnode);
 
         if(found) {
@@ -255,7 +255,11 @@ device_t* device_find_by_fwnode(const fwnode_t* restrict fwnode)
 {
     mutex_acquire(&device_tree_mutex);
 
-    device_t* device = find_by_fwnode_nolock(root, fwnode);
+    device_t* device = nullptr;
+
+    if(root) {
+        device = find_by_fwnode_nolock(root, fwnode);
+    }
 
     if(device) {
         device_incref(device);

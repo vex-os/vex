@@ -72,7 +72,7 @@ struct fwnode_ops_s {
     /// @retval -ERANGE The buffer is too small for the name
     int (*get_name)(const fwnode_t* restrict node, char* restrict buffer, size_t size);
 
-    /// @note Skips the children the firmware says are absent, with all below them
+    /// @note Includes the children the firmware says are absent, which fwnode_is_present tells apart
     void (*for_each_child)(const fwnode_t* restrict node, void (*callback)(const fwnode_t* child, void* arg), void* arg);
 
     /// @retval -ENOENT The node has no resources
@@ -88,6 +88,11 @@ struct fwnode_ops_s {
     /// Calls back for each device the node needs working before it can be driven, as ACPI's _DEP lists them
     /// @retval -ENOENT The node needs none
     int (*for_each_dependency)(const fwnode_t* restrict node, void (*callback)(const fwnode_t* provider, void* arg), void* arg);
+
+    /// Has the firmware take the device out once the tree let go of it, or tells the firmware it can't go
+    /// @param status 0 when the node is out of the tree, or -EBUSY when a driver refused to let go of it
+    /// @note Does nothing where the firmware has no say in it
+    void (*eject)(const fwnode_t* restrict node, int status);
 };
 
 // A device as the firmware describes it, held by value; the
@@ -165,6 +170,11 @@ static __always_inline int fwnode_route_pci_interrupt(const fwnode_t* restrict n
     fwnode_irq_t* restrict irq)
 {
     return node->ops->route_pci_interrupt(node, slot, pin, irq);
+}
+
+static __always_inline void fwnode_eject(const fwnode_t* restrict node, int status)
+{
+    node->ops->eject(node, status);
 }
 
 static __always_inline int fwnode_for_each_dependency(const fwnode_t* restrict node, void (*callback)(const fwnode_t* provider, void* arg),

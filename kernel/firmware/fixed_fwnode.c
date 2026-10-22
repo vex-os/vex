@@ -98,6 +98,11 @@ static int fixed_node_for_each_dependency(const fwnode_t* restrict node, void (*
     return -ENOENT;
 }
 
+static void fixed_node_eject(const fwnode_t* restrict node, int status)
+{
+    // empty
+}
+
 static const fwnode_ops_t fixed_node_ops = {
     .is_present = &fixed_node_is_present,
     .matches = &fixed_node_matches,
@@ -109,6 +114,7 @@ static const fwnode_ops_t fixed_node_ops = {
     .for_each_resource = &fixed_node_for_each_resource,
     .route_pci_interrupt = &fixed_node_route_pci_interrupt,
     .for_each_dependency = &fixed_node_for_each_dependency,
+    .eject = &fixed_node_eject,
 };
 
 void fwnode_init_fixed(fwnode_t* restrict node, const fwnode_fixed_t* restrict fixed)

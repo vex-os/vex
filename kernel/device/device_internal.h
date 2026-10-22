@@ -9,6 +9,7 @@
 #define DEVICE_REQUEST_RESCAN 0x01U
 #define DEVICE_REQUEST_UNBIND 0x02U
 #define DEVICE_REQUEST_REMOVE 0x04U
+#define DEVICE_REQUEST_EJECT  0x08U
 
 struct device_link_s {
     device_t* consumer;
@@ -24,8 +25,6 @@ extern mutex_t device_tree_mutex;
 /// @return A new reference to the next child after prev, or the first one when prev is nullptr
 /// @pre The caller holds a reference to prev, which keeps it in the list
 device_t* device_next_child(device_t* parent, device_t* prev) __nodiscard;
-
-device_t* device_find_by_fwnode(const fwnode_t* restrict fwnode) __nodiscard;
 
 /// Adds a node for each present child of the node's firmware node that isn't in the tree yet,
 /// and removes the children the firmware says are no longer there

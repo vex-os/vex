@@ -395,14 +395,33 @@ static device_t* queue_pop(unsigned* restrict requests)
     return device;
 }
 
-// A removal makes the node's other requests moot, and an unbind comes
+// The firmware node is copied, as the node may go with the tree's reference
+static void eject_node(device_t* restrict device)
+{
+    fwnode_t fwnode = device->fwnode;
+    int status = -EBUSY;
+
+    if(take_offline(device)) {
+        remove_node(device);
+        status = 0;
+    }
+
+    if(fwnode.ops) {
+        fwnode_eject(&fwnode, status);
+    }
+}
+
+// A removal or an eject makes the node's other requests moot, and an unbind comes
 // before a rescan so that a node asked for both ends up bound anew
 static void run_queue(void)
 {
     unsigned requests;
 
     for(device_t* device = queue_pop(&requests); device; device = queue_pop(&requests)) {
-        if(requests & DEVICE_REQUEST_REMOVE) {
+        if(requests & DEVICE_REQUEST_EJECT) {
+            eject_node(device);
+        }
+        else if(requests & DEVICE_REQUEST_REMOVE) {
             if(take_offline(device)) {
                 remove_node(device);
             }
@@ -496,6 +515,11 @@ void device_unbind(device_t* restrict device)
 void device_remove(device_t* restrict device)
 {
     device_queue_request(device, DEVICE_REQUEST_REMOVE);
+}
+
+void device_eject(device_t* restrict device)
+{
+    device_queue_request(device, DEVICE_REQUEST_EJECT);
 }
 
 // After the registries that drivers add their functions to, and before the
