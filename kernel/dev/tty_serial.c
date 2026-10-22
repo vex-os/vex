@@ -168,7 +168,7 @@ static const tty_interface_ops_t tty_serial_ops = {
 static int take_unit(int32_t index, dev_unit_t** restrict unit)
 {
     if(index == SERIAL_ANY_INDEX) {
-        return dev_unit_alloc(&dev_prefix_tty, unit);
+        return dev_unit_alloc(&dev_prefix_tty, nullptr, unit);
     }
 
     return dev_unit_claim(&dev_prefix_tty, index, unit);

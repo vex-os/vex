@@ -59,8 +59,8 @@ int console_remove(console_t* restrict cons);
 /// @note Returns at once if another writer holds the consoles, on this hart or on another, as that writer writes the records
 void console_flush(void);
 
-/// Looks the device up in the console= option, a list such as console=serial1:115200n8,fbd0
-/// @param options Gets what follows the device's colon, or an empty string without one
+/// Looks the device up in the console= options, one per console, such as console=serial1,115200n8 console=fbd0
+/// @param options Gets what follows the first comma, or an empty string without one
 /// @return One of CONSOLE_*
 unsigned console_lookup(const char* restrict name, char* restrict options, size_t size);
 

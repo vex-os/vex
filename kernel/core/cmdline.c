@@ -80,33 +80,48 @@ bool cmdline_contains(const cmdline_t* restrict cmdl, const char* restrict optio
     return false;
 }
 
-const char* cmdline_argument(const cmdline_t* restrict cmdl, const char* restrict option)
+const char* cmdline_next_argument(const cmdline_t* restrict cmdl, const char* restrict option, const char* restrict prev)
 {
-    if(cmdl->buffer) {
-        size_t option_size = strlen(option);
-        const char* token = cmdl->buffer;
-        const char* end = cmdl->buffer + cmdl->length;
+    if(cmdl->buffer == nullptr) {
+        return nullptr;
+    }
 
-        while(token < end) {
-            size_t token_size = strlen(token);
+    size_t option_size = strlen(option);
+    const char* token = cmdl->buffer;
+    const char* end = cmdl->buffer + cmdl->length;
 
-            if(token_size == option_size && 0 == strncasecmp(token, option, option_size)) {
-                return &token[option_size];
-            }
+    if(prev) {
+        token = prev + strlen(prev) + 1;
+    }
 
-            if(token_size > option_size && token[option_size] == '=' && 0 == strncasecmp(token, option, option_size)) {
-                return &token[option_size + 1];
-            }
+    while(token < end && *token == 0) {
+        token += 1;
+    }
 
-            token += token_size + 1;
+    while(token < end) {
+        size_t token_size = strlen(token);
 
-            while(token < end && *token == 0) {
-                token += 1;
-            }
+        if(token_size == option_size && 0 == strncasecmp(token, option, option_size)) {
+            return &token[option_size];
+        }
+
+        if(token_size > option_size && token[option_size] == '=' && 0 == strncasecmp(token, option, option_size)) {
+            return &token[option_size + 1];
+        }
+
+        token += token_size + 1;
+
+        while(token < end && *token == 0) {
+            token += 1;
         }
     }
 
     return nullptr;
+}
+
+const char* cmdline_argument(const cmdline_t* restrict cmdl, const char* restrict option)
+{
+    return cmdline_next_argument(cmdl, option, nullptr);
 }
 
 static void init_cmdline_parse(void)

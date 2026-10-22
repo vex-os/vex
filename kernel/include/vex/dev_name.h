@@ -4,6 +4,8 @@
 #include <vex/limits.h>
 #include <vex/types.h>
 
+typedef struct device_s device_t;
+
 #define DEV_NAME_NONE UINT_MAX // A unit, index or partition the name doesn't have
 
 typedef struct dev_prefix_s dev_prefix_t;
@@ -51,10 +53,11 @@ int dev_prefix_claim(dev_prefix_t* restrict prefix);
 /// @pre The device named with the prefix is removed
 void dev_prefix_release(dev_prefix_t* restrict prefix);
 
-/// Takes the lowest number under prefix that no unit has
+/// Takes the number that a unit= option gives the node, else the lowest number that no unit has and no unit= option keeps
+/// @param device The node of the hardware, or nullptr for a unit without one
 /// @retval -ENOSPC Every number a dev_t can hold is taken
 /// @retval -EEXIST A device has the prefix alone as its name
-int dev_unit_alloc(dev_prefix_t* restrict prefix, dev_unit_t** restrict unit);
+int dev_unit_alloc(dev_prefix_t* restrict prefix, const device_t* restrict device, dev_unit_t** restrict unit);
 
 /// Takes the given number, such as one the hardware assigns
 /// @retval -EEXIST Another unit has the number, or a device has the prefix alone as its name

@@ -680,7 +680,7 @@ static void set_limits(const ahci_pci_context_t* restrict context, block_interfa
 static int ahci_port_register_ata(ahci_pci_context_t* restrict context, unsigned port_num)
 {
     if(context->ata_unit == nullptr) {
-        int retval = dev_unit_alloc(&dev_prefix_ata, &context->ata_unit);
+        int retval = dev_unit_alloc(&dev_prefix_ata, context->device, &context->ata_unit);
 
         if(retval < 0) {
             return retval;
@@ -713,7 +713,7 @@ static int ahci_port_register_ata(ahci_pci_context_t* restrict context, unsigned
 static int ahci_port_register_atapi(ahci_pci_context_t* restrict context, unsigned port_num)
 {
     if(context->atapi_unit == nullptr) {
-        int retval = dev_unit_alloc(&dev_prefix_atapi, &context->atapi_unit);
+        int retval = dev_unit_alloc(&dev_prefix_atapi, context->device, &context->atapi_unit);
 
         if(retval < 0) {
             return retval;

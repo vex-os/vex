@@ -70,7 +70,7 @@ static int set_dev(vfs_t* restrict fs, const block_interface_t* restrict volume)
         return 0;
     }
 
-    int retval = dev_unit_alloc(&dev_prefix_anon, &fs->unit);
+    int retval = dev_unit_alloc(&dev_prefix_anon, nullptr, &fs->unit);
 
     if(retval < 0) {
         return retval;

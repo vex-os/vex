@@ -135,14 +135,14 @@ struct serial_consumer_s {
     size_t (*transmit_take)(serial_interface_t* restrict interface, void* restrict buffer, size_t size);
 };
 
-/// Makes the port's control node, serialN, and binds what the serial.bind= command line option names for it
+/// Makes the port's control node, serialN, and binds what the serial= command line option names for it
 int serial_interface_add(serial_interface_t* restrict interface);
 
 /// Removes the object that is bound to the port, also when it is in use, and the control node
 /// @post The serial core makes no more calls into the driver, except release
 int serial_interface_remove(serial_interface_t* restrict interface);
 
-/// @pre At initcall time, before the ports that the serial.bind= option binds it to are added
+/// @pre At initcall time, before the ports that the serial= option binds it to are added
 void serial_consumer_register(serial_consumer_t* restrict consumer);
 
 /// Hands bytes from the line to what the port is bound to; with nothing bound they are lost and counted

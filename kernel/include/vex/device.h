@@ -13,6 +13,7 @@ typedef struct device_mapping_s device_mapping_t;
 typedef struct driver_s driver_t;
 
 #define DEVICE_NAME_MAX 32
+#define DEVICE_PATH_MAX 256
 
 enum device_state_e {
     DEVICE_PRESENT,   // In the tree, without a driver

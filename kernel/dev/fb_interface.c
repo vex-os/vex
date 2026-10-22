@@ -480,7 +480,7 @@ static int add_device(fb_interface_t* restrict interface)
     interface->priv.removed = false;
     mutex_init(&interface->priv.lock);
 
-    int retval = dev_unit_alloc(&dev_prefix_fbd, &interface->priv.unit);
+    int retval = dev_unit_alloc(&dev_prefix_fbd, interface->char_interface.device, &interface->priv.unit);
 
     if(retval < 0) {
         return retval;

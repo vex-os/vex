@@ -1,13 +1,18 @@
 #include <vex/assert.h>
+#include <vex/cmdline.h>
 #include <vex/crc32_iso3309.h>
+#include <vex/ctype.h>
 #include <vex/dev.h>
 #include <vex/dev_name.h>
+#include <vex/device.h>
 #include <vex/errno.h>
 #include <vex/initcall.h>
+#include <vex/kprintf.h>
 #include <vex/panic.h>
 #include <vex/slab.h>
 #include <vex/spinlock.h>
 #include <vex/sprintf.h>
+#include <vex/stdlib.h>
 #include <vex/string.h>
 
 static_assert(sizeof(dev_unit_t) <= SLAB_MAX_SIZE);
@@ -96,6 +101,101 @@ static void link_unit_locked(dev_prefix_t* restrict prefix, dev_unit_t* restrict
     }
 }
 
+// unit=ada0,acpi:PCI0/pci:0000:00:1f.2 pins ada0 to the node with that path, as /dev/devctl shows it
+static bool parse_pinned(const char* restrict value, size_t* restrict prefix_length, unsigned* restrict number, const char** restrict path)
+{
+    size_t letters = 0;
+
+    while(isalpha(value[letters])) {
+        letters += 1;
+    }
+
+    const char* end;
+    unsigned long long parsed = strtoull(&value[letters], &end, 10);
+
+    if(letters == 0 || end == &value[letters] || *end != ',' || parsed >= DEV_NO_UNIT) {
+        return false;
+    }
+
+    *prefix_length = letters;
+    *number = parsed;
+    *path = end + 1;
+
+    return true;
+}
+
+static bool pinned_prefix_is(const dev_prefix_t* restrict prefix, const char* restrict value, size_t prefix_length)
+{
+    bool result = true;
+    result = result && prefix_length && strlen(prefix->string);
+    result = result && 0 == strncmp(value, prefix->string, prefix_length);
+    return result;
+}
+
+// A null path asks whether any node keeps the number
+static bool is_pinned(const dev_prefix_t* restrict prefix, unsigned number, const char* restrict path)
+{
+    const char* value = cmdline_next_argument(&sys_cmdline, "unit", nullptr);
+
+    while(value) {
+        size_t prefix_length;
+        unsigned pinned;
+        const char* pinned_path;
+
+        bool matches = parse_pinned(value, &prefix_length, &pinned, &pinned_path);
+        matches = matches && pinned_prefix_is(prefix, value, prefix_length);
+        matches = matches && pinned == number;
+        matches = matches && (path == nullptr || 0 == strcmp(pinned_path, path));
+
+        if(matches) {
+            return true;
+        }
+
+        value = cmdline_next_argument(&sys_cmdline, "unit", value);
+    }
+
+    return false;
+}
+
+static unsigned pinned_number(const dev_prefix_t* restrict prefix, const char* restrict path)
+{
+    const char* value = cmdline_next_argument(&sys_cmdline, "unit", nullptr);
+
+    while(value) {
+        size_t prefix_length;
+        unsigned pinned;
+        const char* pinned_path;
+
+        bool matches = parse_pinned(value, &prefix_length, &pinned, &pinned_path);
+        matches = matches && pinned_prefix_is(prefix, value, prefix_length);
+        matches = matches && 0 == strcmp(pinned_path, path);
+
+        if(matches) {
+            return pinned;
+        }
+
+        value = cmdline_next_argument(&sys_cmdline, "unit", value);
+    }
+
+    return DEV_NAME_NONE;
+}
+
+// Sets prev to the last unit below the number, where a new unit with the number links in
+static bool unit_taken_locked(const dev_prefix_t* restrict prefix, unsigned number, dev_unit_t** restrict prev)
+{
+    *prev = nullptr;
+
+    for(dev_unit_t* it = prefix->units; it && it->number <= number; it = it->next) {
+        if(it->number == number) {
+            return true;
+        }
+
+        *prev = it;
+    }
+
+    return false;
+}
+
 int dev_prefix_claim(dev_prefix_t* restrict prefix)
 {
     int retval = 0;
@@ -124,8 +224,16 @@ void dev_prefix_release(dev_prefix_t* restrict prefix)
     spinlock_release(&dev_units_lock);
 }
 
-int dev_unit_alloc(dev_prefix_t* restrict prefix, dev_unit_t** restrict unit)
+int dev_unit_alloc(dev_prefix_t* restrict prefix, const device_t* restrict device, dev_unit_t** restrict unit)
 {
+    char path[DEVICE_PATH_MAX];
+    unsigned pinned = DEV_NAME_NONE;
+
+    if(device) {
+        device_get_path(device, path, sizeof(path));
+        pinned = pinned_number(prefix, path);
+    }
+
     dev_unit_t* created = slab_alloc(sizeof(dev_unit_t));
 
     if(created == nullptr) {
@@ -140,12 +248,16 @@ int dev_unit_alloc(dev_prefix_t* restrict prefix, dev_unit_t** restrict unit)
         return -EEXIST;
     }
 
-    unsigned number = 0;
-    dev_unit_t* prev = nullptr;
+    dev_unit_t* prev;
+    unsigned number = pinned;
+    bool pinned_taken = pinned != DEV_NAME_NONE && unit_taken_locked(prefix, pinned, &prev);
 
-    for(dev_unit_t* it = prefix->units; it && it->number == number; it = it->next) {
-        prev = it;
-        number += 1;
+    if(pinned == DEV_NAME_NONE || pinned_taken) {
+        number = 0;
+
+        while(number < DEV_NO_UNIT && (unit_taken_locked(prefix, number, &prev) || is_pinned(prefix, number, nullptr))) {
+            number += 1;
+        }
     }
 
     if(number >= DEV_NO_UNIT) {
@@ -157,6 +269,10 @@ int dev_unit_alloc(dev_prefix_t* restrict prefix, dev_unit_t** restrict unit)
     link_unit_locked(prefix, created, prev, number);
 
     spinlock_release(&dev_units_lock);
+
+    if(pinned_taken) {
+        pr_warning("dev_name: %s%u is taken, %s gets %s%u", prefix->string, pinned, path, prefix->string, number);
+    }
 
     *unit = created;
 
@@ -177,22 +293,12 @@ int dev_unit_claim(dev_prefix_t* restrict prefix, unsigned number, dev_unit_t** 
 
     spinlock_acquire(&dev_units_lock);
 
-    if(prefix->claimed) {
+    dev_unit_t* prev;
+
+    if(prefix->claimed || unit_taken_locked(prefix, number, &prev)) {
         spinlock_release(&dev_units_lock);
         slab_free(created);
         return -EEXIST;
-    }
-
-    dev_unit_t* prev = nullptr;
-
-    for(dev_unit_t* it = prefix->units; it && it->number <= number; it = it->next) {
-        if(it->number == number) {
-            spinlock_release(&dev_units_lock);
-            slab_free(created);
-            return -EEXIST;
-        }
-
-        prev = it;
     }
 
     link_unit_locked(prefix, created, prev, number);
@@ -287,3 +393,29 @@ static void init_dev_prefixes(void)
 }
 
 initcall_bsp_early(init_dev_prefixes, INIT_LATE);
+
+static void init_pinned_units(void)
+{
+    const char* value = cmdline_next_argument(&sys_cmdline, "unit", nullptr);
+
+    while(value) {
+        size_t prefix_length;
+        unsigned number;
+        const char* path;
+        bool known = false;
+
+        if(parse_pinned(value, &prefix_length, &number, &path)) {
+            for(size_t i = 0; i < sizeof(dev_prefixes) / sizeof(dev_prefixes[0]) && !known; ++i) {
+                known = pinned_prefix_is(dev_prefixes[i], value, prefix_length);
+            }
+        }
+
+        if(!known) {
+            pr_warning("dev_name: bad unit=%s", value);
+        }
+
+        value = cmdline_next_argument(&sys_cmdline, "unit", value);
+    }
+}
+
+initcall_bsp_bus(init_pinned_units, INIT_FIRST);

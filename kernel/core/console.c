@@ -196,47 +196,29 @@ void console_flush(void)
 
 unsigned console_lookup(const char* restrict name, char* restrict options, size_t size)
 {
-    const char* list = cmdline_argument(&sys_cmdline, "console");
-    size_t name_length = strlen(name);
+    unsigned retval = CONSOLE_UNSPECIFIED;
 
     options[0] = 0;
 
-    if(list == nullptr) {
-        return CONSOLE_UNSPECIFIED;
-    }
+    const char* value = cmdline_next_argument(&sys_cmdline, "console", nullptr);
 
-    while(*list) {
-        const char* comma = strchr(list, ',');
-        size_t length = strlen(list);
+    while(value) {
+        size_t length = strcspn(value, ",");
 
-        if(comma) {
-            length = (size_t)(comma - list);
-        }
-
-        bool matches = length >= name_length && 0 == strncmp(list, name, name_length);
-        bool has_options = length > name_length && list[name_length] == ':';
-
-        if(matches && length == name_length) {
-            return CONSOLE_LISTED;
-        }
-
-        if(matches && has_options) {
-            size_t copied = length - name_length - 1;
-
-            if(copied >= size) {
-                copied = size - 1;
+        if(length == strlen(name) && 0 == strncmp(value, name, length)) {
+            if(value[length]) {
+                kstrncpy(options, &value[length + 1], size - 1);
+                options[size - 1] = 0;
             }
 
-            kstrncpy(options, &list[name_length + 1], copied);
-            options[copied] = 0;
-
             return CONSOLE_LISTED;
         }
 
-        list += comma ? length + 1 : length;
+        retval = CONSOLE_UNLISTED;
+        value = cmdline_next_argument(&sys_cmdline, "console", value);
     }
 
-    return CONSOLE_UNLISTED;
+    return retval;
 }
 
 void console_release(console_t* restrict cons)

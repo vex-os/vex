@@ -258,17 +258,21 @@ static int unbind(serial_interface_t* restrict interface, bool force)
     return retval;
 }
 
-static void bind_from_cmdline_item(serial_interface_t* restrict interface, const char* restrict item, size_t length)
+static void bind_from_cmdline_item(serial_interface_t* restrict interface, const char* restrict item)
 {
-    const char* colon = memchr(item, ':', length);
-    size_t port_length = colon - item;
+    const char* port = interface->char_interface.name;
+    size_t length = strlen(item);
+    size_t port_length = strcspn(item, ",");
 
-    if(colon == nullptr || port_length != strlen(interface->char_interface.name)
-        || strncmp(item, interface->char_interface.name, port_length)) {
+    bool matches = item[port_length] == ',';
+    matches = matches && port_length == strlen(port);
+    matches = matches && 0 == strncmp(item, port, port_length);
+
+    if(!matches) {
         return;
     }
 
-    const char* name = colon + 1;
+    const char* name = &item[port_length + 1];
     size_t name_length = length - port_length - 1;
     size_t letters = 0;
 
@@ -280,7 +284,7 @@ static void bind_from_cmdline_item(serial_interface_t* restrict interface, const
     binding.index = SERIAL_ANY_INDEX;
 
     if(letters == 0 || letters >= sizeof(binding.consumer)) {
-        pr_warning("serial: %s: bad serial.bind= consumer", interface->char_interface.name);
+        pr_warning("serial: %s: bad serial= consumer", interface->char_interface.name);
         return;
     }
 
@@ -302,25 +306,15 @@ static void bind_from_cmdline_item(serial_interface_t* restrict interface, const
     pr_inform("serial: %s bound to %s", interface->char_interface.name, binding.object);
 }
 
-// serial.bind=serial0:tty0,serial1:tty binds by the port's
+// serial=serial0,tty0 serial=serial1,tty binds by the port's
 // name; an index after the consumer's name is the one to give
 static void bind_from_cmdline(serial_interface_t* restrict interface)
 {
-    const char* list = cmdline_argument(&sys_cmdline, "serial.bind");
+    const char* item = cmdline_next_argument(&sys_cmdline, "serial", nullptr);
 
-    while(list && *list) {
-        const char* comma = strchr(list, ',');
-
-        if(comma == nullptr) {
-            bind_from_cmdline_item(interface, list, strlen(list));
-
-            list = nullptr;
-        }
-        else {
-            bind_from_cmdline_item(interface, list, (size_t)(comma - list));
-
-            list = comma + 1;
-        }
+    while(item) {
+        bind_from_cmdline_item(interface, item);
+        item = cmdline_next_argument(&sys_cmdline, "serial", item);
     }
 }
 
@@ -863,7 +857,7 @@ int serial_interface_add(serial_interface_t* restrict interface)
         interface->line.flow = 0;
     }
 
-    int retval = dev_unit_alloc(&dev_prefix_serial, &priv->unit);
+    int retval = dev_unit_alloc(&dev_prefix_serial, interface->char_interface.device, &priv->unit);
 
     if(retval < 0) {
         mutex_deinit(&priv->lock);

@@ -4,8 +4,6 @@
 #include <vex/device_bus.h>
 #include <vex/mutex.h>
 
-#define DEVICE_PATH_MAX 256
-
 #define DEVICE_REQUEST_RESCAN 0x01U
 #define DEVICE_REQUEST_UNBIND 0x02U
 #define DEVICE_REQUEST_REMOVE 0x04U
