@@ -1,15 +1,11 @@
 #include <uacpi/uacpi.h>
 #include <vex/device.h>
-#include <vex/initcall.h>
-#include <vex/kprintf.h>
 #include <vex/pci.h>
-#include <vex/string.h>
-#include <vex/sysbus.h>
 
-static const char* const host_bridge_ids[] = {
-    "PNP0A03",
-    "PNP0A08",
-    nullptr,
+static const driver_match_t host_bridge_matches[] = {
+    DRIVER_MATCH_FW("PNP0A03"),
+    DRIVER_MATCH_FW("PNP0A08"),
+    DRIVER_MATCH_END(),
 };
 
 // ACPI 6.5, 6.5.5 _BBN and 6.5.6 _SEG: either is zero when the bridge has none
@@ -24,32 +20,24 @@ static unsigned evaluate_number(const fwnode_t* restrict node, const char* restr
     return value;
 }
 
-static int host_bridge_probe(sysbus_device_t* restrict sysbus_device)
+static int host_bridge_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
 {
-    device_t* device = sysbus_device->priv.device;
+    *bid = DRIVER_BID_DEFAULT;
+
+    return 0;
+}
+
+static int host_bridge_attach(device_t* restrict device, const driver_match_t* restrict match)
+{
     unsigned segment = evaluate_number(&device->fwnode, "_SEG");
     unsigned bus = evaluate_number(&device->fwnode, "_BBN");
-    int retval = pci_root_attach(device, segment, bus);
 
-    if(retval < 0) {
-        pr_warning("acpi: host bridge %04X:%02X: %s", segment, bus, strerror(retval));
-    }
-
-    return retval;
+    return pci_root_attach(device, segment, bus);
 }
 
-static const sysbus_driver_ops_t host_bridge_ops = {
+static const driver_ops_t host_bridge_ops = {
     .probe = &host_bridge_probe,
+    .attach = &host_bridge_attach,
 };
 
-static sysbus_driver_t host_bridge_driver = {
-    .ops = &host_bridge_ops,
-    .ids = host_bridge_ids,
-};
-
-static void init_pci_root(void)
-{
-    sysbus_driver_add(&host_bridge_driver);
-}
-
-initcall_bsp_bus(init_pci_root, INIT_LATE);
+define_driver(pci_host_bridge, &host_bridge_ops, host_bridge_matches);

@@ -1,6 +1,5 @@
 kernel_sources += files(
     'device.c',
-    'sysbus.c',
 )
 
 if kconfig.get('CONFIG_PCI', 'n') == 'y'

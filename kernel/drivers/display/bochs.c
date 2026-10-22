@@ -1,7 +1,7 @@
+#include <vex/device.h>
 #include <vex/errno.h>
 #include <vex/fb_device.h>
 #include <vex/fb_edid.h>
-#include <vex/initcall.h>
 #include <vex/kprintf.h>
 #include <vex/pci.h>
 #include <vex/slab.h>
@@ -314,21 +314,29 @@ static size_t collect_modes(bochsfb_t* restrict bochsfb, const vexfb_info_t* res
     return keep_mode(bochsfb, count, info->width, info->height, info->bpp, 0);
 }
 
-static void unmap_bars(pci_device_t* restrict pci_dev)
+static void unmap_bars(pci_device_t* restrict pci_device)
 {
-    pci_bar_unmap(pci_dev, BAR_VRAM);
-    pci_bar_unmap(pci_dev, BAR_MMIO);
+    pci_bar_unmap(pci_device, BAR_VRAM);
+    pci_bar_unmap(pci_device, BAR_MMIO);
 }
 
-static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* restrict id)
+static int bochsfb_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
 {
-    pci_bar_t* mmio = pci_bar_map(pci_dev, BAR_MMIO);
+    *bid = DRIVER_BID_SPECIFIC;
+
+    return 0;
+}
+
+static int bochsfb_attach(device_t* restrict node, const driver_match_t* restrict match)
+{
+    pci_device_t* pci_device = pci_device_of(node);
+    pci_bar_t* mmio = pci_bar_map(pci_device, BAR_MMIO);
 
     // UNDONE: old QEMU std-vga has no MMIO BAR
     // and only takes DISPI through ports 0x1CE/0x1CF
     if(mmio == nullptr || mmio->io.space != IO_SPACE_MEMORY) {
         pr_verbose("bochsfb: no register BAR");
-        unmap_bars(pci_dev);
+        unmap_bars(pci_device);
         return -ENODEV;
     }
 
@@ -336,7 +344,7 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
 
     if(dispi_id < DISPI_ID_MIN || dispi_id > DISPI_ID_MAX) {
         pr_verbose("bochsfb: unknown DISPI version 0x%04X", dispi_id);
-        unmap_bars(pci_dev);
+        unmap_bars(pci_device);
         return -ENODEV;
     }
 
@@ -346,22 +354,22 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
     // UNDONE: set a mode of our own rather than give up
     if(!describe(mmio, &info, &offset)) {
         pr_verbose("bochsfb: no linear framebuffer mode is set");
-        unmap_bars(pci_dev);
+        unmap_bars(pci_device);
         return -ENODEV;
     }
 
-    pci_bar_t* vram = pci_bar_map_vprot(pci_dev, BAR_VRAM, VPROT_RW | VPROT_CACHE_WC);
+    pci_bar_t* vram = pci_bar_map_vprot(pci_device, BAR_VRAM, VPROT_RW | VPROT_CACHE_WC);
 
     if(vram == nullptr || offset + info.size > vram->io.length) {
         pr_warning("bochsfb: the mode doesn't fit the video memory");
-        unmap_bars(pci_dev);
+        unmap_bars(pci_device);
         return -ENODEV;
     }
 
     bochsfb_t* bochsfb = slab_alloc(sizeof(bochsfb_t));
 
     if(bochsfb == nullptr) {
-        unmap_bars(pci_dev);
+        unmap_bars(pci_device);
         return -ENOMEM;
     }
 
@@ -370,7 +378,7 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
     bochsfb->mmio = mmio;
     bochsfb->vram = vram;
     bochsfb->dac_lock = SPINLOCK_INIT;
-    bochsfb->has_vga = pci_dev->class_id == 0x03 && pci_dev->subclass_id == 0x00;
+    bochsfb->has_vga = pci_device->class_id == 0x03 && pci_device->subclass_id == 0x00;
 
     if(dispi_read(mmio, DISPI_ENABLE) & DISPI_8BIT_DAC) {
         bochsfb->dac_bits = 8;
@@ -401,11 +409,11 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
 
     if(retval < 0) {
         slab_free(bochsfb);
-        unmap_bars(pci_dev);
+        unmap_bars(pci_device);
         return retval;
     }
 
-    pci_dev->ctxdata = bochsfb;
+    node->ctxdata = bochsfb;
 
     pr_inform("bochsfb: %s: DISPI 0x%04X, %zu KiB of video memory, up to %ux%u, %u modes listed", device->chr.name, dispi_id,
         (size_t)(vram->io.length / 1024), bochsfb->max_width, bochsfb->max_height, device->mode_count);
@@ -414,39 +422,27 @@ static int bochsfb_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* 
 }
 
 // Calls through the fb core after this are refused, so the BARs can go
-// now, while pci_dev still exists; the rest goes with the last reference
-static void bochsfb_remove(pci_device_t* restrict pci_dev)
+// now, while pci_device still exists; the rest goes with the last reference
+static void bochsfb_detach(device_t* restrict node)
 {
-    bochsfb_t* bochsfb = pci_dev->ctxdata;
+    pci_device_t* pci_device = pci_device_of(node);
+    bochsfb_t* bochsfb = node->ctxdata;
 
-    if(bochsfb == nullptr) {
-        return;
-    }
-
-    pci_dev->ctxdata = nullptr;
+    node->ctxdata = nullptr;
 
     fb_device_remove(&bochsfb->device);
-    unmap_bars(pci_dev);
+    unmap_bars(pci_device);
 }
 
-static const pci_driver_ops_t bochsfb_driver_ops = {
+static const driver_ops_t bochsfb_driver_ops = {
     .probe = &bochsfb_probe,
-    .remove = &bochsfb_remove,
+    .attach = &bochsfb_attach,
+    .detach = &bochsfb_detach,
 };
 
-static const pci_driver_id_t bochsfb_ids[] = {
-    PCI_DEVICE_SPECIFIC(0x1234, 0x1111),
-    PCI_DEVICE_END(),
+static const driver_match_t bochsfb_matches[] = {
+    DRIVER_MATCH_PCI_ID(0x1234, 0x1111),
+    DRIVER_MATCH_END(),
 };
 
-static pci_driver_t bochsfb_driver = {
-    .ops = &bochsfb_driver_ops,
-    .ids = bochsfb_ids,
-};
-
-static void init_bochsfb(void)
-{
-    pci_driver_add(&bochsfb_driver);
-}
-
-initcall_bsp_dev(init_bochsfb, INIT_MIDDLE);
+define_driver(bochsfb, &bochsfb_driver_ops, bochsfb_matches);

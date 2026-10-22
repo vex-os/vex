@@ -56,37 +56,12 @@ static pci_config_t* config_head = nullptr;
 static mutex_t pci_mutex = MUTEX_INIT;
 static pci_bus_t* bus_head = nullptr;
 static pci_bus_t** bus_tail = &bus_head;
-static pci_driver_t* driver_head = nullptr;
 
 static void scan_bus(pci_bus_t* restrict bus);
 
 static bool configs_overlap(const pci_config_t* restrict first, const pci_config_t* restrict second)
 {
     return first->segment == second->segment && first->bus_start <= second->bus_end && second->bus_start <= first->bus_end;
-}
-
-static void device_bind(pci_device_t* restrict device, pci_driver_t* restrict driver)
-{
-    if(device->priv.driver) {
-        return;
-    }
-
-    for(const pci_driver_id_t* id = driver->ids; id->vendor_id < 0xFFFF || id->device_id < 0xFFFF; id += 1) {
-        bool match;
-
-        if(id->vendor_id == 0) {
-            match = id->class_id == device->class_id && id->subclass_id == device->subclass_id;
-        }
-        else {
-            match = id->vendor_id == device->vendor_id && id->device_id == device->device_id;
-        }
-
-        if(match) {
-            if(0 == driver->ops->probe(device, id))
-                device->priv.driver = driver;
-            return;
-        }
-    }
 }
 
 static void visit_companion(const fwnode_t* child, void* arg)
@@ -421,8 +396,24 @@ static int pci_place_child(device_t* restrict bus, const fwnode_t* restrict chil
     return 0;
 }
 
+static bool pci_match(device_t* restrict bus, device_t* restrict child, const driver_match_t* restrict match)
+{
+    const pci_device_t* function = child->bus_ctxdata;
+
+    if(match->kind == DRIVER_MATCH_PCI_ID) {
+        return match->vendor_id == function->vendor_id && match->device_id == function->device_id;
+    }
+
+    if(match->kind == DRIVER_MATCH_PCI_CLASS) {
+        return match->class_id == function->class_id && match->subclass_id == function->subclass_id;
+    }
+
+    return false;
+}
+
 static const device_bus_ops_t host_bus_ops = {
     .place_child = &pci_place_child,
+    .match = &pci_match,
     .get_range = &pci_get_range,
     .get_irq = &pci_get_irq,
     .translate_range = &host_translate_range,
@@ -431,6 +422,7 @@ static const device_bus_ops_t host_bus_ops = {
 // A bridge passes ranges on unchanged, within the windows it is set up with
 static const device_bus_ops_t bridge_bus_ops = {
     .place_child = &pci_place_child,
+    .match = &pci_match,
     .get_range = &pci_get_range,
     .get_irq = &pci_get_irq,
 };
@@ -509,7 +501,6 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
 
     function->priv.bus = bus;
     function->priv.config = bus->config;
-    function->priv.driver = nullptr;
     function->priv.device = device;
     function->priv.irq_number = UINT_MAX;
     function->priv.bars_mapped = 0;
@@ -518,7 +509,6 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
     function->device_id = pci_cfg_read16(function, PCI_CFG_DEVICE_ID);
     function->class_id = pci_cfg_read8(function, PCI_CFG_CLASS);
     function->subclass_id = pci_cfg_read8(function, PCI_CFG_SUBCLASS);
-    function->ctxdata = nullptr;
 
     log_device(function);
 
@@ -533,10 +523,6 @@ static void add_function(pci_bus_t* restrict bus, const pci_address_t* restrict 
 
     if((pci_cfg_read8(function, PCI_CFG_HEADER_TYPE) & PCI_HDR_TYPE_MASK) == PCI_HDR_TYPE_BRIDGE) {
         add_bridge(function);
-    }
-
-    for(pci_driver_t* it = driver_head; it; it = it->priv.next) {
-        device_bind(function, it);
     }
 }
 
@@ -691,63 +677,15 @@ int pci_root_attach(device_t* restrict host, unsigned segment, unsigned bus)
     return retval;
 }
 
-int pci_driver_add(pci_driver_t* restrict driver)
+pci_device_t* pci_device_of(device_t* restrict device)
 {
-    mutex_acquire(&pci_mutex);
+    device_t* bus = device->parent;
 
-    for(pci_driver_t* it = driver_head; it; it = it->priv.next) {
-        if(it == driver) {
-            mutex_release(&pci_mutex);
-            return -EEXIST;
-        }
+    if(bus == nullptr || (bus->bus_ops != &host_bus_ops && bus->bus_ops != &bridge_bus_ops)) {
+        return nullptr;
     }
 
-    driver->priv.next = driver_head;
-    driver_head = driver;
-
-    for(pci_bus_t* bus = bus_head; bus; bus = bus->next) {
-        for(pci_device_t* it = bus->devices; it; it = it->priv.next) {
-            device_bind(it, driver);
-        }
-    }
-
-    mutex_release(&pci_mutex);
-
-    return 0;
-}
-
-int pci_driver_remove(pci_driver_t* restrict driver)
-{
-    mutex_acquire(&pci_mutex);
-
-    pci_driver_t** prev = &driver_head;
-
-    while(*prev && *prev != driver) {
-        prev = &(*prev)->priv.next;
-    }
-
-    if(*prev == nullptr) {
-        mutex_release(&pci_mutex);
-        return -ENODEV;
-    }
-
-    *prev = driver->priv.next;
-
-    for(pci_bus_t* bus = bus_head; bus; bus = bus->next) {
-        for(pci_device_t* it = bus->devices; it; it = it->priv.next) {
-            if(it->priv.driver == driver) {
-                if(driver->ops->remove) {
-                    driver->ops->remove(it);
-                }
-
-                it->priv.driver = nullptr;
-            }
-        }
-    }
-
-    mutex_release(&pci_mutex);
-
-    return 0;
+    return device->bus_ctxdata;
 }
 
 uint8_t pci_cfg_read8(pci_device_t* restrict device, uintptr_t offset)

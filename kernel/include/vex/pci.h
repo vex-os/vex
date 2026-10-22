@@ -100,10 +100,6 @@ typedef struct pci_config_private_s pci_config_private_t;
 typedef struct pci_config_s pci_config_t;
 typedef struct pci_device_private_s pci_device_private_t;
 typedef struct pci_device_s pci_device_t;
-typedef struct pci_driver_id_s pci_driver_id_t;
-typedef struct pci_driver_ops_s pci_driver_ops_t;
-typedef struct pci_driver_private_s pci_driver_private_t;
-typedef struct pci_driver_s pci_driver_t;
 
 struct pci_address_s {
     unsigned segment;
@@ -146,7 +142,6 @@ struct pci_device_private_s {
     pci_device_t* next; // On its bus
     pci_bus_t* bus;
     pci_config_t* config;
-    pci_driver_t* driver;
     device_t* device;    // Its fwnode is the companion
     unsigned irq_number; // Of MSI, UINT_MAX without
     pci_bar_t bars[6];
@@ -160,54 +155,7 @@ struct pci_device_s {
     unsigned device_id;
     unsigned class_id;
     unsigned subclass_id;
-    void* ctxdata;
 };
-
-struct pci_driver_id_s {
-    unsigned vendor_id; // 0 = match by class/subclass instead of vendor+device
-    unsigned device_id;
-    unsigned class_id;
-    unsigned subclass_id;
-};
-
-struct pci_driver_ops_s {
-    int (*probe)(pci_device_t* restrict device, const pci_driver_id_t* restrict id);
-    void (*remove)(pci_device_t* restrict device);
-};
-
-struct pci_driver_private_s {
-    pci_driver_t* next;
-};
-
-struct pci_driver_s {
-    pci_driver_private_t priv;
-    const pci_driver_ops_t* ops;
-    const pci_driver_id_t* ids;
-};
-
-#define PCI_DEVICE_CLASS(class_val, subclass_val) \
-    ((pci_driver_id_t) {                          \
-        .vendor_id = 0,                           \
-        .device_id = 0,                           \
-        .class_id = (class_val),                  \
-        .subclass_id = (subclass_val),            \
-    })
-
-#define PCI_DEVICE_SPECIFIC(vendor_val, device_val) \
-    ((pci_driver_id_t) {                            \
-        .vendor_id = (vendor_val),                  \
-        .device_id = (device_val),                  \
-        .class_id = 0,                              \
-        .subclass_id = 0,                           \
-    })
-
-#define PCI_DEVICE_END()         \
-    ((pci_driver_id_t) {         \
-        .vendor_id = UINT_MAX,   \
-        .device_id = UINT_MAX,   \
-        .class_id = UINT_MAX,    \
-        .subclass_id = UINT_MAX, \
-    })
 
 /// @retval -EEXIST Another way already reaches some of the buses
 int pci_config_add(pci_config_t* restrict config);
@@ -221,8 +169,9 @@ pci_config_t* pci_config_find(unsigned segment, unsigned bus) __nodiscard;
 /// @retval -ENOMEM Out of memory
 int pci_root_attach(device_t* restrict host, unsigned segment, unsigned bus);
 
-int pci_driver_add(pci_driver_t* restrict driver);
-int pci_driver_remove(pci_driver_t* restrict driver);
+/// Gets the PCI function that a node of the tree is
+/// @return nullptr when the node isn't on a PCI bus
+pci_device_t* pci_device_of(device_t* restrict device) __nodiscard;
 
 uint8_t pci_cfg_read8(pci_device_t* restrict device, uintptr_t offset);
 uint16_t pci_cfg_read16(pci_device_t* restrict device, uintptr_t offset);

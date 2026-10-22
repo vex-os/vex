@@ -1,6 +1,6 @@
 #include <vex/atomic.h>
+#include <vex/device.h>
 #include <vex/errno.h>
-#include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/pci.h>
@@ -20,27 +20,31 @@ struct card_s {
     size_t num_ports; // Of those added, which the interrupt handler reads as it grows
 };
 
-static const pci_driver_id_t uart16550_pci_ids[] = {
-    PCI_DEVICE_SPECIFIC(0x1B36, 0x0002), // QEMU pci-serial
-    PCI_DEVICE_SPECIFIC(0x1B36, 0x0003), // QEMU pci-serial-2x
-    PCI_DEVICE_SPECIFIC(0x1B36, 0x0004), // QEMU pci-serial-4x
-    PCI_DEVICE_CLASS(0x07, 0x00),
-    PCI_DEVICE_END(),
+static const driver_match_t uart16550_pci_matches[] = {
+    DRIVER_MATCH_PCI_ID(0x1B36, 0x0002), // QEMU pci-serial
+    DRIVER_MATCH_PCI_ID(0x1B36, 0x0003), // QEMU pci-serial-2x
+    DRIVER_MATCH_PCI_ID(0x1B36, 0x0004), // QEMU pci-serial-4x
+    DRIVER_MATCH_PCI_CLASS(0x07, 0x00),
+    DRIVER_MATCH_END(),
 };
 
-static size_t ports_on(pci_device_t* restrict device, const pci_driver_id_t* restrict id)
+static size_t ports_on(pci_device_t* restrict device, const driver_match_t* restrict match)
 {
-    if(id->vendor_id == 0x1B36 && id->device_id == 0x0003) {
+    if(match->kind == DRIVER_MATCH_PCI_CLASS) {
+        // A serial controller of another interface lays its registers out its own way
+        if(pci_cfg_read8(device, PCI_CFG_PROG_IF) != PROG_IF_16550) {
+            return 0;
+        }
+
+        return 1;
+    }
+
+    if(match->device_id == 0x0003) {
         return 2;
     }
 
-    if(id->vendor_id == 0x1B36 && id->device_id == 0x0004) {
+    if(match->device_id == 0x0004) {
         return 4;
-    }
-
-    // A serial controller of another interface lays its registers out its own way
-    if(id->vendor_id == 0 && pci_cfg_read8(device, PCI_CFG_PROG_IF) != PROG_IF_16550) {
-        return 0;
     }
 
     return 1;
@@ -96,13 +100,27 @@ static void add_ports(card_t* restrict card, uart16550_t* const* restrict ports,
     }
 }
 
-static int uart16550_pci_probe(pci_device_t* restrict device, const pci_driver_id_t* restrict id)
+static int uart16550_pci_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
 {
-    size_t count = ports_on(device, id);
+    pci_device_t* pci_device = pci_device_of(device);
 
-    if(count == 0) {
+    if(ports_on(pci_device, match) == 0) {
         return -ENODEV;
     }
+
+    *bid = DRIVER_BID_DEFAULT;
+
+    if(match->kind == DRIVER_MATCH_PCI_ID) {
+        *bid = DRIVER_BID_SPECIFIC;
+    }
+
+    return 0;
+}
+
+static int uart16550_pci_attach(device_t* restrict device, const driver_match_t* restrict match)
+{
+    pci_device_t* pci_device = pci_device_of(device);
+    size_t count = ports_on(pci_device, match);
 
     card_t* card = kmalloc(sizeof(card_t));
 
@@ -111,7 +129,7 @@ static int uart16550_pci_probe(pci_device_t* restrict device, const pci_driver_i
     }
 
     memset(card, 0, sizeof(card_t));
-    card->bar = pci_bar_map(device, 0);
+    card->bar = pci_bar_map(pci_device, 0);
 
     if(card->bar == nullptr) {
         kfree(card);
@@ -122,16 +140,16 @@ static int uart16550_pci_probe(pci_device_t* restrict device, const pci_driver_i
     int retval = create_ports(card->bar, ports, count);
 
     if(retval < 0) {
-        pci_bar_unmap(device, 0);
+        pci_bar_unmap(pci_device, 0);
         kfree(card);
         return retval;
     }
 
-    retval = pci_request_irq(device, &uart16550_pci_irq, card);
+    retval = pci_request_irq(pci_device, &uart16550_pci_irq, card);
 
     if(retval < 0) {
         free_ports(ports, count);
-        pci_bar_unmap(device, 0);
+        pci_bar_unmap(pci_device, 0);
         kfree(card);
         return retval;
     }
@@ -139,8 +157,8 @@ static int uart16550_pci_probe(pci_device_t* restrict device, const pci_driver_i
     add_ports(card, ports, count);
 
     if(card->num_ports == 0) {
-        pci_release_irq(device);
-        pci_bar_unmap(device, 0);
+        pci_release_irq(pci_device);
+        pci_bar_unmap(pci_device, 0);
         kfree(card);
         return -ENODEV;
     }
@@ -150,35 +168,27 @@ static int uart16550_pci_probe(pci_device_t* restrict device, const pci_driver_i
     return 0;
 }
 
-static void uart16550_pci_remove(pci_device_t* restrict device)
+static void uart16550_pci_detach(device_t* restrict device)
 {
+    pci_device_t* pci_device = pci_device_of(device);
     card_t* card = device->ctxdata;
 
     for(size_t i = 0; i < card->num_ports; ++i) {
         uart16550_remove(card->ports[i]);
     }
 
-    pci_release_irq(device);
-    pci_bar_unmap(device, 0);
+    pci_release_irq(pci_device);
+    pci_bar_unmap(pci_device, 0);
     free_ports(card->ports, card->num_ports);
     kfree(card);
 
     device->ctxdata = nullptr;
 }
 
-static const pci_driver_ops_t uart16550_pci_ops = {
+static const driver_ops_t uart16550_pci_ops = {
     .probe = &uart16550_pci_probe,
-    .remove = &uart16550_pci_remove,
+    .attach = &uart16550_pci_attach,
+    .detach = &uart16550_pci_detach,
 };
 
-static pci_driver_t uart16550_pci_driver = {
-    .ops = &uart16550_pci_ops,
-    .ids = uart16550_pci_ids,
-};
-
-static void init_uart16550_pci(void)
-{
-    pci_driver_add(&uart16550_pci_driver);
-}
-
-initcall_bsp_dev(init_uart16550_pci, INIT_LATE);
+define_driver(uart16550_pci, &uart16550_pci_ops, uart16550_pci_matches);

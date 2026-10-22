@@ -2,6 +2,7 @@
 #include <vex/kmalloc.h>
 #include <vex/serial_device.h>
 #include <vex/string.h>
+#include <vex/strings.h>
 
 #include "uart16550.h"
 
@@ -497,8 +498,13 @@ uart16550_t* uart16550_create(const io_region_t* restrict io, unsigned reg_shift
     port->clock = clock;
     port->fifo_size = 1;
     port->lock = SPINLOCK_INIT;
-    port->serial.firmware_id = name;
     port->serial.ctxdata = port;
+
+    if(name) {
+        kstrncpy(port->firmware_id, name, sizeof(port->firmware_id) - 1);
+
+        port->serial.firmware_id = port->firmware_id;
+    }
 
     return port;
 }

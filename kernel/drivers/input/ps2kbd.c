@@ -1,6 +1,5 @@
+#include <vex/device.h>
 #include <vex/errno.h>
-#include <vex/initcall.h>
-#include <vex/isa.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 
@@ -11,9 +10,9 @@ struct ps2kbd_s {
     io_region_t command;
 };
 
-static const char* const ps2kbd_ids[] = {
-    "PNP0303",
-    nullptr,
+static const driver_match_t ps2kbd_matches[] = {
+    DRIVER_MATCH_FW("PNP0303"),
+    DRIVER_MATCH_END(),
 };
 
 static void i8042_wait_write(io_region_t* restrict region)
@@ -82,7 +81,14 @@ static void enable_keyboard(ps2kbd_t* restrict ps2kbd)
     io_read8(&ps2kbd->data, 0);
 }
 
-static int ps2kbd_probe(isa_device_t* restrict device)
+static int ps2kbd_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
+{
+    *bid = DRIVER_BID_DEFAULT;
+
+    return 0;
+}
+
+static int ps2kbd_attach(device_t* restrict device, const driver_match_t* restrict match)
 {
     ps2kbd_t* ps2kbd = kmalloc(sizeof(ps2kbd_t));
 
@@ -90,28 +96,28 @@ static int ps2kbd_probe(isa_device_t* restrict device)
         return -ENOMEM;
     }
 
-    int retval = isa_map_io(device, 0, &ps2kbd->data);
+    int retval = device_map_io(device, 0, &ps2kbd->data);
 
     if(retval < 0) {
         kfree(ps2kbd);
         return retval;
     }
 
-    retval = isa_map_io(device, 1, &ps2kbd->command);
+    retval = device_map_io(device, 1, &ps2kbd->command);
 
     if(retval < 0) {
-        isa_unmap_io(&ps2kbd->data);
+        device_unmap_io(&ps2kbd->data);
         kfree(ps2kbd);
         return retval;
     }
 
     enable_keyboard(ps2kbd);
 
-    retval = isa_request_irq(device, 0, &ps2kbd_irq, ps2kbd);
+    retval = device_request_irq(device, 0, &ps2kbd_irq, ps2kbd);
 
     if(retval < 0) {
-        isa_unmap_io(&ps2kbd->command);
-        isa_unmap_io(&ps2kbd->data);
+        device_unmap_io(&ps2kbd->command);
+        device_unmap_io(&ps2kbd->data);
         kfree(ps2kbd);
         return retval;
     }
@@ -121,31 +127,22 @@ static int ps2kbd_probe(isa_device_t* restrict device)
     return 0;
 }
 
-static void ps2kbd_remove(isa_device_t* restrict device)
+static void ps2kbd_detach(device_t* restrict device)
 {
     ps2kbd_t* ps2kbd = device->ctxdata;
 
-    isa_release_irq(device, 0);
-    isa_unmap_io(&ps2kbd->command);
-    isa_unmap_io(&ps2kbd->data);
+    device_release_irq(device, 0);
+    device_unmap_io(&ps2kbd->command);
+    device_unmap_io(&ps2kbd->data);
     kfree(ps2kbd);
 
     device->ctxdata = nullptr;
 }
 
-static const isa_driver_ops_t ps2kbd_ops = {
+static const driver_ops_t ps2kbd_ops = {
     .probe = &ps2kbd_probe,
-    .remove = &ps2kbd_remove,
+    .attach = &ps2kbd_attach,
+    .detach = &ps2kbd_detach,
 };
 
-static isa_driver_t ps2kbd_driver = {
-    .ops = &ps2kbd_ops,
-    .ids = ps2kbd_ids,
-};
-
-static void init_ps2kbd(void)
-{
-    isa_driver_add(&ps2kbd_driver);
-}
-
-initcall_bsp_dev(init_ps2kbd, INIT_EARLY);
+define_driver(ps2kbd, &ps2kbd_ops, ps2kbd_matches);

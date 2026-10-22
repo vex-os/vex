@@ -10,9 +10,27 @@ typedef struct device_irq_s device_irq_t;
 
 #define DEVICE_NAME_MAX 32
 
+// A driver bids one of these, or one above to win over others
+// of the same level; a gap of 100 leaves room for that
+#define DRIVER_BID_GENERIC  100 // Works with any device of its kind, through no more than the standard
+#define DRIVER_BID_LOW      200 // Matches, but gives way to any other driver that does
+#define DRIVER_BID_DEFAULT  300 // Drives a standard interface, such as a PCI class or a firmware id
+#define DRIVER_BID_VENDOR   400 // Knows the vendor's own interface of the device
+#define DRIVER_BID_SPECIFIC 500 // Knows the device by its exact id
+
+enum {
+    DRIVER_MATCH_END,
+    DRIVER_MATCH_FW,        // fw_id, as fwnode_matches matches it
+    DRIVER_MATCH_PCI_ID,    // vendor_id and device_id
+    DRIVER_MATCH_PCI_CLASS, // class_id and subclass_id
+};
+
 typedef struct device_bus_ops_s device_bus_ops_t;
 typedef struct device_private_s device_private_t;
 typedef struct device_s device_t;
+typedef struct driver_match_s driver_match_t;
+typedef struct driver_ops_s driver_ops_t;
+typedef struct driver_s driver_t;
 
 // What a node does for its children; a missing op, or a missing table,
 // falls back to what the firmware describes and passes ranges on as they are
@@ -21,6 +39,9 @@ struct device_bus_ops_s {
     /// @retval 0 The bus placed the child, or knows it as one of its own that isn't there
     /// @retval -ENOENT The bus can't place the child, so it becomes a firmware child of the node
     int (*place_child)(device_t* restrict bus, const fwnode_t* restrict child);
+
+    /// @return Whether a child matches an entry of a driver's table that is of the bus's own kinds
+    bool (*match)(device_t* restrict bus, device_t* restrict child, const driver_match_t* restrict match);
 
     /// Gets a register range of a child, as an address on this bus
     /// @param index Counts the child's port and memory ranges together, in the bus's order
@@ -45,6 +66,7 @@ struct device_private_s {
     size_t num_resources;
     device_irq_t* irqs; // Requested through device_request_irq
     unsigned refcount;
+    bool fw_child; // Placed by the firmware rather than by the parent's bus, which ignores it
 };
 
 // A node of the device tree: one piece of hardware wherever it sits, with the
@@ -55,9 +77,73 @@ struct device_s {
     fwnode_t fwnode;  // ops is nullptr without one
     const device_bus_ops_t* bus_ops;
     void* bus_ctxdata; // The parent bus's own data about the node
-    void* ctxdata;     // Of what drives the node
+    const driver_t* driver;
+    void* ctxdata; // Of what drives the node
     char name[DEVICE_NAME_MAX];
 };
+
+struct driver_match_s {
+    unsigned kind; // DRIVER_MATCH_*
+    const char* fw_id;
+    unsigned vendor_id;
+    unsigned device_id;
+    unsigned class_id;
+    unsigned subclass_id;
+};
+
+struct driver_ops_s {
+    /// Bids for a device, without touching its state
+    /// @param match The first entry of the driver's table that the device matches
+    /// @param bid A DRIVER_BID_* level, or one above it
+    /// @retval -ENODEV The driver doesn't take the device after all
+    int (*probe)(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid);
+
+    /// Takes the device the driver won
+    /// @note Undoes what it did before it fails, as detach isn't called then
+    int (*attach)(device_t* restrict device, const driver_match_t* restrict match);
+
+    /// Lets go of the device
+    /// @note nullptr on a driver that can't let go yet
+    void (*detach)(device_t* restrict device);
+};
+
+struct driver_s {
+    const char* name;
+    const driver_ops_t* ops;
+    const driver_match_t* matches; // Ends with DRIVER_MATCH_END
+};
+
+#define DRIVER_MATCH_FW(dm_id)   \
+    {                            \
+        .kind = DRIVER_MATCH_FW, \
+        .fw_id = (dm_id),        \
+    }
+
+#define DRIVER_MATCH_PCI_ID(dm_vendor, dm_device) \
+    {                                             \
+        .kind = DRIVER_MATCH_PCI_ID,              \
+        .vendor_id = (dm_vendor),                 \
+        .device_id = (dm_device),                 \
+    }
+
+#define DRIVER_MATCH_PCI_CLASS(dm_class, dm_subclass) \
+    {                                                 \
+        .kind = DRIVER_MATCH_PCI_CLASS,               \
+        .class_id = (dm_class),                       \
+        .subclass_id = (dm_subclass),                 \
+    }
+
+#define DRIVER_MATCH_END()        \
+    {                             \
+        .kind = DRIVER_MATCH_END, \
+    }
+
+#define define_driver(dr_name, dr_ops, dr_matches)                            \
+    static const __used __section(".drivers") driver_t __driver_##dr_name = { \
+        .name = #dr_name,                                                     \
+        .ops = (dr_ops),                                                      \
+        .matches = (dr_matches),                                              \
+    }
 
 /// Gets the root of the tree, made on the first call from the firmware's root node when there is one
 /// @retval nullptr Out of memory
@@ -70,10 +156,10 @@ device_t* device_get_root(void) __nodiscard;
 /// @retval -ENOMEM Out of memory
 int device_add(device_t* restrict parent, const fwnode_t* restrict fwnode, const char* restrict name, device_t** restrict device);
 
-/// Places the firmware children of the node and of every node below it, the firmware children
-/// the node's bus can't place becoming nodes of their own named by the firmware
-/// @pre A driver has had its chance to bind to each node before its own children are placed
-/// @note Places the children of a node only once, as nothing takes them out of the tree yet
+/// Binds the node to the driver with the highest bid, then places its firmware children, then
+/// does the same below; the firmware children the node's bus can't place become nodes of
+/// their own named by the firmware
+/// @note Goes through a node only once, as nothing takes nodes out of the tree yet
 void device_enumerate(device_t* restrict device);
 
 void device_incref(device_t* restrict device);

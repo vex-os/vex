@@ -48,6 +48,12 @@ SECTIONS
         unsorted_syscalls_end = .;
     } :rodata
 
+    .drivers : {
+        drivers_start = .;
+        KEEP(*(.drivers))
+        drivers_end = .;
+    } :rodata
+
     rodata_end = .;
 
     . = ALIGN(CONSTANT(MAXPAGESIZE));

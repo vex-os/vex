@@ -6,7 +6,8 @@
 #include <vex/spinlock.h>
 #include <vex/types.h>
 
-#define UART16550_CLOCK 1843200 // Of the PC's COM ports, in Hz; the baud generator divides it by 16
+#define UART16550_CLOCK  1843200 // Of the PC's COM ports, in Hz; the baud generator divides it by 16
+#define UART16550_ID_MAX 16
 
 typedef struct uart16550_s uart16550_t;
 
@@ -22,10 +23,11 @@ struct uart16550_s {
     uint8_t mcr;
     bool tx_requested; // start_tx came since the interrupt handler last found nothing to send
     bool added;
+    char firmware_id[UART16550_ID_MAX];
 };
 
 /// Allocates a port on registers the bus glue mapped, with its interrupts off
-/// @param name What the firmware calls the device, or nullptr
+/// @param name What the firmware calls the device, or nullptr; the port keeps a copy
 /// @return nullptr when out of memory
 uart16550_t* uart16550_create(const io_region_t* restrict io, unsigned reg_shift, uint32_t clock, const char* restrict name);
 

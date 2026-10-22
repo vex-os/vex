@@ -7,11 +7,11 @@
 #include <vex/clocksrc.h>
 #include <vex/delay.h>
 #include <vex/dev_name.h>
+#include <vex/device.h>
 #include <vex/endian.h>
 #include <vex/event.h>
 #include <vex/hart.h>
 #include <vex/hhdm.h>
-#include <vex/initcall.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>
 #include <vex/mutex.h>
@@ -886,8 +886,16 @@ static void ahci_handoff(pci_bar_t* restrict abar)
     }
 }
 
-static int ahci_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* restrict id)
+static int ahci_probe(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid)
 {
+    *bid = DRIVER_BID_DEFAULT;
+
+    return 0;
+}
+
+static int ahci_attach(device_t* restrict device, const driver_match_t* restrict match)
+{
+    pci_device_t* pci_device = pci_device_of(device);
     ahci_pci_context_t* context = kmalloc(sizeof(ahci_pci_context_t));
 
     if(context == nullptr) {
@@ -900,18 +908,18 @@ static int ahci_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* res
     context->atapi_unit = nullptr;
     context->refcount = 1;
 
-    pci_dev->ctxdata = context;
+    device->ctxdata = context;
 
-    pci_enable_busmaster(pci_dev);
+    pci_enable_busmaster(pci_device);
 
-    pci_bar_t* abar = pci_bar_map(pci_dev, 5);
+    pci_bar_t* abar = pci_bar_map(pci_device, 5);
 
     if(abar == nullptr) {
         pr_verbose("ahci: pci_bar_map failed");
 
         kfree(context);
 
-        pci_dev->ctxdata = nullptr;
+        device->ctxdata = nullptr;
 
         return -ENOMEM;
     }
@@ -955,13 +963,13 @@ static int ahci_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* res
 
     if(0 == (context->ata_mask | context->atapi_mask)) {
         free_units(context);
-        pci_bar_unmap(pci_dev, 5);
+        pci_bar_unmap(pci_device, 5);
         kfree(context);
-        pci_dev->ctxdata = nullptr;
+        device->ctxdata = nullptr;
         return -ENODEV;
     }
 
-    if(0 == pci_request_irq(pci_dev, &ahci_irq, context)) {
+    if(0 == pci_request_irq(pci_device, &ahci_irq, context)) {
         context->irq = true;
         io_write32(&abar->io, HBA_GHC, io_read32(&abar->io, HBA_GHC) | HBA_GHC_IE);
     }
@@ -998,9 +1006,10 @@ static int ahci_probe(pci_device_t* restrict pci_dev, const pci_driver_id_t* res
     return 0;
 }
 
-static void ahci_remove(pci_device_t* restrict pci_dev)
+static void ahci_detach(device_t* restrict device)
 {
-    ahci_pci_context_t* context = pci_dev->ctxdata;
+    pci_device_t* pci_device = pci_device_of(device);
+    ahci_pci_context_t* context = device->ctxdata;
 
     if(context == nullptr) {
         return;
@@ -1008,7 +1017,7 @@ static void ahci_remove(pci_device_t* restrict pci_dev)
 
     if(context->irq) {
         io_write32(&context->abar->io, HBA_GHC, io_read32(&context->abar->io, HBA_GHC) & ~HBA_GHC_IE);
-        pci_release_irq(pci_dev);
+        pci_release_irq(pci_device);
         context->irq = false;
     }
 
@@ -1032,31 +1041,22 @@ static void ahci_remove(pci_device_t* restrict pci_dev)
 
     free_units(context);
 
-    pci_bar_unmap(pci_dev, 5);
+    pci_bar_unmap(pci_device, 5);
 
-    pci_dev->ctxdata = nullptr;
+    device->ctxdata = nullptr;
 
     context_decref(context);
 }
 
-static const pci_driver_ops_t ahci_driver_ops = {
+static const driver_ops_t ahci_driver_ops = {
     .probe = &ahci_probe,
-    .remove = &ahci_remove,
+    .attach = &ahci_attach,
+    .detach = &ahci_detach,
 };
 
-static const pci_driver_id_t ahci_ids[] = {
-    PCI_DEVICE_CLASS(0x01, 0x06),
-    PCI_DEVICE_END(),
+static const driver_match_t ahci_matches[] = {
+    DRIVER_MATCH_PCI_CLASS(0x01, 0x06),
+    DRIVER_MATCH_END(),
 };
 
-static pci_driver_t ahci_driver = {
-    .ops = &ahci_driver_ops,
-    .ids = ahci_ids,
-};
-
-static void init_ahci(void)
-{
-    pci_driver_add(&ahci_driver);
-}
-
-initcall_bsp_dev(init_ahci, INIT_MIDDLE);
+define_driver(ahci, &ahci_driver_ops, ahci_matches);

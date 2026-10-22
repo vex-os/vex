@@ -1,6 +1,5 @@
 config PS2KBD
     bool "PS/2 keyboard"
-    depends on ISA
     default y
     help
       Keyboard on the first port of
