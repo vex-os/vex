@@ -40,6 +40,10 @@ struct clock_source_s {
 
 int clock_source_add_raw(clock_source_t* restrict source, uint64_t scale, uint64_t frequency);
 int clock_source_calibrate_raw(clock_source_t* restrict source, uint64_t scale, uint64_t frequency);
+
+/// Takes a source out, with the time going on from the best one left if it was active
+/// @retval -ENOENT The source isn't added
+/// @retval -EBUSY The source is active and the only one, as time can't go on without it
 int clock_source_remove(clock_source_t* restrict source);
 
 clock_source_t* clock_source_active(void) __nodiscard;

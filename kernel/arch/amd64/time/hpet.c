@@ -54,6 +54,7 @@ static clock_source_t hpet_clock_source = {
 };
 
 static uint64_t hpet_address = 0; // Where the counting HPET is, or zero while none counts
+static uint64_t hpet_frequency = 0;
 
 static int hpet_probe(device_t* restrict device, const driver_match_t* restrict match)
 {
@@ -88,10 +89,11 @@ static int hpet_attach(device_t* restrict device, const driver_match_t* restrict
 
 // UNDONE: switch to another clock source first
 // once removing the active one keeps the time going
+// Time goes on from another clock source, so the counter can go
 static int hpet_offline(device_t* restrict device)
 {
-    if(clock_source_active() == &hpet_clock_source) {
-        pr_warning("hpet: %s is the active clock source", device->name);
+    if(clock_source_remove(&hpet_clock_source) == -EBUSY) {
+        pr_warning("hpet: %s is the only clock source", device->name);
         return -EBUSY;
     }
 
@@ -100,12 +102,15 @@ static int hpet_offline(device_t* restrict device)
 
 static void hpet_online(device_t* restrict device)
 {
-    // empty
+    clock_source_add_raw(&hpet_clock_source, UINT64_C(1), hpet_frequency);
 }
 
+// A counter that stopped still beats time going back to zero, so the only source stays
 static void hpet_detach(device_t* restrict device)
 {
-    clock_source_remove(&hpet_clock_source);
+    if(device_is_gone(device) && clock_source_remove(&hpet_clock_source) == -EBUSY) {
+        pr_warning("hpet: %s is gone, but time has nothing else to go on", device->name);
+    }
 }
 
 // The framework has unmapped the registers by now
@@ -172,7 +177,8 @@ static void arch_init_hpet(void)
                 hpet_clock_source.mask = CLOCK_SOURCE_MASK_32;
             }
 
-            clock_source_add_raw(&hpet_clock_source, UINT64_C(1), UINT64_C(1000000000000000) / hpet_period_fsec);
+            hpet_frequency = UINT64_C(1000000000000000) / hpet_period_fsec;
+            clock_source_add_raw(&hpet_clock_source, UINT64_C(1), hpet_frequency);
         }
     }
 }

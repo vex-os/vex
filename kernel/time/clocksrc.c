@@ -137,18 +137,23 @@ int clock_source_remove(clock_source_t* restrict source)
         return -ENOENT;
     }
 
-    *prev = source->priv.next;
-
     clock_source_t* best = nullptr;
     bool was_active = active_clock_source == source;
 
-    if(was_active) {
-        for(clock_source_t* it = clock_source_head; it; it = it->priv.next) {
-            if(best == nullptr || it->rating > best->rating) {
-                best = it;
-            }
+    for(clock_source_t* it = clock_source_head; it; it = it->priv.next) {
+        if(it != source && (best == nullptr || it->rating > best->rating)) {
+            best = it;
         }
+    }
 
+    if(was_active && best == nullptr) {
+        spinlock_release_intr(&clock_source_lock, intr_state);
+        return -EBUSY;
+    }
+
+    *prev = source->priv.next;
+
+    if(was_active) {
         activate_nolock(best);
     }
 
