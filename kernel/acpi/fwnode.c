@@ -1,5 +1,6 @@
 #include <uacpi/namespace.h>
 #include <uacpi/resources.h>
+#include <uacpi/uacpi.h>
 #include <uacpi/utilities.h>
 #include <vex/errno.h>
 #include <vex/fwnode.h>
@@ -461,6 +462,47 @@ static int acpi_node_route_pci_interrupt(const fwnode_t* restrict node, unsigned
     return retval;
 }
 
+// ACPI 6.5, 6.5.8 _DEP: a package of references, which uACPI leaves
+// as name paths, since the providers may be defined further on
+static int acpi_node_for_each_dependency(const fwnode_t* restrict node, void (*callback)(const fwnode_t* provider, void* arg), void* arg)
+{
+    uacpi_namespace_node* namespace_node = namespace_node_of(node);
+    uacpi_object* dependencies;
+
+    if(uacpi_unlikely_error(uacpi_eval_simple_package(namespace_node, "_DEP", &dependencies))) {
+        return -ENOENT;
+    }
+
+    uacpi_object_array array;
+
+    if(uacpi_unlikely_error(uacpi_object_get_package(dependencies, &array))) {
+        uacpi_object_unref(dependencies);
+        return -ENOENT;
+    }
+
+    for(uacpi_size i = 0; i < array.count; ++i) {
+        uacpi_namespace_node* target = nullptr;
+
+        if(!uacpi_object_is_aml_namepath(array.objects[i])) {
+            continue;
+        }
+
+        if(uacpi_unlikely_error(uacpi_object_resolve_as_aml_namepath(array.objects[i], namespace_node, &target))) {
+            continue;
+        }
+
+        fwnode_t provider = {};
+        provider.ops = &acpi_node_ops;
+        provider.handle = target;
+
+        callback(&provider, arg);
+    }
+
+    uacpi_object_unref(dependencies);
+
+    return 0;
+}
+
 static const fwnode_ops_t acpi_node_ops = {
     .is_present = &acpi_node_is_present,
     .matches = &acpi_node_matches,
@@ -470,6 +512,7 @@ static const fwnode_ops_t acpi_node_ops = {
     .for_each_child = &acpi_node_for_each_child,
     .for_each_resource = &acpi_node_for_each_resource,
     .route_pci_interrupt = &acpi_node_route_pci_interrupt,
+    .for_each_dependency = &acpi_node_for_each_dependency,
 };
 
 int fwnode_root(fwnode_t* restrict root)

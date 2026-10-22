@@ -79,6 +79,10 @@ struct fwnode_ops_s {
     /// @retval -ENOENT The node doesn't route the pin, so it swizzles on through the bridge above
     /// @retval -ENXIO The pin goes to an interrupt link that has no interrupt yet
     int (*route_pci_interrupt)(const fwnode_t* restrict node, unsigned slot, unsigned pin, fwnode_irq_t* restrict irq);
+
+    /// Calls back for each device the node needs working before it can be driven, as ACPI's _DEP lists them
+    /// @retval -ENOENT The node needs none
+    int (*for_each_dependency)(const fwnode_t* restrict node, void (*callback)(const fwnode_t* provider, void* arg), void* arg);
 };
 
 // A device as the firmware describes it, held by value; the
@@ -91,6 +95,12 @@ struct fwnode_s {
 /// Gets the node the devices of the system hang from
 /// @retval -ENODEV The system has no firmware tables to describe its devices
 int fwnode_root(fwnode_t* restrict root);
+
+/// @return Whether two nodes are the same device of the firmware
+static __always_inline bool fwnode_is_same(const fwnode_t* first, const fwnode_t* second)
+{
+    return first->ops == second->ops && first->handle == second->handle;
+}
 
 static __always_inline bool fwnode_is_present(const fwnode_t* restrict node)
 {
@@ -133,4 +143,10 @@ static __always_inline int fwnode_route_pci_interrupt(const fwnode_t* restrict n
     fwnode_irq_t* restrict irq)
 {
     return node->ops->route_pci_interrupt(node, slot, pin, irq);
+}
+
+static __always_inline int fwnode_for_each_dependency(const fwnode_t* restrict node, void (*callback)(const fwnode_t* provider, void* arg),
+    void* arg)
+{
+    return node->ops->for_each_dependency(node, callback, arg);
 }

@@ -7,6 +7,7 @@
 #include <vex/types.h>
 
 typedef struct device_irq_s device_irq_t;
+typedef struct device_link_s device_link_t;
 typedef struct device_mapping_s device_mapping_t;
 
 #define DEVICE_NAME_MAX 32
@@ -29,6 +30,7 @@ enum {
 enum device_state_e {
     DEVICE_PRESENT,   // In the tree, without a driver
     DEVICE_PROBING,   // Drivers bid, and the winner attaches
+    DEVICE_WAITING,   // The winner waits for a provider to be bound, then the node is probed again
     DEVICE_BOUND,     // A driver has it
     DEVICE_DETACHING, // The driver lets go, then the resources go
     DEVICE_GONE,      // Out of the tree, until the last reference
@@ -84,6 +86,11 @@ struct device_private_s {
     size_t num_resources;
     device_irq_t* irqs;         // Requested through device_request_irq
     device_mapping_t* mappings; // Made through device_map_io
+    device_link_t* providers;   // What the driver uses, from attach until it lets go
+    device_link_t* consumers;   // Whose drivers use the node
+    device_t* awaited;          // With a reference, while waiting for a node of the tree
+    fwnode_t awaited_fwnode;    // While waiting for a device the firmware describes but the tree doesn't have yet
+    device_t* waiting_next;     // Among the nodes that wait
     device_t* worker_next;      // In the queue of device_worker, which holds a reference meanwhile
     unsigned pending;           // What the node is queued for, under the queue's lock
     unsigned refcount;
@@ -123,6 +130,7 @@ struct driver_ops_s {
     int (*probe)(device_t* restrict device, const driver_match_t* restrict match, unsigned* restrict bid);
 
     /// Takes the device the driver won
+    /// @retval -EAGAIN device_wait_for said to wait, and the framework probes the device again once the provider is bound
     /// @note Undoes what it did before it fails, as detach isn't called then
     int (*attach)(device_t* restrict device, const driver_match_t* restrict match);
 
@@ -198,6 +206,14 @@ void device_unbind(device_t* restrict device);
 /// Queues the node to be unbound and taken out of the tree
 /// @note Any context; device_worker does the work
 void device_remove(device_t* restrict device);
+
+/// Makes the node's driver use a provider beyond its parent, so that the provider is unbound only after the node
+/// @pre Called from the attach of the node's driver
+/// @retval -EAGAIN The provider isn't bound yet; attach undoes what it did and returns this
+/// @retval -EDEADLK The provider relies on the node, through the tree or through what it uses
+/// @retval -ENODEV The provider is out of the tree
+/// @retval -ENOMEM Out of memory
+int device_wait_for(device_t* restrict device, device_t* restrict provider) __nodiscard;
 
 /// Marks the node and all below it as gone from the hardware, so drivers stop waiting for answers from it
 /// @note Doesn't remove the nodes; the bus that lost them asks for that

@@ -28,6 +28,7 @@ extern const driver_t drivers_end[];
 
 typedef struct resource_list_s resource_list_t;
 typedef struct candidate_s candidate_t;
+typedef struct dependency_walk_s dependency_walk_t;
 
 struct device_irq_s {
     device_irq_t* next;
@@ -38,6 +39,13 @@ struct device_irq_s {
 struct device_mapping_s {
     device_mapping_t* next;
     io_region_t region;
+};
+
+struct device_link_s {
+    device_t* consumer;
+    device_t* provider;
+    device_link_t* next_of_consumer;
+    device_link_t* next_of_provider;
 };
 
 struct resource_list_s {
@@ -51,10 +59,23 @@ struct candidate_s {
     unsigned bid;
 };
 
+struct dependency_walk_s {
+    device_t* device;
+    int retval;
+};
+
+// Firmware lists the power engine plugin (Windows' PEP) in _DEP for
+// the OS's power management, which no driver of the tree stands for
+static const char* const ignored_providers[] = {
+    "PNP0D80",
+    nullptr,
+};
+
 // Guards the links between nodes
 // and the interrupts requested on them
 static mutex_t tree_mutex = MUTEX_INIT;
 static device_t* root = nullptr;
+static device_t* waiting_head = nullptr; // Under the tree's lock
 
 static spinlock_t queue_lock = SPINLOCK_INIT; // Taken with interrupts disabled
 static device_t* queue_head = nullptr;
@@ -135,6 +156,11 @@ static device_t* allocate(device_t* restrict parent, const fwnode_t* restrict fw
     device->priv.children = nullptr;
     device->priv.irqs = nullptr;
     device->priv.mappings = nullptr;
+    device->priv.providers = nullptr;
+    device->priv.consumers = nullptr;
+    device->priv.awaited = nullptr;
+    device->priv.awaited_fwnode = (fwnode_t) {};
+    device->priv.waiting_next = nullptr;
     device->priv.worker_next = nullptr;
     device->priv.pending = 0;
     device->priv.state = DEVICE_PRESENT;
@@ -280,6 +306,263 @@ static void release_resources(device_t* restrict device)
     }
 }
 
+static void queue_request(device_t* restrict device, unsigned request)
+{
+    bool intr_state = spinlock_acquire_intr(&queue_lock);
+    bool queued = device->priv.pending != 0;
+
+    device->priv.pending |= request;
+
+    if(!queued) {
+        device_incref(device);
+        device->priv.worker_next = nullptr;
+
+        if(queue_tail) {
+            queue_tail->priv.worker_next = device;
+        }
+        else {
+            queue_head = device;
+        }
+
+        queue_tail = device;
+    }
+
+    spinlock_release_intr(&queue_lock, intr_state);
+
+    if(!queued) {
+        event_trigger(&worker_wakeup, true);
+    }
+}
+
+static bool is_waiting(const device_t* restrict device)
+{
+    return device->priv.awaited || device->priv.awaited_fwnode.ops;
+}
+
+// A node relies on its parent, on the providers its driver uses and on the one it waits for
+static bool relies_on_nolock(const device_t* device, const device_t* provider)
+{
+    if(device == provider) {
+        return true;
+    }
+
+    if(device->parent && relies_on_nolock(device->parent, provider)) {
+        return true;
+    }
+
+    for(const device_link_t* link = device->priv.providers; link; link = link->next_of_consumer) {
+        if(relies_on_nolock(link->provider, provider)) {
+            return true;
+        }
+    }
+
+    return device->priv.awaited && relies_on_nolock(device->priv.awaited, provider);
+}
+
+static device_t* find_by_fwnode_nolock(device_t* parent, const fwnode_t* restrict fwnode)
+{
+    for(device_t* child = parent->priv.children; child; child = child->priv.next) {
+        if(child->fwnode.ops && fwnode_is_same(&child->fwnode, fwnode)) {
+            return child;
+        }
+
+        device_t* found = find_by_fwnode_nolock(child, fwnode);
+
+        if(found) {
+            return found;
+        }
+    }
+
+    return nullptr;
+}
+
+static device_t* find_by_fwnode(const fwnode_t* restrict fwnode)
+{
+    mutex_acquire(&tree_mutex);
+
+    device_t* device = find_by_fwnode_nolock(root, fwnode);
+
+    if(device) {
+        device_incref(device);
+    }
+
+    mutex_release(&tree_mutex);
+
+    return device;
+}
+
+// A provider the firmware says isn't there is one the node does without,
+// as the firmware would then have it work without it
+static int wait_for_fwnode(device_t* restrict device, const fwnode_t* restrict fwnode)
+{
+    if(fwnode_matches(fwnode, ignored_providers) || !fwnode_is_present(fwnode)) {
+        return 0;
+    }
+
+    device_t* provider = find_by_fwnode(fwnode);
+
+    if(provider == nullptr) {
+        device->priv.awaited_fwnode = *fwnode;
+        return -EAGAIN;
+    }
+
+    int retval = device_wait_for(device, provider);
+
+    device_decref(provider);
+
+    return retval;
+}
+
+static void wait_for_dependency(const fwnode_t* provider, void* arg)
+{
+    dependency_walk_t* walk = arg;
+
+    if(walk->retval == 0) {
+        walk->retval = wait_for_fwnode(walk->device, provider);
+    }
+}
+
+static int wait_for_dependencies(device_t* restrict device)
+{
+    dependency_walk_t walk = {};
+    walk.device = device;
+
+    if(device->fwnode.ops) {
+        fwnode_for_each_dependency(&device->fwnode, &wait_for_dependency, &walk);
+    }
+
+    return walk.retval;
+}
+
+static void unlink_providers(device_t* restrict device)
+{
+    mutex_acquire(&tree_mutex);
+
+    device_link_t* links = device->priv.providers;
+    device->priv.providers = nullptr;
+
+    for(device_link_t* link = links; link; link = link->next_of_consumer) {
+        device_link_t** prev = &link->provider->priv.consumers;
+
+        while(*prev != link) {
+            prev = &(*prev)->next_of_provider;
+        }
+
+        *prev = link->next_of_provider;
+    }
+
+    mutex_release(&tree_mutex);
+
+    while(links) {
+        device_link_t* next = links->next_of_consumer;
+        device_decref(links->provider);
+        kfree(links);
+        links = next;
+    }
+}
+
+static void start_waiting(device_t* restrict device)
+{
+    mutex_acquire(&tree_mutex);
+    device->priv.waiting_next = waiting_head;
+    waiting_head = device;
+    device->priv.state = DEVICE_WAITING;
+    mutex_release(&tree_mutex);
+}
+
+static void stop_waiting(device_t* restrict device)
+{
+    mutex_acquire(&tree_mutex);
+
+    device_t* awaited = device->priv.awaited;
+    device->priv.awaited = nullptr;
+    device->priv.awaited_fwnode = (fwnode_t) {};
+
+    if(device->priv.state == DEVICE_WAITING) {
+        device_t** prev = &waiting_head;
+
+        while(*prev != device) {
+            prev = &(*prev)->priv.waiting_next;
+        }
+
+        *prev = device->priv.waiting_next;
+        device->priv.waiting_next = nullptr;
+        device->priv.state = DEVICE_PRESENT;
+    }
+
+    mutex_release(&tree_mutex);
+
+    if(awaited) {
+        device_decref(awaited);
+    }
+}
+
+static bool awaits_nolock(const device_t* restrict waiter, const device_t* restrict provider)
+{
+    if(waiter->priv.awaited == provider) {
+        return true;
+    }
+
+    return waiter->priv.awaited_fwnode.ops && provider->fwnode.ops && fwnode_is_same(&waiter->priv.awaited_fwnode, &provider->fwnode);
+}
+
+// When the provider is bound or leaves the tree, so its waiters
+// either attach or find out what they wait for won't come
+static void wake_waiters(device_t* restrict provider)
+{
+    mutex_acquire(&tree_mutex);
+
+    device_t** prev = &waiting_head;
+
+    while(*prev) {
+        device_t* waiter = *prev;
+
+        if(!awaits_nolock(waiter, provider)) {
+            prev = &waiter->priv.waiting_next;
+            continue;
+        }
+
+        *prev = waiter->priv.waiting_next;
+        waiter->priv.waiting_next = nullptr;
+        waiter->priv.awaited_fwnode = (fwnode_t) {};
+        waiter->priv.state = DEVICE_PRESENT;
+
+        if(waiter->priv.awaited) {
+            waiter->priv.awaited = nullptr;
+            device_decref(provider);
+        }
+
+        queue_request(waiter, DEVICE_REQUEST_RESCAN);
+    }
+
+    mutex_release(&tree_mutex);
+}
+
+static void undo_attach(device_t* restrict device, const driver_t* restrict driver)
+{
+    release_resources(device);
+    driver->ops->release(device);
+    device->ctxdata = nullptr;
+}
+
+static void log_wait(device_t* restrict device, const char* restrict path, const driver_t* restrict driver)
+{
+    if(device->priv.awaited) {
+        char provider_path[DEVICE_PATH_MAX];
+        device_get_path(device->priv.awaited, provider_path, sizeof(provider_path));
+        pr_verbose("device: %s: %s waits for %s", path, driver->name, provider_path);
+    }
+    else {
+        char provider_name[DEVICE_NAME_MAX];
+
+        if(fwnode_get_name(&device->priv.awaited_fwnode, provider_name, sizeof(provider_name)) < 0) {
+            provider_name[0] = 0;
+        }
+
+        pr_verbose("device: %s: %s waits for %s, not in the tree yet", path, driver->name, provider_name);
+    }
+}
+
 // A driver that fails to attach leaves the device unbound,
 // rather than to one that bid lower and may not suit it
 static void bind(device_t* restrict device)
@@ -312,13 +595,29 @@ static void bind(device_t* restrict device)
 
     device->priv.state = DEVICE_PROBING;
 
-    int retval = best.driver->ops->attach(device, best.match);
+    int retval = wait_for_dependencies(device);
+
+    if(retval == 0) {
+        retval = best.driver->ops->attach(device, best.match);
+
+        if(retval < 0) {
+            undo_attach(device, best.driver);
+        }
+    }
+
+    if(retval < 0) {
+        unlink_providers(device);
+    }
+
+    if(retval == -EAGAIN && is_waiting(device)) {
+        log_wait(device, path, best.driver);
+        start_waiting(device);
+        return;
+    }
 
     if(retval < 0) {
         pr_warning("device: %s: %s failed to attach: %s", path, best.driver->name, strerror(retval));
-        release_resources(device);
-        best.driver->ops->release(device);
-        device->ctxdata = nullptr;
+        stop_waiting(device);
         device->priv.state = DEVICE_PRESENT;
         return;
     }
@@ -326,6 +625,8 @@ static void bind(device_t* restrict device)
     device->driver = best.driver;
     device->priv.state = DEVICE_BOUND;
     pr_verbose("device: %s bound to %s", path, best.driver->name);
+
+    wake_waiters(device);
 }
 
 // The caller's reference to the previous child keeps it in the list; the
@@ -355,7 +656,7 @@ static void rescan_node(device_t* device)
         return;
     }
 
-    if(device->driver == nullptr) {
+    if(device->driver == nullptr && device->priv.state != DEVICE_WAITING) {
         bind(device);
     }
 
@@ -388,8 +689,39 @@ static void remove_children(device_t* device)
     device->priv.fw_children_placed = false;
 }
 
+static void unbind_node(device_t* device);
+
+// They probe again, and wait for the node unless it is
+// leaving the tree and the firmware lets them do without
+static void unbind_consumers(device_t* device)
+{
+    for(;;) {
+        mutex_acquire(&tree_mutex);
+
+        device_link_t* link = device->priv.consumers;
+        device_t* consumer = nullptr;
+
+        if(link) {
+            consumer = link->consumer;
+            device_incref(consumer);
+        }
+
+        mutex_release(&tree_mutex);
+
+        if(consumer == nullptr) {
+            return;
+        }
+
+        unbind_node(consumer);
+        queue_request(consumer, DEVICE_REQUEST_RESCAN);
+        device_decref(consumer);
+    }
+}
+
 static void unbind_node(device_t* device)
 {
+    stop_waiting(device);
+    unbind_consumers(device);
     remove_children(device);
 
     const driver_t* driver = device->driver;
@@ -404,11 +736,10 @@ static void unbind_node(device_t* device)
     device->priv.state = DEVICE_DETACHING;
 
     driver->ops->detach(device);
-    release_resources(device);
-    driver->ops->release(device);
+    undo_attach(device, driver);
+    unlink_providers(device);
 
     device->driver = nullptr;
-    device->ctxdata = nullptr;
     device->priv.state = DEVICE_PRESENT;
 
     pr_verbose("device: %s unbound from %s", path, driver->name);
@@ -455,35 +786,8 @@ static void remove_node(device_t* device)
 
     pr_verbose("device: removed %s", path);
 
+    wake_waiters(device);
     device_decref(device);
-}
-
-static void queue_request(device_t* restrict device, unsigned request)
-{
-    bool intr_state = spinlock_acquire_intr(&queue_lock);
-    bool queued = device->priv.pending != 0;
-
-    device->priv.pending |= request;
-
-    if(!queued) {
-        device_incref(device);
-        device->priv.worker_next = nullptr;
-
-        if(queue_tail) {
-            queue_tail->priv.worker_next = device;
-        }
-        else {
-            queue_head = device;
-        }
-
-        queue_tail = device;
-    }
-
-    spinlock_release_intr(&queue_lock, intr_state);
-
-    if(!queued) {
-        event_trigger(&worker_wakeup, true);
-    }
 }
 
 static device_t* queue_pop(unsigned* restrict requests)
@@ -702,6 +1006,50 @@ void device_remove(device_t* restrict device)
     queue_request(device, DEVICE_REQUEST_REMOVE);
 }
 
+int device_wait_for(device_t* restrict device, device_t* restrict provider)
+{
+    kassert(device->priv.state == DEVICE_PROBING);
+    kassert(!is_waiting(device));
+
+    device_link_t* link = kmalloc(sizeof(device_link_t));
+
+    if(link == nullptr) {
+        return -ENOMEM;
+    }
+
+    mutex_acquire(&tree_mutex);
+
+    int retval = 0;
+
+    if(relies_on_nolock(provider, device)) {
+        retval = -EDEADLK;
+    }
+    else if(provider->priv.state == DEVICE_GONE) {
+        retval = -ENODEV;
+    }
+    else if(provider->priv.state != DEVICE_BOUND) {
+        device_incref(provider);
+        device->priv.awaited = provider;
+        retval = -EAGAIN;
+    }
+    else {
+        device_incref(provider);
+        link->consumer = device;
+        link->provider = provider;
+        link->next_of_consumer = device->priv.providers;
+        link->next_of_provider = provider->priv.consumers;
+        device->priv.providers = link;
+        provider->priv.consumers = link;
+        link = nullptr;
+    }
+
+    mutex_release(&tree_mutex);
+
+    kfree(link);
+
+    return retval;
+}
+
 void device_set_gone(device_t* restrict device)
 {
     mutex_acquire(&tree_mutex);
@@ -728,6 +1076,9 @@ void device_decref(device_t* restrict device)
     kassert(device->priv.children == nullptr);
     kassert(device->priv.irqs == nullptr);
     kassert(device->priv.mappings == nullptr);
+    kassert(device->priv.providers == nullptr);
+    kassert(device->priv.consumers == nullptr);
+    kassert(device->priv.awaited == nullptr);
 
     device_t* parent = device->parent;
 
