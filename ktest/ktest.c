@@ -1,3 +1,5 @@
+#include <vex/dirent.h>
+#include <vex/errno.h>
 #include <vex/fcntl.h>
 #include <vex/kplog.h>
 #include <vex/signal.h>
@@ -6,6 +8,8 @@
 
 #define FORMAT_BUFFER_SIZE 1024
 #define NUMBER_DIGITS_MAX  24
+#define WORK_PATH_SIZE     128
+#define DIRENT_BUFFER_SIZE 1024
 
 typedef struct sink_s sink_t;
 
@@ -504,6 +508,63 @@ int ktest_in_new_session(int (*body)(void))
     return 0;
 }
 
+static long unlink_path(const char* path, long flags)
+{
+    return ktest_syscall3(__k_SYS_UNLINKAT, __k_AT_FDCWD, (long)(path), flags);
+}
+
+static bool find_entry(const char* directory, char* name, size_t size)
+{
+    long fd = ktest_open(directory, __k_O_RDONLY, 0);
+
+    if(fd < 0) {
+        return false;
+    }
+
+    _Alignas(8) char records[DIRENT_BUFFER_SIZE];
+    long filled = ktest_syscall3(__k_SYS_GETDENTS, fd, (long)(records), sizeof(records));
+    bool found = false;
+
+    long position = 0;
+
+    while(!found && position < filled) {
+        const struct __k_dirent* entry = (const struct __k_dirent*)(records + position);
+        const char* entry_name = (const char*)(entry->d_name);
+
+        if(!ktest_string_equal(entry_name, ".") && !ktest_string_equal(entry_name, "..")) {
+            ktest_snprintf(name, size, "%s", entry_name);
+            found = true;
+        }
+
+        position += entry->d_reclen;
+    }
+
+    ktest_close(fd);
+    return found;
+}
+
+static bool remove_tree(const char* path)
+{
+    long retval = unlink_path(path, 0);
+
+    if(retval != -__k_EISDIR) {
+        return retval == 0;
+    }
+
+    char child[WORK_PATH_SIZE];
+    char name[WORK_PATH_SIZE];
+
+    while(find_entry(path, name, sizeof(name))) {
+        ktest_snprintf(child, sizeof(child), "%s/%s", path, name);
+
+        if(!remove_tree(child)) {
+            return false;
+        }
+    }
+
+    return unlink_path(path, __k_AT_REMOVEDIR) == 0;
+}
+
 const char* ktest_enter_work_directory(const char* name)
 {
     static char path[64];
@@ -512,6 +573,13 @@ const char* ktest_enter_work_directory(const char* name)
     ktest_snprintf(path, sizeof(path), "/tmp/%s-%ld", name, pid);
 
     long retval = ktest_syscall3(__k_SYS_MKDIRAT, __k_AT_FDCWD, (long)(path), 0755);
+
+    if(retval == -__k_EEXIST) {
+        // The work directory lives on the disk, and the pid repeats on every boot
+        bool removed = remove_tree(path);
+        ktest_kplog(__k_KP_WARNING, "ktest: stale %s %s", path, removed ? "removed" : "could not be removed");
+        retval = ktest_syscall3(__k_SYS_MKDIRAT, __k_AT_FDCWD, (long)(path), 0755);
+    }
 
     if(retval < 0) {
         ktest_fail("cannot make %s: %ld", path, retval);

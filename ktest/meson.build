@@ -22,6 +22,7 @@ ktest_programs = [
     'tlb_shootdown',
     'fs',
     'fs_times',
+    'getdents',
     'kplog',
     'hwtree',
     'tty',
