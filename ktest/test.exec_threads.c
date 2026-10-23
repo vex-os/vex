@@ -3,7 +3,7 @@
 
 #include "ktest.h"
 
-static _Alignas(16) char spinner_stack[KTEST_THREAD_STACK_SIZE];
+static alignas(16) char spinner_stack[KTEST_THREAD_STACK_SIZE];
 static volatile int spinner_running;
 static char pid_text[24];
 
