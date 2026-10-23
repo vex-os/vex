@@ -121,12 +121,11 @@ static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_co
 {
     echfs_vnode_context_t* ctx = node->ctxdata;
     echfs_vfs_context_t* fs = ctx->fs_ctx;
-    uint64_t visible = 0;
 
     echfs_dirent_t entry;
     dirent_t record;
 
-    for(uint64_t i = 0; i < fs->dir_entries; ++i) {
+    for(uint64_t i = dir_context->position; i < fs->dir_entries; ++i) {
         int retval = echfs_dirent_read(fs, i, &entry);
 
         if(retval < 0) {
@@ -145,11 +144,6 @@ static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_co
             continue;
         }
 
-        if(visible < dir_context->position) {
-            visible += 1;
-            continue;
-        }
-
         record.d_ino = i;
 
         if(entry.object_type == 1) {
@@ -162,9 +156,7 @@ static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_co
         memset(record.d_name, 0, NAME_SIZE);
         kstrncpy(record.d_name, entry.name, NAME_SIZE);
 
-        visible += 1;
-
-        if(!dir_emit(dir_context, &record, visible)) {
+        if(!dir_emit(dir_context, &record, i + 1)) {
             break;
         }
     }

@@ -362,8 +362,7 @@ static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_co
     fat_vnode_context_t* context = node->ctxdata;
     fat_dirent_t entry;
     dirent_t record;
-    size_t offset = 0;
-    uint64_t visible = 0;
+    size_t offset = dir_context->position;
 
     for(;;) {
         int retval = fat_dirent_read(context->fs_ctx, context->first_cluster, &offset, &entry);
@@ -380,11 +379,6 @@ static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_co
             continue;
         }
 
-        if(visible < dir_context->position) {
-            visible += 1;
-            continue;
-        }
-
         record.d_ino = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1);
 
         if(entry.base.attribute & FAT_ATTR_DIRECTORY) {
@@ -397,9 +391,7 @@ static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_co
         memset(record.d_name, 0, NAME_SIZE);
         kstrncpy(record.d_name, entry.full_name, NAME_SIZE);
 
-        visible += 1;
-
-        if(!dir_emit(dir_context, &record, visible)) {
+        if(!dir_emit(dir_context, &record, offset)) {
             return 0;
         }
     }
