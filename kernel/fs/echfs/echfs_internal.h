@@ -17,6 +17,8 @@ typedef struct vnode_ops_s vnode_ops_t;
 #define ECHFS_DIR_ID_DELETED UINT64_C(0xFFFFFFFFFFFFFFFE)
 #define ECHFS_DIR_ID_ROOT    UINT64_C(0xFFFFFFFFFFFFFFFF)
 
+#define ECHFS_NAME_SIZE 201
+
 typedef struct echfs_identity_s echfs_identity_t;
 typedef struct echfs_dirent_s echfs_dirent_t;
 typedef struct echfs_vfs_context_s echfs_vfs_context_t;
@@ -41,7 +43,7 @@ static_assert(512 == sizeof(echfs_identity_t));
 struct echfs_dirent_s {
     uint64_t directory_id;
     uint8_t object_type;
-    uint8_t name[201];
+    uint8_t name[ECHFS_NAME_SIZE];
     uint64_t access_time;
     uint64_t modify_time;
     uint16_t permissions;

@@ -97,10 +97,6 @@ static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_co
     dirent_t record;
     uint64_t offset = dir_context->position;
 
-    if(node->type != VNODE_DIRECTORY) {
-        return -ENOTDIR;
-    }
-
     int retval = ext2_dirent_align(node, &offset);
 
     if(retval < 0) {

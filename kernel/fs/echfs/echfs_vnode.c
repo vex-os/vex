@@ -154,7 +154,7 @@ static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_co
         }
 
         memset(record.d_name, 0, NAME_SIZE);
-        kstrncpy(record.d_name, entry.name, NAME_SIZE);
+        kstrncpy(record.d_name, entry.name, sizeof(entry.name));
 
         if(!dir_emit(dir_context, &record, i + 1)) {
             break;
@@ -191,6 +191,10 @@ static int create_locked(vnode_t* restrict node, const char* restrict name, unsi
 {
     echfs_vnode_context_t* ctx = node->ctxdata;
     echfs_vfs_context_t* fs = ctx->fs_ctx;
+
+    if(strnlen(name, NAME_SIZE) >= ECHFS_NAME_SIZE) {
+        return -ENAMETOOLONG;
+    }
 
     ino_t existing;
 

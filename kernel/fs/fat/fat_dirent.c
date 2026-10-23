@@ -161,7 +161,7 @@ int fat_dirent_read(const fat_vfs_context_t* restrict context, uintptr_t cluster
         for(unsigned i = num_ldir; i > 0 && !done; --i) {
             const fat_ldir_entry_t* ldir = &ldirs[i - 1];
 
-            for(unsigned j = 0; j < 5 && name_pos < NAME_SIZE && !done; ++j) {
+            for(unsigned j = 0; j < 5 && name_pos < NAME_MAX && !done; ++j) {
                 uint16_t ch = le16toh(ldir->name_1[j]);
                 if(ch == 0x0000 || ch == 0xFFFF) {
                     done = true;
@@ -172,7 +172,7 @@ int fat_dirent_read(const fat_vfs_context_t* restrict context, uintptr_t cluster
                 name_pos += 1;
             }
 
-            for(unsigned j = 0; j < 6 && name_pos < NAME_SIZE && !done; ++j) {
+            for(unsigned j = 0; j < 6 && name_pos < NAME_MAX && !done; ++j) {
                 uint16_t ch = le16toh(ldir->name_2[j]);
                 if(ch == 0x0000 || ch == 0xFFFF) {
                     done = true;
@@ -183,7 +183,7 @@ int fat_dirent_read(const fat_vfs_context_t* restrict context, uintptr_t cluster
                 name_pos += 1;
             }
 
-            for(unsigned j = 0; j < 2 && name_pos < NAME_SIZE && !done; ++j) {
+            for(unsigned j = 0; j < 2 && name_pos < NAME_MAX && !done; ++j) {
                 uint16_t ch = le16toh(ldir->name_3[j]);
                 if(ch == 0x0000 || ch == 0xFFFF) {
                     done = true;

@@ -704,6 +704,10 @@ int vnode_iterate(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     kassert(node);
 
+    if(node->type != VNODE_DIRECTORY) {
+        return -ENOTDIR;
+    }
+
     bool from_start = dir_context->position == 0;
 
     vnode_t* target;

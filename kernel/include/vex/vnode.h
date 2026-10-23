@@ -66,6 +66,7 @@ struct vnode_ops_s {
     int (*lookup)(vnode_t* restrict node, const char* restrict name, ino_t* restrict out);
 
     /// Emits the entries from dir_context->position on, until the end of the directory or until dir_emit fails
+    /// @pre node is a directory
     /// @param dir_context Its position is a cookie that only this operation reads; 0 is the start
     /// @post dir_context->position is the cookie of the first entry that was not emitted
     /// @note A cookie must keep working after an unlink: the iteration goes on with the next entry
