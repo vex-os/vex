@@ -1,5 +1,5 @@
-kernel_config_h = custom_target('config.h',
-    output: 'config.h',
+kernel_config_h = custom_target('generated.config.h',
+    output: 'generated.config.h',
     command: [python, kconfig_gen_h,
         '--kconfig', kconfig_root,
         '--config', kconfig_file,
@@ -12,8 +12,8 @@ kernel_config_h = custom_target('config.h',
 # Regenerated on every build so that UTSNAME_VERSION
 # follows the checked out commit, see core/version.c
 kernel_utsname_h = vcs_tag(
-    input: 'core/utsname.h.in',
-    output: 'utsname.h',
+    input: 'utsname.h.in',
+    output: 'generated.utsname.h',
     command: ['git', 'rev-parse', '--short', 'HEAD'],
     fallback: 'unknown',
 )

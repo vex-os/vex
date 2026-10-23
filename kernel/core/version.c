@@ -1,5 +1,6 @@
-#include <utsname.h>
 #include <vex/version.h>
+
+#include "generated.utsname.h"
 
 #ifndef UTSNAME_SYSNAME
 #define UTSNAME_SYSNAME "Unknown"

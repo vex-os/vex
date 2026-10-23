@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Vex is a hobby operating system kernel written in C (gnu2x) and built with Meson. It is booted by Limine over UEFI. amd64 is currently the only implemented architecture. The meson build maps riscv64/aarch64 names, and their EDK2/Limine binaries are vendored, but there is no `kernel/arch/` code for them yet. Userspace is being split out: `boot/utest/` holds a userspace test binary that the Meson build does **not** build yet.
+Vex is a hobby operating system kernel written in C (gnu2x) and built with Meson. It is booted by Limine over UEFI. amd64 is currently the only implemented architecture. The meson build maps riscv64/aarch64 names, and their EDK2/Limine binaries are vendored, but there is no `kernel/arch/` code for them yet. Userspace is being split out. `ktest/` is the kernel's own test image: the Limine config, the image script, the test runner `kst` and the test programs it runs. Real userspace lives elsewhere.
 
 ## Build and run
 
@@ -13,13 +13,14 @@ Builds must be cross builds. Meson errors out without a cross file.
 ```sh
 meson setup build --cross-file cross/amd64-clang.ini   # or cross/amd64-gcc.ini (x86_64-elf-* toolchain)
 ninja -C build                    # builds build/kernel/vexsys.elf
-ninja -C build image              # builds build/boot/vexsys.boot.img (GPT disk, FAT16 ESP + empty DATA partition)
-ninja -C build qemu               # builds the image and boots it in QEMU with OVMF, debugcon on stdio
+ninja -C build ktest-image        # builds build/ktest/vexsys.boot.img (GPT disk, FAT16 ESP + ext2 DATA partition with the tests)
+ninja -C build ktest-run          # builds the image and boots it in QEMU with OVMF; the test runner's shell is on stdio, the kernel log in kernel.log
 ```
 
-- The top-level `GNUmakefile` is an optional convenience wrapper; Meson and ninja remain the real build system. `make <target>` runs `meson setup` if `build.ninja` is missing, then forwards to `ninja -C build <target>` (`make` alone builds the default target). `BUILD_DIR` and `CROSS` (a basename in `cross/`, default `amd64-clang`) override the defaults. `make clean` skips setup when there is no build directory; `make distclean` removes the build directory, including `.config`. Never put build logic in the GNUmakefile; add it to `meson.build`.
-- `scripts/run-qemu-amd64.sh` takes the extra args `slow` (icount), `verbose` (`-d cpu_reset,int -no-reboot`), or a number (log to `qemu_<N>.log` instead of `qemu.log`). Under WSL it calls `qemu-system-x86_64.exe` with Windows paths.
-- Making the image needs `sfdisk`, `mkfs.fat`, mtools (`mmd`, `mcopy`) and `mke2fs` from e2fsprogs. The DATA partition is ext2 with a test tree from `boot/mkimage.sh`. Check it after a run with `e2fsck -fn "build/boot/vexsys.boot.img?offset=$((10240 * 512))"`.
+- `ktest/run-qemu-amd64.sh` takes the extra args `slow` (icount), `verbose` (`-d cpu_reset,int -no-reboot`), or a number (log to `qemu_<N>.log` instead of `qemu.log`). Under WSL it calls `qemu-system-x86_64.exe` with Windows paths.
+- The image is the kernel test image. Limine boots the kernel with `init=/kst.elf` from the DATA partition. `ktest/limine.conf.in` is a template: `ktest/meson.build` sets the terminal (`tty1337`), the shell port (`serial1`, COM1) and the log port (`serial2`, COM2), and pins them to the q35 COM ports with `unit=`. `kst` clears the screen on the shell terminal and takes commands (`help`, `list`, `run <test|path>...`, `all`, `clear`, `exit`). The kernel log goes to the log port and to `fbd0`. Test programs are separate ELFs from `ktest/test.<name>.c`, listed in `ktest/meson.build` in the order `all` runs them; a test that takes the machine over (framebuffer) goes last. A test returns 0 for success and uses `ktest_expect` from `ktest/ktest.h`. `-Dktest=false` skips the whole directory, which also drops the `ktest-image` and `ktest-run` targets; `run <test>` picks tests at run time. `kst` writes to kplog only until the terminal is open.
+- `ktest/run-qemu-amd64.sh` puts the shell port on stdio (Ctrl-A X quits QEMU) and the log port in `kernel.log`. It switches the terminal to raw mode, as the terminal would otherwise echo each line and the guest echoes it again.
+- Making the image needs `sfdisk`, `mkfs.fat`, mtools (`mmd`, `mcopy`) and `mke2fs` from e2fsprogs. The DATA partition is ext2 with a test tree from `ktest/mkimage.sh`. Check it after a run with `e2fsck -fn "build/ktest/vexsys.boot.img?offset=$((10240 * 512))"`.
 - The defaults are `werror=true` and `warning_level=2`, so any new warning fails the build.
 - There is no test suite or linter target. Format C code with `clang-format` (`.clang-format`: 4 spaces, 140 columns, `if(` with no space before the paren, `T* p`). `contrib/**` is excluded from formatting.
 
@@ -29,7 +30,7 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
 
 - Targets: `ninja -C build menuconfig | oldconfig | listnewconfig | defconfig | savedefconfig`.
 - To update a defconfig, run `ninja -C build savedefconfig` and copy `build/defconfig` over `configs/<arch>_defconfig`. Defconfigs only store values that differ from the Kconfig defaults.
-- The generated `config.h` is force-included (`-include`) into every kernel translation unit. `CONFIG_*` macros are always visible, so don't add includes for them.
+- The generated `generated.config.h` is force-included (`-include`) into every kernel translation unit. `CONFIG_*` macros are always visible, so don't add includes for them.
 - Optional subsystems are gated in `meson.build` with `kconfig.get('CONFIG_X', 'n') == 'y'`, not with `#ifdef` around whole files. A new optional driver or filesystem needs a Kconfig entry and a matching gate in the directory's `meson.build`.
 
 ## Kernel architecture
@@ -44,7 +45,7 @@ Kconfiglib is vendored in `contrib/kconfiglib`. The config lives in `build/.conf
   - A subsystem split over several files keeps what they share in a local `<name>_internal.h` next to them (`kernel/device/device_internal.h`, `fs/fat/fat_internal.h`), included as `"<name>_internal.h"`; it is never included from outside its directory.
 - **Generic vs arch code:** `kernel/arch/amd64/` mirrors the generic directories (`mm`, `proc`, `irq`, `time`, `firmware`, `bus`, `core`) and implements their arch-specific halves.
 - **Device model:** `kernel/device/` holds one tree of `device_t` nodes, one per piece of hardware, changed only through `device_worker`. A bus is a node with `bus_ops_t` (`<vex/device_bus.h>`); each bus lives in `kernel/bus/<bus>/`. Firmware descriptions (`fwnode_t`) come from `kernel/firmware/<firmware>/`. Drivers declare themselves with `define_driver` (`<vex/driver.h>`), and probe returns a `DRIVER_SCORE_*`. What userspace sees of a node (block, char, serial, tty, fb) is an interface on top of it, in `dev/`.
-- **Storage stack:** `dev/` has the block and char interface registries (`block_interface_t`, `char_interface_t`; a filesystem calls the block interface it sits on its `volume`), the partition-table parsers (GPT/MBR) and the ATA/ATAPI helpers. `drivers/` holds the hardware drivers, one directory per device class (`storage/ahci.c`, `display/limine.c`, `input/ps2kbd.c`); a driver that outgrows one file gets its own subdirectory there. Class cores such as the tty layer belong in `dev/`, not `drivers/`. A device that shows a kernel subsystem to userspace lives with that subsystem, not in `dev/`: `/dev/hwtree` in `device/hwtree.c`, `/dev/kplog` in `core/kplog.c`. `fs/` has the VFS (vnode, vcache, mount, path, file) plus the devfs, echfs and FAT backends. Device names look like `ada0n1p1` (used in `boot/limine.conf`).
+- **Storage stack:** `dev/` has the block and char interface registries (`block_interface_t`, `char_interface_t`; a filesystem calls the block interface it sits on its `volume`), the partition-table parsers (GPT/MBR) and the ATA/ATAPI helpers. `drivers/` holds the hardware drivers, one directory per device class (`storage/ahci.c`, `display/limine.c`, `input/ps2kbd.c`); a driver that outgrows one file gets its own subdirectory there. Class cores such as the tty layer belong in `dev/`, not `drivers/`. A device that shows a kernel subsystem to userspace lives with that subsystem, not in `dev/`: `/dev/hwtree` in `device/hwtree.c`, `/dev/kplog` in `core/kplog.c`. `fs/` has the VFS (vnode, vcache, mount, path, file) plus the devfs, echfs and FAT backends. Device names look like `ada0n1p1` (used in `ktest/limine.conf.in`).
 - **Logging:** use `pr_emerg` … `pr_verbose` (`vex/kprintf.h`). The `loglevel=verbose` cmdline option enables verbose output. Use `panic()` for fatal errors and `kassert()` for assertions (gated by `CONFIG_KASSERT`).
 
 ## Conventions

@@ -16,7 +16,6 @@ kernel_sources += files(
     'sys_mman.c',
     'sys_process.c',
     'sys_signal.c',
-    'sys_testing.c',
     'sys_thread.c',
     'sys_time.c',
     'sys_uname.c',

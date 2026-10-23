@@ -1,7 +1,7 @@
 project('vex', 'c',
     version: '0.0.2',
     license: 'BSD-3-Clause',
-    meson_version: '>=1.3.0',
+    meson_version: '>=1.4.0',
     default_options: [
         'c_std=gnu2x',
         'warning_level=2',
@@ -37,4 +37,7 @@ subdir('scripts/kconfig')
 subdir('contrib/limine')
 subdir('contrib/uacpi')
 subdir('kernel')
-subdir('boot')
+
+if get_option('ktest')
+    subdir('ktest')
+endif

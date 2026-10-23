@@ -1,14 +1,15 @@
 #!/bin/sh
-# Usage: mkimage.sh <output> <limine-efi> <limine.conf> <kernel>
+# Usage: mkimage.sh <output> <limine-efi> <limine.conf> <kernel> [<file>:<path>]...
 # Creates a GPT disk image with a FAT16 ESP containing the bootloader,
-# its configuration and the kernel binary, and an ext2 DATA partition
+# its configuration and the kernel binary, and an ext2 DATA partition.
+# Each <file>:<path> puts a file at <path> of the DATA partition
 
 export LANG=C.UTF-8
 export LANGUAGE=C.UTF-8
 export LC_ALL=C.UTF-8
 
-if test $# -ne 4; then
-    printf "usage: %s <output> <limine-efi> <limine.conf> <kernel>\n" "${0}" >&2
+if test $# -lt 4; then
+    printf "usage: %s <output> <limine-efi> <limine.conf> <kernel> [<file>:<path>]...\n" "${0}" >&2
     exit 1
 fi
 
@@ -16,6 +17,8 @@ output="${1}"
 limine_efi="${2}"
 limine_conf="${3}"
 kernel="${4}"
+
+shift 4
 
 temp_file="${output}.tmp"
 data_root="${output}.root"
@@ -44,6 +47,14 @@ ln -s dir/nested/file.txt "${data_root}/link" || exit 1
 ln -s dir/nested/../nested/../nested/../nested/../nested/../nested/file.txt "${data_root}/longlink" || exit 1
 yes 0123456789abcde | head -c $((5 * 1024 * 1024)) > "${data_root}/big.bin" || exit 1
 printf "end\n" | dd of="${data_root}/sparse.bin" bs=1 seek=$((1024 * 1024)) status=none || exit 1
+
+# The mount point of devfs, and the scratch space of the test programs
+mkdir -p "${data_root}/dev" "${data_root}/tmp" || exit 1
+
+for entry in "$@"; do
+    mkdir -p "${data_root}$(dirname "${entry#*:}")" || exit 1
+    cp "${entry%%:*}" "${data_root}${entry#*:}" || exit 1
+done
 
 index=0
 while test ${index} -lt 200; do

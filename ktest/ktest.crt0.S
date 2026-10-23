@@ -18,3 +18,5 @@ _start:
 
 .Lspin:
     jmp .Lspin
+
+.section .note.GNU-stack,"",@progbits

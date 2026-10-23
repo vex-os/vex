@@ -91,6 +91,4 @@
 #define __k_SYS_GETTIME 0xA1
 #define __k_SYS_SETTIME 0xA2
 
-#define __k_SYS_TEST 0xF0
-
 #endif /* USR_VEX_SYSCALL_H */

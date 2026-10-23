@@ -1,0 +1,13 @@
+timeout: 0
+verbose: yes
+
+${DATA_DEVICE}=ada0n1p2
+${SERIAL_ARGS}=unit=@KST_SHELL_PORT@,@KST_SHELL_DEVICE@ unit=@KST_LOG_PORT@,@KST_LOG_DEVICE@ serial=@KST_SHELL_PORT@,@KST_TERMINAL@
+${CONSOLE_ARGS}=console=@KST_SHELL_PORT@,115200 console=@KST_LOG_PORT@,115200 console=fbd0
+
+/Vex2
+comment: Kernel test runner
+protocol: limine
+path: boot():/vexsys.elf
+cmdline: root=${DATA_DEVICE} init=/kst.elf ${SERIAL_ARGS} ${CONSOLE_ARGS}
+kaslr: yes

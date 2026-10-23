@@ -94,8 +94,6 @@ typedef struct vnode_s vnode_t;
 #define SYS_GETTIME __k_SYS_GETTIME
 #define SYS_SETTIME __k_SYS_SETTIME
 
-#define SYS_TEST __k_SYS_TEST
-
 typedef struct syscall_s syscall_t;
 
 struct syscall_s {

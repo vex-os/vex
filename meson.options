@@ -1,2 +1,5 @@
 option('defconfig', type: 'string', value: '',
     description: 'File in configs/ used to create .config (default: <arch>_defconfig)')
+
+option('ktest', type: 'boolean', value: true,
+    description: 'Build the ktest image: the test runner, the test programs and the image targets')
