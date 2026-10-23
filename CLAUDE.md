@@ -13,14 +13,14 @@ Builds must be cross builds. Meson errors out without a cross file.
 ```sh
 meson setup build --cross-file cross/amd64-clang.ini   # or cross/amd64-gcc.ini (x86_64-elf-* toolchain)
 ninja -C build                    # builds build/kernel/vexsys.elf
-ninja -C build ktest-image        # builds build/ktest/vexsys.boot.img (GPT disk, FAT16 ESP + ext2 DATA partition with the tests)
+ninja -C build ktest-image        # builds build/ktest/vexsys.boot.img (GPT disk, FAT16 ESP, ext2 DATA partition with the tests and a FAT16 FAT partition for the FAT tests)
 ninja -C build ktest-run          # builds the image and boots it in QEMU with OVMF; the test runner's shell is on stdio, the kernel log in kernel.log
 ```
 
 - `ktest/qemu.amd64.sh` takes the extra args `slow` (icount), `verbose` (`-d cpu_reset,int -no-reboot`), or a number (log to `qemu_<N>.log` instead of `qemu.log`). Under WSL it calls `qemu-system-x86_64.exe` with Windows paths.
 - The image is the kernel test image. Limine boots the kernel with `init=/kst.elf` from the DATA partition. `ktest/limine.conf.in` is a template: `ktest/meson.build` sets the terminal (`tty1337`), the shell port (`serial1`, COM1) and the log port (`serial2`, COM2), and pins them to the q35 COM ports with `unit=`. `kst` clears the screen on the shell terminal and takes commands (`help`, `list`, `run <test|path>...`, `all`, `clear`, `exit`). The kernel log goes to the log port and to `fbd0`. Test programs are separate ELFs from `ktest/test.<name>.c`, listed in `ktest/meson.build` in the order `all` runs them; a test that takes the machine over (framebuffer) goes last. A test returns 0 for success and uses `ktest_expect` from `ktest/ktest.h`. `-Dktest=false` skips the whole directory, which also drops the `ktest-image` and `ktest-run` targets; `run <test>` picks tests at run time. `kst` writes to kplog only until the terminal is open.
 - `ktest/qemu.amd64.sh` puts the shell port on stdio (Ctrl-A X quits QEMU) and the log port in `kernel.log`. It switches the terminal to raw mode, as the terminal would otherwise echo each line and the guest echoes it again.
-- Making the image needs `sfdisk`, `mkfs.fat`, mtools (`mmd`, `mcopy`) and `mke2fs` from e2fsprogs. The DATA partition is ext2 with a test tree from `ktest/mkimage.sh`. Check it after a run with `e2fsck -fn "build/ktest/vexsys.boot.img?offset=$((10240 * 512))"`.
+- Making the image needs `sfdisk`, `mkfs.fat`, mtools (`mmd`, `mcopy`) and `mke2fs` from e2fsprogs. The DATA partition is ext2 with a test tree from `ktest/mkimage.sh`, and the FAT partition (`ada0n1p3`) is left to the tests. Check it after a run with `e2fsck -fn "build/ktest/vexsys.boot.img?offset=$((10240 * 512))"`.
 - The defaults are `werror=true` and `warning_level=2`, so any new warning fails the build.
 - There is no test suite or linter target. Format C code with `clang-format` (`.clang-format`: 4 spaces, 140 columns, `if(` with no space before the paren, `T* p`). `contrib/**` is excluded from formatting.
 

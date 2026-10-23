@@ -120,9 +120,32 @@ static long count_while_unlinking(const char* directory)
     return count;
 }
 
+// On FAT the long names take several slots of the directory
+static void test_fat(const char* work_directory)
+{
+    char mount_point[64];
+    char directory[80];
+
+    ktest_snprintf(mount_point, sizeof(mount_point), "%s/fat", work_directory);
+    ktest_snprintf(directory, sizeof(directory), "%s/tmp", mount_point);
+
+    ktest_expect(make_directory(mount_point), 0);
+    ktest_expect(ktest_syscall6(__k_SYS_MOUNT, (long)("/dev/ada0n1p3"), (long)(mount_point), (long)("fat"), 0, 0, 0), 0);
+    ktest_expect(make_directory(directory), 0);
+    ktest_expect(create_files(directory), 0);
+
+    ktest_expect(count_entries(directory, LARGE_BUFFER_SIZE), FILE_COUNT);
+    ktest_expect(count_entries(directory, SMALL_BUFFER_SIZE), FILE_COUNT);
+    ktest_expect(count_while_unlinking(directory), FILE_COUNT);
+    ktest_expect(count_entries(directory, LARGE_BUFFER_SIZE), 0);
+
+    ktest_expect(ktest_syscall3(__k_SYS_UNLINKAT, __k_AT_FDCWD, (long)(directory), __k_AT_REMOVEDIR), 0);
+    ktest_expect(ktest_syscall1(__k_SYS_UMOUNT, (long)(mount_point)), 0);
+}
+
 int main(void)
 {
-    ktest_enter_work_directory("getdents");
+    const char* work_directory = ktest_enter_work_directory("getdents");
 
     ktest_expect(make_directory("dir"), 0);
     ktest_expect(create_files("dir"), 0);
@@ -147,6 +170,8 @@ int main(void)
     // The failed call doesn't move the position
     ktest_assert(read_entries(fd, records, sizeof(records)) > 0);
     ktest_close(fd);
+
+    test_fat(work_directory);
 
     return ktest_result();
 }
