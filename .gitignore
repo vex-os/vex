@@ -2,7 +2,6 @@
 ## except some things we might actually need
 /.vscode/*
 !/.vscode/c_cpp_properties.json
-!/.vscode/launch.json
 
 ## Ignore clangd index
 /.cache/
