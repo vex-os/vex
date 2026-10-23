@@ -82,6 +82,19 @@ static long create_files(const char* directory)
     return 0;
 }
 
+static long read_file_entries(const char* path)
+{
+    alignas(8) char records[LARGE_BUFFER_SIZE];
+    long fd = ktest_open(path, __k_O_RDONLY, 0);
+
+    ktest_assert(fd >= 0);
+
+    long retval = read_entries(fd, records, sizeof(records));
+
+    ktest_close(fd);
+    return retval;
+}
+
 // The cookie of the next entry must stay valid when the entries before it are unlinked
 static long count_while_unlinking(const char* directory)
 {
@@ -126,14 +139,19 @@ static void test_fat(const char* work_directory)
 {
     char mount_point[__k_PATH_SIZE];
     char directory[__k_PATH_SIZE];
+    char file[__k_PATH_SIZE];
 
     ktest_snprintf(mount_point, sizeof(mount_point), "%s/fat", work_directory);
     ktest_snprintf(directory, sizeof(directory), "%s/tmp", mount_point);
+    ktest_snprintf(file, sizeof(file), "%s/file-0", directory);
 
     ktest_expect(make_directory(mount_point), 0);
     ktest_expect(ktest_syscall6(__k_SYS_MOUNT, (long)("/dev/ada0n1p3"), (long)(mount_point), (long)("fat"), 0, 0, 0), 0);
     ktest_expect(make_directory(directory), 0);
     ktest_expect(create_files(directory), 0);
+
+    // An empty file has cluster 0, which FAT12 and FAT16 take for the root directory
+    ktest_expect(read_file_entries(file), -__k_ENOTDIR);
 
     ktest_expect(count_entries(directory, LARGE_BUFFER_SIZE), FILE_COUNT);
     ktest_expect(count_entries(directory, SMALL_BUFFER_SIZE), FILE_COUNT);
