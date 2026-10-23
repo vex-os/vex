@@ -308,7 +308,7 @@ void uacpi_kernel_log(uacpi_log_level lvl, const uacpi_char* msg)
             break;
     }
 
-    kprintf(sv, "uacpi: %s", msg);
+    kprintf(KP_SUBSYSTEM, sv, "uacpi: %s", msg);
 #endif
 }
 

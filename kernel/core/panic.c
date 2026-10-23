@@ -77,7 +77,7 @@ void __noreturn vpanic_at(const char* restrict file, unsigned long line, const c
 
     pr_emerg("kernel panic at %s:%lu", file, line);
 
-    kvprintf(KP_EMERG, fmt, ap);
+    kvprintf(KP_SUBSYSTEM, KP_EMERG, fmt, ap);
 
     if(running_harts) {
         pr_emerg("panic: %lu harts did not stop", running_harts);

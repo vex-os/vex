@@ -18,12 +18,15 @@ kernel_utsname_h = vcs_tag(
     fallback: 'unknown',
 )
 
-kernel_sources = [kernel_config_h, kernel_utsname_h]
 kernel_includes = [include_directories('include', '.')]
 kernel_link_args = []
 kernel_link_depends = []
 
 fs = import('fs')
+
+# Meson takes -fPIE in a target's c_args as a mistake and warns for each archive:
+# its pie keyword is only for executables, and its pic one gives -fPIC instead
+add_project_arguments('-fPIE', language: 'c')
 
 kernel_c_args = [
     # Every translation unit sees CONFIG_* values without having
@@ -42,7 +45,6 @@ kernel_c_args = [
     # Keeps __FILE__ relative to the source tree regardless
     # of where the build directory is
     '-fmacro-prefix-map=@0@/='.format(fs.relative_to(meson.project_source_root(), meson.project_build_root())),
-    '-fPIE',
     '-ffreestanding',
     '-fno-stack-protector',
     '-fno-stack-check',
@@ -53,40 +55,55 @@ kernel_c_args = [
     '-Wno-sign-compare',
 ]
 
-subdir('arch' / arch)
+# Each top directory builds into its own archive, so that its sources
+# get the kplog subsystem pr_* logs as. Its meson.build still only appends
+# to kernel_sources, which starts over for every directory
+kernel_subsystems = {
+    'arch' / arch: 'KP_ARCH',
+    'bus': 'KP_BUS',
+    'core': 'KP_CORE',
+    'crypto': 'KP_CRYPTO',
+    'dev': 'KP_DEV',
+    'device': 'KP_DEVICE',
+    'drivers': 'KP_DRIVERS',
+    'exec': 'KP_EXEC',
+    'firmware': 'KP_FIRMWARE',
+    'fs': 'KP_FS',
+    'init': 'KP_CORE',
+    'irq': 'KP_IRQ',
+    'libk': 'KP_CORE',
+    'mm': 'KP_MM',
+    'proc': 'KP_PROC',
+    'time': 'KP_TIME',
+}
 
-subdir('bus')
-subdir('core')
-subdir('crypto')
-subdir('dev')
-subdir('device')
-subdir('drivers')
-subdir('exec')
-subdir('firmware')
-subdir('fs')
-subdir('init')
-subdir('irq')
-subdir('libk')
-subdir('mm')
-subdir('proc')
-subdir('time')
-
-kernel_sources += uacpi_sources
 kernel_includes += limine_includes
 kernel_includes += uacpi_includes
 
-# Objects go into an archive which is then linked by calling the linker
-# directly: clang has no bare-metal driver for some targets (amd64 being
-# one of them) and would delegate the link to host's gcc otherwise
-kernel_lib = static_library('kernel', kernel_sources,
-    include_directories: kernel_includes,
-    c_args: kernel_c_args,
-)
+kernel_libs = []
+
+foreach directory, subsystem : kernel_subsystems
+    kernel_sources = [kernel_config_h, kernel_utsname_h]
+
+    subdir(directory)
+
+    if directory == 'firmware'
+        kernel_sources += uacpi_sources
+    endif
+
+    # Objects go into an archive which is then linked by calling the linker
+    # directly: clang has no bare-metal driver for some targets (amd64 being
+    # one of them) and would delegate the link to host's gcc otherwise
+    kernel_libs += static_library('kernel_' + directory.replace('/', '_'), kernel_sources,
+        include_directories: kernel_includes,
+        c_args: kernel_c_args + ['-DKP_SUBSYSTEM=' + subsystem],
+    )
+endforeach
 
 ld = find_program('ld')
 
 kernel_elf = custom_target('vexsys.elf',
-    input: kernel_lib,
+    input: kernel_libs,
     output: 'vexsys.elf',
     command: [ld,
         '-nostdlib',

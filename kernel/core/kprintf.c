@@ -109,7 +109,7 @@ static void drop_oldest_locked(void)
     first_seq += 1U;
 }
 
-static void append_locked(unsigned level, unsigned flags, uint64_t time_ns, const char* restrict text, size_t size)
+static void append_locked(unsigned subsystem, unsigned level, unsigned flags, uint64_t time_ns, const char* restrict text, size_t size)
 {
     size_t footprint = record_footprint(size);
     size_t offset = ring_head % KP_BUFSIZE;
@@ -135,6 +135,7 @@ static void append_locked(unsigned level, unsigned flags, uint64_t time_ns, cons
     record.seq = next_seq;
     record.time_ns = time_ns;
     record.size = (uint16_t)(size);
+    record.subsystem = (uint16_t)(subsystem);
     record.level = (uint8_t)(level);
     record.flags = (uint8_t)(flags);
 
@@ -165,15 +166,15 @@ static void append_done(bool locked, bool intr_state)
     restore_interrupts(intr_state);
 }
 
-void kprintf(unsigned sv, const char* restrict fmt, ...)
+void kprintf(unsigned subsystem, unsigned level, const char* restrict fmt, ...)
 {
     va_list ap;
     va_start(ap, fmt);
-    kvprintf(sv, fmt, ap);
+    kvprintf(subsystem, level, fmt, ap);
     va_end(ap);
 }
 
-void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
+void kvprintf(unsigned subsystem, unsigned level, const char* restrict fmt, va_list ap)
 {
     bool intr_state = disable_interrupts();
     bool locked = ring_lock();
@@ -189,26 +190,26 @@ void kvprintf(unsigned sv, const char* restrict fmt, va_list ap)
 
     if(size > KP_LINE_MAX) {
         size = KP_LINE_MAX;
-        flags |= KP_TRUNCATED;
+        flags |= KPLOG_FLAG_TRUNCATED;
     }
 
     while(size && (line[size - 1U] == '\n' || line[size - 1U] == '\r')) {
         size -= 1U;
     }
 
-    append_locked(sv, flags, timestamp, line, size);
+    append_locked(subsystem, level, flags, timestamp, line, size);
 
     append_done(locked, intr_state);
 }
 
-void kputs(unsigned sv, unsigned flags, const char* restrict text, size_t size)
+void kputs(unsigned subsystem, unsigned level, unsigned flags, const char* restrict text, size_t size)
 {
     kassert(size <= KP_LINE_MAX);
 
     bool intr_state = disable_interrupts();
     bool locked = ring_lock();
 
-    append_locked(sv, flags, record_time_ns(locked), text, size);
+    append_locked(subsystem, level, flags, record_time_ns(locked), text, size);
 
     append_done(locked, intr_state);
 }
@@ -232,6 +233,47 @@ void kprintf_seek_end(kp_cursor_t* restrict cursor)
 
     cursor->seq = next_seq;
     cursor->position = ring_head;
+
+    ring_unlock(locked);
+    restore_interrupts(intr_state);
+}
+
+bool kprintf_seek_seq(kp_cursor_t* restrict cursor, uint64_t seq)
+{
+    bool intr_state = disable_interrupts();
+    bool locked = ring_lock();
+    bool valid = seq <= next_seq;
+
+    if(valid) {
+        uint64_t position = ring_tail;
+
+        // NOTE: The walk is linear in the ring, with interrupts off
+        for(uint64_t skipped = first_seq; skipped < seq; skipped += 1) {
+            position = skip_padding(position);
+
+            kp_record_t record;
+            memcpy(&record, &ring[position % KP_BUFSIZE], sizeof(record));
+
+            position += record_footprint(record.size);
+        }
+
+        cursor->seq = seq;
+        cursor->position = position;
+    }
+
+    ring_unlock(locked);
+    restore_interrupts(intr_state);
+
+    return valid;
+}
+
+void kprintf_get_range(uint64_t* restrict first, uint64_t* restrict next)
+{
+    bool intr_state = disable_interrupts();
+    bool locked = ring_lock();
+
+    *first = first_seq;
+    *next = next_seq;
 
     ring_unlock(locked);
     restore_interrupts(intr_state);
