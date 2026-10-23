@@ -13,7 +13,17 @@
 #include <vex/uaccess.h>
 #include <vex/vnode.h>
 
-#define DIRENT_ALIGNMENT 8
+#define DIRENT_ALIGNMENT    8
+#define GETDENTS_CHUNK_SIZE 1024
+
+typedef struct getdents_state_s getdents_state_t;
+
+struct getdents_state_s {
+    char* buffer;
+    size_t size;
+    size_t filled;
+    bool full;
+};
 
 static int resolve_rename_parent(int dirfd, const char* restrict path, const credentials_t* restrict credentials,
     vnode_t** restrict out_parent, const char** restrict out_name)
@@ -82,57 +92,63 @@ static size_t dirent_record_size(const dirent_t* restrict entry, size_t* restric
     return (used + DIRENT_ALIGNMENT - 1) & ~(size_t)(DIRENT_ALIGNMENT - 1);
 }
 
-static intptr_t getdents_file(file_t* restrict file, const uintptr_t* restrict args)
+static bool getdents_emit(dir_context_t* restrict dir_context, const dirent_t* restrict entry)
 {
-    uintptr_t buffer = args[1];
-    size_t size = args[2];
-    size_t filled = 0;
+    getdents_state_t* state = dir_context->state;
+    size_t used;
+    size_t record_size = dirent_record_size(entry, &used);
 
-    for(;;) {
-        dirent_t entry;
-        int retval = vnode_iterate(file->node, &entry, file->offset);
-
-        if(retval == -ENOENT) {
-            break;
-        }
-
-        if(retval < 0) {
-            if(filled) {
-                break;
-            }
-
-            return retval;
-        }
-
-        size_t used;
-        size_t record_size = dirent_record_size(&entry, &used);
-
-        if(record_size > size - filled) {
-            if(filled == 0) {
-                return -EINVAL;
-            }
-
-            break;
-        }
-
-        entry.d_off = file->offset + 1;
-        entry.d_reclen = record_size;
-
-        ssize_t copied = user_copyout(buffer + filled, &entry, used);
-
-        if(copied < 0) {
-            if(filled) {
-                break;
-            }
-
-            return copied;
-        }
-
-        file->offset += 1;
-        filled += record_size;
+    if(record_size > state->size - state->filled) {
+        state->full = true;
+        return false;
     }
 
-    return filled;
+    dirent_t* record = (dirent_t*)(state->buffer + state->filled);
+
+    memcpy(record, entry, used);
+    memset((char*)(record) + used, 0, record_size - used);
+    record->d_reclen = record_size;
+    state->filled += record_size;
+
+    return true;
+}
+
+static intptr_t getdents_file(file_t* restrict file, const uintptr_t* restrict args)
+{
+    alignas(DIRENT_ALIGNMENT) char chunk[GETDENTS_CHUNK_SIZE];
+    getdents_state_t state = {};
+    dir_context_t dir_context = {};
+
+    state.buffer = chunk;
+    state.size = args[2];
+
+    if(state.size > sizeof(chunk)) {
+        state.size = sizeof(chunk);
+    }
+
+    dir_context.position = file->offset;
+    dir_context.emit = &getdents_emit;
+    dir_context.state = &state;
+
+    int retval = vnode_iterate(file->node, &dir_context);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(state.filled == 0 && state.full) {
+        return -EINVAL;
+    }
+
+    ssize_t copied = user_copyout(args[1], chunk, state.filled);
+
+    if(copied < 0) {
+        return copied;
+    }
+
+    file->offset = dir_context.position;
+
+    return state.filled;
 }
 
 static intptr_t sys_fstatat(const uintptr_t* restrict args)

@@ -27,28 +27,32 @@ static int devfs_dir_lookup(vnode_t* restrict node, const char* restrict name, i
     return -ENOENT;
 }
 
-static int devfs_dir_iterate(vnode_t* restrict node, dirent_t* restrict out, size_t index)
+static int devfs_dir_iterate(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     devfs_state_t* state = node->ctxdata;
-    size_t i = 0;
+    dirent_t record;
+    uint64_t index = 0;
 
     spinlock_acquire(&state->lock);
 
-    for(devfs_node_t* it = state->head; it; it = it->next, i++) {
-        if(i == index) {
-            kstrncpy(out->d_name, it->name, sizeof(out->d_name));
-            out->d_ino = (ino_t)((uintptr_t)(it->node));
-            out->d_nodetype = it->node->type;
+    for(devfs_node_t* it = state->head; it; it = it->next, index++) {
+        if(index < dir_context->position) {
+            continue;
+        }
 
-            spinlock_release(&state->lock);
+        memset(record.d_name, 0, sizeof(record.d_name));
+        kstrncpy(record.d_name, it->name, sizeof(record.d_name));
+        record.d_ino = (ino_t)((uintptr_t)(it->node));
+        record.d_nodetype = it->node->type;
 
-            return 0;
+        if(!dir_emit(dir_context, &record, index + 1)) {
+            break;
         }
     }
 
     spinlock_release(&state->lock);
 
-    return -ENOENT;
+    return 0;
 }
 
 static int devfs_dir_stat(vnode_t* restrict node, stat_t* restrict out)

@@ -357,15 +357,20 @@ static int lookup_locked(vnode_t* restrict node, const char* restrict name, ino_
     return 0;
 }
 
-static int iterate_locked(vnode_t* restrict node, dirent_t* restrict out, size_t index)
+static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     fat_vnode_context_t* context = node->ctxdata;
     fat_dirent_t entry;
+    dirent_t record;
     size_t offset = 0;
-    size_t visible = 0;
+    uint64_t visible = 0;
 
     for(;;) {
         int retval = fat_dirent_read(context->fs_ctx, context->first_cluster, &offset, &entry);
+
+        if(retval == -ENOENT) {
+            return 0;
+        }
 
         if(retval < 0) {
             return retval;
@@ -375,27 +380,29 @@ static int iterate_locked(vnode_t* restrict node, dirent_t* restrict out, size_t
             continue;
         }
 
-        if(visible < index) {
+        if(visible < dir_context->position) {
             visible += 1;
             continue;
         }
 
-        out->d_ino = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1);
+        record.d_ino = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1);
 
         if(entry.base.attribute & FAT_ATTR_DIRECTORY) {
-            out->d_nodetype = VNODE_DIRECTORY;
+            record.d_nodetype = VNODE_DIRECTORY;
         }
         else {
-            out->d_nodetype = VNODE_FILE;
+            record.d_nodetype = VNODE_FILE;
         }
 
-        memset(out->d_name, 0, NAME_SIZE);
-        kstrncpy(out->d_name, entry.full_name, NAME_SIZE);
+        memset(record.d_name, 0, NAME_SIZE);
+        kstrncpy(record.d_name, entry.full_name, NAME_SIZE);
 
-        return 0;
+        visible += 1;
+
+        if(!dir_emit(dir_context, &record, visible)) {
+            return 0;
+        }
     }
-
-    unreachable();
 }
 
 static int create_locked(vnode_t* restrict node, const char* restrict name, unsigned type, vnode_t** restrict out)
@@ -1147,10 +1154,10 @@ static int fat_vnode_lookup(vnode_t* restrict node, const char* restrict name, i
     return retval;
 }
 
-static int fat_vnode_iterate(vnode_t* restrict node, dirent_t* restrict out, size_t index)
+static int fat_vnode_iterate(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     mutex_acquire(fs_lock(node));
-    int retval = iterate_locked(node, out, index);
+    int retval = iterate_locked(node, dir_context);
     mutex_release(fs_lock(node));
     return retval;
 }

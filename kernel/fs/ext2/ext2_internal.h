@@ -441,6 +441,9 @@ int ext2_xattr_set(vnode_t* restrict node, unsigned space, const char* restrict 
 int ext2_xattr_remove(vnode_t* restrict node, unsigned space, const char* restrict name);
 
 int ext2_dirent_read(vnode_t* restrict dir, uint64_t* restrict offset, ext2_dirent_t* restrict out);
+/// Moves offset forward to the start of the record that contains it
+/// @note An unlink merges a record into the one before it, so a cookie from before the unlink can point into a record
+int ext2_dirent_align(vnode_t* restrict dir, uint64_t* restrict offset);
 int ext2_dirent_find(vnode_t* restrict dir, const char* restrict name, ext2_dirent_t* restrict out);
 int ext2_dirent_add(vnode_t* restrict dir, const char* restrict name, uint32_t ino, uint8_t file_type);
 int ext2_dirent_remove(vnode_t* restrict dir, uint64_t offset);

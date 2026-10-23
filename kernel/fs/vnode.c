@@ -687,9 +687,24 @@ int vnode_lookup(vnode_t* restrict node, const char* restrict name, vnode_t** re
     return retval;
 }
 
-int vnode_iterate(vnode_t* restrict node, dirent_t* restrict out, size_t index)
+bool dir_emit(dir_context_t* restrict dir_context, dirent_t* restrict entry, uint64_t next_position)
+{
+    entry->d_off = next_position;
+
+    if(!dir_context->emit(dir_context, entry)) {
+        return false;
+    }
+
+    dir_context->position = next_position;
+
+    return true;
+}
+
+int vnode_iterate(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     kassert(node);
+
+    bool from_start = dir_context->position == 0;
 
     vnode_t* target;
     int retval = vfs_cross_mount(node, &target);
@@ -702,10 +717,10 @@ int vnode_iterate(vnode_t* restrict node, dirent_t* restrict out, size_t index)
         retval = -ENOSYS;
     }
     else {
-        retval = target->ops->iterate(target, out, index);
+        retval = target->ops->iterate(target, dir_context);
     }
 
-    if(retval == 0 && index == 0) {
+    if(retval == 0 && from_start) {
         touch_atime(target);
     }
 

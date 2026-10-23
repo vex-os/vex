@@ -90,27 +90,32 @@ static int lookup_locked(vnode_t* restrict node, const char* restrict name, ino_
     return 0;
 }
 
-static int iterate_locked(vnode_t* restrict node, dirent_t* restrict out, size_t index)
+static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     ext2_vnode_context_t* ctx = node->ctxdata;
     ext2_dirent_t entry;
-    uint64_t offset = 0;
-    size_t visible = 0;
+    dirent_t record;
+    uint64_t offset = dir_context->position;
 
     if(node->type != VNODE_DIRECTORY) {
         return -ENOTDIR;
     }
 
+    int retval = ext2_dirent_align(node, &offset);
+
+    if(retval < 0) {
+        return retval;
+    }
+
     for(;;) {
-        int retval = ext2_dirent_read(node, &offset, &entry);
+        retval = ext2_dirent_read(node, &offset, &entry);
+
+        if(retval == -ENOENT) {
+            return 0;
+        }
 
         if(retval < 0) {
             return retval;
-        }
-
-        if(visible < index) {
-            visible += 1;
-            continue;
         }
 
         unsigned type;
@@ -120,13 +125,15 @@ static int iterate_locked(vnode_t* restrict node, dirent_t* restrict out, size_t
             return retval;
         }
 
-        out->d_ino = entry.ino;
-        out->d_nodetype = type;
+        record.d_ino = entry.ino;
+        record.d_nodetype = type;
 
-        memset(out->d_name, 0, NAME_SIZE);
-        kstrncpy(out->d_name, entry.name, NAME_SIZE);
+        memset(record.d_name, 0, NAME_SIZE);
+        kstrncpy(record.d_name, entry.name, NAME_SIZE);
 
-        return 0;
+        if(!dir_emit(dir_context, &record, offset)) {
+            return 0;
+        }
     }
 }
 
@@ -890,10 +897,10 @@ static int ext2_vnode_lookup(vnode_t* restrict node, const char* restrict name, 
     return retval;
 }
 
-static int ext2_vnode_iterate(vnode_t* restrict node, dirent_t* restrict out, size_t index)
+static int ext2_vnode_iterate(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     mutex_acquire(fs_lock(node));
-    int retval = iterate_locked(node, out, index);
+    int retval = iterate_locked(node, dir_context);
     mutex_release(fs_lock(node));
     return retval;
 }

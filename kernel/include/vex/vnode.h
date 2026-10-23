@@ -65,9 +65,11 @@ struct vnode_ops_s {
     /// Finds only the inode number; the VFS gets the vnode from the vcache or through vfs_ops_t.fill_node
     int (*lookup)(vnode_t* restrict node, const char* restrict name, ino_t* restrict out);
 
-    /// @param index Counts the entries a reader sees
-    /// @retval -ENOENT index is past the last entry
-    int (*iterate)(vnode_t* restrict node, dirent_t* restrict out, size_t index);
+    /// Emits the entries from dir_context->position on, until the end of the directory or until dir_emit fails
+    /// @param dir_context Its position is a cookie that only this operation reads; 0 is the start
+    /// @post dir_context->position is the cookie of the first entry that was not emitted
+    /// @note A cookie must keep working after an unlink: the iteration goes on with the next entry
+    int (*iterate)(vnode_t* restrict node, dir_context_t* restrict dir_context);
 
     /// @post On success out has one reference and fs and ino set, and isn't in the vcache: the VFS inserts it
     int (*create)(vnode_t* restrict node, const char* restrict name, unsigned type, mode_t mode, const credentials_t* restrict credentials,
@@ -177,7 +179,7 @@ bool vnode_decref(vnode_t* restrict node);
 void vnode_destroy(vnode_t* restrict node);
 
 int vnode_lookup(vnode_t* restrict node, const char* restrict name, vnode_t** restrict out);
-int vnode_iterate(vnode_t* restrict node, dirent_t* restrict out, size_t index);
+int vnode_iterate(vnode_t* restrict node, dir_context_t* restrict dir_context);
 int vnode_create(vnode_t* restrict node, const char* restrict name, unsigned type, mode_t mode, const credentials_t* restrict credentials,
     vnode_t** restrict out);
 int vnode_unlink(vnode_t* restrict node, const char* restrict name, bool directory);

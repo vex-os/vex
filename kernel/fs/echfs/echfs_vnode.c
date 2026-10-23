@@ -117,13 +117,14 @@ static int lookup_locked(vnode_t* restrict node, const char* restrict name, ino_
     return 0;
 }
 
-static int iterate_locked(vnode_t* restrict node, dirent_t* restrict out, size_t index)
+static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     echfs_vnode_context_t* ctx = node->ctxdata;
     echfs_vfs_context_t* fs = ctx->fs_ctx;
-    size_t visible = 0;
+    uint64_t visible = 0;
 
     echfs_dirent_t entry;
+    dirent_t record;
 
     for(uint64_t i = 0; i < fs->dir_entries; ++i) {
         int retval = echfs_dirent_read(fs, i, &entry);
@@ -133,7 +134,7 @@ static int iterate_locked(vnode_t* restrict node, dirent_t* restrict out, size_t
         }
 
         if(entry.directory_id == ECHFS_DIR_ID_END) {
-            return -ENOENT;
+            break;
         }
 
         if(entry.directory_id == ECHFS_DIR_ID_DELETED) {
@@ -144,25 +145,31 @@ static int iterate_locked(vnode_t* restrict node, dirent_t* restrict out, size_t
             continue;
         }
 
-        if(visible < index) {
+        if(visible < dir_context->position) {
             visible += 1;
             continue;
         }
 
+        record.d_ino = i;
+
         if(entry.object_type == 1) {
-            out->d_nodetype = VNODE_DIRECTORY;
+            record.d_nodetype = VNODE_DIRECTORY;
         }
         else {
-            out->d_nodetype = VNODE_FILE;
+            record.d_nodetype = VNODE_FILE;
         }
 
-        memset(out->d_name, 0, NAME_SIZE);
-        kstrncpy(out->d_name, entry.name, NAME_SIZE);
+        memset(record.d_name, 0, NAME_SIZE);
+        kstrncpy(record.d_name, entry.name, NAME_SIZE);
 
-        return 0;
+        visible += 1;
+
+        if(!dir_emit(dir_context, &record, visible)) {
+            break;
+        }
     }
 
-    return -ENOENT;
+    return 0;
 }
 
 static uint64_t alloc_dir_id(const echfs_vfs_context_t* restrict context)
@@ -838,10 +845,10 @@ static int echfs_vnode_lookup(vnode_t* restrict node, const char* restrict name,
     return retval;
 }
 
-static int echfs_vnode_iterate(vnode_t* restrict node, dirent_t* restrict out, size_t index)
+static int echfs_vnode_iterate(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     mutex_acquire(fs_lock(node));
-    int retval = iterate_locked(node, out, index);
+    int retval = iterate_locked(node, dir_context);
     mutex_release(fs_lock(node));
     return retval;
 }

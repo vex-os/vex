@@ -202,6 +202,29 @@ int ext2_dirent_read(vnode_t* restrict dir, uint64_t* restrict offset, ext2_dire
     return -ENOENT;
 }
 
+int ext2_dirent_align(vnode_t* restrict dir, uint64_t* restrict offset)
+{
+    ext2_vnode_context_t* ctx = dir->ctxdata;
+    uint64_t size = ext2_inode_size(&ctx->inode);
+    uint64_t record = *offset - *offset % ctx->fs_ctx->block_size;
+
+    while(record < *offset && record < size) {
+        ext2_dir_entry_t head;
+        size_t rec_len;
+        int retval = read_record(dir, record, &head, &rec_len);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        record += rec_len;
+    }
+
+    *offset = record;
+
+    return 0;
+}
+
 int ext2_dirent_find(vnode_t* restrict dir, const char* restrict name, ext2_dirent_t* restrict out)
 {
     uint64_t offset = 0;

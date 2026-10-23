@@ -24,7 +24,7 @@ static long read_entries(long fd, void* buffer, size_t size)
 // Reads the whole directory with buffers of the given size and returns the count of the entries other than "." and ".."
 static long count_entries(const char* path, size_t buffer_size)
 {
-    _Alignas(8) char records[LARGE_BUFFER_SIZE];
+    alignas(8) char records[LARGE_BUFFER_SIZE];
     long fd = ktest_open(path, __k_O_RDONLY, 0);
     long count = 0;
 
@@ -62,12 +62,12 @@ static long count_entries(const char* path, size_t buffer_size)
     return count;
 }
 
-static long create_files(void)
+static long create_files(const char* directory)
 {
-    char name[16];
+    char name[32];
 
     for(int i = 0; i < FILE_COUNT; ++i) {
-        ktest_snprintf(name, sizeof(name), "dir/file-%d", i);
+        ktest_snprintf(name, sizeof(name), "%s/file-%d", directory, i);
 
         long fd = ktest_open(name, __k_O_WRONLY | __k_O_CREAT, 0644);
 
@@ -81,20 +81,64 @@ static long create_files(void)
     return 0;
 }
 
+// The cookie of the next entry must stay valid when the entries before it are unlinked
+static long count_while_unlinking(const char* directory)
+{
+    alignas(8) char records[LARGE_BUFFER_SIZE];
+    char path[64];
+    long fd = ktest_open(directory, __k_O_RDONLY, 0);
+    long count = 0;
+
+    ktest_assert(fd >= 0);
+
+    for(;;) {
+        long filled = read_entries(fd, records, SMALL_BUFFER_SIZE);
+
+        ktest_assert(filled >= 0);
+
+        if(filled == 0) {
+            break;
+        }
+
+        long position = 0;
+
+        while(position < filled) {
+            const struct __k_dirent* entry = (const struct __k_dirent*)(records + position);
+            const char* name = (const char*)(entry->d_name);
+
+            if(!ktest_string_equal(name, ".") && !ktest_string_equal(name, "..")) {
+                ktest_snprintf(path, sizeof(path), "%s/%s", directory, name);
+                ktest_expect(ktest_syscall3(__k_SYS_UNLINKAT, __k_AT_FDCWD, (long)(path), 0), 0);
+                count += 1;
+            }
+
+            position += entry->d_reclen;
+        }
+    }
+
+    ktest_close(fd);
+    return count;
+}
+
 int main(void)
 {
     ktest_enter_work_directory("getdents");
 
     ktest_expect(make_directory("dir"), 0);
-    ktest_expect(create_files(), 0);
+    ktest_expect(create_files("dir"), 0);
 
     ktest_expect(count_entries("dir", LARGE_BUFFER_SIZE), FILE_COUNT);
 
     // A buffer that holds a record or two makes the call return in several parts
     ktest_expect(count_entries("dir", SMALL_BUFFER_SIZE), FILE_COUNT);
 
+    ktest_expect(make_directory("unlinked"), 0);
+    ktest_expect(create_files("unlinked"), 0);
+    ktest_expect(count_while_unlinking("unlinked"), FILE_COUNT);
+    ktest_expect(count_entries("unlinked", LARGE_BUFFER_SIZE), 0);
+
     // The first record doesn't fit
-    _Alignas(8) char records[LARGE_BUFFER_SIZE];
+    alignas(8) char records[LARGE_BUFFER_SIZE];
     long fd = ktest_open("dir", __k_O_RDONLY, 0);
 
     ktest_assert(fd >= 0);
