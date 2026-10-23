@@ -91,6 +91,29 @@ static int follow_symlink(vnode_t* restrict node, vnode_t* restrict link, const 
     return 0;
 }
 
+// The root of a mounted filesystem stands in for the directory it covers, so
+// its parent is the parent of that directory; stacked mounts climb several times
+static vnode_t* parent_of(vnode_t* restrict dir)
+{
+    while(dir->fs && dir->fs->root == dir && dir->fs->mountpoint) {
+        dir = dir->fs->mountpoint;
+    }
+
+    spinlock_acquire(&dir->lock);
+
+    vnode_t* parent = dir->parent;
+
+    if(parent == nullptr) {
+        parent = dir;
+    }
+
+    vnode_incref(parent);
+
+    spinlock_release(&dir->lock);
+
+    return parent;
+}
+
 static int resolve_internal(vnode_t* restrict base_dir, const char* restrict path, unsigned flags,
     const credentials_t* restrict credentials, vnode_t** restrict out, unsigned depth)
 {
@@ -151,27 +174,7 @@ static int resolve_internal(vnode_t* restrict base_dir, const char* restrict pat
         }
 
         if(component[0] == '.' && component[1] == '.' && component[2] == 0) {
-            vnode_t* upper;
-
-            if(current->fs && current->fs->root == current) {
-                if(current->fs->mountpoint) {
-                    upper = current->fs->mountpoint;
-                }
-                else {
-                    upper = current;
-                }
-
-                vnode_incref(upper);
-            }
-            else {
-                spinlock_acquire(&current->lock);
-
-                upper = current->parent ? current->parent : current;
-
-                vnode_incref(upper);
-
-                spinlock_release(&current->lock);
-            }
+            vnode_t* upper = parent_of(current);
 
             vnode_decref(current);
             current = upper;
