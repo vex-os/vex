@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vex/auxv.h>
 #include <vex/compiler.h>
 #include <vex/types.h>
 
@@ -404,26 +405,6 @@
 #define R_X86_64_GOTPC32   26
 #define R_X86_64_SIZE32    32
 #define R_X86_64_SIZE64    33
-
-#define AT_NULL         0 // End of vector
-#define AT_IGNORE       1
-#define AT_EXECFD       2 // File descriptor of program
-#define AT_PHDR         3 // Program headers for program
-#define AT_PHENT        4 // Size of program header entry
-#define AT_PHNUM        5 // Number of program headers
-#define AT_PAGESZ       6
-#define AT_BASE         7 // Base address of interpreter
-#define AT_FLAGS        8
-#define AT_ENTRY        9
-#define AT_NOTELF       10
-#define AT_UID          11 // Real uid
-#define AT_EUID         12
-#define AT_GID          13 // Real gid
-#define AT_EGID         14
-#define AT_CLKTCK       17 // Frequency of times()
-#define AT_SECURE       23 // Set when effective ids differ from real ones
-#define AT_SYSINFO      32
-#define AT_SYSINFO_EHDR 33
 
 typedef struct elf32_ehdr_s elf32_ehdr_t;
 typedef struct elf64_ehdr_s elf64_ehdr_t;
