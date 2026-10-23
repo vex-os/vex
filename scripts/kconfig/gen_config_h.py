@@ -36,6 +36,7 @@ def main():
     parser.add_argument("--kconfig", required=True, help="Top-level Kconfig file")
     parser.add_argument("--config", required=True, help="Configuration file to read")
     parser.add_argument("--output", required=True, help="Header file to write")
+    parser.add_argument("--config-hash", help="Unused; it changes the command when the configuration changes")
     args = parser.parse_args()
 
     kconf = kconfiglib.Kconfig(args.kconfig, warn_to_stderr=False, suppress_traceback=True)

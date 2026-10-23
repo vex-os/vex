@@ -3,10 +3,14 @@ kernel_config_h = custom_target('generated.config.h',
     command: [python, kconfig_gen_h,
         '--kconfig', kconfig_root,
         '--config', kconfig_file,
+        # Meson rejects a file of the build directory as a dependency. The
+        # load of .config reconfigures on a change, and the hash then changes
+        # the command, so the header gets generated again
+        '--config-hash', fs.hash(kconfig_file, 'md5'),
         '--output', '@OUTPUT@',
     ],
     env: kconfig_env,
-    depend_files: kconfig_depends + [kconfig_file],
+    depend_files: kconfig_depends,
 )
 
 # Regenerated on every build so that UTSNAME_VERSION
