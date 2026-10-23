@@ -7,9 +7,9 @@
 #include <vex/types.h>
 #include <vex/vnode.h>
 
-#define SEEK_SET 0
-#define SEEK_CUR 1
-#define SEEK_END 2
+#define SEEK_SET __k_SEEK_SET
+#define SEEK_CUR __k_SEEK_CUR
+#define SEEK_END __k_SEEK_END
 
 #define FILE_IO_CHUNK PAGE_SIZE // The most a read or write system call passes to the file layer at once
 
