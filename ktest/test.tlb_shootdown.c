@@ -13,7 +13,7 @@
 #define SHOOTDOWN_REUSE_PAGES 64
 #define SHOOTDOWN_JOIN_TRIES  20
 
-static alignas(16) char writer_stacks[SHOOTDOWN_WRITERS][KTEST_THREAD_STACK_SIZE];
+alignas(16) static char writer_stacks[SHOOTDOWN_WRITERS][KTEST_THREAD_STACK_SIZE];
 static long writer_tcb[SHOOTDOWN_WRITERS]; // A writer finds its index at %fs:0
 static volatile unsigned int writer_join[SHOOTDOWN_WRITERS];
 static volatile long writer_writes[SHOOTDOWN_WRITERS];

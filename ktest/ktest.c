@@ -22,7 +22,7 @@ struct sink_s {
 static long kplog_fd = -1;
 static unsigned long mismatch_count;
 
-static alignas(16) char thread_stack[KTEST_THREAD_STACK_SIZE];
+alignas(16) static char thread_stack[KTEST_THREAD_STACK_SIZE];
 
 long ktest_tls_block[2];
 volatile unsigned int ktest_join_word;

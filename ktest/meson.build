@@ -89,7 +89,7 @@ ktest_image_files = []
 ktest_runner_library = static_library('ktest_runner', files('kst.c'),
     include_directories: ktest_includes,
     c_args: ktest_c_args + [
-        '-include', fs.relative_to(ktest_config_h.full_path(), meson.project_build_root()),
+        '-include', fs.relative_to(meson.current_build_dir() / 'generated.kst_tests.h', meson.project_build_root()),
     ],
 )
 
