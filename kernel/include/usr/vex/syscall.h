@@ -71,7 +71,7 @@
 #define __k_SYS_LINKAT     0x77
 #define __k_SYS_SYMLINKAT  0x78
 #define __k_SYS_READLINKAT 0x79
-#define __k_SYS_READDIR    0x7A
+#define __k_SYS_GETDENTS   0x7A
 #define __k_SYS_GETCWD     0x7B
 #define __k_SYS_CHDIR      0x7C
 #define __k_SYS_FCHDIR     0x7D

@@ -13,6 +13,8 @@
 #include <vex/uaccess.h>
 #include <vex/vnode.h>
 
+#define DIRENT_ALIGNMENT 8
+
 static int resolve_rename_parent(int dirfd, const char* restrict path, const credentials_t* restrict credentials,
     vnode_t** restrict out_parent, const char** restrict out_name)
 {
@@ -73,28 +75,64 @@ static int resolve_new_parent(int dirfd, const char* restrict path, const creden
     return 0;
 }
 
-static intptr_t readdir_file(file_t* restrict file, const uintptr_t* restrict args)
+static size_t dirent_record_size(const dirent_t* restrict entry, size_t* restrict out_used)
 {
-    dirent_t entry;
-    int retval = vnode_iterate(file->node, &entry, file->offset);
+    size_t used = offsetof(dirent_t, d_name) + strlen((const char*)(entry->d_name)) + 1;
+    *out_used = used;
+    return (used + DIRENT_ALIGNMENT - 1) & ~(size_t)(DIRENT_ALIGNMENT - 1);
+}
 
-    if(retval == -ENOENT) {
-        return 0;
+static intptr_t getdents_file(file_t* restrict file, const uintptr_t* restrict args)
+{
+    uintptr_t buffer = args[1];
+    size_t size = args[2];
+    size_t filled = 0;
+
+    for(;;) {
+        dirent_t entry;
+        int retval = vnode_iterate(file->node, &entry, file->offset);
+
+        if(retval == -ENOENT) {
+            break;
+        }
+
+        if(retval < 0) {
+            if(filled) {
+                break;
+            }
+
+            return retval;
+        }
+
+        size_t used;
+        size_t record_size = dirent_record_size(&entry, &used);
+
+        if(record_size > size - filled) {
+            if(filled == 0) {
+                return -EINVAL;
+            }
+
+            break;
+        }
+
+        entry.d_off = file->offset + 1;
+        entry.d_reclen = record_size;
+
+        ssize_t copied = user_copyout(buffer + filled, &entry, used);
+
+        if(copied < 0) {
+            if(filled) {
+                break;
+            }
+
+            return copied;
+        }
+
+        file->offset += 1;
+        filled += record_size;
     }
 
-    if(retval < 0) {
-        return retval;
-    }
-
-    ssize_t copied = user_copyout(args[1], &entry, sizeof(entry));
-
-    if(copied < 0) {
-        return copied;
-    }
-
-    file->offset += 1;
-
-    return 1;
+    return filled;
 }
 
 static intptr_t sys_fstatat(const uintptr_t* restrict args)
@@ -598,12 +636,12 @@ static intptr_t sys_readlinkat(const uintptr_t* restrict args)
 
 define_syscall(sys_readlinkat, SYS_READLINKAT);
 
-static intptr_t sys_readdir(const uintptr_t* restrict args)
+static intptr_t sys_getdents(const uintptr_t* restrict args)
 {
-    return syscall_with_fd(args, &readdir_file);
+    return syscall_with_fd(args, &getdents_file);
 }
 
-define_syscall(sys_readdir, SYS_READDIR);
+define_syscall(sys_getdents, SYS_GETDENTS);
 
 static intptr_t sys_getcwd(const uintptr_t* restrict args)
 {

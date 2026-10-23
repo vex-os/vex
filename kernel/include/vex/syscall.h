@@ -74,7 +74,7 @@ typedef struct vnode_s vnode_t;
 #define SYS_LINKAT     __k_SYS_LINKAT
 #define SYS_SYMLINKAT  __k_SYS_SYMLINKAT
 #define SYS_READLINKAT __k_SYS_READLINKAT
-#define SYS_READDIR    __k_SYS_READDIR
+#define SYS_GETDENTS   __k_SYS_GETDENTS
 #define SYS_GETCWD     __k_SYS_GETCWD
 #define SYS_CHDIR      __k_SYS_CHDIR
 #define SYS_FCHDIR     __k_SYS_FCHDIR
