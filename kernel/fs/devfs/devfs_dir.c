@@ -31,7 +31,12 @@ static int devfs_dir_iterate(vnode_t* restrict node, dir_context_t* restrict dir
 {
     devfs_state_t* state = node->ctxdata;
     dirent_t record;
-    uint64_t index = 0;
+    uint64_t index = DIR_DOTS_END;
+
+    // devfs has only its root
+    if(!dir_emit_dots(dir_context, node->ino, node->ino)) {
+        return 0;
+    }
 
     spinlock_acquire(&state->lock);
 

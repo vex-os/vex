@@ -700,6 +700,33 @@ bool dir_emit(dir_context_t* restrict dir_context, dirent_t* restrict entry, uin
     return true;
 }
 
+bool dir_emit_dots(dir_context_t* restrict dir_context, ino_t self, ino_t parent)
+{
+    dirent_t record = {};
+    record.d_nodetype = VNODE_DIRECTORY;
+
+    if(dir_context->position == 0) {
+        record.d_ino = self;
+        record.d_name[0] = '.';
+
+        if(!dir_emit(dir_context, &record, 1)) {
+            return false;
+        }
+    }
+
+    if(dir_context->position == 1) {
+        record.d_ino = parent;
+        record.d_name[0] = '.';
+        record.d_name[1] = '.';
+
+        if(!dir_emit(dir_context, &record, DIR_DOTS_END)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 int vnode_iterate(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     kassert(node);

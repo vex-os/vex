@@ -240,7 +240,7 @@ static int fat_mount(vfs_t* restrict fs, const block_interface_t* restrict volum
     }
 
     root->fs = fs;
-    root->ino = 0;
+    root->ino = FAT_ROOT_NODENUMBER;
 
     fs->root = root;
     fs->ctxdata = context;
@@ -292,9 +292,7 @@ static int fill_node_locked(vfs_t* restrict fs, vnode_t* restrict node)
         return retval;
     }
 
-    uintptr_t cluster = 0;
-    cluster |= (uintptr_t)(le16toh(raw_entry.first_cluster_hi)) << 16;
-    cluster |= (uintptr_t)(le16toh(raw_entry.first_cluster_lo));
+    uintptr_t cluster = fat_dirent_cluster(&raw_entry);
 
     fat_vnode_context_t* node_context = slab_alloc(sizeof(fat_vnode_context_t));
 

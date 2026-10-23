@@ -132,7 +132,7 @@ static int echfs_mount(vfs_t* restrict fs, const block_interface_t* restrict vol
     }
 
     root->fs = fs;
-    root->ino = (ino_t)(-1);
+    root->ino = ECHFS_ROOT_NODENUMBER;
 
     fs->root = root;
     fs->ctxdata = context;

@@ -117,15 +117,95 @@ static int lookup_locked(vnode_t* restrict node, const char* restrict name, ino_
     return 0;
 }
 
+static int find_directory_entry(const echfs_vfs_context_t* restrict fs, uint64_t directory_id, uint64_t* restrict out)
+{
+    echfs_dirent_t entry;
+
+    for(uint64_t i = 0; i < fs->dir_entries; ++i) {
+        int retval = echfs_dirent_read(fs, i, &entry);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        if(entry.directory_id == ECHFS_DIR_ID_END) {
+            break;
+        }
+
+        if(entry.directory_id == ECHFS_DIR_ID_DELETED) {
+            continue;
+        }
+
+        if(entry.object_type == 1 && entry.start_block == directory_id) {
+            *out = i;
+            return 0;
+        }
+    }
+
+    return -ENOENT;
+}
+
+static int parent_nodenumber(const vnode_t* restrict node, ino_t* restrict out)
+{
+    const echfs_vnode_context_t* ctx = node->ctxdata;
+
+    if(ctx->dir_entry == UINT64_MAX) {
+        *out = ECHFS_ROOT_NODENUMBER;
+        return 0;
+    }
+
+    // The entry of an unlinked directory may be another one's now
+    if(ctx->unlinked) {
+        *out = node->ino;
+        return 0;
+    }
+
+    echfs_dirent_t entry;
+    int retval = echfs_dirent_read(ctx->fs_ctx, ctx->dir_entry, &entry);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(entry.directory_id == ECHFS_DIR_ID_ROOT) {
+        *out = ECHFS_ROOT_NODENUMBER;
+        return 0;
+    }
+
+    uint64_t index;
+    retval = find_directory_entry(ctx->fs_ctx, entry.directory_id, &index);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    *out = index;
+
+    return 0;
+}
+
 static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     echfs_vnode_context_t* ctx = node->ctxdata;
     echfs_vfs_context_t* fs = ctx->fs_ctx;
 
+    if(dir_context->position < DIR_DOTS_END) {
+        ino_t parent;
+        int retval = parent_nodenumber(node, &parent);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        if(!dir_emit_dots(dir_context, node->ino, parent)) {
+            return 0;
+        }
+    }
+
     echfs_dirent_t entry;
     dirent_t record;
 
-    for(uint64_t i = dir_context->position; i < fs->dir_entries; ++i) {
+    for(uint64_t i = dir_context->position - DIR_DOTS_END; i < fs->dir_entries; ++i) {
         int retval = echfs_dirent_read(fs, i, &entry);
 
         if(retval < 0) {
@@ -156,7 +236,7 @@ static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_co
         memset(record.d_name, 0, NAME_SIZE);
         kstrncpy(record.d_name, entry.name, sizeof(entry.name));
 
-        if(!dir_emit(dir_context, &record, i + 1)) {
+        if(!dir_emit(dir_context, &record, i + 1 + DIR_DOTS_END)) {
             break;
         }
     }

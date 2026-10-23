@@ -19,6 +19,8 @@ typedef struct vnode_ops_s vnode_ops_t;
 
 #define ECHFS_NAME_SIZE 201
 
+#define ECHFS_ROOT_NODENUMBER UINT64_MAX // Other node numbers are indices into the directory table
+
 typedef struct echfs_identity_s echfs_identity_t;
 typedef struct echfs_dirent_s echfs_dirent_t;
 typedef struct echfs_vfs_context_s echfs_vfs_context_t;

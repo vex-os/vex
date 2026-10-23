@@ -3,6 +3,7 @@
 #include <vex/mutex.h>
 
 #include <vex/compiler.h>
+#include <vex/endian.h>
 #include <vex/path.h>
 #include <vex/time.h>
 #include <vex/types.h>
@@ -28,6 +29,8 @@ typedef struct vnode_ops_s vnode_ops_t;
 #define FAT_NAME_ESCAPED_E5 UINT8_C(0x05) // Stands for a real leading 0xE5 (KANJI lead byte)
 
 #define FAT_LFN_MAX_SEGMENTS 20
+
+#define FAT_ROOT_NODENUMBER 0 // Other node numbers hold the LBA of their entry in the upper half
 
 typedef struct fat_bootparams_s fat_bootparams_t;
 typedef struct fat_extparams_fat1X_s fat_extparams_fat1X_t;
@@ -239,4 +242,12 @@ static __always_inline bool fat_cluster_valid(const fat_vfs_context_t* restrict 
 static __always_inline uintptr_t fat_cluster_lba(const fat_vfs_context_t* restrict context, uintptr_t cluster)
 {
     return context->data_start + (cluster - 2) * context->cluster_size_s;
+}
+
+static __always_inline uintptr_t fat_dirent_cluster(const fat_dir_entry_t* restrict entry)
+{
+    uintptr_t cluster = 0;
+    cluster |= (uintptr_t)(le16toh(entry->first_cluster_hi)) << 16;
+    cluster |= (uintptr_t)(le16toh(entry->first_cluster_lo));
+    return cluster;
 }

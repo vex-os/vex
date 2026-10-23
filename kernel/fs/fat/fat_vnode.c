@@ -357,15 +357,111 @@ static int lookup_locked(vnode_t* restrict node, const char* restrict name, ino_
     return 0;
 }
 
+static bool is_dot_name(const char* restrict name)
+{
+    return 0 == strcmp(name, ".") || 0 == strcmp(name, "..");
+}
+
+static int read_parent_cluster(const fat_vfs_context_t* restrict fs, uintptr_t dir_cluster, uintptr_t* restrict out)
+{
+    fat_dirent_t dotdot;
+    size_t offset = 1;
+    int retval = fat_dirent_read(fs, dir_cluster, &offset, &dotdot);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(offset != 2 || strcmp(dotdot.full_name, "..")) {
+        return -EIO;
+    }
+
+    uintptr_t parent_cluster = fat_dirent_cluster(&dotdot.base);
+
+    // A ".." pointing at the root holds 0 on every
+    // FAT type, even though the FAT32 root has a real cluster
+    if(parent_cluster == 0) {
+        parent_cluster = fs->root_cluster;
+    }
+
+    *out = parent_cluster;
+
+    return 0;
+}
+
+// A directory's node number comes from its entry in its own parent,
+// so the parent's number needs the entry in the grandparent
+static int parent_nodenumber(const fat_vfs_context_t* restrict fs, uintptr_t dir_cluster, ino_t* restrict out)
+{
+    if(dir_cluster == fs->root_cluster) {
+        *out = FAT_ROOT_NODENUMBER;
+        return 0;
+    }
+
+    uintptr_t parent_cluster;
+    int retval = read_parent_cluster(fs, dir_cluster, &parent_cluster);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    if(parent_cluster == fs->root_cluster) {
+        *out = FAT_ROOT_NODENUMBER;
+        return 0;
+    }
+
+    uintptr_t grandparent_cluster;
+    retval = read_parent_cluster(fs, parent_cluster, &grandparent_cluster);
+
+    if(retval < 0) {
+        return retval;
+    }
+
+    fat_dirent_t entry;
+    size_t offset = 0;
+
+    for(;;) {
+        retval = fat_dirent_read(fs, grandparent_cluster, &offset, &entry);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        if(0 == (entry.base.attribute & FAT_ATTR_DIRECTORY) || is_dot_name(entry.full_name)) {
+            continue;
+        }
+
+        if(fat_dirent_cluster(&entry.base) == parent_cluster) {
+            *out = fat_nodenumber(fs, grandparent_cluster, offset - 1);
+            return 0;
+        }
+    }
+}
+
 static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_context)
 {
     fat_vnode_context_t* context = node->ctxdata;
+    fat_vfs_context_t* fs = context->fs_ctx;
+
+    if(dir_context->position < DIR_DOTS_END) {
+        ino_t parent;
+        int retval = parent_nodenumber(fs, context->first_cluster, &parent);
+
+        if(retval < 0) {
+            return retval;
+        }
+
+        if(!dir_emit_dots(dir_context, node->ino, parent)) {
+            return 0;
+        }
+    }
+
     fat_dirent_t entry;
     dirent_t record;
-    size_t offset = dir_context->position;
+    size_t offset = dir_context->position - DIR_DOTS_END;
 
     for(;;) {
-        int retval = fat_dirent_read(context->fs_ctx, context->first_cluster, &offset, &entry);
+        int retval = fat_dirent_read(fs, context->first_cluster, &offset, &entry);
 
         if(retval == -ENOENT) {
             return 0;
@@ -375,11 +471,13 @@ static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_co
             return retval;
         }
 
-        if(entry.base.attribute & FAT_ATTR_VOLUME_ID) {
+        // The root has no dot entries on the disk, and the node numbers of the
+        // others differ from what stat gives, so dir_emit_dots stands in for all of them
+        if((entry.base.attribute & FAT_ATTR_VOLUME_ID) || is_dot_name(entry.full_name)) {
             continue;
         }
 
-        record.d_ino = fat_nodenumber(context->fs_ctx, context->first_cluster, offset - 1);
+        record.d_ino = fat_nodenumber(fs, context->first_cluster, offset - 1);
 
         if(entry.base.attribute & FAT_ATTR_DIRECTORY) {
             record.d_nodetype = VNODE_DIRECTORY;
@@ -391,7 +489,7 @@ static int iterate_locked(vnode_t* restrict node, dir_context_t* restrict dir_co
         memset(record.d_name, 0, NAME_SIZE);
         kstrncpy(record.d_name, entry.full_name, NAME_SIZE);
 
-        if(!dir_emit(dir_context, &record, offset)) {
+        if(!dir_emit(dir_context, &record, offset + DIR_DOTS_END)) {
             return 0;
         }
     }
@@ -560,7 +658,7 @@ static int check_empty(const fat_vfs_context_t* restrict fs, uintptr_t cluster)
             return retval;
         }
 
-        if(0 == strcmp(dirent.full_name, ".") || 0 == strcmp(dirent.full_name, "..")) {
+        if(is_dot_name(dirent.full_name)) {
             continue;
         }
 
