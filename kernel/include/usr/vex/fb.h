@@ -65,7 +65,7 @@ struct __k_vexfb_modes {
 #define __k_VEXFB_FLUSH       __k_IOCTL_WRITE(sizeof(struct __k_vexfb_flush), 'F', 0x02)
 #define __k_VEXFB_GET_PALETTE __k_IOCTL_WRITE(sizeof(struct __k_vexfb_palette), 'F', 0x03) /* The kernel fills colors */
 #define __k_VEXFB_SET_PALETTE __k_IOCTL_WRITE(sizeof(struct __k_vexfb_palette), 'F', 0x04)
-#define __k_VEXFB_SET_MODE    __k_IOCTL_WRITE(sizeof(struct __k_vexfb_mode), 'F', 0x05)  /* Unmaps the memory: mappings fault again */
+#define __k_VEXFB_SET_MODE    __k_IOCTL_WRITE(sizeof(struct __k_vexfb_mode), 'F', 0x05) /* Unmaps the memory: mappings fault again */
 #define __k_VEXFB_GET_MODES   __k_IOCTL_RDWR(sizeof(struct __k_vexfb_modes), 'F', 0x06) /* The modes the display suggests */
 
 #endif /* USR_VEX_FB_H */

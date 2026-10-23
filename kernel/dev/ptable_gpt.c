@@ -130,7 +130,7 @@ static int gpt_check_header(const block_interface_t* restrict interface, uintptr
         return -EINVAL;
     }
 
-    size_t entries_size = (size_t)(entry_count) * entry_size;
+    size_t entries_size = (size_t)(entry_count) * (entry_size); // clang-format antics
     size_t entries_lbas = (entries_size + interface->sector_size - 1) / interface->sector_size;
 
     if(entry_start_lba >= interface->sector_count || entries_lbas > interface->sector_count - entry_start_lba) {

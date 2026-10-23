@@ -1,9 +1,9 @@
 #include <vex/assert.h>
-#include <vex/hwtree.h>
 #include <vex/device.h>
 #include <vex/device_bus.h>
 #include <vex/driver.h>
 #include <vex/errno.h>
+#include <vex/hwtree.h>
 #include <vex/intctl.h>
 #include <vex/kmalloc.h>
 #include <vex/kprintf.h>

@@ -310,7 +310,7 @@ int ext2_inode_offset(const ext2_vfs_context_t* restrict context, uint32_t ino, 
     uint32_t index = (ino - 1) % context->inodes_per_group;
     const ext2_group_desc_t* desc = &context->groups[group];
 
-    *out = ext2_block_offset(context, le32toh(desc->bg_inode_table)) + (uint64_t)(index) * context->inode_size;
+    *out = ext2_block_offset(context, le32toh(desc->bg_inode_table)) + (uint64_t)(index) * (context->inode_size); // clang-format antics
 
     return 0;
 }

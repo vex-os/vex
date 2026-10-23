@@ -94,7 +94,7 @@ static int setup_geometry(ext2_vfs_context_t* restrict context)
 
     uint32_t groups_count = (blocks_count - first_data_block + blocks_per_group - 1) / blocks_per_group;
 
-    if((uint64_t)(groups_count) * inodes_per_group != inodes_count) {
+    if((uint64_t)(groups_count) * (inodes_per_group) != inodes_count) { // clang-format antics
         return -EINVAL;
     }
 

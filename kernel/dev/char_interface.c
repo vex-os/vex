@@ -4,8 +4,8 @@
 #include <vex/char_interface.h>
 #include <vex/console.h>
 #include <vex/dev_name.h>
-#include <vex/hwtree.h>
 #include <vex/fcntl.h>
+#include <vex/hwtree.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
 
