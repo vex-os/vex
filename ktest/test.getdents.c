@@ -1,6 +1,7 @@
 #include <vex/dirent.h>
 #include <vex/errno.h>
 #include <vex/fcntl.h>
+#include <vex/limits.h>
 #include <vex/syscall.h>
 
 #include "ktest.h"
@@ -64,7 +65,7 @@ static long count_entries(const char* path, size_t buffer_size)
 
 static long create_files(const char* directory)
 {
-    char name[32];
+    char name[__k_PATH_SIZE];
 
     for(int i = 0; i < FILE_COUNT; ++i) {
         ktest_snprintf(name, sizeof(name), "%s/file-%d", directory, i);
@@ -85,7 +86,7 @@ static long create_files(const char* directory)
 static long count_while_unlinking(const char* directory)
 {
     alignas(8) char records[LARGE_BUFFER_SIZE];
-    char path[64];
+    char path[__k_PATH_SIZE];
     long fd = ktest_open(directory, __k_O_RDONLY, 0);
     long count = 0;
 
@@ -123,8 +124,8 @@ static long count_while_unlinking(const char* directory)
 // On FAT the long names take several slots of the directory
 static void test_fat(const char* work_directory)
 {
-    char mount_point[64];
-    char directory[80];
+    char mount_point[__k_PATH_SIZE];
+    char directory[__k_PATH_SIZE];
 
     ktest_snprintf(mount_point, sizeof(mount_point), "%s/fat", work_directory);
     ktest_snprintf(directory, sizeof(directory), "%s/tmp", mount_point);
