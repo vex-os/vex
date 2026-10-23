@@ -22,7 +22,7 @@ struct sink_s {
 static long kplog_fd = -1;
 static unsigned long mismatch_count;
 
-static _Alignas(16) char thread_stack[KTEST_THREAD_STACK_SIZE];
+static alignas(16) char thread_stack[KTEST_THREAD_STACK_SIZE];
 
 long ktest_tls_block[2];
 volatile unsigned int ktest_join_word;
@@ -521,7 +521,7 @@ static bool find_entry(const char* directory, char* name, size_t size)
         return false;
     }
 
-    _Alignas(8) char records[DIRENT_BUFFER_SIZE];
+    alignas(8) char records[DIRENT_BUFFER_SIZE];
     long filled = ktest_syscall3(__k_SYS_GETDENTS, fd, (long)(records), sizeof(records));
     bool found = false;
 
@@ -577,7 +577,7 @@ const char* ktest_enter_work_directory(const char* name)
     if(retval == -__k_EEXIST) {
         // The work directory lives on the disk, and the pid repeats on every boot
         bool removed = remove_tree(path);
-        ktest_kplog(__k_KP_WARNING, "ktest: stale %s %s", path, removed ? "removed" : "could not be removed");
+        ktest_printf("ktest: stale %s %s\n", path, removed ? "removed" : "could not be removed");
         retval = ktest_syscall3(__k_SYS_MKDIRAT, __k_AT_FDCWD, (long)(path), 0755);
     }
 

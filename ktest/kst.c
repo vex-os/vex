@@ -2,6 +2,7 @@
 #include <vex/ioctl.h>
 #include <vex/kplog.h>
 #include <vex/termios.h>
+#include <vex/time.h>
 #include <vex/utsname.h>
 #include <vex/wait.h>
 
@@ -16,8 +17,9 @@
 #define CLEAR_SCREEN     "\033[3J\033[2J\033[H"
 #define EXEC_FAILED_EXIT 127
 
-#define PREFIX_GOOD "[ OK ] "
-#define PREFIX_FAIL "[FAIL] "
+#define NANOSECONDS_PER_FRACTION 100000
+#define PREFIX_GOOD              "[ OK ] "
+#define PREFIX_FAIL              "[FAIL] "
 
 static const char* const test_names[] = { KST_TEST_NAMES };
 
@@ -183,19 +185,31 @@ static long wait_program(long child)
     return status;
 }
 
+static void print_result_prefix(const char* prefix)
+{
+    struct __k_timespec now = {};
+
+    ktest_syscall2(__k_SYS_GETTIME, __k_CLOCK_MONOTONIC, (long)(&now));
+
+    // Same layout as the timestamp of the kernel log
+    ktest_printf("%s[%5lu.%04lu] ", prefix, (unsigned long)(now.tv_sec), (unsigned long)(now.tv_nsec / NANOSECONDS_PER_FRACTION));
+}
+
 static bool run_program(const char* name)
 {
     char path[TEST_PATH_SIZE];
 
     if(!build_test_path(path, name)) {
-        ktest_printf(PREFIX_FAIL "%s (name too long)\n", name);
+        print_result_prefix(PREFIX_FAIL);
+        ktest_printf("%s (name too long)\n", name);
         return false;
     }
 
     long child = ktest_syscall1(__k_SYS_FORK, 0);
 
     if(child < 0) {
-        ktest_printf(PREFIX_FAIL "%s (fork %ld)\n", name, child);
+        print_result_prefix(PREFIX_FAIL);
+        ktest_printf("%s (fork %ld)\n", name, child);
         return false;
     }
 
@@ -207,16 +221,20 @@ static bool run_program(const char* name)
     long status = wait_program(child);
 
     if(status < 0) {
-        ktest_printf(PREFIX_FAIL "%s (waitpid %ld)\n", name, status);
+        print_result_prefix(PREFIX_FAIL);
+        ktest_printf("%s (waitpid %ld)\n", name, status);
     }
     else if(__k_WIFSIGNALED(status)) {
-        ktest_printf(PREFIX_FAIL "%s (signal %ld)\n", name, __k_WTERMSIG(status));
+        print_result_prefix(PREFIX_FAIL);
+        ktest_printf("%s (signal %ld)\n", name, __k_WTERMSIG(status));
     }
     else if(__k_WEXITSTATUS(status)) {
-        ktest_printf(PREFIX_FAIL "%s (exit %ld)\n", name, __k_WEXITSTATUS(status));
+        print_result_prefix(PREFIX_FAIL);
+        ktest_printf("%s (exit %ld)\n", name, __k_WEXITSTATUS(status));
     }
     else {
-        ktest_printf(PREFIX_GOOD "%s\n", name);
+        print_result_prefix(PREFIX_GOOD);
+        ktest_printf("%s\n", name);
         return true;
     }
 
