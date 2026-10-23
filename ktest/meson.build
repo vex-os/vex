@@ -146,7 +146,7 @@ ktest_image = custom_target('vexsys.boot.img',
 alias_target('ktest-image', ktest_image)
 
 run_target('ktest-run',
-    command: [find_program('sh'), files('run-qemu-' + arch + '.sh')],
+    command: [find_program('sh'), files('qemu.' + arch + '.sh')],
     env: {'VEX_IMAGE': ktest_image.full_path()},
     depends: ktest_image,
 )
