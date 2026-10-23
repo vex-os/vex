@@ -39,6 +39,7 @@ qargs="${qargs} -smp 4"
 for arg in "$@"; do
     case "${arg}" in
         slow)    qargs="${qargs} -icount shift=0,sleep=on" ;;
+        slow=*)  qargs="${qargs} -icount shift=${arg#slow=},sleep=on" ;;
         verbose) qargs="${qargs} -d cpu_reset,int -no-reboot -no-shutdown" ;;
         [0-9]*) logfile="qemu_${arg}.log" ;;
     esac

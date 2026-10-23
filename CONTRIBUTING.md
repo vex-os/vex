@@ -36,7 +36,7 @@ ninja -C build ktest-run          # builds the image and boots it in QEMU with O
 - `ktest/qemu.amd64.sh` puts the shell port on stdio (Ctrl-A X quits QEMU) and the log port in `kernel.log`. It switches the terminal to raw
   mode, as the terminal would otherwise echo each line and the guest echoes it again. Under WSL it calls `qemu-system-x86_64.exe` with
   Windows paths. Extra arguments:
-  - `slow`: icount.
+  - `slow`: icount. `slow=N` sets the icount shift: one instruction takes 2^N ns, so a bigger N is slower (`slow` is `slow=0`).
   - `verbose`: `-d cpu_reset,int -no-reboot`.
   - a number `N`: log to `qemu_N.log` instead of `qemu.log`.
 - `ktest/limine.conf.in` is a template. `ktest/meson.build` sets the terminal (`tty1337`), the shell port (`serial1`, COM1) and the log port
