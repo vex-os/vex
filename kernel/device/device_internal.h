@@ -60,15 +60,15 @@ void device_wake_waiters(device_t* restrict provider);
 
 void device_log_wait(device_t* restrict device, const char* restrict path, const driver_t* restrict driver);
 
-void devctl_node_added(device_t* restrict device);
-void devctl_node_removed(const device_t* restrict device);
-void devctl_node_bound(const device_t* restrict device);
-void devctl_node_unbound(const device_t* restrict device, const driver_t* restrict driver);
+void hwtree_node_added(device_t* restrict device);
+void hwtree_node_removed(const device_t* restrict device);
+void hwtree_node_bound(const device_t* restrict device);
+void hwtree_node_unbound(const device_t* restrict device, const driver_t* restrict driver);
 
 /// @pre The device waits, with waits_for or waits_for_fwnode set
-void devctl_node_waiting(const device_t* restrict device, const driver_t* restrict driver);
+void hwtree_node_waiting(const device_t* restrict device, const driver_t* restrict driver);
 
-void devctl_attach_failed(const device_t* restrict device, const driver_t* restrict driver, int error);
+void hwtree_attach_failed(const device_t* restrict device, const driver_t* restrict driver, int error);
 
 static __always_inline bool device_is_range(const fwnode_resource_t* restrict resource)
 {

@@ -63,8 +63,8 @@ dev_prefix_t dev_prefix_kplog = {
     .string = "kplog",
 };
 
-dev_prefix_t dev_prefix_devctl = {
-    .string = "devctl",
+dev_prefix_t dev_prefix_hwtree = {
+    .string = "hwtree",
 };
 
 static dev_prefix_t* const dev_prefixes[] = {
@@ -79,7 +79,7 @@ static dev_prefix_t* const dev_prefixes[] = {
     &dev_prefix_serialtest,
     &dev_prefix_fbd,
     &dev_prefix_kplog,
-    &dev_prefix_devctl,
+    &dev_prefix_hwtree,
 };
 
 static void link_unit_locked(dev_prefix_t* restrict prefix, dev_unit_t* restrict unit, dev_unit_t* restrict prev, unsigned number)
@@ -101,7 +101,7 @@ static void link_unit_locked(dev_prefix_t* restrict prefix, dev_unit_t* restrict
     }
 }
 
-// unit=ada0,acpi:PCI0/pci:0000:00:1f.2 pins ada0 to the node with that path, as /dev/devctl shows it
+// unit=ada0,acpi:PCI0/pci:0000:00:1f.2 pins ada0 to the node with that path, as /dev/hwtree shows it
 static bool parse_pinned(const char* restrict value, size_t* restrict prefix_length, unsigned* restrict number, const char** restrict path)
 {
     size_t letters = 0;

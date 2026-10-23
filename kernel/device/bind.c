@@ -132,7 +132,7 @@ static void bind(device_t* restrict device)
     if(retval == -EAGAIN && device_is_waiting(device)) {
         device_log_wait(device, path, best.driver);
         device_start_waiting(device);
-        devctl_node_waiting(device, best.driver);
+        hwtree_node_waiting(device, best.driver);
         return;
     }
 
@@ -141,14 +141,14 @@ static void bind(device_t* restrict device)
         device_stop_waiting(device);
         device->priv.state = DEVICE_PRESENT;
         device->priv.attach_failed = true;
-        devctl_attach_failed(device, best.driver, retval);
+        hwtree_attach_failed(device, best.driver, retval);
         return;
     }
 
     device->driver = best.driver;
     device->priv.state = DEVICE_BOUND;
     pr_verbose("device: %s bound to %s", path, best.driver->name);
-    devctl_node_bound(device);
+    hwtree_node_bound(device);
 
     device_wake_waiters(device);
 }
@@ -247,7 +247,7 @@ static void unbind_node(device_t* device)
     device->priv.state = DEVICE_PRESENT;
 
     pr_verbose("device: %s unbound from %s", path, driver->name);
-    devctl_node_unbound(device, driver);
+    hwtree_node_unbound(device, driver);
 }
 
 // The tree's reference goes last, so the node stays with whoever
@@ -290,7 +290,7 @@ static void remove_node(device_t* device)
     mutex_release(&device_tree_mutex);
 
     pr_verbose("device: removed %s", path);
-    devctl_node_removed(device);
+    hwtree_node_removed(device);
 
     device_wake_waiters(device);
     device_decref(device);
@@ -501,7 +501,7 @@ int device_add_bound(device_t* restrict parent, const fwnode_t* restrict fwnode,
     char path[DEVICE_PATH_MAX];
     device_get_path(added, path, sizeof(path));
     pr_verbose("device: %s bound to %s", path, driver->name);
-    devctl_node_bound(added);
+    hwtree_node_bound(added);
 
     return 0;
 }

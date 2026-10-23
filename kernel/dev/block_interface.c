@@ -2,7 +2,7 @@
 #include <vex/block_event.h>
 #include <vex/block_interface.h>
 #include <vex/dev_name.h>
-#include <vex/devctl.h>
+#include <vex/hwtree.h>
 #include <vex/kmalloc.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -35,7 +35,7 @@ static int block_interface_register_internal(block_interface_t* restrict interfa
     block_event_notify(BLOCK_EVENT_INTERFACE_ADDED, interface);
 
     if(interface->device) {
-        devctl_interface_added(interface->device, "block", interface->name);
+        hwtree_interface_added(interface->device, "block", interface->name);
     }
 
     block_event_unlock();
@@ -123,7 +123,7 @@ int block_interface_remove(block_interface_t* restrict interface)
     block_event_notify(BLOCK_EVENT_INTERFACE_REMOVED, interface);
 
     if(interface->device) {
-        devctl_interface_removed(interface->device, interface->name);
+        hwtree_interface_removed(interface->device, interface->name);
     }
 
     block_event_unlock();

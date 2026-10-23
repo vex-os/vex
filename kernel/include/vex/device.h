@@ -71,7 +71,7 @@ device_t* device_get_root(void) __nodiscard;
 /// Adds a node below a parent, with the firmware's description of it
 /// @param fwnode nullptr when the firmware doesn't describe the node
 /// @param name The last component of the node's path, such as pci:0000:00:1f.0 or acpi:SIO
-/// @param bus_data What the parent bus keeps about the node, or nullptr. It is set before /dev/devctl tells of the node
+/// @param bus_data What the parent bus keeps about the node, or nullptr. It is set before /dev/hwtree tells of the node
 /// @param device Gets a new reference to the node, beside the one the tree holds
 /// @retval -EEXIST The parent has a child with the name
 /// @retval -ENOMEM Out of memory

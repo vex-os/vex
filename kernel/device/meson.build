@@ -1,7 +1,7 @@
 kernel_sources += files(
     'bind.c',
     'depend.c',
-    'devctl.c',
+    'hwtree.c',
     'resource.c',
     'tree.c',
 )

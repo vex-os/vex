@@ -19,7 +19,7 @@ struct resource_list_s {
 
 mutex_t device_tree_mutex = MUTEX_INIT;
 static device_t* root = nullptr;
-static uint64_t next_id = 1; // The root is 0, which /dev/devctl gives as the parent of its children
+static uint64_t next_id = 1; // The root is 0, which /dev/hwtree gives as the parent of its children
 
 // A window is what a node passes on to its children, not registers of its own
 static void collect_resource(const fwnode_resource_t* resource, void* arg)
@@ -174,7 +174,7 @@ static int add_node(device_t* restrict parent, const fwnode_t* restrict fwnode, 
     device_get_path(child, path, sizeof(path));
     pr_verbose("device: added %s", path);
 
-    devctl_node_added(child);
+    hwtree_node_added(child);
 
     *device = child;
 

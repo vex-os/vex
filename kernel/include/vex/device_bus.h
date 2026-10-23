@@ -7,7 +7,7 @@
 #include <vex/types.h>
 
 typedef struct device_s device_t;
-typedef struct devctl_line_s devctl_line_t;
+typedef struct __k_hwtree_record hwtree_record_t;
 typedef struct driver_match_s driver_match_t;
 typedef struct interrupt_action_s interrupt_action_t;
 
@@ -30,8 +30,8 @@ struct bus_ops_s {
     /// @return Whether a child matches an entry of a driver's table that is of the bus's own kinds
     bool (*match)(device_t* restrict bus, device_t* restrict child, const driver_match_t* restrict match);
 
-    /// Adds what the bus knows of a child to the line that /dev/devctl gives for it, through devctl_put
-    void (*describe_child)(device_t* restrict bus, device_t* restrict child, devctl_line_t* restrict line);
+    /// Adds what the bus knows of a child to the record that /dev/hwtree gives for it, through hwtree_put
+    void (*describe_child)(device_t* restrict bus, device_t* restrict child, hwtree_record_t* restrict record);
 
     /// Gets a register range of a child, as an address on this bus
     /// @param index Counts the child's port and memory ranges together, in the bus's order

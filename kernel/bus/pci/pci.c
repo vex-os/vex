@@ -1,5 +1,5 @@
 #include <vex/assert.h>
-#include <vex/devctl.h>
+#include <vex/hwtree.h>
 #include <vex/device.h>
 #include <vex/device_bus.h>
 #include <vex/driver.h>
@@ -324,13 +324,13 @@ static void pci_disable_irq(device_t* restrict bus, device_t* restrict child, un
     pci_write_config16(function, PCI_CFG_COMMAND, command | PCI_CMD_INT_DISABLE);
 }
 
-static void pci_describe_child(device_t* restrict bus, device_t* restrict child, devctl_line_t* restrict line)
+static void pci_describe_child(device_t* restrict bus, device_t* restrict child, hwtree_record_t* restrict record)
 {
     const pci_function_t* function = child->bus_data;
 
-    devctl_put(line, "vendor", "%04x", function->vendor_id);
-    devctl_put(line, "device", "%04x", function->device_id);
-    devctl_put(line, "class", "%02x%02x", function->class_id, function->subclass_id);
+    hwtree_put(record, "vendor", "%04x", function->vendor_id);
+    hwtree_put(record, "device", "%04x", function->device_id);
+    hwtree_put(record, "class", "%02x%02x", function->class_id, function->subclass_id);
 }
 
 // The driver released the function. Bus mastering stays off until the next driver turns it on

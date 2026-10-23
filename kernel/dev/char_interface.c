@@ -4,7 +4,7 @@
 #include <vex/char_interface.h>
 #include <vex/console.h>
 #include <vex/dev_name.h>
-#include <vex/devctl.h>
+#include <vex/hwtree.h>
 #include <vex/fcntl.h>
 #include <vex/spinlock.h>
 #include <vex/string.h>
@@ -42,7 +42,7 @@ static int char_interface_register_internal(char_interface_t* restrict interface
     char_event_notify(CHAR_EVENT_INTERFACE_ADDED, interface);
 
     if(interface->device) {
-        devctl_interface_added(interface->device, "char", interface->name);
+        hwtree_interface_added(interface->device, "char", interface->name);
     }
 
     char_event_unlock();
@@ -108,7 +108,7 @@ int char_interface_remove(char_interface_t* restrict interface)
             char_event_notify(CHAR_EVENT_INTERFACE_REMOVED, interface);
 
             if(interface->device) {
-                devctl_interface_removed(interface->device, interface->name);
+                hwtree_interface_removed(interface->device, interface->name);
             }
 
             char_event_unlock();
