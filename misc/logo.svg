@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="400" height="400">
+  <title>Vex</title>
+  <rect width="400" height="400" fill="#0d1117"/>
+  <g stroke="#0d1117" stroke-width="4" stroke-linejoin="round">
+    <polygon fill="#2f3f5c" points="200,20 355.9,110 355.9,290 200,380 44.1,290 44.1,110"/>
+    <polygon fill="#1f8a9c" points="200,55 325.6,127.5 325.6,272.5 200,345 74.4,272.5 74.4,127.5"/>
+    <polygon fill="#e3a52f" points="200,90 295.3,145 295.3,255 200,310 104.7,255 104.7,145"/>
+    <polygon fill="#e5484d" points="200,125 265,162.5 265,237.5 200,275 135,237.5 135,162.5"/>
+  </g>
+  <polyline points="170,160 200,236 230,160" fill="none" stroke="#ffffff" stroke-width="14" stroke-linejoin="miter" stroke-linecap="butt"/>
+</svg>
